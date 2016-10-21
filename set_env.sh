@@ -7,7 +7,8 @@ echo "HMLP_DIR = $HMLP_DIR"
 #export HMLP_ARCH_MINOR=kepler
 
 export HMLP_ARCH_MAJOR=x86_64
-export HMLP_ARCH_MINOR=sandybridge
+#export HMLP_ARCH_MINOR=sandybridge
+export HMLP_ARCH_MINOR=haswell
 
 
 export HMLP_ARCH=$HMLP_ARCH_MAJOR/$HMLP_ARCH_MINOR
@@ -35,4 +36,4 @@ echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 export KMP_AFFINITY=compact
 export OMP_NUM_THREADS=4
 export KS_IC_NT=2
-export KS_JR_NT=2
+export KS_JR_NT=1
