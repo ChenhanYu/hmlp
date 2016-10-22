@@ -80,7 +80,7 @@ inline void packu_rhsxmc(
     TC *u, int ldu, int *umap, TC *packu )
 {
   int i, p;
-  TC *u_pntr[ DKS_PACK_MR ];
+  TC *u_pntr[ PACK_MR ];
 
   for ( i = 0; i < m; i ++ )  u_pntr[ i ] = u + ldu * umap[ i ];
   for ( p = 0; p < rhs; p ++ ) 

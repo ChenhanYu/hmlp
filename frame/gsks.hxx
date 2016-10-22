@@ -157,20 +157,14 @@ void gsks(
     )
 {
   int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
-  int ldpackc, padn;
+  int ldpackc = 0, padn = 0;
   char *str;
 
-  TA *packA  = NULL;
-  TB *packB  = NULL;
-  TV *packC  = NULL;
-
-  TA *packA2 = NULL;
-  TB *packB2 = NULL;
-  TC *packu  = NULL;
-  TC *packw  = NULL;
-
-  TV *packAh = NULL;
-  TV *packBh = NULL;
+  TC *packu_buff = NULL;
+  TA *packA_buff = NULL, *packA2_buff = NULL, *packAh_buff = NULL;
+  TB *packB_buff = NULL, *packB2_buff = NULL, *packBh_buff = NULL;
+  TC *packw_buff = NULL;
+  TV *packC = NULL;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
@@ -182,14 +176,14 @@ void gsks(
   if ( str ) jr_nt = (int)strtol( str, NULL, 10 );
 
   // allocate packing memory
-  packA  = hmlp_malloc<SIMD_ALIGN_SIZE, TA>(    KC, ( PACK_MC + 1 ) * ic_nt, sizeof(TA) );
-  packB  = hmlp_malloc<SIMD_ALIGN_SIZE, TB>(    KC, ( PACK_NC + 1 )        , sizeof(TB) ); 
+  packA_buff  = hmlp_malloc<SIMD_ALIGN_SIZE, TA>(    KC, ( PACK_MC + 1 ) * ic_nt, sizeof(TA) );
+  packB_buff  = hmlp_malloc<SIMD_ALIGN_SIZE, TB>(    KC, ( PACK_NC + 1 )        , sizeof(TB) ); 
 
   // allocate extra packing buffer
-  packA2 = hmlp_malloc<SIMD_ALIGN_SIZE, TA>(     1, ( PACK_MC + 1 ) * ic_nt, sizeof(TA) );
-  packB2 = hmlp_malloc<SIMD_ALIGN_SIZE, TB>(     1, ( PACK_NC + 1 )        , sizeof(TB) ); 
-  packu  = hmlp_malloc<SIMD_ALIGN_SIZE, TC>( jr_nt, ( PACK_MC + 1 ) * ic_nt, sizeof(TC) );
-  packw  = hmlp_malloc<SIMD_ALIGN_SIZE, TC>(     1, ( PACK_NC + 1 )        , sizeof(TC) ); 
+  packA2_buff = hmlp_malloc<SIMD_ALIGN_SIZE, TA>(     1, ( PACK_MC + 1 ) * ic_nt, sizeof(TA) );
+  packB2_buff = hmlp_malloc<SIMD_ALIGN_SIZE, TB>(     1, ( PACK_NC + 1 )        , sizeof(TB) ); 
+  packu_buff  = hmlp_malloc<SIMD_ALIGN_SIZE, TC>( jr_nt, ( PACK_MC + 1 ) * ic_nt, sizeof(TC) );
+  packw_buff  = hmlp_malloc<SIMD_ALIGN_SIZE, TC>(     1, ( PACK_NC + 1 )        , sizeof(TC) ); 
 
 
   if ( pack_bandwidth )
@@ -197,18 +191,14 @@ void gsks(
   }
 
 
-
-
-
-  ldpackc  = ( ( m - 1 ) / PACK_MR + 1 ) * PACK_MR;
-  padn = NC;
-  if ( n < NC ) 
-  {
-    padn = ( ( n - 1 ) / PACK_NR + 1 ) * PACK_NR;
-  }
-
   // Temporary bufferm <TV> to store the semi-ring rank-k update
-  packC = hmlp_malloc<SIMD_ALIGN_SIZE, TV>( ldpackc, padn, sizeof(TV) ); 
+  if ( k > KC )
+  {
+    ldpackc  = ( ( m - 1 ) / PACK_MR + 1 ) * PACK_MR;
+    padn = NC;
+    if ( n < NC ) padn = ( ( n - 1 ) / PACK_NR + 1 ) * PACK_NR;
+    packC = hmlp_malloc<SIMD_ALIGN_SIZE, TV>( ldpackc, padn, sizeof(TV) ); 
+  }
 
   // allocate tree communicator
   thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
@@ -216,6 +206,20 @@ void gsks(
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
     worker thread( &my_comm );
+
+    TC *packu = NULL;
+    TA *packA = NULL, *packA2 = NULL, *packAh = NULL;
+    TB *packB = NULL, *packB2 = NULL, *packBh = NULL;
+    TC *packw = NULL;
+
+    packu  = packu_buff  + ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC * KS_RHS;
+    packA  = NULL;
+    packA2 = packA2_buff + thread.ic_id * PACK_MC;
+    packAh = packAh_buff + thread.ic_id * PACK_MC;
+    packB  = packB_buff;
+    packB2 = packB2_buff;
+    packBh = packBh_buff;
+    packw  = packw_buff;
 
     for ( int jc = 0; jc < n; jc += NC )         // beg 6th loop 
     {
@@ -226,6 +230,8 @@ void gsks(
       {
         thread_communicator &pc_comm = *thread.pc_comm;
         int pb = min( k - pc, KC );
+
+        packA  = packA_buff + thread.ic_id * PACK_MC * pb;
 
         for ( int j   = thread.tid * NR, 
                   jp  = thread.tid * PACK_NR; 
@@ -273,7 +279,8 @@ void gsks(
             packA_kcxmc<PACK_MR> ( 
                 min( ib - i, MR ), pb,
                 &A[ pc ], k, &amap[ ic + i ], 
-                &packA[ thread.ic_id * PACK_MC * pb + ip * pb ] );
+                //&packA[ thread.ic_id * PACK_MC * pb + ip * pb ] );
+                &packA[ ip * pb ] );
 
             if ( pc + KC >= k )
             {
@@ -281,11 +288,13 @@ void gsks(
               {
                 if ( pack_norm ) 
                 {
-                  packA2[ thread.ic_id * PACK_MC + ip + ir ] =         A2[ amap[ ic + i + ir ] ];
+                  //packA2[ thread.ic_id * PACK_MC + ip + ir ] =         A2[ amap[ ic + i + ir ] ];
+                  packA2[ ip + ir ] =         A2[ amap[ ic + i + ir ] ];
                 }
                 if ( pack_bandwidth ) 
                 {
-                  packAh[ thread.ic_id * PACK_MC + ip + ir ] = kernel->hi[ amap[ ic + i + ir ] ];
+                  //packAh[ thread.ic_id * PACK_MC + ip + ir ] = kernel->hi[ amap[ ic + i + ir ] ];
+                  packAh[ ip + ir ] = kernel->hi[ amap[ ic + i + ir ] ];
                 }
               }
             }
@@ -297,7 +306,8 @@ void gsks(
             {
               for ( int ir = 0; ir < min( ib - i, MR ); ir ++ )
               {
-                packu[ ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC + ip + ir ] = 0.0;
+                //packu[ ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC + ip + ir ] = 0.0;
+                packu[ ip + ir ] = 0.0;
               }
             }
           }
@@ -312,7 +322,8 @@ void gsks(
                thread, 
                ic, jc, pc,
                ib, jb, pb,
-               packA + thread.ic_id * PACK_MC * pb,
+               //packA + thread.ic_id * PACK_MC * pb,
+               packA,
                packB,
                packC + ic * padn,            // packed
                ( ( ib - 1 ) / MR + 1 ) * MR, // packed ldc
@@ -328,10 +339,14 @@ void gsks(
                thread, 
                ic, jc, pc,
                ib, jb, pb,
-               packu  + ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC * KS_RHS,
-               packA  + thread.ic_id * PACK_MC * pb,
-               packA2 + thread.ic_id * PACK_MC,
-               packAh + thread.ic_id * PACK_MC,
+               //packu  + ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC * KS_RHS,
+               packu,
+               //packA  + thread.ic_id * PACK_MC * pb,
+               packA,
+               //packA2 + thread.ic_id * PACK_MC,
+               packA2,
+               //packAh + thread.ic_id * PACK_MC,
+               packAh,
                packB,
                packB2,
                packBh,
@@ -356,7 +371,8 @@ void gsks(
                 //    *uptr,  packu[ ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC + ip + ir ] );
 
                 #pragma omp atomic update
-                *uptr += packu[ ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC + ip + ir ];
+                //*uptr += packu[ ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC + ip + ir ];
+                *uptr += packu[ ip + ir ];
               }
             }
           }
