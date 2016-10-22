@@ -28,7 +28,7 @@ void thread_communicator::Create( int level, int num_threads, int *config )
     else if ( level == 1 ) name = "jr_comm";
     else                   name = "na_comm";
 
-    std::cout << name << ", " << n_threads << ", " << n_groups << "\n";
+    // std::cout << name << ", " << n_threads << ", " << n_groups << "\n";
 
     kids = new thread_communicator[ n_groups ]();
     for ( int i = 0; i < n_groups; i ++ ) 

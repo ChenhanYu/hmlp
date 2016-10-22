@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <omp.h>
 
+#ifdef HMLP_MIC_AVX512
+#include <hbwmalloc.h>
+#endif
+
 namespace hmlp
 {
 
@@ -13,8 +17,11 @@ T *hmlp_malloc( int m, int n, int size )
 {
   T *ptr;
   int err;
-
+#ifdef HMLP_MIC_AVX512
+  err = hbw_posix_memalign( (void**)&ptr, (size_t)SIMD_ALIGN_SIZE, size * m * n );
+#else
   err = posix_memalign( (void**)&ptr, (size_t)SIMD_ALIGN_SIZE, size * m * n );
+#endif
 
   if ( err ) 
   {

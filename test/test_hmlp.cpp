@@ -31,7 +31,11 @@
 #include <math.h>
 #include <hmlp.h>
 
-#define NUM_POINTS 10240
+#ifdef HMLP_MIC_AVX512
+#include <hbwmalloc.h>
+#endif
+
+#define NUM_POINTS 24000
 #define GFLOPS 1073741824 
 #define TOLERANCE 1E-13
 
@@ -105,6 +109,19 @@ void test_hmlp( int m, int n, int k )
   // ------------------------------------------------------------------------
   // Memory allocation for all common buffers
   // ------------------------------------------------------------------------
+#ifdef HMLP_MIC_AVX512
+  amap = (int*)hwb_malloc( sizeof(int) * m );
+  umap = (int*)hwb_malloc( sizeof(int) * m );
+  bmap = (int*)hwb_malloc( sizeof(int) * n );
+  wmap = (int*)hwb_malloc( sizeof(int) * n );
+  XA   = (double*)hwb_malloc( sizeof(double) * k * nx );   // k   leading
+  XA2  = (double*)hwb_malloc( sizeof(double) * nx );
+  u    = (double*)hwb_malloc( sizeof(double) * nx * rhs ); // rhs leading
+  w    = (double*)hwb_malloc( sizeof(double) * nx * rhs ); // rhs leading
+  umkl = (double*)hwb_malloc( sizeof(double) * nx * rhs ); // rhs leading
+  C    = (double*)hwb_malloc( sizeof(double) * m * n );
+  C_ref= (double*)hwb_malloc( sizeof(double) * m * n );
+#else
   amap = (int*)malloc( sizeof(int) * m );
   umap = (int*)malloc( sizeof(int) * m );
   bmap = (int*)malloc( sizeof(int) * n );
@@ -116,6 +133,7 @@ void test_hmlp( int m, int n, int k )
   umkl = (double*)malloc( sizeof(double) * nx * rhs ); // rhs leading
   C    = (double*)malloc( sizeof(double) * m * n );
   C_ref= (double*)malloc( sizeof(double) * m * n );
+#endif
   // ------------------------------------------------------------------------
 
 
@@ -131,17 +149,13 @@ void test_hmlp( int m, int n, int k )
   }
 
   for ( i = 0; i < m; i ++ ) {
-    //amap[ i ] = i * 2;
     amap[ i ] = i;
-    umap[ i ] = i * 2;
-    //umap[ i ] = i;
+    umap[ i ] = i;
   }
 
   for ( j = 0; j < n; j ++ ) {
-    //bmap[ j ] = j * 2 + 1;
     bmap[ j ] = j;
-    wmap[ j ] = j * 2 + 1;
-    //wmap[ j ] = j;
+    wmap[ j ] = j;
   }
 
   // random[ 0, 0.1 ]
@@ -278,7 +292,7 @@ void test_hmlp( int m, int n, int k )
 
 
 
-  flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k );
+  flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 37.0 );
   printf( "%d, %d, %d, %5.2lf, %5.2lf;\n", 
       m, n, k, flops / dgsks_time, flops / ref_time );
 

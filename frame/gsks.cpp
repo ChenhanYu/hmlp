@@ -2,9 +2,11 @@
 // #include <rankk_int_d8x4.hxx>
 // #include <gaussian_d8x4.hpp>
 
-#include <rank_k_asm_d8x6.hpp>
-#include <gaussian_d8x6.hpp>
+// #include <rank_k_asm_d8x6.hpp>
+// #include <gaussian_d8x6.hpp>
 
+#include <rank_k_int_d24x8.hpp>
+#include <gaussian_int_d24x8.hpp>
 
 void dgsks(
     ks_t *kernel,
@@ -22,18 +24,27 @@ void dgsks(
       // rankk_int_d8x4 semiringkernel;
       // gaussian_ref_d8x4 microkernel;
 
-      rank_k_asm_d8x6 semiringkernel;
-      gaussian_int_d8x6 microkernel;
+      // rank_k_asm_d8x6 semiringkernel;
+      // gaussian_int_d8x6 microkernel;
+
+      rank_k_int_d24x8 semiringkernel;
+      gaussian_int_d24x8 microkernel;
+
 
       //gsks<104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
       //  true, false,
       //  rankk_int_d8x4,
       //  gaussian_ref_d8x4,
       //  double, double, double, double>
-      gsks<72, 960, 256, 8, 6, 72, 960, 8, 6, 32,
+      //gsks<72, 960, 256, 8, 6, 72, 960, 8, 6, 32,
+      //  true, false,
+      //  rank_k_asm_d8x6,
+      //  gaussian_int_d8x6,
+      //  double, double, double, double>
+      gsks<120, 14400, 336, 24, 8, 120, 14400, 24, 8, 64,
         true, false,
-        rank_k_asm_d8x6,
-        gaussian_int_d8x6,
+        rank_k_int_d24x8,
+        gaussian_int_d24x8,
         double, double, double, double>
           ( kernel,
             m, n, k,
