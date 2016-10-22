@@ -4,7 +4,13 @@ INSTALL
 ---
 
 HMLP is tested on LINUX and OSX.
-Compilation REQUIRES Intel or GNU compilers with AVX and OpenMP support.
+Compilation REQUIRES:
+
+Intel or GNU compilers with AVX and OpenMP support (x86);
+
+Intel-16 or later compilers (KNL);
+
+nvcc (NVIDIA GPU).
 
 
 Configuration:
@@ -12,10 +18,10 @@ Configuration:
 
 Edit set_env.sh for compilation options.
 
-Set GSKS_USE_INTEL = true  to use Intel compilers (make.intel.inc).
-Set GSKS_USE_INTEL = false to use GNU compilers   (make.gnu.inc).
-Set GSKS_USE_BLAS  = false if you don't have a BLAS library.
-Set GSKS_USE_BLAS  = true  to activate Intel VML.
+Set HMLP_USE_INTEL = true  to use Intel compilers.
+Set HMLP_USE_INTEL = false to use GNU compilers.
+Set HMLP_USE_BLAS  = false if you don't have a BLAS library.
+Set HMLP_USE_VNL   = true  to activate Intel VML.
 
 The default BLAS library for Intel compiler is MKL, and the
 default BLAS for GNU is Netlib (-lblas).
@@ -23,10 +29,6 @@ default BLAS for GNU is Netlib (-lblas).
 
 Installation:
 -------------
-
-Use the standard makefile:
->source set_env.sh
->make
 
 Use cmake:
 >source set_env.sh
@@ -44,19 +46,17 @@ The default compilation will also compile all the test drivers.
 To run some basic examples from the testing drivers:
 
 >cd test
->./run_dgsks.sh
->./run_dgsks_list.sh
+>./run_hmlp.sh
 
 
-To us GSKS library you need to include the
-header files <gsks.h> and <omp_dgsks_list.h> 
-and link GSKS statically wich is in ${GSKS_DIR}/lib/libgsks.a.
+To us HMLP library you need to include the
+header files <hmlp.h> 
+and link HMLP statically wich is in ${HMLP_DIR}/build/lib/libhmlp.a.
 
 C/C++ example:
 ...
-#include <gsks.h>
-#include <omp_dgsks_list.h>
+#include <hmlp.h>
 ...
 
 Compilation example:
->icc ... -I$(GSKS_DIR)/include $(GSKS_DIR)/lib/libgsks.a
+>icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/lib/libgsks.a
