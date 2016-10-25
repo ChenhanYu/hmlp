@@ -110,17 +110,17 @@ void test_hmlp( int m, int n, int k )
   // Memory allocation for all common buffers
   // ------------------------------------------------------------------------
 #ifdef HMLP_MIC_AVX512
-  amap = (int*)hwb_malloc( sizeof(int) * m );
-  umap = (int*)hwb_malloc( sizeof(int) * m );
-  bmap = (int*)hwb_malloc( sizeof(int) * n );
-  wmap = (int*)hwb_malloc( sizeof(int) * n );
-  XA   = (double*)hwb_malloc( sizeof(double) * k * nx );   // k   leading
-  XA2  = (double*)hwb_malloc( sizeof(double) * nx );
-  u    = (double*)hwb_malloc( sizeof(double) * nx * rhs ); // rhs leading
-  w    = (double*)hwb_malloc( sizeof(double) * nx * rhs ); // rhs leading
-  umkl = (double*)hwb_malloc( sizeof(double) * nx * rhs ); // rhs leading
-  C    = (double*)hwb_malloc( sizeof(double) * m * n );
-  C_ref= (double*)hwb_malloc( sizeof(double) * m * n );
+  amap = (int*)hbw_malloc( sizeof(int) * m );
+  umap = (int*)hbw_malloc( sizeof(int) * m );
+  bmap = (int*)hbw_malloc( sizeof(int) * n );
+  wmap = (int*)hbw_malloc( sizeof(int) * n );
+  XA   = (double*)hbw_malloc( sizeof(double) * k * nx );   // k   leading
+  XA2  = (double*)hbw_malloc( sizeof(double) * nx );
+  u    = (double*)hbw_malloc( sizeof(double) * nx * rhs ); // rhs leading
+  w    = (double*)hbw_malloc( sizeof(double) * nx * rhs ); // rhs leading
+  umkl = (double*)hbw_malloc( sizeof(double) * nx * rhs ); // rhs leading
+  C    = (double*)hbw_malloc( sizeof(double) * m * n );
+  C_ref= (double*)hbw_malloc( sizeof(double) * m * n );
 #else
   amap = (int*)malloc( sizeof(int) * m );
   umap = (int*)malloc( sizeof(int) * m );
