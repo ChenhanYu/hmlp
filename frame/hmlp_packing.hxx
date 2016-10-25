@@ -1,6 +1,73 @@
 #ifndef HMLP_PACKING_HXX
 #define HMLP_PACKING_HXX
 
+#include <stdio.h>
+
+namespace hmlp
+{
+
+/**
+ *
+ */ 
+template<bool TRANS, int FOLD, bool ZEROPAD=false, typename T>
+inline void pack2D
+(
+  int m, int n,
+  T *X, int ldx, int *xmap, T *packX
+)
+{
+  T *x_pntr[ FOLD ];
+
+  if ( TRANS )
+  {
+    for ( auto i = 0; i < m; i ++ )
+    {
+      x_pntr[ i ] = X + ldx * xmap[ i ];
+    }
+    for ( auto i = m; i < FOLD; i ++ )
+    {
+      x_pntr[ i ] = X + ldx * xmap[ 0 ];
+    }
+    for ( auto j = 0; j < n; j ++ ) 
+    {
+      for ( auto i = 0; i < m; i ++ )
+      {
+        *packX ++ = *x_pntr[ i ] ++;
+      }
+      for ( auto i = m; i < FOLD; i ++ )
+      {
+        if ( ZEROPAD ) *packX ++ = (T)0.0;
+        else           *packX ++ = *x_pntr[ i ] ++;
+      }
+    }
+  }
+  else 
+  {
+    printf( "pack2D(): TRANS = false not yet implemented yet.\n" );
+  }
+}
+
+/**
+ *
+ */ 
+template<bool TRANS, int FOLD, bool ZEROPAD=false, typename T>
+inline void pack2D
+(
+  int m, int n,
+  T *X, int ldx, T *packX
+)
+{
+  int xmap[ FOLD ];
+  for ( int i = 0; i < FOLD; i ++ ) xmap[ i ] = i;
+  pack2D<TRANS, FOLD, ZEROPAD, T>
+  (
+    m, n, 
+    X, ldx, xmap, packX
+  );
+}
+
+
+
 /**
  *
  */ 
@@ -9,14 +76,13 @@ inline void packA_kcxmc(
     int m, int k,
     TA *A, int lda, int *amap, TA *packA )
 {
-  int i, p;
   TA *a_pntr[ PACK_MR ];
 
-  for ( i = 0; i < m; i ++ )       a_pntr[ i ] = A + lda * amap[ i ];
-  for ( i = m; i < PACK_MR; i ++ ) a_pntr[ i ] = A + lda * amap[ 0 ];
-  for ( p = 0; p < k; p ++ ) 
+  for ( auto i = 0; i < m; i ++ )       a_pntr[ i ] = A + lda * amap[ i ];
+  for ( auto i = m; i < PACK_MR; i ++ ) a_pntr[ i ] = A + lda * amap[ 0 ];
+  for ( auto p = 0; p < k; p ++ ) 
   {
-    for ( i = 0; i < PACK_MR; i ++ ) 
+    for ( auto i = 0; i < PACK_MR; i ++ ) 
     {
       *packA ++ = *a_pntr[ i ] ++;
     }
@@ -98,5 +164,5 @@ inline void packu_rhsxmc(
 
 
 
-
+};
 #endif // define HMLP_PACKING_HXX

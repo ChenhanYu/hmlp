@@ -32,6 +32,14 @@ class worker
 
     int ic_jr;
 
+    int jc_nt;
+
+    int pc_nt;
+
+    int ic_nt;
+
+    int jr_nt;
+
     thread_communicator *my_comm;
 
     thread_communicator *jc_comm;

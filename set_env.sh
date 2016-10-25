@@ -6,12 +6,12 @@ echo "HMLP_DIR = $HMLP_DIR"
 #export HMLP_ARCH_MAJOR=gpu
 #export HMLP_ARCH_MINOR=kepler
 
-# export HMLP_ARCH_MAJOR=x86_64
-# export HMLP_ARCH_MINOR=sandybridge
+export HMLP_ARCH_MAJOR=x86_64
+export HMLP_ARCH_MINOR=sandybridge
 # export HMLP_ARCH_MINOR=haswell
 
-export HMLP_ARCH_MAJOR=mic
-export HMLP_ARCH_MINOR=knl
+# export HMLP_ARCH_MAJOR=mic
+# export HMLP_ARCH_MINOR=knl
 
 export HMLP_ARCH=$HMLP_ARCH_MAJOR/$HMLP_ARCH_MINOR
 echo "HMLP_ARCH = $HMLP_ARCH"
@@ -29,17 +29,17 @@ export HMLP_USE_VML=true
 echo "HMLP_USE_VML = $HMLP_USE_VML"
 
 ## Compile with KNL -xMIC-AVX512
-export HMLP_MIC_AVX512=true
+export HMLP_MIC_AVX512=false
 
 ## Manually set the mkl path
-export HMLP_MKL_DIR=$TACC_MKL_DIR
-# export HMLP_MKL_DIR=/opt/intel/mkl
+# export HMLP_MKL_DIR=$TACC_MKL_DIR
+export HMLP_MKL_DIR=/opt/intel/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
 ## Parallel options
 #export KMP_AFFINITY=compact
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=68
-export KS_JC_NT=4
-export KS_IC_NT=17
+export OMP_NUM_THREADS=4
+export KS_JC_NT=1
+export KS_IC_NT=4
 export KS_JR_NT=1
