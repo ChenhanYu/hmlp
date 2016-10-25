@@ -23,13 +23,14 @@ worker::worker( thread_communicator *comm ) :
 
   pc_comm = &(jc_comm->kids[ pc_id ]);
 
+  ic_jr = tmp; // for parallel packB
   ic_id = tmp / ( pc_comm->GetNumThreads() / pc_comm->GetNumGroups() );
   jr_id = tmp % ( pc_comm->GetNumThreads() / pc_comm->GetNumGroups() );
 
   ic_comm = &(pc_comm->kids[ ic_id ]);
 
-  //printf( "tid %2d jc_id %2d pc_id %2d ic_id %2d jr_id %2d\n",
-  //    tid, jc_id, pc_id, ic_id, jr_id );
+  //printf( "tid %2d jc_id %2d pc_id %2d ic_id %2d jr_id %2d, ic_jr %2d\n",
+  //    tid, jc_id, pc_id, ic_id, jr_id, ic_jr );
 };
 
 };

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <omp.h>
 #include <immintrin.h> // AVX
 
 #include <hmlp.h>
@@ -90,22 +91,25 @@ struct gaussian_int_d24x8
 
 
 
-    // printf( "a\n" );
-    // printf( "%E, %E, %E, %E, %E, %E, %E, %E\n", a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7] );
-    // printf( "b\n" );
-    // printf( "%E, %E, %E, %E, %E, %E, %E, %E\n", b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7] );
+    //printf( "a\n" );
+    //printf( "%E, %E, %E, %E, %E, %E, %E, %E\n", a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7] );
+    //printf( "b\n" );
+    //printf( "%E, %E, %E, %E, %E, %E, %E, %E\n", b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7] );
 
     #include <rank_k_int_d24x8.h>
 
-    //printf( "c\n" );
-    //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[0], c07_1.d[0], c07_2.d[0], c07_3.d[0], c07_4.d[0], c07_5.d[0], c07_6.d[0], c07_7.d[0] );
-    //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[1], c07_1.d[1], c07_2.d[1], c07_3.d[1], c07_4.d[1], c07_5.d[1], c07_6.d[1], c07_7.d[1] );
-    //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[2], c07_1.d[2], c07_2.d[2], c07_3.d[2], c07_4.d[2], c07_5.d[2], c07_6.d[2], c07_7.d[2] );
-    //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[3], c07_1.d[3], c07_2.d[3], c07_3.d[3], c07_4.d[3], c07_5.d[3], c07_6.d[3], c07_7.d[3] );
-    //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[4], c07_1.d[4], c07_2.d[4], c07_3.d[4], c07_4.d[4], c07_5.d[4], c07_6.d[4], c07_7.d[4] );
-    //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[5], c07_1.d[5], c07_2.d[5], c07_3.d[5], c07_4.d[5], c07_5.d[5], c07_6.d[5], c07_7.d[5] );
-    //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[6], c07_1.d[6], c07_2.d[6], c07_3.d[6], c07_4.d[6], c07_5.d[6], c07_6.d[6], c07_7.d[6] );
-    //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[7], c07_1.d[7], c07_2.d[7], c07_3.d[7], c07_4.d[7], c07_5.d[7], c07_6.d[7], c07_7.d[7] );
+//    #pragma omp critical 
+//    {
+//      printf( "c (tid %d)\n", omp_get_thread_num() );
+//      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[0], c07_1.d[0], c07_2.d[0], c07_3.d[0], c07_4.d[0], c07_5.d[0], c07_6.d[0], c07_7.d[0] );
+//      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[1], c07_1.d[1], c07_2.d[1], c07_3.d[1], c07_4.d[1], c07_5.d[1], c07_6.d[1], c07_7.d[1] );
+//      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[2], c07_1.d[2], c07_2.d[2], c07_3.d[2], c07_4.d[2], c07_5.d[2], c07_6.d[2], c07_7.d[2] );
+//      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[3], c07_1.d[3], c07_2.d[3], c07_3.d[3], c07_4.d[3], c07_5.d[3], c07_6.d[3], c07_7.d[3] );
+//      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[4], c07_1.d[4], c07_2.d[4], c07_3.d[4], c07_4.d[4], c07_5.d[4], c07_6.d[4], c07_7.d[4] );
+//      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[5], c07_1.d[5], c07_2.d[5], c07_3.d[5], c07_4.d[5], c07_5.d[5], c07_6.d[5], c07_7.d[5] );
+//      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[6], c07_1.d[6], c07_2.d[6], c07_3.d[6], c07_4.d[6], c07_5.d[6], c07_6.d[6], c07_7.d[6] );
+//      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[7], c07_1.d[7], c07_2.d[7], c07_3.d[7], c07_4.d[7], c07_5.d[7], c07_6.d[7], c07_7.d[7] );
+//    }
 
     #include <sq2nrm_int_d24x8.h>
 

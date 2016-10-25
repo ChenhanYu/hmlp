@@ -276,6 +276,9 @@
   }
  
 
+  //printf( "c (tid %d)\n", omp_get_thread_num() );
+  //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[0], c07_1.d[0], c07_2.d[0], c07_3.d[0], c07_4.d[0], c07_5.d[0], c07_6.d[0], c07_7.d[0] );
+
   // Prefetch aa and bb
   //__asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( aa ) );
   //__asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( bb ) );
@@ -310,6 +313,13 @@
 
 	//cptr = ctmp;
 	cptr = c;
+
+    //#pragma omp critical 
+    //{
+    //  printf( "c (tid %d)\n", omp_get_thread_num() );
+    //  printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[0], c07_1.d[0], c07_2.d[0], c07_3.d[0], c07_4.d[0], c07_5.d[0], c07_6.d[0], c07_7.d[0] );
+    //  printf( "%lf, %lf, %lf, %lf\n", c[0], c[24], c[48], c[72] );
+    //}
 
 
     // packed

@@ -27,59 +27,47 @@ using namespace hmlp;
 template<int KC, int MR, int NR, int PACK_MR, int PACK_NR,
     typename SEMIRINGKERNEL,
     typename TA, typename TB, typename TC, typename TV>
-void rank_k_macro_kernel_new(
+void rank_k_macro_kernel(
         worker &thread,
         int ic, int jc, int pc,
-        int m, int n, int k,
+        int  m, int n,  int  k,
         TA *packA,
         TB *packB,
         TV *packC, int ldc,
         SEMIRINGKERNEL semiringkernel
         )
 {
-  struct aux_s<TA, TB, TC, TV> aux;
-
   thread_communicator &ic_comm = *thread.ic_comm;
-
+  struct aux_s<TA, TB, TC, TV> aux;
 
   aux.pc       = pc;
   aux.b_next   = packB;
   aux.do_packC = 1;
 
-  //printf( "ic %d, jc %d, pc %d, ldc %d, jr_id %d, m %d, n %d\n", ic, jc, pc, ldc, jr_id, m, n );
-
-  //for ( int i = 0; i < 8; i ++ ) printf( "%lf ", packA[ i ] );
-  //printf( "\n" );
-  //for ( int j = 0; j < 4; j ++ ) printf( "%lf ", packB[ j ] );
-  //printf( "\n" );
-
-  //printf( "ic_comm.GetNumThreads() %d jr_id %d n %d\n", ic_comm.GetNumThreads(), thread.jr_id, n );
-
-
   for ( int j  =  thread.jr_id * NR,
             jp =  thread.jr_id * PACK_NR; 
             j  <  n;
             j  += ic_comm.GetNumThreads() * NR, 
-            jp += ic_comm.GetNumThreads() * PACK_NR ) 
+            jp += ic_comm.GetNumThreads() * PACK_NR )      // beg 3rd loop
   {
-    for ( int i = 0, ip = 0; i < m; i += MR, ip += PACK_MR ) 
+    for ( int i  = 0, ip = 0; 
+              i  < m; 
+              i += MR, ip += PACK_MR )                     // beg 2nd loop
     {
       if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
-
-      //printf( "ip %d, jp %d, i %d, j %d, k %d, NR %d, PACK_NR %d\n", ip, jp, i, j, k, NR, PACK_NR );
-
-      semiringkernel(
-          k,
-          &packA[ ip * k ],
-          &packB[ jp * k ],
-          &packC[ j * ldc + i * NR ], ldc,
-          &aux
-          );
-    }
-  }
+      semiringkernel
+      (
+        k,
+        &packA[ ip * k ],
+        &packB[ jp * k ],
+        &packC[ j * ldc + i * NR ], ldc,
+        &aux
+      );
+    }                                                      // end 2nd loop
+  }                                                        // end 3rd loop
 }
 
 template<int KC, int MR, int NR, int PACK_MR, int PACK_NR,
@@ -109,42 +97,41 @@ void fused_macro_kernel(
             jp =  thread.jr_id * PACK_NR; 
             j  <  n;
             j  += ic_comm.GetNumThreads() * NR, 
-            jp += ic_comm.GetNumThreads() * PACK_NR ) 
+            jp += ic_comm.GetNumThreads() * PACK_NR )      // beg 3rd loop
   {
-    for ( int i = 0, ip = 0; i < m; i += MR, ip += PACK_MR ) 
+    for ( int i  = 0, ip = 0; 
+              i  < m; 
+              i += MR, ip += PACK_MR )                     // beg 2nd loop
     {
       if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
-
-      microkernel(
-          kernel,
-          k,
-          KS_RHS,
-          packu  + ip * KS_RHS,
-          packA  + ip * k,
-          packA2 + ip,
-          packB  + jp * k,
-          packB2 + jp,
-          packw  + jp * KS_RHS,
-          packC  + j * ldc + i * NR, // packed
-          &aux
-          );
-    }
-  }
+      microkernel
+      (
+        kernel,
+        k,
+        KS_RHS,
+        packu  + ip * KS_RHS,
+        packA  + ip * k,
+        packA2 + ip,
+        packB  + jp * k,
+        packB2 + jp,
+        packw  + jp * KS_RHS,
+        packC  + j * ldc + i * NR,                         // packed
+        &aux
+      );
+    }                                                      // end 2nd loop
+  }                                                        // end 3rd loop
 }
 
 
-
-
-
 template<
-int MC, int NC, int KC, int MR, int NR, 
-int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int SIMD_ALIGN_SIZE,
-bool pack_norm, bool pack_bandwidth,
-typename SEMIRINGKERNEL, typename MICROKERNEL,
-typename TA, typename TB, typename TC, typename TV>
+    int MC, int NC, int KC, int MR, int NR, 
+    int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
+    bool pack_norm, bool pack_bandwidth,
+    typename SEMIRINGKERNEL, typename MICROKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
 void gsks(
     ks_t *kernel,
     int m, int n, int k,
@@ -157,47 +144,61 @@ void gsks(
     )
 {
   int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
-  int ldpackc = 0, padn = 0;
+  int ldpackc = 0, padn = 0, nc = NC, pack_nc = PACK_NC;
   char *str;
 
   TC *packu_buff = NULL;
   TA *packA_buff = NULL, *packA2_buff = NULL, *packAh_buff = NULL;
   TB *packB_buff = NULL, *packB2_buff = NULL, *packBh_buff = NULL;
   TC *packw_buff = NULL;
-  TV *packC = NULL;
+  TV *packC_buff = NULL;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
 
   // Check the environment variable.
+  str = getenv( "KS_JC_NT" );
+  if ( str ) jc_nt = (int)strtol( str, NULL, 10 );
   str = getenv( "KS_IC_NT" );
   if ( str ) ic_nt = (int)strtol( str, NULL, 10 );
   str = getenv( "KS_JR_NT" );
   if ( str ) jr_nt = (int)strtol( str, NULL, 10 );
 
+
+  if ( jc_nt > 1 )
+  {
+    nc = ( ( n - 1 ) / ( NR * jc_nt ) + 1 ) * NR;
+    pack_nc = ( nc / NR ) * PACK_NR;
+  }
+
   // allocate packing memory
-  packA_buff  = hmlp_malloc<SIMD_ALIGN_SIZE, TA>(    KC, ( PACK_MC + 1 ) * ic_nt, sizeof(TA) );
-  packB_buff  = hmlp_malloc<SIMD_ALIGN_SIZE, TB>(    KC, ( PACK_NC + 1 )        , sizeof(TB) ); 
+  {
+    packA_buff  = hmlp_malloc<ALIGN_SIZE, TA>( KC, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );
+    packB_buff  = hmlp_malloc<ALIGN_SIZE, TB>( KC, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) ); 
+    packu_buff  = hmlp_malloc<ALIGN_SIZE, TC>(  1, ( PACK_MC + 1 ) * jc_nt * ic_nt * jr_nt, sizeof(TC) );
+    packw_buff  = hmlp_malloc<ALIGN_SIZE, TC>(  1, ( pack_nc + 1 ) * jc_nt,                 sizeof(TC) ); 
+  }
 
   // allocate extra packing buffer
-  packA2_buff = hmlp_malloc<SIMD_ALIGN_SIZE, TA>(     1, ( PACK_MC + 1 ) * ic_nt, sizeof(TA) );
-  packB2_buff = hmlp_malloc<SIMD_ALIGN_SIZE, TB>(     1, ( PACK_NC + 1 )        , sizeof(TB) ); 
-  packu_buff  = hmlp_malloc<SIMD_ALIGN_SIZE, TC>( jr_nt, ( PACK_MC + 1 ) * ic_nt, sizeof(TC) );
-  packw_buff  = hmlp_malloc<SIMD_ALIGN_SIZE, TC>(     1, ( PACK_NC + 1 )        , sizeof(TC) ); 
-
+  if ( pack_norm )
+  {
+    packA2_buff = hmlp_malloc<ALIGN_SIZE, TA>(  1, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );
+    packB2_buff = hmlp_malloc<ALIGN_SIZE, TB>(  1, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) ); 
+  }
 
   if ( pack_bandwidth )
   {
+    packAh_buff = hmlp_malloc<ALIGN_SIZE, TA>(  1, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );
+    packBh_buff = hmlp_malloc<ALIGN_SIZE, TB>(  1, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) ); 
   }
-
 
   // Temporary bufferm <TV> to store the semi-ring rank-k update
   if ( k > KC )
   {
     ldpackc  = ( ( m - 1 ) / PACK_MR + 1 ) * PACK_MR;
-    padn = NC;
-    if ( n < NC ) padn = ( ( n - 1 ) / PACK_NR + 1 ) * PACK_NR;
-    packC = hmlp_malloc<SIMD_ALIGN_SIZE, TV>( ldpackc, padn, sizeof(TV) ); 
+    padn = pack_nc;
+    if ( n < nc ) padn = ( ( n - 1 ) / PACK_NR + 1 ) * PACK_NR ;
+    packC_buff = hmlp_malloc<ALIGN_SIZE, TV>( ldpackc, padn * jc_nt, sizeof(TV) );
   }
 
   // allocate tree communicator
@@ -211,40 +212,47 @@ void gsks(
     TA *packA = NULL, *packA2 = NULL, *packAh = NULL;
     TB *packB = NULL, *packB2 = NULL, *packBh = NULL;
     TC *packw = NULL;
+    TV *packC = NULL;
 
-    packu  = packu_buff  + ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC * KS_RHS;
+    packu  = packu_buff  + ( thread.jc_id * ic_nt * jr_nt + thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC * KS_RHS;
     packA  = NULL;
-    packA2 = packA2_buff + thread.ic_id * PACK_MC;
-    packAh = packAh_buff + thread.ic_id * PACK_MC;
-    packB  = packB_buff;
-    packB2 = packB2_buff;
-    packBh = packBh_buff;
-    packw  = packw_buff;
+    packA2 = packA2_buff + ( thread.jc_id * ic_nt + thread.ic_id ) * PACK_MC;
+    packAh = packAh_buff + ( thread.jc_id * ic_nt + thread.ic_id ) * PACK_MC;
+    packB  = packB_buff  + ( thread.jc_id                        ) * pack_nc * KC;
+    packB2 = packB2_buff + ( thread.jc_id                        ) * pack_nc;
+    packBh = packBh_buff + ( thread.jc_id                        ) * pack_nc;
+    packw  = packw_buff  + ( thread.jc_id                        ) * pack_nc;
+    packC  = packC_buff  + ( thread.jc_id                        ) * ldpackc * padn;
 
-    for ( int jc = 0; jc < n; jc += NC )         // beg 6th loop 
+
+    for ( int jc  = thread.jc_id * nc; 
+              jc  < n; 
+              jc += jc_nt * nc )                           // beg 6th loop 
     {
       thread_communicator &jc_comm = *thread.jc_comm;
-      int jb = min( n - jc, NC );
+      int jb = min( n - jc, nc );
 
-      for ( int pc = 0; pc < k; pc += KC )       // beg 5th loop 
+      for ( int pc = 0; pc < k; pc += KC )                 // beg 5th loop 
       {
         thread_communicator &pc_comm = *thread.pc_comm;
+        bool is_the_last_pc_iteration = ( pc + KC >= k );
         int pb = min( k - pc, KC );
 
-        packA  = packA_buff + thread.ic_id * PACK_MC * pb;
+        packA = packA_buff + thread.jc_id * ic_nt * PACK_MC * KC 
+                           + thread.ic_id         * PACK_MC * pb;
 
-        for ( int j   = thread.tid * NR, 
-                  jp  = thread.tid * PACK_NR; 
+        for ( int j   = thread.ic_jr * NR, 
+                  jp  = thread.ic_jr * PACK_NR; 
                   j   < jb; 
-                  j  += jc_comm.GetNumThreads() * NR, 
-                  jp += jc_comm.GetNumThreads() * PACK_NR )  // packB [ num_threads ] threads
+                  j  += pc_comm.GetNumThreads() * NR, 
+                  jp += pc_comm.GetNumThreads() * PACK_NR ) 
         {
           packB_kcxnc<PACK_NR> (
               min( jb - j, NR ),
               pb, &B[ pc ], k, 
               &bmap[ jc + j ], &packB[ jp * pb ] );
 
-          if ( pc + KC >= k )
+          if ( is_the_last_pc_iteration )
           {
             for ( int jr = 0; jr < NR; jr ++ )
             {
@@ -258,132 +266,110 @@ void gsks(
             }
           }
         }                           
-
         pc_comm.Barrier();
-       // std::cout << "pc_comm.Barrier()\n";
 
         for ( int ic  = thread.ic_id * MC; 
                   ic  < m; 
-                  ic += ic_nt * MC )             // beg 4th loop
+                  ic += ic_nt * MC )                       // beg 4th loop
         {
           thread_communicator &ic_comm = *thread.ic_comm;
           int ib = min( m - ic, MC );
-          //std::cout << "ic_comm" << tid << ", " << ic_id << ", " << ic_comm.GetNumThreads() << "\n";
 
           for ( int i   = thread.jr_id * MR, 
                     ip  = thread.jr_id * PACK_MR; 
                     i   < ib; 
                     i  += jr_nt * MR, 
-                    ip += jr_nt * PACK_MR )      // packA [ jr_nt ] threads
+                    ip += jr_nt * PACK_MR )     
           {
-            packA_kcxmc<PACK_MR> ( 
-                min( ib - i, MR ), pb,
-                &A[ pc ], k, &amap[ ic + i ], 
-                //&packA[ thread.ic_id * PACK_MC * pb + ip * pb ] );
-                &packA[ ip * pb ] );
+            packA_kcxmc<PACK_MR> 
+            ( 
+              min( ib - i, MR ), pb,
+              &A[ pc ], k, &amap[ ic + i ], 
+              &packA[ ip * pb ] 
+            );
 
-            if ( pc + KC >= k )
+            if ( is_the_last_pc_iteration )               
             {
               for ( int ir = 0; ir < min( ib - i, MR ); ir ++ )
               {
-                if ( pack_norm ) 
+                if ( pack_norm )                           // l2-norm
                 {
-                  //packA2[ thread.ic_id * PACK_MC + ip + ir ] =         A2[ amap[ ic + i + ir ] ];
                   packA2[ ip + ir ] =         A2[ amap[ ic + i + ir ] ];
                 }
-                if ( pack_bandwidth ) 
+                if ( pack_bandwidth )                      // variable bandwidths
                 {
-                  //packAh[ thread.ic_id * PACK_MC + ip + ir ] = kernel->hi[ amap[ ic + i + ir ] ];
                   packAh[ ip + ir ] = kernel->hi[ amap[ ic + i + ir ] ];
                 }
               }
             }
           }
 
-          if ( pc + KC >= k )
+          if ( is_the_last_pc_iteration )                  // Initialize packu to zeros.
           {
             for ( int i = 0, ip = 0; i < ib; i += MR, ip += PACK_MR )
             {
               for ( int ir = 0; ir < min( ib - i, MR ); ir ++ )
               {
-                //packu[ ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC + ip + ir ] = 0.0;
                 packu[ ip + ir ] = 0.0;
               }
             }
           }
           ic_comm.Barrier();
-          //std::cout << "ic_comm.Barrier()" << tid << "\n";
 
-          if ( pc + KC < k )                     // semiring rank-k update
+
+          if ( is_the_last_pc_iteration )                  // fused_macro_kernel
           {
-            rank_k_macro_kernel_new
-              <KC, MR, NR, PACK_MR, PACK_NR, SEMIRINGKERNEL, TA, TB, TC, TV>
-              (
-               thread, 
-               ic, jc, pc,
-               ib, jb, pb,
-               //packA + thread.ic_id * PACK_MC * pb,
-               packA,
-               packB,
-               packC + ic * padn,            // packed
-               ( ( ib - 1 ) / MR + 1 ) * MR, // packed ldc
-               semiringkernel
-              );
-          }
-          else 
-          {                                      // fused_macro_kernel
             fused_macro_kernel
-              <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
-              (
-               kernel,
-               thread, 
-               ic, jc, pc,
-               ib, jb, pb,
-               //packu  + ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC * KS_RHS,
-               packu,
-               //packA  + thread.ic_id * PACK_MC * pb,
-               packA,
-               //packA2 + thread.ic_id * PACK_MC,
-               packA2,
-               //packAh + thread.ic_id * PACK_MC,
-               packAh,
-               packB,
-               packB2,
-               packBh,
-               packw,
-               packC + ic * padn,            // packed
-               ( ( ib - 1 ) / MR + 1 ) * MR, // packed ldc
-               microkernel
-              );
+            <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
+            (
+              kernel,
+              thread, 
+              ic, jc, pc,
+              ib, jb, pb,
+              packu,
+              packA, packA2, packAh,
+              packB, packB2, packBh,
+              packw,
+              packC + ic * padn,                           // packed
+              ( ( ib - 1 ) / MR + 1 ) * MR,                // packed ldc
+              microkernel
+            );
           }
-          ic_comm.Barrier();                     // sync all jr_id!!
-          //std::cout << "ic_comm.Barrier() #2\n";
+          else                                             // semiring rank-k update
+          {
+            rank_k_macro_kernel
+            <KC, MR, NR, PACK_MR, PACK_NR, SEMIRINGKERNEL, TA, TB, TC, TV>
+            (  
+              thread, 
+              ic, jc, pc,
+              ib, jb, pb,
+              packA,
+              packB,
+              packC + ic * padn,                           // packed
+              ( ( ib - 1 ) / MR + 1 ) * MR,                // packed ldc
+              semiringkernel
+            );
+          }
+          ic_comm.Barrier();                               // sync all jr_id!!
 
-          if ( pc + KC >= k )
+          if ( is_the_last_pc_iteration )
           {
             for ( int i = 0, ip = 0; i < ib; i += MR, ip += PACK_MR )
             {
               for ( int ir = 0; ir < min( ib - i, MR ); ir ++ )
               {
                 TC *uptr = &( u[ umap[ ic + i + ir ] ] );
-
-                //printf( "ic_id %d jr_id %d u %lf packu %lf\n", thread.ic_id, thread.jr_id,
-                //    *uptr,  packu[ ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC + ip + ir ] );
-
-                #pragma omp atomic update
-                //*uptr += packu[ ( thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC + ip + ir ];
+                #pragma omp atomic update                  // concurrent write
                 *uptr += packu[ ip + ir ];
               }
             }
+            ic_comm.Barrier();                             // sync all jr_id!!
           }
-          ic_comm.Barrier();                     // sync all jr_id!!
-
-        }                                        // end 4th loop
+        }                                                  // end 4th loop
         pc_comm.Barrier();
-        //std::cout << "pc_comm.Barrier() #2\n";
-      }                                          // end 5th loop
-    }                                            // end 6th loop
-  }
+      }                                                    // end 5th loop
+    }                                                      // end 6th loop
+  }                                                        // end omp region
 }
 
 

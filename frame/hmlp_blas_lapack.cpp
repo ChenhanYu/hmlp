@@ -46,7 +46,7 @@ void xgemm(
   {
     for ( int j = 0; j < n; j ++ )
     {
-      printf( "%E ", C[ j * ldc + i ] );
+      printf( "%E ", C[ j * ldc + i ] / alpha );
     }
     printf( "\n" );
   }

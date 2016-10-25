@@ -30,6 +30,8 @@ class worker
 
     int jr_id;
 
+    int ic_jr;
+
     thread_communicator *my_comm;
 
     thread_communicator *jc_comm;

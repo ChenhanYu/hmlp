@@ -41,18 +41,23 @@ void dgsks(
       //  rank_k_asm_d8x6,
       //  gaussian_int_d8x6,
       //  double, double, double, double>
-      gsks<120, 14400, 336, 24, 8, 120, 14400, 24, 8, 64,
+      
+
+      // MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, SIMD_SIZE
+      gsks<
+        120, 14400, 336, 24, 8, 120, 14400, 24, 8, 64,
         true, false,
-        rank_k_int_d24x8,
-        gaussian_int_d24x8,
+        rank_k_int_d24x8, gaussian_int_d24x8,
         double, double, double, double>
-          ( kernel,
-            m, n, k,
-            u,     umap,
-            A, A2, amap,
-            B, B2, bmap,
-            w,     wmap,
-            semiringkernel, microkernel );
+      ( 
+        kernel,
+        m, n, k,
+        u,     umap,
+        A, A2, amap,
+        B, B2, bmap,
+        w,     wmap,
+        semiringkernel, microkernel 
+      );
 
       break;
     case KS_GAUSSIAN_VAR_BANDWIDTH:

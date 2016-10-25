@@ -40,5 +40,6 @@ echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 #export KMP_AFFINITY=compact
 export OMP_PROC_BIND=spread
 export OMP_NUM_THREADS=68
-export KS_IC_NT=68
+export KS_JC_NT=4
+export KS_IC_NT=17
 export KS_JR_NT=1
