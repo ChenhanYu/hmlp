@@ -35,7 +35,7 @@
  *
  *
  *
- * ks_rank_k_int_d8x4.h
+ * rank_k_int_d8x4.h
  * 
  * Mofidifier:
  * Chenhan D. Yu - Department of Computer Science, 
@@ -173,7 +173,8 @@
     b += 8;
   }
 
-  for ( i = 0; i < k_left; ++i ) {
+  for ( i = 0; i < k_left; ++i ) 
+  {
     a03.v = _mm256_load_pd(      (double*)a         );
     //printf( "a03 = %lf, %lf, %lf, %lf\n", a03.d[0], a03.d[1], a03.d[2], a03.d[3] );
 

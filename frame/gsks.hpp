@@ -9,35 +9,38 @@
 #include <vector>
 
 #include <hmlp.h>
-#include <hmlp_internal.hxx>
+#include <hmlp_internal.hpp>
 #include <hmlp_blas_lapack.h>
-#include <hmlp_packing.hxx>
-#include <hmlp_util.hxx>
+#include <hmlp_packing.hpp>
+#include <hmlp_util.hpp>
 #include <hmlp_thread_communicator.hpp>
 #include <hmlp_thread_info.hpp>
 
+namespace hmlp
+{
+namespace gsks
+{
 
 #define min( i, j ) ( (i)<(j) ? (i): (j) )
-
 #define KS_RHS 1
-
-using namespace hmlp;
 
 /**
  *
  */ 
-template<int KC, int MR, int NR, int PACK_MR, int PACK_NR,
-    typename SEMIRINGKERNEL,
-    typename TA, typename TB, typename TC, typename TV>
-void rank_k_macro_kernel(
-        worker &thread,
-        int ic, int jc, int pc,
-        int  m, int n,  int  k,
-        TA *packA,
-        TB *packB,
-        TV *packC, int ldc,
-        SEMIRINGKERNEL semiringkernel
-        )
+template<
+  int KC, int MR, int NR, int PACK_MR, int PACK_NR,
+  typename SEMIRINGKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
+void rank_k_macro_kernel
+(
+  worker &thread,
+  int ic, int jc, int pc,
+  int  m, int n,  int  k,
+  TA *packA,
+  TB *packB,
+  TV *packC, int ldc,
+  SEMIRINGKERNEL semiringkernel
+)
 {
   thread_communicator &ic_comm = *thread.ic_comm;
   struct aux_s<TA, TB, TC, TV> aux;
@@ -75,21 +78,23 @@ void rank_k_macro_kernel(
 /**
  *
  */ 
-template<int KC, int MR, int NR, int PACK_MR, int PACK_NR,
-    typename MICROKERNEL,
-    typename TA, typename TB, typename TC, typename TV>
-void fused_macro_kernel(
-        ks_t *kernel,
-        worker &thread,
-        int ic, int jc, int pc,
-        int  m,  int n,  int k,
-        TC *packu,
-        TA *packA, TA *packA2, TV *packAh,
-        TB *packB, TB *packB2, TV *packBh,
-        TC *packw,
-        TV *packC, int ldc,
-        MICROKERNEL microkernel
-    )
+template<
+  int KC, int MR, int NR, int PACK_MR, int PACK_NR,
+  typename MICROKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
+void fused_macro_kernel
+(
+  ks_t *kernel,
+  worker &thread,
+  int ic, int jc, int pc,
+  int  m,  int n,  int k,
+  TC *packu,
+  TA *packA, TA *packA2, TV *packAh,
+  TB *packB, TB *packB2, TV *packBh,
+  TC *packw,
+  TV *packC, int ldc,
+  MICROKERNEL microkernel
+)
 {
   thread_communicator &ic_comm = *thread.ic_comm;
   struct aux_s<TA, TB, TC, TV> aux;
@@ -123,7 +128,7 @@ void fused_macro_kernel(
         packB  + jp * k,
         packB2 + jp,
         packw  + jp * KS_RHS,
-        packC  + j * ldc + i * NR,                         // packed
+        packC  + j * ldc + i * NR, MR,                     // packed
         &aux
       );
     }                                                      // end 2nd loop
@@ -140,23 +145,24 @@ template<
   bool USE_L2NORM, bool USE_VAR_BANDWIDTH, bool USE_STRASSEN,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
-void gsks_internal(
-    worker &thread,
-    ks_t *kernel,
-    int m, int n, int k,
-    TC *u,         int *umap, 
-    TA *A, TA *A2, int *amap,
-    TB *B, TB *B2, int *bmap,
-    TC *w,         int *wmap, 
-    SEMIRINGKERNEL semiringkernel,
-    MICROKERNEL microkernel,
-    int nc, int pack_nc,
-    TC *packu,
-    TA *packA, TA *packA2, TA *packAh,
-    TB *packB, TB *packB2, TB *packBh,
-    TC *packw,
-    TV *packC, int ldpackc, int padn
-    )
+void gsks_internal
+(
+  worker &thread,
+  ks_t *kernel,
+  int m, int n, int k,
+  TC *u,         int *umap, 
+  TA *A, TA *A2, int *amap,
+  TB *B, TB *B2, int *bmap,
+  TC *w,         int *wmap, 
+  SEMIRINGKERNEL semiringkernel,
+  MICROKERNEL microkernel,
+  int nc, int pack_nc,
+  TC *packu,
+  TA *packA, TA *packA2, TA *packAh,
+  TB *packB, TB *packB2, TB *packBh,
+  TC *packw,
+  TV *packC, int ldpackc, int padn
+)
 {
   packu  += ( thread.jc_id * thread.ic_nt * thread.jr_nt ) * PACK_MC * KS_RHS
           + ( thread.ic_id * thread.jr_nt + thread.jr_id ) * PACK_MC * KS_RHS;
@@ -645,13 +651,15 @@ void gsks(
  *
  */ 
 template<typename T>
-void gsks_ref(
-    ks_t *kernel,
-    int m, int n, int k,
-    T *u,        int *umap,
-    T *A, T *A2, int *amap,
-    T *B, T *B2, int *bmap,
-    T *w,        int *wmap )
+void gsks_ref
+(
+  ks_t *kernel,
+  int m, int n, int k,
+  T *u,        int *umap,
+  T *A, T *A2, int *amap,
+  T *B, T *B2, int *bmap,
+  T *w,        int *wmap 
+)
 {
   int nrhs = KS_RHS;
   T rank_k_scale, fone = 1.0, fzero = 0.0;
@@ -711,15 +719,14 @@ void gsks_ref(
    *  C = -2.0 * A^T * B (GEMM)
    */ 
 #ifdef USE_BLAS
-  // Need to make a template for this case.
-  //dgemm_( "T", "N", &m, &n, &k, &rank_k_scale,
-  //    packA.data(), &k, packB.data(), &k, &fzero, C.data(), &m );
-  xgemm( 
-      "T", "N", m, n, k, rank_k_scale,
-      packA.data(), k,
-      packB.data(), k, fzero,
-      C.data(),     m 
-      );
+  xgemm
+  ( 
+    "T", "N", 
+    m, n, k, 
+    rank_k_scale, packA.data(), k,
+                  packB.data(), k, 
+    fzero,        C.data(),     m 
+  );
 #else
   #pragma omp parallel for
   for ( int j = 0; j < n; j ++ ) 
@@ -773,14 +780,14 @@ void gsks_ref(
    *  Kernel Summation
    */ 
 #ifdef USE_BLAS
-  //dgemm_( "N", "N", &m, &nrhs, &n, &fone,
-  //    C.data(), &m, packw.data(), &n, &fone, packu.data(), &m );
-  xgemm(
-      "N", "N", m, nrhs, n, fone,
-      C.data(),     m,
-      packw.data(), n, fone,
-      packu.data(), m
-      );
+  xgemm
+  (
+    "N", "N", 
+    m, nrhs, n, 
+    fone, C.data(),     m,
+          packw.data(), n, 
+    fone, packu.data(), m
+  );
 #else
   #pragma omp parallel for
   for ( int i = 0; i < m; i ++ ) 
@@ -809,5 +816,8 @@ void gsks_ref(
 
 } // end void gsks_ref
 
+
+}; // end namespace gsks
+}; // end namespace hmlp
 
 #endif // define GSKS_HXX

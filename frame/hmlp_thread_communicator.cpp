@@ -61,7 +61,8 @@ thread_communicator::thread_communicator( int jc_nt, int pc_nt, int ic_nt, int j
   name = "my_comm";
   kids = new thread_communicator[ n_groups ]();
 
-  for ( int i = 0; i < n_groups; i ++ ) {
+  for ( int i = 0; i < n_groups; i ++ ) 
+  {
     kids[ i ].Create( 4, n_threads / n_groups, config );
   }
 };
@@ -106,6 +107,4 @@ void thread_communicator::Print()
 }
 
 
-
-
-};
+}; // end namespace hmlp

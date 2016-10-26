@@ -1,9 +1,11 @@
-#include <gkmx.hxx>
+// GKMX templates
+#include <gkmx.hpp>
 
 // Sandy-bridge
-#include <rankk_int_d8x4.hxx>
+#include <rank_k_d8x4.hpp>
 
-//using namespace gkmx;
+using namespace hmlp::gkmx;
+
 
 void dgemm_tn(
 	int m, int n, int k,
@@ -13,12 +15,12 @@ void dgemm_tn(
 	)
 {
   // Sandy-bridge
-  rankk_int_d8x4 semiringkernel;
-  rankk_int_d8x4 microkernel;
+	rank_k_int_d8x4 semiringkernel;
+  rank_k_int_d8x4 microkernel;
   gkmx
   <104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
   false,
-	rankk_int_d8x4, rankk_int_d8x4,
+	rank_k_int_d8x4, rank_k_int_d8x4,
 	double, double, double, double>
 	(
     HMLP_OP_T, HMLP_OP_N,

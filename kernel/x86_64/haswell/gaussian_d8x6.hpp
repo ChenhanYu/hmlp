@@ -3,22 +3,25 @@
 #include <immintrin.h> // AVX
 
 #include <hmlp.h>
-#include <hmlp_internal.hxx>
+#include <hmlp_internal.hpp>
 #include <avx_type.h> // self-defined vector type
 
+// #define DEBUG_MICRO 1
 
 struct gaussian_int_d8x6
 {
-  inline void operator()(
-      ks_t *ker,
-      int k,
-      int nrhs,
-      double *u,
-      double *a, double *aa, 
-      double *b, double *bb,
-      double *w,
-      double *c,
-      aux_s<double, double, double, double> *aux ) const 
+  inline void operator()
+  (
+    ks_t *ker,
+    int k,
+    int nrhs,
+    double *u,
+    double *a, double *aa, 
+    double *b, double *bb,
+    double *w,
+    double *c, int ldc,
+    aux_s<double, double, double, double> *aux 
+  ) const 
   {
     int    i;
     double alpha = ker->scal;
@@ -27,8 +30,8 @@ struct gaussian_int_d8x6
     v4df_t c47_0, c47_1, c47_2, c47_3, c47_4, c47_5;
     v4df_t a03, a47, b0, b1;
 
-    #include <rank_k_int_d8x6.h>
-    #include <sq2nrm_int_d8x6.h>
+    #include <rank_k_int_d8x6.segment>
+    #include <sq2nrm_int_d8x6.segment>
 
     // Scale before the kernel evaluation
     a03.v   = _mm256_broadcast_sd( &alpha );
@@ -70,7 +73,7 @@ struct gaussian_int_d8x6
     a47.v    = _mm256_load_pd( (double*)( u + 4 ) );
 
     // Multiple rhs weighted sum.
-    #include<weighted_sum_int_d8x6.h>
+    #include<weighted_sum_int_d8x6.segment>
 
     //if ( u[ 0 ] != u[ 0 ] ) printf( "u[ 0 ] nan\n" );
     //if ( u[ 1 ] != u[ 1 ] ) printf( "u[ 1 ] nan\n" );

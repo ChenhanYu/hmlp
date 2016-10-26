@@ -3,7 +3,7 @@
 #include <immintrin.h> // AVX
 
 #include <hmlp.h>
-#include <hmlp_internal.hxx>
+#include <hmlp_internal.hpp>
 #include <avx_type.h> // self-defined vector type
 
 // #define DEBUG_MICRO 1
@@ -18,7 +18,7 @@ struct gaussian_ref_d8x4
       double *a, double *a2, 
       double *b, double *b2,
       double *w,
-      double *c,
+      double *c, int ldc,
       aux_s<double, double, double, double> *aux ) const 
   {
     double c_reg[ 8 * 4 ] = { 0.0 };
@@ -44,24 +44,23 @@ struct gaussian_ref_d8x4
         #pragma unroll
         for ( int i = 0; i < 8; i ++ ) 
         {
-          c_reg[ j * 8 + i ] += c[ j * 8 + i ];
+          c_reg[ j * 8 + i ] += c[ j * ldc + i ];
         }
       }
     }
 
 #ifdef DEBUG_MICRO
-      printf( "gaussian_ref_d8x4 debug\n" );
-      for ( int i = 0; i < 8; i ++ ) 
+    printf( "gaussian_ref_d8x4: c_reg\n" );
+    for ( int i = 0; i < 8; i ++ ) 
+    {
+      for ( int j = 0; j < 4; j ++ )
       {
-        for ( int j = 0; j < 4; j ++ )
-        {
-          //printf( "%E (%E) ", c_reg[ j * 8 + i ], c[ j * 8 + i ] );
-          printf( "%E ", c_reg[ j * 8 + i ] );
-        }
-        printf( "\n" );
+        //printf( "%E (%E) ", c_reg[ j * 8 + i ], c[ j * 8 + i ] );
+        printf( "%E ", c_reg[ j * 8 + i ] );
       }
+      printf( "\n" );
+    }
 #endif
-
 
     #pragma unroll
     for ( int j = 0; j < 4; j ++ )

@@ -1,27 +1,27 @@
-#ifndef GKMX_HXX
-#define GKMX_HXX
+#ifndef GKMX_HPP
+#define GKMX_HPP
 
 #include <hmlp.h>
-#include <hmlp_internal.hxx>
-#include <hmlp_packing.hxx>
-#include <hmlp_util.hxx>
+#include <hmlp_internal.hpp>
+#include <hmlp_packing.hpp>
+#include <hmlp_util.hpp>
 #include <hmlp_thread_communicator.hpp>
 #include <hmlp_thread_info.hpp>
 
+namespace hmlp
+{
+namespace gkmx
+{
 
-using namespace hmlp;
-
-//namespace gkmx
-//{
 #define min( i, j ) ( (i)<(j) ? (i): (j) )
-
 
 /**
  *
  */ 
-template<int KC, int MR, int NR, int PACK_MR, int PACK_NR,
-    typename SEMIRINGKERNEL,
-    typename TA, typename TB, typename TC, typename TV>
+template<
+  int KC, int MR, int NR, int PACK_MR, int PACK_NR,
+  typename SEMIRINGKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
 void rank_k_macro_kernel
 (
   worker &thread,
@@ -127,19 +127,20 @@ template<
   bool USE_STRASSEN,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
-void gkmx_internal(
-    worker &thread,
-    hmlpOperation_t transA, hmlpOperation_t transB,
-    int m, int n, int k,
-    TA *A, int lda,
-    TB *B, int ldb,
-    TC *C, int ldc,
-    SEMIRINGKERNEL semiringkernel,
-    MICROKERNEL microkernel,
-    int nc, int pack_nc,
-    TA *packA, 
-    TB *packB 
-    )
+void gkmx_internal
+(
+  worker &thread,
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  TA *A, int lda,
+  TB *B, int ldb,
+  TC *C, int ldc,
+  SEMIRINGKERNEL semiringkernel,
+  MICROKERNEL microkernel,
+  int nc, int pack_nc,
+  TA *packA, 
+  TB *packB 
+)
 {
   packA  += ( thread.jc_id * thread.ic_nt                ) * PACK_MC * KC
           + ( thread.ic_id                               ) * PACK_MC * KC;
@@ -169,7 +170,7 @@ void gkmx_internal(
           pack2D<true, PACK_NR>                            // packB
           (
             min( jb - j, NR ), pb, 
-            &B[ pc ], k, &packB[ jp * pb ] 
+            &B[ ( jc + j ) * ldb + pc ], ldb, &packB[ jp * pb ] 
           );
         }
         else
@@ -177,7 +178,7 @@ void gkmx_internal(
           pack2D<false, PACK_NR>                           // packB (transB)
           (
             min( jb - j, NR ), pb, 
-            &B[ pc ], k, &packB[ jp * pb ] 
+            &B[ pc * ldb + ( jc + j ) ], ldb, &packB[ jp * pb ] 
           );
         }
       }
@@ -201,7 +202,7 @@ void gkmx_internal(
             pack2D<false, PACK_MR>                         // packA 
             ( 
               min( ib - i, MR ), pb,
-              &A[ pc ], k, &packA[ ip * pb ] 
+              &A[ pc * lda + ( ic + i ) ], lda, &packA[ ip * pb ] 
             );
           }
           else
@@ -209,7 +210,7 @@ void gkmx_internal(
             pack2D<true, PACK_MR>                          // packA (transA)
             ( 
               min( ib - i, MR ), pb,
-              &A[ pc ], k, &packA[ ip * pb ] 
+              &A[ ( ic + i ) * lda + pc ], lda, &packA[ ip * pb ] 
             );
           }
         }
@@ -248,7 +249,7 @@ void gkmx_internal(
       pc_comm.Barrier();
     }                                                      // end 5th loop
   }                                                        // end 6th loop
-}                                                          // end gsks_internal
+}                                                          // end gkmx_internal
 
 
 
@@ -264,15 +265,16 @@ template<
   bool USE_STRASSEN,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
-void gkmx(
-    hmlpOperation_t transA, hmlpOperation_t transB,
-    int m, int n, int k,
-    TA *A, int lda,
-    TB *B, int ldb,
-    TC *C, int ldc,
-    SEMIRINGKERNEL semiringkernel,
-    MICROKERNEL microkernel
-    )
+void gkmx
+(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  TA *A, int lda,
+  TB *B, int ldb,
+  TC *C, int ldc,
+  SEMIRINGKERNEL semiringkernel,
+  MICROKERNEL microkernel
+)
 {
   int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
   int nc = NC, pack_nc = PACK_NC;
@@ -329,15 +331,17 @@ void gkmx(
       m, n, k,
       A, lda,
       B, ldb,
-      C, ldb,
+      C, ldc,
       semiringkernel, microkernel,
       nc, pack_nc,
       packA_buff,
       packB_buff
     );
   }                                                        // end omp  
-}
+}                                                          // end gkmx
 
-//}; // end namespace gkmx
 
-#endif // define GKMX_HXX
+}; // end namespace gkmx
+}; // end namespace hmlp
+
+#endif // define GKMX_HPP

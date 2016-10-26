@@ -1,8 +1,9 @@
-#ifndef HMLP_INTERNAL_HXX
-#define HMLP_INTERNAL_HXX
+#ifndef HMLP_INTERNAL_HPP
+#define HMLP_INTERNAL_HPP
 
 template<typename TA, typename TB, typename TC, typename TV>
-struct aux_s {
+struct aux_s 
+{
   TA *a_next;
   TB *b_next;
   TC *c_buff;
@@ -10,4 +11,4 @@ struct aux_s {
   int do_packC;
 };
 
-#endif // define HMLP_INTERNAL_HXX
+#endif // define HMLP_INTERNAL_HPP

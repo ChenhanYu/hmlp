@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <immintrin.h> // AVX
 
-#include <hmlp_internal.hxx>
+#include <hmlp_internal.hpp>
 #include <avx_type.h> // self-defined vector type
 
 
-struct rankk_ref_d8x4 
+// #define DEBUG_MICRO 1
+
+struct rank_k_ref_d8x4 
 {
   inline void operator()( 
       int k, 
@@ -28,17 +30,6 @@ struct rankk_ref_d8x4
         }
       }
     }
-
-    //for ( int i = 0; i < 8; i ++ ) 
-    //{
-    //  for ( int j = 0; j < 4; j ++ )
-    //  { 
-    //    printf( "%E ", c_reg[ j * 8 + i ] );
-    //  }
-    //  printf( "\n" );
-    //}
-
-
 
     if ( aux->pc ) 
     {
@@ -65,21 +56,22 @@ struct rankk_ref_d8x4
       }
     }
 
-
-    //for ( int i = 0; i < 8; i ++ ) 
-    //{
-    //  for ( int j = 0; j < 4; j ++ )
-    //  { 
-    //    printf( "%E ", c[ j * ldc + i ] );
-    //  }
-    //  printf( "\n" );
-    //}
-
+#ifdef DEBUG_MICRO
+    printf( "rank_k_ref_d8x4:" );
+    for ( int i = 0; i < 8; i ++ ) 
+    {
+      for ( int j = 0; j < 4; j ++ )
+      { 
+        printf( "%E ", c[ j * ldc + i ] );
+      }
+      printf( "\n" );
+    }
+#endif
   }
 };
 
 
-struct rankk_int_d8x4 
+struct rank_k_int_d8x4 
 {
   inline void operator()( 
       int k, 
@@ -100,7 +92,7 @@ struct rankk_int_d8x4
 
 
     // Rank-k update segment
-    #include "ks_rank_k_int_d8x4.h"
+    #include "rank_k_int_d8x4.segment"
 
     // Store back
     if ( aux->pc ) 
@@ -148,6 +140,20 @@ struct rankk_int_d8x4
       c03_3.v    = _mm256_add_pd( tmpc03_3.v, c03_3.v );
       c47_3.v    = _mm256_add_pd( tmpc47_3.v, c47_3.v );
     }
+
+#ifdef DEBUG_MICRO
+    printf( "rank_k_int_d8x4:\n" );
+    printf( "%E %E %E %E\n", c03_0.d[ 0 ], c03_1.d[ 0 ], c03_2.d[ 0 ], c03_3.d[ 0 ] );
+    printf( "%E %E %E %E\n", c03_0.d[ 1 ], c03_1.d[ 1 ], c03_2.d[ 1 ], c03_3.d[ 1 ] );
+    printf( "%E %E %E %E\n", c03_0.d[ 2 ], c03_1.d[ 2 ], c03_2.d[ 2 ], c03_3.d[ 2 ] );
+    printf( "%E %E %E %E\n", c03_0.d[ 3 ], c03_1.d[ 3 ], c03_2.d[ 3 ], c03_3.d[ 3 ] );
+
+    printf( "%E %E %E %E\n", c47_0.d[ 0 ], c47_1.d[ 0 ], c47_2.d[ 0 ], c47_3.d[ 0 ] );
+    printf( "%E %E %E %E\n", c47_0.d[ 1 ], c47_1.d[ 1 ], c47_2.d[ 1 ], c47_3.d[ 1 ] );
+    printf( "%E %E %E %E\n", c47_0.d[ 2 ], c47_1.d[ 2 ], c47_2.d[ 2 ], c47_3.d[ 2 ] );
+    printf( "%E %E %E %E\n", c47_0.d[ 3 ], c47_1.d[ 3 ], c47_2.d[ 3 ], c47_3.d[ 3 ] );
+#endif
+
 
     if ( aux->do_packC ) 
     {

@@ -1,5 +1,5 @@
-#ifndef HMLP_THREAD_COMMUNICATOR
-#define HMLP_THREAD_COMMUNICATOR
+#ifndef HMLP_THREAD_COMMUNICATOR_HPP
+#define HMLP_THREAD_COMMUNICATOR_HPP
 
 #include <stdio.h>
 #include <iostream>
@@ -51,8 +51,8 @@ class thread_communicator
 
 
 
-};
+}; // end namespace hmlp
 
 
 
-#endif
+#endif // end define HMLP_THREAD_COMMUNICATOR_HPP

@@ -88,15 +88,20 @@ install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 file (GLOB FRAME_CC_SRC  ${CMAKE_SOURCE_DIR}/frame/*.c)
 file (GLOB FRAME_CXX_SRC ${CMAKE_SOURCE_DIR}/frame/*.cpp)
 file (GLOB KERNEL_SRC ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.cpp)
+file (GLOB PACKAGE_SRC ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
 
 
 # Build the static library.
-add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC})
+add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_SRC})
 
 
 # Build the executable files.
 add_executable (test_hmlp.x ${CMAKE_SOURCE_DIR}/test/test_hmlp.cpp)
 target_link_libraries(test_hmlp.x hmlp)
+add_executable (test_gkmx.x ${CMAKE_SOURCE_DIR}/test/test_gkmx.cpp)
+target_link_libraries(test_gkmx.x hmlp)
+
+
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)
 # target_link_libraries(test_dgsks_list.x gsks)
 

@@ -1,5 +1,5 @@
-#ifndef HMLP_PACKING_HXX
-#define HMLP_PACKING_HXX
+#ifndef HMLP_PACKING_HPP
+#define HMLP_PACKING_HPP
 
 #include <stdio.h>
 
@@ -44,6 +44,18 @@ inline void pack2D
   else 
   {
     printf( "pack2D(): TRANS = false not yet implemented yet.\n" );
+    for ( auto i = 0; i < m; i ++ )
+    {
+      x_pntr[ i ] = X + xmap[ i ];
+    }
+    for ( auto i = m; i < FOLD; i ++ )
+    {
+      x_pntr[ i ] = X + ldx * xmap[ 0 ];
+    }
+    for ( auto j = 0; j < n; j ++ )
+    {
+
+    }
   }
 }
 
@@ -165,4 +177,4 @@ inline void packu_rhsxmc(
 
 
 };
-#endif // define HMLP_PACKING_HXX
+#endif // define HMLP_PACKING_HPP

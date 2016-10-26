@@ -4,7 +4,7 @@
 #include <immintrin.h> // AVX
 
 #include <hmlp.h>
-#include <hmlp_internal.hxx>
+#include <hmlp_internal.hpp>
 #include <avx_type.h> // self-defined vector type
 
 // #define DEBUG_MICRO 1
@@ -73,7 +73,7 @@ struct gaussian_int_d24x8
       double *a, double *aa, 
       double *b, double *bb,
       double *w,
-      double *c,
+      double *c, int ldc,
       aux_s<double, double, double, double> *aux ) const 
   {
     int    i;
@@ -96,7 +96,7 @@ struct gaussian_int_d24x8
     //printf( "b\n" );
     //printf( "%E, %E, %E, %E, %E, %E, %E, %E\n", b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7] );
 
-    #include <rank_k_int_d24x8.h>
+    #include <rank_k_int_d24x8.segment>
 
 //    #pragma omp critical 
 //    {
@@ -111,7 +111,7 @@ struct gaussian_int_d24x8
 //      printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[7], c07_1.d[7], c07_2.d[7], c07_3.d[7], c07_4.d[7], c07_5.d[7], c07_6.d[7], c07_7.d[7] );
 //    }
 
-    #include <sq2nrm_int_d24x8.h>
+    #include <sq2nrm_int_d24x8.segment>
 
     //printf( "sq2\n" );
     //printf( "%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf\n", c07_0.d[0], c07_1.d[0], c07_2.d[0], c07_3.d[0], c07_4.d[0], c07_5.d[0], c07_6.d[0], c07_7.d[0] );
@@ -174,10 +174,12 @@ struct gaussian_int_d24x8
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( w ) );
 
     // c = exp( c )
-    if ( 0 ) {
+    if ( 0 ) 
+    {
       #include "exp_int_d24x8.h"
     }
-    else {
+    else 
+    {
       c07_0.v = _mm512_exp_pd( c07_0.v );
       c07_1.v = _mm512_exp_pd( c07_1.v );
       c07_2.v = _mm512_exp_pd( c07_2.v );
@@ -224,7 +226,7 @@ struct gaussian_int_d24x8
     a23.v    = _mm512_load_pd( u + 16 );
 
     // Multiple rhs weighted sum.
-    #include<weighted_sum_int_d24x8.h>
+    #include<weighted_sum_int_d24x8.segment>
 
     //if ( u[ 0 ] != u[ 0 ] ) printf( "u[ 0 ] nan\n" );
     //if ( u[ 1 ] != u[ 1 ] ) printf( "u[ 1 ] nan\n" );

@@ -65,18 +65,21 @@
 #include <stdio.h>
 #include <immintrin.h> // AVX
 
-#include <hmlp_internal.hxx>
+#include <hmlp_internal.hpp>
 #include <avx_type.h> // self-defined vector type
 
+// #ifdef DEBUG_MICRO 1
 
 struct rank_k_asm_d8x6 
 {
-  inline void operator()( 
-      int k, 
-      double *a, 
-      double *b, 
-      double *c, int ldc, 
-      aux_s<double, double, double, double> *aux ) const 
+  inline void operator()
+  ( 
+    int k, 
+    double *a, 
+    double *b, 
+    double *c, int ldc, 
+    aux_s<double, double, double, double> *aux 
+  ) const 
   {
 
     unsigned long long k_iter = k / 4;
@@ -394,7 +397,7 @@ struct rank_k_asm_d8x6
       "m" (b),           // 3
       "m" (c),           // 4
       "m" (aux->b_next), // 5
-        "m" (pc)           // 6
+      "m" (pc)           // 6
     : // register clobber list
       "rax", "rbx", "rcx", "rsi", "rdi",
         "r15",

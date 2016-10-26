@@ -1,5 +1,5 @@
-#ifndef HMLP_THREAD_INFO
-#define HMLP_THREAD_INFO
+#ifndef HMLP_THREAD_INFO_HPP
+#define HMLP_THREAD_INFO_HPP
 
 #include <stdio.h>
 #include <iostream>
@@ -50,6 +50,6 @@ class worker
 };
 
 
-};
+}; // end namespace hmlp
 
-#endif
+#endif // define HMLP_THREAD_INFO_HPP

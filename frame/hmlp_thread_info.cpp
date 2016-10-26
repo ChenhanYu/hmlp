@@ -37,5 +37,4 @@ worker::worker( thread_communicator *comm ) :
   //    tid, jc_id, pc_id, ic_id, jr_id, ic_jr );
 };
 
-};
-
+}; // end namespace hmlp
