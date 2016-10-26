@@ -251,7 +251,7 @@ void gsks_internal(
           {
             if ( USE_L2NORM )
             {
-              pack2D<true, PACK_NR>                        // packA2
+              pack2D<true, PACK_MR>                        // packA2
               (
                 min( ib - i, MR ), 1, 
                 &A2[ 0 ], 1, &amap[ ic + i ], &packA2[ ip * 1 ] 
@@ -260,7 +260,7 @@ void gsks_internal(
 
             if ( USE_VAR_BANDWIDTH )                       // variable bandwidths
             {
-              pack2D<true, PACK_NR>                        // packAh
+              pack2D<true, PACK_MR>                        // packAh
               (
                 min( ib - i, MR ), 1, 
                 kernel->hi, 1, &amap[ ic + i ], &packAh[ ip * 1 ] 
@@ -553,7 +553,7 @@ void gsks(
             {
               if ( USE_L2NORM )
               {
-                pack2D<true, PACK_NR>                      // packA2
+                pack2D<true, PACK_MR>                      // packA2
                 (
                   min( ib - i, MR ), 1, 
                   &A2[ 0 ], 1, &amap[ ic + i ], &packA2[ ip * 1 ] 
@@ -562,7 +562,7 @@ void gsks(
 
               if ( USE_VAR_BANDWIDTH )                     // variable bandwidths
               {
-                pack2D<true, PACK_NR>                      // packAh
+                pack2D<true, PACK_MR>                      // packAh
                 (
                   min( ib - i, MR ), 1, 
                   kernel->hi, 1, &amap[ ic + i ], &packAh[ ip * 1 ] 
