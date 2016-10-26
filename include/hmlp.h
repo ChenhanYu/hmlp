@@ -7,8 +7,9 @@ typedef enum
   HMLP_OP_T
 } hmlpOperation_t;
 
-void dgemm_tn
+void gkmx_dfma
 (
+  hmlpOperation_t transA, hmlpOperation_t transB,
 	int m, int n, int k,
 	double *A, int lda,
 	double *B, int ldb,

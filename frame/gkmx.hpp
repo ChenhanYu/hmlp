@@ -34,11 +34,6 @@ void rank_k_macro_kernel
 )
 {
   thread_communicator &ic_comm = *thread.ic_comm;
-  struct aux_s<TA, TB, TC, TV> aux;
-
-  aux.pc       = pc;
-  aux.b_next   = packB;
-  aux.do_packC = 0;
 
   for ( auto j  =  thread.jr_id * NR,
              jp =  thread.jr_id * PACK_NR; 
@@ -46,22 +41,66 @@ void rank_k_macro_kernel
              j  += ic_comm.GetNumThreads() * NR, 
              jp += ic_comm.GetNumThreads() * PACK_NR )     // beg 3rd loop
   {
+    struct aux_s<TA, TB, TC, TV> aux;
+    aux.pc       = pc;
+    aux.b_next   = packB;
+    aux.do_packC = 0;
+    aux.jb       = min( n - j, NR );
+
     for ( auto i  = 0, ip = 0; 
                i  < m; 
                i += MR, ip += PACK_MR )                    // beg 2nd loop
     {
-      if ( i + MR >= m ) 
+      aux.ib = min( m - i, MR );
+      if ( aux.ib != MR ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
-      semiringkernel
-      (
-        k,
-        &packA[ ip * k ],
-        &packB[ jp * k ],
-        &C[ j * ldc + i ], ldc,
-        &aux
-      );
+      
+      if ( aux.jb == NR && aux.ib == MR )                 
+      {
+        semiringkernel
+        (
+          k,
+          &packA[ ip * k ],
+          &packB[ jp * k ],
+          &C[ j * ldc + i ], ldc,
+          &aux
+        );
+      }
+      else                                                 // corner case
+      {
+        // TODO: this should be initC.
+        TV ctmp[ MR * NR ] = { (TV)0.0 };
+        semiringkernel
+        (
+          k,
+          &packA[ ip * k ],
+          &packB[ jp * k ],
+          ctmp, MR,
+          &aux
+        );
+        if ( pc )
+        {
+          for ( auto jj = 0; jj < aux.jb; jj ++ )
+          {
+            for ( auto ii = 0; ii < aux.ib; ii ++ )
+            {
+              C[ ( j + jj ) * ldc + i + ii ] += ctmp[ jj * MR + ii ];
+            }
+          }
+        }
+        else 
+        {
+          for ( auto jj = 0; jj < aux.jb; jj ++ )
+          {
+            for ( auto ii = 0; ii < aux.ib; ii ++ )
+            {
+              C[ ( j + jj ) * ldc + i + ii ] = ctmp[ jj * MR + ii ];
+            }
+          }
+        }
+      }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
 }                                                          // end rank_k_macro_kernel
@@ -84,11 +123,6 @@ void fused_macro_kernel
 )
 {
   thread_communicator &ic_comm = *thread.ic_comm;
-  struct aux_s<TA, TB, TC, TV> aux;
-
-  aux.pc       = pc;
-  aux.b_next   = packB;
-  aux.do_packC = 0;
 
   for ( auto j  =  thread.jr_id * NR,
              jp =  thread.jr_id * PACK_NR; 
@@ -96,22 +130,67 @@ void fused_macro_kernel
              j  += ic_comm.GetNumThreads() * NR, 
              jp += ic_comm.GetNumThreads() * PACK_NR )     // beg 3rd loop
   {
+    struct aux_s<TA, TB, TC, TV> aux;
+    aux.pc       = pc;
+    aux.b_next   = packB;
+    aux.do_packC = 0;
+    aux.jb       = min( n - j, NR );
+
     for ( auto i  = 0, ip = 0; 
                i  < m; 
                i += MR, ip += PACK_MR )                    // beg 2nd loop
     {
-      if ( i + MR >= m ) 
+      aux.ib = min( m - i, MR );
+      if ( aux.ib != MR ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
-      microkernel
-      (
-        k,
-        &packA[ ip * k ],
-        &packB[ jp * k ],
-        &C[ j * ldc + i ], ldc,
-        &aux
-      );
+
+      if ( aux.jb == NR && aux.ib == MR )                 
+      {
+        microkernel
+        (
+          k,
+          &packA[ ip * k ],
+          &packB[ jp * k ],
+          &C[ j * ldc + i ], ldc,
+          &aux
+        );
+      }
+      else                                                 // corner case
+      {
+        // TODO: this should be initC.
+        TV ctmp[ MR * NR ] = { (TV)0.0 };
+        microkernel
+        (
+          k,
+          &packA[ ip * k ],
+          &packB[ jp * k ],
+          ctmp, MR,
+          &aux
+        );
+
+        if ( pc )
+        {
+          for ( auto jj = 0; jj < aux.jb; jj ++ )
+          {
+            for ( auto ii = 0; ii < aux.ib; ii ++ )
+            {
+              C[ ( j + jj ) * ldc + i + ii ] += ctmp[ jj * MR + ii ];
+            }
+          }
+        }
+        else 
+        {
+          for ( auto jj = 0; jj < aux.jb; jj ++ )
+          {
+            for ( auto ii = 0; ii < aux.ib; ii ++ )
+            {
+              C[ ( j + jj ) * ldc + i + ii ] = ctmp[ jj * MR + ii ];
+            }
+          }
+        }
+      }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
 }                                                          // end fused_macro_kernel

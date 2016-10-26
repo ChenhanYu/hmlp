@@ -4,7 +4,6 @@
 #include <hmlp_internal.hpp>
 #include <avx_type.h> // self-defined vector type
 
-
 // #define DEBUG_MICRO 1
 
 struct rank_k_ref_d8x4 

@@ -43,18 +43,33 @@ inline void pack2D
   }
   else 
   {
-    printf( "pack2D(): TRANS = false not yet implemented yet.\n" );
+    //printf( "pack2D(): TRANS = false not yet implemented yet.\n" );
     for ( auto i = 0; i < m; i ++ )
     {
       x_pntr[ i ] = X + xmap[ i ];
     }
     for ( auto i = m; i < FOLD; i ++ )
     {
-      x_pntr[ i ] = X + ldx * xmap[ 0 ];
+      x_pntr[ i ] = X + xmap[ 0 ];
     }
     for ( auto j = 0; j < n; j ++ )
     {
-
+      for ( auto i = 0; i < m; i ++ )
+      {
+        *packX = *x_pntr[ i ];
+        packX ++;
+        x_pntr[ i ] += ldx;
+      }
+      for ( auto i = m; i < FOLD; i ++ )
+      {
+        if ( ZEROPAD ) *packX ++ = (T)0.0;
+        else
+        {
+          *packX = *x_pntr[ i ];
+          *packX ++; 
+          x_pntr[ i ] += ldx;
+        }
+      }
     }
   }
 }

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <omp.h>
 
-//#define DEBUG_XGEMM 1
+// #define DEBUG_XGEMM 1
 
 
 extern "C"

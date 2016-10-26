@@ -1,1 +1,2 @@
-- GKMX: Edge case on m and n dimensions
+-HMLP: implement get_range function to reaplce the index calculation in the
+loops.

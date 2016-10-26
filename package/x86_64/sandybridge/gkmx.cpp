@@ -7,7 +7,8 @@
 using namespace hmlp::gkmx;
 
 
-void dgemm_tn(
+void gkmx_dfma(
+  hmlpOperation_t transA, hmlpOperation_t transB,
 	int m, int n, int k,
 	double *A, int lda,
 	double *B, int ldb,
@@ -23,7 +24,7 @@ void dgemm_tn(
 	rank_k_int_d8x4, rank_k_int_d8x4,
 	double, double, double, double>
 	(
-    HMLP_OP_T, HMLP_OP_N,
+    transA, transB,
 	  m, n, k,
 	  A, lda,
 	  B, ldb,
