@@ -6,9 +6,9 @@ INSTALL
 HMLP is tested on LINUX and OSX.
 Compilation REQUIRES:
 
-Intel or GNU compilers with AVX and OpenMP support (x86);
+Intel or GNU compilers with AVX and OpenMP support (x86_64);
 
-Intel-16 or later compilers (KNL);
+Intel-16 or later compilers (Intel MIC, KNL);
 
 nvcc (NVIDIA GPU).
 
@@ -45,8 +45,9 @@ Testing and compilation example:
 The default compilation will also compile all the test drivers.
 To run some basic examples from the testing drivers:
 
->cd test
+>cd /build/bin
 >./run_hmlp.sh
+>./run_gkmx.sh
 
 
 To us HMLP library you need to include the
@@ -59,4 +60,4 @@ C/C++ example:
 ...
 
 Compilation example:
->icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/lib/libgsks.a
+>icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/lib/libhmlp.a
