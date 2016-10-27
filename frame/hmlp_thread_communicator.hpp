@@ -10,24 +10,6 @@
 namespace hmlp
 {
 
-class range
-{
-  public:
-
-    range( int beg, int end, int inc );
-
-    int beg();
-
-    int end();
-
-    int inc();
-
-  private:
-
-    std::tuple<int, int, int > info;
-
-};
-
 class thread_communicator 
 {
 	public:
@@ -46,7 +28,7 @@ class thread_communicator
 
     int GetNumGroups();
 
-    range GetRange( int beg, int end, int nb, int tid );
+    //range GetRange( int beg, int end, int nb, int tid );
 
     friend std::ostream& operator<<( std::ostream& os, const thread_communicator& obj );
 

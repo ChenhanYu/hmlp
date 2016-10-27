@@ -7,6 +7,7 @@
 #include <hmlp_util.hpp>
 #include <hmlp_thread_communicator.hpp>
 #include <hmlp_thread_info.hpp>
+#include <hmlp_runtime.hpp>
 
 namespace hmlp
 {
@@ -35,17 +36,14 @@ void rank_k_macro_kernel
 {
   thread_communicator &ic_comm = *thread.ic_comm;
 
-  auto loop3rd = ic_comm.GetRange( 0, n,      NR, thread.jr_id );
-  auto pack3rd = ic_comm.GetRange( 0, n, PACK_NR, thread.jr_id );
+  auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );
+  auto pack3rd = GetRange( 0, n, PACK_NR, thread.jr_id, ic_comm.GetNumThreads() );
+  auto loop2nd = GetRange( 0, m,      MR );
+  auto pack2nd = GetRange( 0, m, PACK_MR );
 
-  //for ( auto j  =  thread.jr_id * NR,
-  //           jp =  thread.jr_id * PACK_NR; 
-  //           j  <  n;
-  //           j  += ic_comm.GetNumThreads() * NR, 
-  //           jp += ic_comm.GetNumThreads() * PACK_NR )     // beg 3rd loop
-  for ( auto j   = loop3rd.beg(), jp  = pack3rd.beg(); 
-             j   < loop3rd.end();
-             j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
+  for ( int j   = loop3rd.beg(), jp  = pack3rd.beg(); 
+            j   < loop3rd.end();
+            j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
   {
     struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
@@ -53,9 +51,9 @@ void rank_k_macro_kernel
     aux.do_packC = 0;
     aux.jb       = min( n - j, NR );
 
-    for ( auto i  = 0, ip = 0; 
-               i  < m; 
-               i += MR, ip += PACK_MR )                    // beg 2nd loop
+    for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
+              i  < loop2nd.end(); 
+              i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
       aux.ib = min( m - i, MR );
       if ( aux.ib != MR ) 
@@ -130,11 +128,14 @@ void fused_macro_kernel
 {
   thread_communicator &ic_comm = *thread.ic_comm;
 
-  for ( auto j  =  thread.jr_id * NR,
-             jp =  thread.jr_id * PACK_NR; 
-             j  <  n;
-             j  += ic_comm.GetNumThreads() * NR, 
-             jp += ic_comm.GetNumThreads() * PACK_NR )     // beg 3rd loop
+  auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );
+  auto pack3rd = GetRange( 0, n, PACK_NR, thread.jr_id, ic_comm.GetNumThreads() );
+  auto loop2nd = GetRange( 0, m,      MR );
+  auto pack2nd = GetRange( 0, m, PACK_MR );
+
+  for ( int j   = loop3rd.beg(), jp  = pack3rd.beg(); 
+            j   < loop3rd.end();
+            j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
   {
     struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
@@ -142,9 +143,9 @@ void fused_macro_kernel
     aux.do_packC = 0;
     aux.jb       = min( n - j, NR );
 
-    for ( auto i  = 0, ip = 0; 
-               i  < m; 
-               i += MR, ip += PACK_MR )                    // beg 2nd loop
+    for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
+              i  < loop2nd.end(); 
+              i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
       aux.ib = min( m - i, MR );
       if ( aux.ib != MR ) 
@@ -231,24 +232,30 @@ void gkmx_internal
           + ( thread.ic_id                               ) * PACK_MC * KC;
   packB  += ( thread.jc_id                               ) * pack_nc * KC;
 
-  for ( auto jc  = thread.jc_id * nc; 
-             jc  < n; 
-             jc += thread.jc_nt * nc )                     // beg 6th loop 
+  auto loop6th = GetRange( 0, n, nc, thread.jc_id, thread.jc_nt );
+  auto loop5th = GetRange( 0, k, KC );
+  auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );
+
+  for ( int jc  = loop6th.beg(); 
+            jc  < loop6th.end(); 
+            jc += loop6th.inc() )                          // beg 6th loop 
   {
     auto &jc_comm = *thread.jc_comm;
     auto jb = min( n - jc, nc );
 
-    for ( auto pc = 0; pc < k; pc += KC )                  // beg 5th loop 
+    for ( int pc  = loop5th.beg();
+              pc  < loop5th.end();
+              pc += loop5th.inc() )
     {
       auto &pc_comm = *thread.pc_comm;
       auto pb = min( k - pc, KC );
       auto is_the_last_pc_iteration = ( pc + KC >= k );
+      auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
+      auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
 
-      for ( auto j   = thread.ic_jr * NR, 
-                 jp  = thread.ic_jr * PACK_NR; 
-                 j   < jb; 
-                 j  += pc_comm.GetNumThreads() * NR, 
-                 jp += pc_comm.GetNumThreads() * PACK_NR ) 
+      for ( int j   = looppkB.beg(), jp  = packpkB.beg(); 
+                j   < looppkB.end(); 
+                j  += looppkB.inc(), jp += packpkB.inc() ) 
       {
         if ( transB == HMLP_OP_N )
         {
@@ -269,18 +276,18 @@ void gkmx_internal
       }
       pc_comm.Barrier();
 
-      for ( auto ic  = thread.ic_id * MC; 
-                 ic  < m; 
-                 ic += thread.ic_nt * MC )                 // beg 4th loop
+      for ( int ic  = loop4th.beg(); 
+                ic  < loop4th.end(); 
+                ic += loop4th.inc() )                      // beg 4th loop
       {
         auto &ic_comm = *thread.ic_comm;
         auto ib = min( m - ic, MC );
+        auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt ); 
+        auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt ); 
 
-        for ( auto i   = thread.jr_id * MR, 
-                   ip  = thread.jr_id * PACK_MR; 
-                   i   < ib; 
-                   i  += thread.jr_nt * MR, 
-                   ip += thread.jr_nt * PACK_MR )     
+        for ( int i   = looppkA.beg(), ip  = packpkA.beg();  
+                  i   < looppkA.end(); 
+                  i  += looppkA.inc(), ip += packpkA.inc() )     
         {
           if ( transA == HMLP_OP_N )
           {

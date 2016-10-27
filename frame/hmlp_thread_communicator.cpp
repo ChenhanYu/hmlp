@@ -3,25 +3,25 @@
 namespace hmlp
 {
 
-range::range( int beg, int end, int inc )
-{
-  info = std::make_tuple( beg, end, inc );
-};
-
-int range::beg()
-{
-  return std::get<0>( info );
-};
-
-int range::end()
-{
-  return std::get<1>( info );
-};
-
-int range::inc()
-{
-  return std::get<2>( info );
-};
+//range::range( int beg, int end, int inc )
+//{
+//  info = std::make_tuple( beg, end, inc );
+//};
+//
+//int range::beg()
+//{
+//  return std::get<0>( info );
+//};
+//
+//int range::end()
+//{
+//  return std::get<1>( info );
+//};
+//
+//int range::inc()
+//{
+//  return std::get<2>( info );
+//};
 
 std::ostream& operator<<( std::ostream& os, const thread_communicator& obj )
 {
@@ -29,14 +29,14 @@ std::ostream& operator<<( std::ostream& os, const thread_communicator& obj )
   return os;
 };
 
-range thread_communicator::GetRange( int beg, int end, int nb, int tid )
-{
-  {
-    auto tid_beg = beg + tid * nb;
-    auto tid_inc = n_threads * nb;
-    return range( tid_beg, end, tid_inc );
-  }
-};
+//range thread_communicator::GetRange( int beg, int end, int nb, int tid )
+//{
+//  {
+//    auto tid_beg = beg + tid * nb;
+//    auto tid_inc = n_threads * nb;
+//    return range( tid_beg, end, tid_inc );
+//  }
+//};
 
 void thread_communicator::Create( int level, int num_threads, int *config )
 {
