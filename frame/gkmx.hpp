@@ -35,11 +35,17 @@ void rank_k_macro_kernel
 {
   thread_communicator &ic_comm = *thread.ic_comm;
 
-  for ( auto j  =  thread.jr_id * NR,
-             jp =  thread.jr_id * PACK_NR; 
-             j  <  n;
-             j  += ic_comm.GetNumThreads() * NR, 
-             jp += ic_comm.GetNumThreads() * PACK_NR )     // beg 3rd loop
+  auto loop3rd = ic_comm.GetRange( 0, n,      NR, thread.jr_id );
+  auto pack3rd = ic_comm.GetRange( 0, n, PACK_NR, thread.jr_id );
+
+  //for ( auto j  =  thread.jr_id * NR,
+  //           jp =  thread.jr_id * PACK_NR; 
+  //           j  <  n;
+  //           j  += ic_comm.GetNumThreads() * NR, 
+  //           jp += ic_comm.GetNumThreads() * PACK_NR )     // beg 3rd loop
+  for ( auto j   = loop3rd.beg(), jp  = pack3rd.beg(); 
+             j   < loop3rd.end();
+             j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
   {
     struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
