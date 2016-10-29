@@ -100,6 +100,8 @@ add_executable (test_hmlp.x ${CMAKE_SOURCE_DIR}/test/test_hmlp.cpp)
 target_link_libraries(test_hmlp.x hmlp)
 add_executable (test_gkmx.x ${CMAKE_SOURCE_DIR}/test/test_gkmx.cpp)
 target_link_libraries(test_gkmx.x hmlp)
+add_executable (test_strassen.x ${CMAKE_SOURCE_DIR}/test/test_strassen.cpp)
+target_link_libraries(test_strassen.x hmlp)
 
 
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)

@@ -44,6 +44,28 @@ void hmlp_free( T *ptr )
 #endif
 }
 
+// Split into m x n, get the subblock starting from i th row and j th column.
+template<typename T>
+void hmlp_acquire_mpart( 
+        int m,
+        int n,
+        T *src_buff,
+        int lda,
+        int x,
+        int y,
+        int i,
+        int j,
+        T **dst_buff
+        )
+{
+    //printf( "m: %d, n: %d, lda: %d, x: %d, y: %d, i: %d, j: %d\n", m, n, lda, x, y, i, j );
+    *dst_buff = &src_buff[ m / x * i + ( n / y * j ) * lda ]; //src( m/x*i, n/y*j )
+}
+
+
+
+
+
 }; // end namespace hmlp
 
 #endif // define HMLP_UTIL_HPP

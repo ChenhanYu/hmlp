@@ -17,6 +17,13 @@ void gkmx_dfma
 );
 
 
+void dstrassen(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+	int m, int n, int k,
+	double *A, int lda,
+	double *B, int ldb,
+	double *C, int ldc
+);
 
 
 

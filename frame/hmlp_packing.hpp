@@ -6,6 +6,102 @@
 namespace hmlp
 {
 
+
+
+
+template<bool TRANS, int FOLD, bool ZEROPAD=false, typename T>
+inline void pack2D
+(
+  int m, int n,
+  T *X0, T *X1, int ldx, T gamma, int *xmap, T *packX
+)
+{
+  T *x0_pntr[ FOLD ];
+  T *x1_pntr[ FOLD ];
+
+  if ( TRANS )
+  {
+    for ( auto i = 0; i < m; i ++ )
+    {
+      x0_pntr[ i ] = X0 + ldx * xmap[ i ];
+      x1_pntr[ i ] = X1 + ldx * xmap[ i ];
+    }
+    for ( auto i = m; i < FOLD; i ++ )
+    {
+      x0_pntr[ i ] = X0 + ldx * xmap[ 0 ];
+      x1_pntr[ i ] = X1 + ldx * xmap[ 0 ];
+    }
+    for ( auto j = 0; j < n; j ++ ) 
+    {
+      for ( auto i = 0; i < m; i ++ )
+      {
+        *packX ++ = (*x0_pntr[ i ] ++) + gamma * (*x1_pntr[ i ] ++) ;
+      }
+      for ( auto i = m; i < FOLD; i ++ )
+      {
+        if ( ZEROPAD ) *packX ++ = (T)0.0;
+        else           *packX ++ = (*x0_pntr[ i ] ++) + gamma * (*x1_pntr[ i ] ++) ;
+      }
+    }
+  }
+  else 
+  {
+    //printf( "pack2D(): TRANS = false not yet implemented yet.\n" );
+    for ( auto i = 0; i < m; i ++ )
+    {
+      x0_pntr[ i ] = X0 + xmap[ i ];
+      x1_pntr[ i ] = X1 + xmap[ i ];
+    }
+    for ( auto i = m; i < FOLD; i ++ )
+    {
+      x0_pntr[ i ] = X0 + xmap[ 0 ];
+      x0_pntr[ i ] = X1 + xmap[ 0 ];
+    }
+    for ( auto j = 0; j < n; j ++ )
+    {
+      for ( auto i = 0; i < m; i ++ )
+      {
+        *packX = *x0_pntr[ i ] + gamma * *x1_pntr[ i ];
+        packX ++;
+        x0_pntr[ i ] += ldx;
+        x1_pntr[ i ] += ldx;
+      }
+      for ( auto i = m; i < FOLD; i ++ )
+      {
+        if ( ZEROPAD ) *packX ++ = (T)0.0;
+        else
+        {
+          *packX = (*x0_pntr[ i ]) + gamma * (*x1_pntr[ i ]);
+          *packX ++; 
+          x0_pntr[ i ] += ldx;
+          x1_pntr[ i ] += ldx;
+        }
+      }
+    }
+  }
+}
+
+/**
+ *
+ */ 
+template<bool TRANS, int FOLD, bool ZEROPAD=false, typename T>
+inline void pack2D
+(
+  int m, int n,
+  T *X0, T *X1, int ldx, T gamma, T *packX
+)
+{
+  int xmap[ FOLD ];
+  for ( int i = 0; i < FOLD; i ++ ) xmap[ i ] = i;
+  pack2D<TRANS, FOLD, ZEROPAD, T>
+  (
+    m, n, 
+    X0, X1, ldx, gamma, xmap, packX
+  );
+}
+
+
+
 /**
  *
  */ 
@@ -92,6 +188,7 @@ inline void pack2D
     X, ldx, xmap, packX
   );
 }
+
 
 
 
