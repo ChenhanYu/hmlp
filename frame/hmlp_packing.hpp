@@ -6,9 +6,6 @@
 namespace hmlp
 {
 
-
-
-
 template<bool TRANS, int FOLD, bool ZEROPAD=false, typename T>
 inline void pack2D
 (
@@ -46,6 +43,7 @@ inline void pack2D
   }
   else 
   {
+
     //printf( "pack2D(): TRANS = false not yet implemented yet.\n" );
     for ( auto i = 0; i < m; i ++ )
     {
@@ -55,10 +53,12 @@ inline void pack2D
     for ( auto i = m; i < FOLD; i ++ )
     {
       x0_pntr[ i ] = X0 + xmap[ 0 ];
-      x0_pntr[ i ] = X1 + xmap[ 0 ];
+      x1_pntr[ i ] = X1 + xmap[ 0 ];
     }
+
     for ( auto j = 0; j < n; j ++ )
     {
+
       for ( auto i = 0; i < m; i ++ )
       {
         *packX = *x0_pntr[ i ] + gamma * *x1_pntr[ i ];
@@ -66,18 +66,25 @@ inline void pack2D
         x0_pntr[ i ] += ldx;
         x1_pntr[ i ] += ldx;
       }
+    //printf( "ldx: %d\n" , ldx );
+    //printf( "m:%d,FOLD:%d\n", m, FOLD );
       for ( auto i = m; i < FOLD; i ++ )
       {
+
+        //printf( "i: %d\n", i );
         if ( ZEROPAD ) *packX ++ = (T)0.0;
         else
         {
           *packX = (*x0_pntr[ i ]) + gamma * (*x1_pntr[ i ]);
           *packX ++; 
+
           x0_pntr[ i ] += ldx;
           x1_pntr[ i ] += ldx;
         }
       }
+
     }
+
   }
 }
 

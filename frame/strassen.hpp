@@ -6,17 +6,15 @@
     <MC, NC, KC, MR, NR,  \
     PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE, \
     USE_STRASSEN, \
-    RANK_SEMIRINGKERNEL, RANK_MICROKERNEL, \
     STRA_SEMIRINGKERNEL, STRA_MICROKERNEL, \
     TA, TB, TC, TB> \
     ( \
       thread, \
       transA, transB, \
-      m, n, k, \
+      md, nd, kd, \
       A0, A1, lda, gamma, \
       B0, B1, ldb, delta, \
       C0, C1, ldc, alpha0, alpha1, \
-      rank_semiringkernel, rank_microkernel, \
       stra_semiringkernel, stra_microkernel, \
       nc, pack_nc, \
       packA_buff, \
@@ -31,7 +29,7 @@
 #include <hmlp_thread_info.hpp>
 #include <hmlp_runtime.hpp>
 
-#include <gkmx.hpp>
+//#include <gkmx.hpp>
 
 namespace hmlp
 {
@@ -87,53 +85,109 @@ void rank_k_macro_kernel
       
       if ( aux.jb == NR && aux.ib == MR )                 
       {
-        semiringkernel
-        (
-          k,
-          &packA[ ip * k ],
-          &packB[ jp * k ],
-          &C0[ j * ldc + i ], &C1[ j * ldc + i ], ldc, alpha0, alpha1,
-          &aux
-        );
+
+        if ( alpha1 == 0 || C1 == NULL ) {
+          double *c_list[1], alpha_list[1];
+          c_list[0] = &C0[ j * ldc + i ];
+          alpha_list[0] = alpha0;
+
+          semiringkernel
+          (
+            k,
+            &packA[ ip * k ],
+            &packB[ jp * k ],
+            1, c_list, ldc, alpha_list,
+            &aux
+          );
+
+        } else {
+
+          double *c_list[2], alpha_list[2];
+          c_list[0] = &C0[ j * ldc + i ]; c_list[1] = &C1[ j * ldc + i ];
+          alpha_list[0] = alpha0; alpha_list[1] = alpha1;
+          semiringkernel
+          (
+            k,
+            &packA[ ip * k ],
+            &packB[ jp * k ],
+            2, c_list, ldc, alpha_list,
+            &aux
+          );
+
+        }
+
+        //semiringkernel
+        //(
+        //  k,
+        //  &packA[ ip * k ],
+        //  &packB[ jp * k ],
+        //  &C0[ j * ldc + i ], &C1[ j * ldc + i ], ldc, alpha0, alpha1,
+        //  &aux
+        //);
+
+
       }
       else                                                 // corner case
       {
+
+        //printf( "Enter corner case!\n" );
         // TODO: this should be initC.
         TV ctmp[ MR * NR ] = { (TV)0.0 };
 
-        //rank_k_int_d8x4 rankk_semiringkernel;
-        //rankk_semiringkernel
+        double *c_list[1], alpha_list[1];
+        c_list[0] = ctmp;
+        alpha_list[0] = 1;
+
         semiringkernel
         (
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
           //ctmp, MR,
-          ctmp, NULL, MR, 1, 0,
+          1, c_list, MR, alpha_list,
           &aux
         );
-        if ( pc )
+
+
+        ////rank_k_int_d8x4 rankk_semiringkernel;
+        ////rankk_semiringkernel
+        //semiringkernel
+        //(
+        //  k,
+        //  &packA[ ip * k ],
+        //  &packB[ jp * k ],
+        //  //ctmp, MR,
+        //  ctmp, NULL, MR, 1, 0,
+        //  &aux
+        //);
+        //if ( pc )
         {
           for ( auto jj = 0; jj < aux.jb; jj ++ )
           {
             for ( auto ii = 0; ii < aux.ib; ii ++ )
             {
               C0[ ( j + jj ) * ldc + i + ii ] += alpha0 * ctmp[ jj * MR + ii ];
-              C1[ ( j + jj ) * ldc + i + ii ] += alpha1 * ctmp[ jj * MR + ii ];
+
+              if ( alpha1 != 0 && C1 != NULL ) {
+                C1[ ( j + jj ) * ldc + i + ii ] += alpha1 * ctmp[ jj * MR + ii ];
+              }
             }
           }
         }
-        else 
-        {
-          for ( auto jj = 0; jj < aux.jb; jj ++ )
-          {
-            for ( auto ii = 0; ii < aux.ib; ii ++ )
-            {
-              C0[ ( j + jj ) * ldc + i + ii ] = alpha0 * ctmp[ jj * MR + ii ];
-              C1[ ( j + jj ) * ldc + i + ii ] = alpha1 * ctmp[ jj * MR + ii ];
-            }
-          }
-        }
+        //else 
+        //{
+        //  for ( auto jj = 0; jj < aux.jb; jj ++ )
+        //  {
+        //    for ( auto ii = 0; ii < aux.ib; ii ++ )
+        //    {
+        //      C0[ ( j + jj ) * ldc + i + ii ] = alpha0 * ctmp[ jj * MR + ii ];
+
+        //      if ( alpha1 != 0 && C1 != NULL ) {
+        //        C1[ ( j + jj ) * ldc + i + ii ] = alpha1 * ctmp[ jj * MR + ii ];
+        //      }
+        //    }
+        //  }
+        //}
       }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
@@ -185,54 +239,108 @@ void fused_macro_kernel
 
       if ( aux.jb == NR && aux.ib == MR )                 
       {
-        microkernel
-        (
-          k,
-          &packA[ ip * k ],
-          &packB[ jp * k ],
-          &C0[ j * ldc + i ], &C1[ j * ldc + i ], ldc, alpha0, alpha1,
-          &aux
-        );
+
+        if ( alpha1 == 0 || C1 == NULL ) {
+
+          double *c_list[1], alpha_list[1];
+          c_list[0] = &C0[ j * ldc + i ];
+          alpha_list[0] = alpha0;
+
+          microkernel
+          (
+            k,
+            &packA[ ip * k ],
+            &packB[ jp * k ],
+            1, c_list, ldc, alpha_list,
+            &aux
+          );
+        } else {
+
+          double *c_list[2], alpha_list[2];
+          c_list[0] = &C0[ j * ldc + i ]; c_list[1] = &C1[ j * ldc + i ];
+          alpha_list[0] = alpha0; alpha_list[1] = alpha1;
+
+          microkernel
+          (
+            k,
+            &packA[ ip * k ],
+            &packB[ jp * k ],
+            2, c_list, ldc, alpha_list,
+            &aux
+          );
+
+        }
+
+
+        //microkernel
+        //(
+        //  k,
+        //  &packA[ ip * k ],
+        //  &packB[ jp * k ],
+        //  &C0[ j * ldc + i ], &C1[ j * ldc + i ], ldc, alpha0, alpha1,
+        //  &aux
+        //);
       }
       else                                                 // corner case
       {
+        //printf( "Enter corner case!\n" );
         // TODO: this should be initC.
         TV ctmp[ MR * NR ] = { (TV)0.0 };
 
-        //rank_k_int_d8x4 rankk_microkernel;
-        //rankk_microkernel
+        double *c_list[1], alpha_list[1];
+        c_list[0] = ctmp;
+        alpha_list[0] = 1;
+
         microkernel
         (
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
           //ctmp, MR,
-          ctmp, NULL, MR, 1, 0,
+          1, c_list, MR, alpha_list,
           &aux
         );
 
-        if ( pc )
+        ////rank_k_int_d8x4 rankk_microkernel;
+        ////rankk_microkernel
+        //microkernel
+        //(
+        //  k,
+        //  &packA[ ip * k ],
+        //  &packB[ jp * k ],
+        //  //ctmp, MR,
+        //  ctmp, NULL, MR, 1, 0,
+        //  &aux
+        //);
+
+        //if ( pc )
         {
           for ( auto jj = 0; jj < aux.jb; jj ++ )
           {
             for ( auto ii = 0; ii < aux.ib; ii ++ )
             {
               C0[ ( j + jj ) * ldc + i + ii ] += alpha0 * ctmp[ jj * MR + ii ];
-              C1[ ( j + jj ) * ldc + i + ii ] += alpha1 * ctmp[ jj * MR + ii ];
+
+              if ( alpha1 != 0 && C1 != NULL ) {
+                C1[ ( j + jj ) * ldc + i + ii ] += alpha1 * ctmp[ jj * MR + ii ];
+              }
             }
           }
         }
-        else 
-        {
-          for ( auto jj = 0; jj < aux.jb; jj ++ )
-          {
-            for ( auto ii = 0; ii < aux.ib; ii ++ )
-            {
-              C0[ ( j + jj ) * ldc + i + ii ] = alpha0 * ctmp[ jj * MR + ii ];
-              C1[ ( j + jj ) * ldc + i + ii ] = alpha1 * ctmp[ jj * MR + ii ];
-            }
-          }
-        }
+        //else 
+        //{
+        //  for ( auto jj = 0; jj < aux.jb; jj ++ )
+        //  {
+        //    for ( auto ii = 0; ii < aux.ib; ii ++ )
+        //    {
+        //      C0[ ( j + jj ) * ldc + i + ii ] = alpha0 * ctmp[ jj * MR + ii ];
+
+        //      if ( alpha1 != 0 && C1 != NULL ) {
+        //        C1[ ( j + jj ) * ldc + i + ii ] = alpha1 * ctmp[ jj * MR + ii ];
+        //      }
+        //    }
+        //  }
+        //}
       }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
@@ -247,7 +355,6 @@ template<
   int MC, int NC, int KC, int MR, int NR, 
   int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
   bool USE_STRASSEN,
-  typename RANK_SEMIRINGKERNEL, typename RANK_MICROKERNEL,
   typename STRA_SEMIRINGKERNEL, typename STRA_MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
 void straprim
@@ -258,8 +365,6 @@ void straprim
   TA *A0, TA *A1, int lda, TA gamma,
   TB *B0, TB *B1, int ldb, TB delta,
   TC *C0, TC *C1, int ldc, TC alpha0, TC alpha1,
-  RANK_SEMIRINGKERNEL rank_semiringkernel,
-  RANK_MICROKERNEL rank_microkernel,
   STRA_SEMIRINGKERNEL stra_semiringkernel,
   STRA_MICROKERNEL stra_microkernel,
   int nc, int pack_nc,
@@ -296,6 +401,8 @@ void straprim
                 j   < looppkB.end(); 
                 j  += looppkB.inc(), jp += packpkB.inc() ) 
       {
+
+        //printf( "before packB\n" );
         if ( transB == HMLP_OP_N )
         {
 
@@ -331,6 +438,7 @@ void straprim
           }
 
         }
+        //printf( "After packB\n" );
       }
       pc_comm.Barrier();
 
@@ -347,6 +455,9 @@ void straprim
                   i   < looppkA.end(); 
                   i  += looppkA.inc(), ip += packpkA.inc() )     
         {
+
+          //printf( "Before packA\n" );
+
           if ( transA == HMLP_OP_N )
           {
 
@@ -357,11 +468,14 @@ void straprim
                 &A0[ pc * lda + ( ic + i ) ], lda, &packA[ ip * pb ] 
               );
             } else {
+
+            //printf( "flag1\n" );
               pack2D<false, PACK_MR>                         // packA 
               ( 
                 min( ib - i, MR ), pb,
                 &A0[ pc * lda + ( ic + i ) ], &A1[ pc * lda + ( ic + i ) ], lda, gamma, &packA[ ip * pb ] 
               );
+            //printf( "flag2\n" );
             }
 
           }
@@ -383,6 +497,8 @@ void straprim
             }
 
           }
+
+          //printf( "After packA\n" );
         }
         ic_comm.Barrier();
 
@@ -390,17 +506,32 @@ void straprim
         {
           if ( alpha1 == 0 || C1 == NULL ) {
 
-            hmlp::gkmx::fused_macro_kernel
-            <KC, MR, NR, PACK_MR, PACK_NR, RANK_MICROKERNEL, TA, TB, TC, TV>
+            //hmlp::gkmx::fused_macro_kernel
+            //<KC, MR, NR, PACK_MR, PACK_NR, RANK_MICROKERNEL, TA, TB, TC, TV>
+            //(
+            //  thread, 
+            //  ic, jc, pc,
+            //  ib, jb, pb,
+            //  packA, 
+            //  packB, 
+            //  C0 + jc * ldc + ic, ldc,
+            //  rank_microkernel
+            //);
+
+            //printf( "before fused macro kernel\n" );
+            fused_macro_kernel
+            <KC, MR, NR, PACK_MR, PACK_NR, STRA_MICROKERNEL, TA, TB, TC, TV>
             (
               thread, 
               ic, jc, pc,
               ib, jb, pb,
               packA, 
               packB, 
-              C0 + jc * ldc + ic, ldc,
-              rank_microkernel
+              C0 + jc * ldc + ic,
+              NULL, ldc, alpha0, 0,
+              stra_microkernel
             );
+            //printf( "after fused macro kernel\n" );
 
           } else {
             fused_macro_kernel
@@ -422,17 +553,31 @@ void straprim
         {
 
           if ( alpha1 == 0 || C1 == NULL ) {
-            hmlp::gkmx::rank_k_macro_kernel
-            <KC, MR, NR, PACK_MR, PACK_NR, RANK_SEMIRINGKERNEL, TA, TB, TC, TV>
+            //hmlp::gkmx::rank_k_macro_kernel
+            //<KC, MR, NR, PACK_MR, PACK_NR, RANK_SEMIRINGKERNEL, TA, TB, TC, TV>
+            //(  
+            //  thread, 
+            //  ic, jc, pc,
+            //  ib, jb, pb,
+            //  packA,
+            //  packB,
+            //  C0 + jc * ldc + ic, ldc,
+            //  rank_semiringkernel
+            //);
+
+            rank_k_macro_kernel
+            <KC, MR, NR, PACK_MR, PACK_NR, STRA_SEMIRINGKERNEL, TA, TB, TC, TV>
             (  
               thread, 
               ic, jc, pc,
               ib, jb, pb,
               packA,
               packB,
-              C0 + jc * ldc + ic, ldc,
-              rank_semiringkernel
+              C0 + jc * ldc + ic,
+              NULL, ldc, alpha0, 0,
+              stra_semiringkernel
             );
+
           } else {
 
             rank_k_macro_kernel
@@ -458,8 +603,54 @@ void straprim
   }                                                        // end 6th loop
 }                                                          // end strassen_internal
 
+template<typename TA, typename TB, typename TC>
+void hmlp_dynamic_peeling
+(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  TA *A, int lda,
+  TB *B, int ldb,
+  TC *C, int ldc,
+  int dim1, int dim2, int dim3
+)
+{
+    int mr = m % dim1;
+    int kr = k % dim2;
+    int nr = n % dim3;
+    int ms = m - mr;
+    int ns = n - nr;
+    int ks = k - kr;
+    double *A_extra, *B_extra, *C_extra;
 
+    // Adjust part handled by fast matrix multiplication.
+    // Add far column of A outer product bottom row B
+    if ( kr > 0 ) {
+        // In Strassen, this looks like C([1, 2], [1, 2]) += A([1, 2], 3) * B(3, [1, 2])
+        A_extra = &A[ 0  + ks * lda ];//ms * kr
+        B_extra = &B[ ks + 0  * ldb ];//kr * ns
+        C_extra = &C[ 0  + 0  * ldc ];//ms * ns
+        if ( ms > 0 && ns > 0 )
+            //bl_dgemm( ms, ns, kr, A_extra, lda, B_extra, ldb, C_extra, ldc );
+    }
 
+    // Adjust for far right columns of C
+    if ( nr > 0 ) {
+        // In Strassen, this looks like C(:, 3) = A * B(:, 3)
+        B_extra = &B[ 0 + ns * ldb ];//k * nr
+        C_extra = &C[ 0 + ns * ldc ];//m * nr
+        //bl_dgemm( m, nr, k, A, lda, B_extra, ldb, C_extra, ldc );
+    }
+
+    // Adjust for bottom rows of C
+    if ( mr > 0 ) {
+        // In Strassen, this looks like C(3, [1, 2]) = A(3, :) * B(:, [1, 2])
+        double *A_extra = &A[ ms + 0 * lda ];// mr * k
+        double *B_extra = &B[ 0  + 0 * ldb ];// k  * ns
+        double *C_extra = &C[ ms + 0 * ldc ];// mr * ns
+        if ( ns > 0 )
+            //bl_dgemm( mr, ns, k, A_extra, lda, B_extra, ldb, C_extra, ldc );
+    }
+}
 
 
 /**
@@ -470,7 +661,6 @@ template<
   int MC, int NC, int KC, int MR, int NR, 
   int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
   bool USE_STRASSEN,
-  typename RANK_SEMIRINGKERNEL, typename RANK_MICROKERNEL,
   typename STRA_SEMIRINGKERNEL, typename STRA_MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
 void strassen
@@ -480,8 +670,6 @@ void strassen
   TA *A, int lda,
   TB *B, int ldb,
   TC *C, int ldc,
-  RANK_SEMIRINGKERNEL rank_semiringkernel,
-  RANK_MICROKERNEL rank_microkernel,
   STRA_SEMIRINGKERNEL stra_semiringkernel,
   STRA_MICROKERNEL stra_microkernel
 )
@@ -547,6 +735,8 @@ void strassen
   hmlp_acquire_mpart( ms, ks, C, lda, 2, 2, 1, 0, &C10 );
   hmlp_acquire_mpart( ms, ks, C, lda, 2, 2, 1, 1, &C11 );
 
+  md = md / 2, kd = kd / 2, nd = nd / 2;
+
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
     worker thread( &my_comm );
@@ -557,22 +747,46 @@ void strassen
       exit( 1 );
     }
 
+    //printf( "flag0\n" );
     // M1: C00 = 1*C00+1*(A00+A11)(B00+B11); C11 = 1*C11+1*(A00+A11)(B00+B11)
-    STRAPRIM( A00, A11, 1, B00, B11, 1, C00, C11, 1, 1 )
+    STRAPRIM( A00, A11, 1, B00, B11, 1, C00, C11, 1, 1 );
+
+
+    //printf( "flag1\n" );
+
+    //printf( "A00:" );
+    //hmlp_printmatrix( A00, m, md, kd );
+    //printf( "C00:" );
+    //hmlp_printmatrix( C00, m, md, nd );
+    //printf( "C01:" );
+    //hmlp_printmatrix( C11, m, md, nd );
+
     // M2: C10 = 1*C10+1*(A10+A11)B00; C11 = 1*C11-1*(A10+A11)B00
-    STRAPRIM( A10, A11, 1, B00, NULL, 0, C10, C11, 1, 1 )
+    STRAPRIM( A10, A11, 1, B00, NULL, 0, C10, C11, 1, -1 )
+
+
     // M3: C01 = 1*C01+1*A00(B01-B11); C11 = 1*C11+1*A00(B01-B11)
     STRAPRIM( A00, NULL, 0, B01, B11, -1, C01, C11, 1, 1 )
+
+
     // M4: C00 = 1*C00+1*A11(B10-B00); C10 = 1*C10+1*A11(B10-B00)
     STRAPRIM( A11, NULL, 0, B10, B00, -1, C00, C10, 1, 1 )
     // M5: C00 = 1*C00-1*(A00+A01)B11; C01 = 1*C01+1*(A00+A01)B11
-    STRAPRIM( A00, A01, 1, B11, NULL, 0, C00, C01, 1, 1 )
+    STRAPRIM( A00, A01, 1, B11, NULL, 0, C00, C01, -1, 1 )
+
+
     // M6: C11 = 1*C11+(A10-A00)(B00+B01)
     STRAPRIM( A10, A00, -1, B00, B01, 1, C11, NULL, 1, 0 )
+
+
     // M7: C00 = 1*C00+(A01-A11)(B10+B11)
     STRAPRIM( A01, A11, -1, B10, B11, 1, C00, NULL, 1, 0 )
 
-    //hmlp_dynamic_peeling( m, n, k, XA, lda, XB, ldb, XC, ldc, 2 * DGEMM_MR, 2, 2 * DGEMM_NR );
+
+    //printf( "C00:" );
+    //hmlp_printmatrix( C00, m, md, nd );
+
+    //hmlp_dynamic_peeling( m, n, k, A, lda, B, ldb, C, ldc, 2, 2, 2 );
 
   }                                                        // end omp  
 

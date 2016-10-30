@@ -12,7 +12,8 @@ struct stra_k_ref_d8x4
       int k, 
       double *a, 
       double *b, 
-      double *c0, double *c1, int ldc, double alpha0, double alpha1,
+      int len,
+      double **c, int ldc, double *alpha,
       aux_s<double, double, double, double> *aux ) const 
   {
     double c_reg[ 8 * 4 ] = { 0.0 };
@@ -30,7 +31,7 @@ struct stra_k_ref_d8x4
       }
     }
 
-    if ( aux->pc ) 
+    for ( int t = 0; t < len; t ++ )
     {
       #pragma unroll
       for ( int j = 0; j < 4; j ++ )
@@ -38,39 +39,80 @@ struct stra_k_ref_d8x4
         #pragma unroll
         for ( int i = 0; i < 8; i ++ ) 
         {
-          c0[ j * ldc + i ] += alpha0 * c_reg[ j * 8 + i ];
-          c1[ j * ldc + i ] += alpha1 * c_reg[ j * 8 + i ];
-        }
-      }
-    }
-    else 
-    {
-      #pragma unroll
-      for ( int j = 0; j < 4; j ++ )
-      {
-        #pragma unroll
-        for ( int i = 0; i < 8; i ++ ) 
-        {
-          c0[ j * ldc + i ] = alpha0 * c_reg[ j * 8 + i ];
-          c1[ j * ldc + i ] = alpha1 * c_reg[ j * 8 + i ];
+          c[t][ j * ldc + i ] += alpha[t] * c_reg[ j * 8 + i ];
         }
       }
     }
 
-#ifdef DEBUG_MICRO
-    printf( "stra_k_ref_d8x4:" );
-    for ( int i = 0; i < 8; i ++ ) 
-    {
-      for ( int j = 0; j < 4; j ++ )
-      { 
-        printf( "%E ", c0[ j * ldc + i ] );
-        printf( "%E ", c1[ j * ldc + i ] );
-      }
-      printf( "\n" );
-    }
-#endif
   }
 };
+
+//struct stra_k_ref_d8x4 
+//{
+//  inline void operator()( 
+//      int k, 
+//      double *a, 
+//      double *b, 
+//      int len,
+//      double *c0, double *c1, int ldc, double alpha0, double alpha1,
+//      aux_s<double, double, double, double> *aux ) const 
+//  {
+//    double c_reg[ 8 * 4 ] = { 0.0 };
+//
+//    for ( int p = 0; p < k; p ++ ) 
+//    {
+//      #pragma unroll
+//      for ( int j = 0; j < 4; j ++ )
+//      {
+//        #pragma unroll
+//        for ( int i = 0; i < 8; i ++ ) 
+//        {
+//          c_reg[ j * 8 + i ] += a[ p * 8 + i ] * b[ p * 4 + j ];
+//        }
+//      }
+//    }
+//
+//    //if ( aux->pc ) 
+//    {
+//      #pragma unroll
+//      for ( int j = 0; j < 4; j ++ )
+//      {
+//        #pragma unroll
+//        for ( int i = 0; i < 8; i ++ ) 
+//        {
+//          c0[ j * ldc + i ] += alpha0 * c_reg[ j * 8 + i ];
+//          c1[ j * ldc + i ] += alpha1 * c_reg[ j * 8 + i ];
+//        }
+//      }
+//    }
+//    //else 
+//    //{
+//    //  #pragma unroll
+//    //  for ( int j = 0; j < 4; j ++ )
+//    //  {
+//    //    #pragma unroll
+//    //    for ( int i = 0; i < 8; i ++ ) 
+//    //    {
+//    //      c0[ j * ldc + i ] = alpha0 * c_reg[ j * 8 + i ];
+//    //      c1[ j * ldc + i ] = alpha1 * c_reg[ j * 8 + i ];
+//    //    }
+//    //  }
+//    //}
+//
+//#ifdef DEBUG_MICRO
+//    printf( "stra_k_ref_d8x4:" );
+//    for ( int i = 0; i < 8; i ++ ) 
+//    {
+//      for ( int j = 0; j < 4; j ++ )
+//      { 
+//        printf( "%E ", c0[ j * ldc + i ] );
+//        printf( "%E ", c1[ j * ldc + i ] );
+//      }
+//      printf( "\n" );
+//    }
+//#endif
+//  }
+//};
 
 
 //struct stra_k_int_d8x4 

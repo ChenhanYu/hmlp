@@ -63,6 +63,22 @@ void hmlp_acquire_mpart(
 }
 
 
+template<typename T>
+void hmlp_printmatrix(
+    T *A,
+    int    lda,
+    int    m,
+    int    n
+    )
+{
+  int    i, j;
+  for ( i = 0; i < m; i ++ ) {
+    for ( j = 0; j < n; j ++ ) {
+      printf("%lf\t", A[j * lda + i]);  //Assume T is double...
+    }
+    printf("\n");
+  }
+}
 
 
 
