@@ -31,6 +31,23 @@
 #define TOLERANCE 1E-13
 
 template<typename T>
+void hmlp_printmatrix(
+    T *A,
+    int    lda,
+    int    m,
+    int    n
+    )
+{
+  int    i, j;
+  for ( i = 0; i < m; i ++ ) {
+    for ( j = 0; j < n; j ++ ) {
+      printf("%lf\t", A[j * lda + i]);  //Assume T is double...
+    }
+    printf("\n");
+  }
+}
+
+template<typename T>
 void compute_error
 (
   int m, int n,
@@ -99,14 +116,20 @@ void test_strassen( int m, int n, int k )
 #ifdef HMLP_MIC_AVX512
   A     = (T*)hbw_malloc( sizeof(T) * m * k );
   B     = (T*)hbw_malloc( sizeof(T) * k * n );
-  C     = (T*)hbw_malloc( sizeof(T) * m * n );
-  C_ref = (T*)hbw_malloc( sizeof(T) * m * n );
+  //C     = (T*)hbw_malloc( sizeof(T) * m * n );
+  //C_ref = (T*)hbw_malloc( sizeof(T) * m * n );
 #else
   A     = (T*)malloc( sizeof(T) * m * k );
   B     = (T*)malloc( sizeof(T) * k * n );
-  C     = (T*)malloc( sizeof(T) * m * n );
-  C_ref = (T*)malloc( sizeof(T) * m * n );
+  //C     = (T*)malloc( sizeof(T) * m * n );
+  //C_ref = (T*)malloc( sizeof(T) * m * n );
 #endif
+  //C     = hmlp_malloc( m, n, sizeof(T) );
+  //C_ref = hmlp_malloc( m, n, sizeof(T) );
+  int ALIGN_SIZE = 32;
+  posix_memalign( (void**)&C,     (size_t)ALIGN_SIZE, sizeof(T) * m * n );
+  posix_memalign( (void**)&C_ref, (size_t)ALIGN_SIZE, sizeof(T) * m * n );
+
   // ------------------------------------------------------------------------
 
 
@@ -145,7 +168,7 @@ void test_strassen( int m, int n, int k )
   // ------------------------------------------------------------------------
   // Call my implementation (NN)
   // ------------------------------------------------------------------------
-  for ( auto iter = -1; iter < n_iter; iter ++ ) 
+  for ( auto iter = 0; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) strassen_beg = omp_get_wtime();
     dstrassen
@@ -163,7 +186,7 @@ void test_strassen( int m, int n, int k )
   // ------------------------------------------------------------------------
   // Call the reference function (NN)
   // ------------------------------------------------------------------------
-  for ( auto iter = -1; iter < n_iter; iter ++ ) 
+  for ( auto iter = 0; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) ref_beg = omp_get_wtime();
     hmlp::xgemm
@@ -180,6 +203,13 @@ void test_strassen( int m, int n, int k )
 
   ref_time  /= n_iter;
   strassen_time /= n_iter;
+
+
+  //printf( "C:" );
+  //hmlp_printmatrix( C, m, m, n );
+  //printf( "C_ref:" );
+  //hmlp_printmatrix( C_ref, m, m, n );
+
 
   compute_error( m, n, C, m, C_ref, m );
 
