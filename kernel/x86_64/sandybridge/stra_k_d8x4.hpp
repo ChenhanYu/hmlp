@@ -646,5 +646,3 @@ struct stra_k_asm_d8x4
 
   }
 };
-
-

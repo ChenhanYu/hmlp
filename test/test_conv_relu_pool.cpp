@@ -16,6 +16,7 @@
  * */
 
 #include <tuple>
+#include <algorithm>
 #include <stdio.h>
 #include <stdlib.h>
 #include <omp.h>
@@ -163,6 +164,15 @@ void test_conv_relu_pool( int m, int n, int k )
            B,     k, 
       0.0, C_ref, m 
     );
+
+    for ( auto j = 0; j < n; j ++ )
+    {
+      #pragma omp parallel for
+      for ( auto i = 0; i < m; i ++ )
+      {
+         C_ref[ ( j / 4 ) * m + i ] = std::max( C_ref[ ( j / 4 ) * m + i  ], C_ref[ j * m + i ] );
+      }
+    }
   }
   ref_time = omp_get_wtime() - ref_beg;
   // ------------------------------------------------------------------------

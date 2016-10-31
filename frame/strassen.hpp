@@ -639,7 +639,9 @@ void hmlp_dynamic_peeling
         B_extra = &B[ ks + 0  * ldb ];//kr * ns
         C_extra = &C[ 0  + 0  * ldc ];//ms * ns
         if ( ms > 0 && ns > 0 )
+        {
             //bl_dgemm( ms, ns, kr, A_extra, lda, B_extra, ldb, C_extra, ldc );
+        }
     }
 
     // Adjust for far right columns of C
@@ -657,7 +659,9 @@ void hmlp_dynamic_peeling
         double *B_extra = &B[ 0  + 0 * ldb ];// k  * ns
         double *C_extra = &C[ ms + 0 * ldc ];// mr * ns
         if ( ns > 0 )
+        {
             //bl_dgemm( mr, ns, k, A_extra, lda, B_extra, ldb, C_extra, ldc );
+        }
     }
 }
 
