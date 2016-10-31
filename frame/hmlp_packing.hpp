@@ -13,6 +13,7 @@ inline void pack2D
   T *X0, T *X1, int ldx, T gamma, int *xmap, T *packX
 )
 {
+  printf( "X0[0]: %lf, X1[0]: %lf\n", X0[0], X1[0] );
   T *x0_pntr[ FOLD ];
   T *x1_pntr[ FOLD ];
 
@@ -68,7 +69,7 @@ inline void pack2D
       for ( auto i = 0; i < m; i ++ )
       {
         *packX = *x0_pntr[ i ] + gamma * *x1_pntr[ i ];
-        //printf( "NOTRANS:*x0_pntr[i]:%lf, gamma:%lf, x1_pntr[i]:%lf,packX:%lf\n",*x0_pntr[i], gamma, *x1_pntr[i], *packX);
+        printf( "NOTRANS:*x0_pntr[i]:%lf, gamma:%lf, x1_pntr[i]:%lf,packX:%lf\n",*x0_pntr[i], gamma, *x1_pntr[i], *packX);
         packX ++;
         x0_pntr[ i ] += ldx;
         x1_pntr[ i ] += ldx;
