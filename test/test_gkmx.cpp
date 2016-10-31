@@ -312,6 +312,18 @@ void test_gkmx( int m, int n, int k )
   printf( "NT %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
       m, n, k, flops / gkmx_time, flops / ref_time );
 
+#ifdef HMLP_MIC_AVX512
+  hbw_free( A );
+  hbw_free( B );
+  hbw_free( C );
+  hbw_free( C_ref );
+#else
+  free( A );
+  free( B );
+  free( C );
+  free( C_ref );
+#endif
+
 }
 
 

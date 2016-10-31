@@ -89,6 +89,7 @@ struct rank_k_int_d8x4
     v4df_t b0, b1, b2, b3, B0; // prefetched B
     v4df_t c_tmp, aa_tmp, bb_tmp, w_tmp;
 
+    __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( c ) );
 
     // Rank-k update segment
     #include "rank_k_int_d8x4.segment"

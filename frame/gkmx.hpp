@@ -56,7 +56,7 @@ void rank_k_macro_kernel
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
       aux.ib = min( m - i, MR );
-      if ( aux.ib != MR ) 
+      if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
@@ -148,7 +148,7 @@ void fused_macro_kernel
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
       aux.ib = min( m - i, MR );
-      if ( aux.ib != MR ) 
+      if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
@@ -160,8 +160,8 @@ void fused_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          //&C[ j * ldc + i ], ldc,
-          &C[ ( j / NR ) * ldc + i ], ldc, // for conv_relu_pool
+          &C[ j * ldc + i ], ldc,
+          //&C[ ( j / NR ) * ldc + i ], ldc, // for conv_relu_pool
           &aux
         );
       }
@@ -431,6 +431,9 @@ void gkmx
       packB_buff
     );
   }                                                        // end omp  
+
+  hmlp_free( packA_buff );
+  hmlp_free( packB_buff );
 }                                                          // end gkmx
 
 

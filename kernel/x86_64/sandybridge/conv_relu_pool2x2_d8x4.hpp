@@ -92,6 +92,7 @@ struct conv_relu_pool2x2_int_d8x4
     v4df_t b0, b1, b2, b3, B0; // prefetched B
     v4df_t c_tmp, aa_tmp, bb_tmp, w_tmp;
 
+    __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( c ) );
 
     // Rank-k update segment
     #include "rank_k_int_d8x4.segment"
@@ -158,7 +159,7 @@ struct conv_relu_pool2x2_int_d8x4
 
 
     // relu
-    //c_tmp.v  = _mm256_broadcast_sd( &dzero );
+    c_tmp.v  = _mm256_broadcast_sd( &dzero );
     //c03_0.v  = _mm256_max_pd( c_tmp.v, c03_0.v );
     //c03_1.v  = _mm256_max_pd( c_tmp.v, c03_1.v );
     //c03_2.v  = _mm256_max_pd( c_tmp.v, c03_2.v );

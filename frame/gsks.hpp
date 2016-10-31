@@ -65,7 +65,7 @@ void rank_k_macro_kernel
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
       aux.ib = min( m - i, MR );
-      if ( aux.ib != MR ) 
+      if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
@@ -124,7 +124,7 @@ void fused_macro_kernel
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
       aux.ib = min( m - i, MR );
-      if ( aux.ib != MR ) 
+      if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }

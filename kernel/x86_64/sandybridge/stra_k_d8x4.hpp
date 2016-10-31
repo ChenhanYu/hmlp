@@ -673,5 +673,3 @@ struct stra_k_asm_d8x4
     //printf( "leave micro\n" );
   }
 };
-
-

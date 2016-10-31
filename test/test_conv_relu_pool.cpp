@@ -16,6 +16,7 @@
  * */
 
 #include <tuple>
+#include <algorithm>
 #include <stdio.h>
 #include <stdlib.h>
 #include <omp.h>
@@ -163,6 +164,15 @@ void test_conv_relu_pool( int m, int n, int k )
            B,     k, 
       0.0, C_ref, m 
     );
+
+    for ( auto j = 0; j < n; j ++ )
+    {
+      #pragma omp parallel for
+      for ( auto i = 0; i < m; i ++ )
+      {
+         C_ref[ ( j / 4 ) * m + i ] = std::max( C_ref[ ( j / 4 ) * m + i  ], C_ref[ j * m + i ] );
+      }
+    }
   }
   ref_time = omp_get_wtime() - ref_beg;
   // ------------------------------------------------------------------------
@@ -311,8 +321,21 @@ void test_conv_relu_pool( int m, int n, int k )
 //
 //  printf( "NT %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
 //      m, n, k, flops / gkmx_time, flops / ref_time );
-//
-}
+
+
+#ifdef HMLP_MIC_AVX512
+  hbw_free( A );
+  hbw_free( B );
+  hbw_free( C );
+  hbw_free( C_ref );
+#else
+  free( A );
+  free( B );
+  free( C );
+  free( C_ref );
+#endif
+
+};
 
 
 int main( int argc, char *argv[] )
@@ -326,4 +349,4 @@ int main( int argc, char *argv[] )
   test_conv_relu_pool<double>( m, n, k );
 
   return 0;
-}
+};
