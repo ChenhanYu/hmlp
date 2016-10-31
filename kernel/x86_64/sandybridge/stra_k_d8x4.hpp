@@ -1,3 +1,7 @@
+//#pragma once
+#ifndef STRA_RANKK_HPP
+#define STRA_RANKK_HPP
+
 #include <stdio.h>
 #include <immintrin.h> // AVX
 
@@ -240,8 +244,7 @@ struct stra_k_asm_d8x4
       double *b, 
       int len,
       double **my_c_list, int c_ldc, double *alpha_list,
-      aux_s<double, double, double, double> *aux )
-      //aux_s<double, double, double, double> *aux ) const 
+      aux_s<double, double, double, double> *aux ) const 
   {
     //printf( "enter micro\n" );
     unsigned long long len_c = (unsigned long long)(len);
@@ -673,3 +676,5 @@ struct stra_k_asm_d8x4
     //printf( "leave micro\n" );
   }
 };
+
+#endif

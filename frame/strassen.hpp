@@ -29,6 +29,9 @@
 #include <hmlp_thread_info.hpp>
 #include <hmlp_runtime.hpp>
 
+
+#include <hmlp_blas_lapack.h>
+
 //#include <gkmx.hpp>
 
 namespace hmlp
@@ -629,46 +632,131 @@ void hmlp_dynamic_peeling
   int dim1, int dim2, int dim3
 )
 {
-    int mr = m % dim1;
-    int kr = k % dim2;
-    int nr = n % dim3;
-    int ms = m - mr;
-    int ns = n - nr;
-    int ks = k - kr;
-    double *A_extra, *B_extra, *C_extra;
+  //printf( "Enter dynamic peeling\n" );
+  int mr = m % dim1;
+  int kr = k % dim2;
+  int nr = n % dim3;
+  int ms = m - mr;
+  int ns = n - nr;
+  int ks = k - kr;
+  double *A_extra, *B_extra, *C_extra;
 
-    // Adjust part handled by fast matrix multiplication.
-    // Add far column of A outer product bottom row B
-    if ( kr > 0 ) {
-        // In Strassen, this looks like C([1, 2], [1, 2]) += A([1, 2], 3) * B(3, [1, 2])
-        A_extra = &A[ 0  + ks * lda ];//ms * kr
-        B_extra = &B[ ks + 0  * ldb ];//kr * ns
-        C_extra = &C[ 0  + 0  * ldc ];//ms * ns
-        if ( ms > 0 && ns > 0 )
-        {
-            //bl_dgemm( ms, ns, kr, A_extra, lda, B_extra, ldb, C_extra, ldc );
-        }
+  char transA_val, transB_val;
+  char *char_transA = &transA_val, *char_transB = &transB_val;
+
+
+  //printf( "flag d1\n" );
+
+  // Adjust part handled by fast matrix multiplication.
+  // Add far column of A outer product bottom row B
+  if ( kr > 0 ) {
+    // In Strassen, this looks like C([1, 2], [1, 2]) += A([1, 2], 3) * B(3, [1, 2])
+
+    //printf( "flag d2\n" );
+
+    if ( transA == HMLP_OP_N ) {
+      A_extra = &A[ 0 + ks * lda ];//ms * kr
+      *char_transA = 'N';
+    } else {
+      A_extra = &A[ 0 * lda + ks ];//ms * kr
+      *char_transA = 'T';
     }
 
-    // Adjust for far right columns of C
-    if ( nr > 0 ) {
-        // In Strassen, this looks like C(:, 3) = A * B(:, 3)
-        B_extra = &B[ 0 + ns * ldb ];//k * nr
-        C_extra = &C[ 0 + ns * ldc ];//m * nr
-        //bl_dgemm( m, nr, k, A, lda, B_extra, ldb, C_extra, ldc );
+    //printf( "flag d3\n" );
+    if ( transB == HMLP_OP_N ) {
+      B_extra = &B[ ks + 0 * ldb ];//kr * ns
+      *char_transB = 'N';
+    } else {
+      B_extra = &B[ ks * ldb + 0 ];//kr * ns
+      *char_transB = 'T';
     }
 
-    // Adjust for bottom rows of C
-    if ( mr > 0 ) {
-        // In Strassen, this looks like C(3, [1, 2]) = A(3, :) * B(:, [1, 2])
-        double *A_extra = &A[ ms + 0 * lda ];// mr * k
-        double *B_extra = &B[ 0  + 0 * ldb ];// k  * ns
-        double *C_extra = &C[ ms + 0 * ldc ];// mr * ns
-        if ( ns > 0 )
-        {
-            //bl_dgemm( mr, ns, k, A_extra, lda, B_extra, ldb, C_extra, ldc );
-        }
+    //printf( "flag d4\n" );
+    C_extra = &C[ 0  + 0  * ldc ];//ms * ns
+    if ( ms > 0 && ns > 0 )
+    {
+      //bl_dgemm( ms, ns, kr, A_extra, lda, B_extra, ldb, C_extra, ldc );
+      xgemm( char_transA, char_transB, ms, ns, kr, 1.0, A_extra, lda, B_extra, ldb, 1.0, C_extra, ldc );
     }
+  }
+
+  //printf( "flag d5\n" );
+
+  // Adjust for far right columns of C
+  if ( nr > 0 ) {
+    // In Strassen, this looks like C(:, 3) = A * B(:, 3)
+
+    if ( transA == HMLP_OP_N ) {
+      *char_transA = 'N';
+    } else {
+      *char_transA = 'T';
+    }
+    //printf( "flag d6\n" );
+
+    if ( transB == HMLP_OP_N ) {
+      B_extra = &B[ 0 + ns * ldb ];//k * nr
+      *char_transB = 'N';
+    } else {
+      B_extra = &B[ 0 * ldb + ns ];//k * nr
+      *char_transB = 'T';
+    }
+
+
+    //printf( "flag d7\n" );
+
+    C_extra = &C[ 0 + ns * ldc ];//m * nr
+    //bl_dgemm( m, nr, k, A, lda, B_extra, ldb, C_extra, ldc );
+    xgemm( char_transA, char_transB, m, nr, k, 1.0,  A, lda, B_extra, ldb, 1.0, C_extra, ldc );
+
+  }
+
+  //printf( "flag d8\n" );
+
+  // Adjust for bottom rows of C
+  if ( mr > 0 ) {
+    // In Strassen, this looks like C(3, [1, 2]) = A(3, :) * B(:, [1, 2])
+
+
+  //printf( "flag d8.1\n" );
+    if ( transA == HMLP_OP_N ) {
+
+  //printf( "flag d8.15\n" );
+      A_extra = &A[ ms + 0 * lda ];// mr * k
+  //printf( "flag d8.16\n" );
+      *char_transA = 'N';
+
+      //printf( "flag d8.2\n" );
+    } else {
+      A_extra = &A[ ms * lda + 0 ];// mr * k
+      *char_transA = 'T';
+      //printf( "flag d8.3\n" );
+    }
+
+    //printf( "flag d8.4\n" );
+
+    if ( transB == HMLP_OP_N ) {
+      B_extra = &B[ 0  + 0 * ldb ];// k  * ns
+      *char_transB = 'N';
+
+      //printf( "flag d8.5\n" );
+
+    } else {
+      B_extra = &B[ 0 * ldb  + 0 ];// k  * ns
+      *char_transB = 'T';
+
+      //printf( "flag d8.6\n" );
+    }
+
+  //printf( "flag d9\n" );
+
+    double *C_extra = &C[ ms + 0 * ldc ];// mr * ns
+    if ( ns > 0 )
+    {
+      //bl_dgemm( mr, ns, k, A_extra, lda, B_extra, ldb, C_extra, ldc );
+      xgemm( char_transA, char_transB, mr, ns, k, 1.0, A_extra, lda, B_extra, ldb, 1.0, C_extra, ldc );
+    }
+  }
+  //printf( "Leave dynamic peeling\n" );
 }
 
 
@@ -770,6 +858,7 @@ void strassen
 
   md = md / 2, kd = kd / 2, nd = nd / 2;
 
+  //printf( "flag-1\n" );
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
     worker thread( &my_comm );
@@ -828,7 +917,8 @@ void strassen
     //printf( "C00:" );
     //hmlp_printmatrix( C00, m, md, nd );
 
-    //hmlp_dynamic_peeling( m, n, k, A, lda, B, ldb, C, ldc, 2, 2, 2 );
+  //printf( "before dynamic peeling\n" );
+    hmlp_dynamic_peeling( transA, transB, m, n, k, A, lda, B, ldb, C, ldc, 2, 2, 2 );
 
   }                                                        // end omp  
 
