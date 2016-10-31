@@ -108,7 +108,7 @@ void test_strassen( int m, int n, int k )
   double ref_beg, ref_time, strassen_beg, strassen_time;
   double flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 0.0 );
 
-  int n_iter = 1;
+  int n_iter = 3;
 
   // ------------------------------------------------------------------------
   // Memory allocation for all common buffers
@@ -165,58 +165,58 @@ void test_strassen( int m, int n, int k )
   // ------------------------------------------------------------------------
 
 
-  // ------------------------------------------------------------------------
-  // Call my implementation (NN)
-  // ------------------------------------------------------------------------
-  for ( auto iter = 0; iter < n_iter; iter ++ ) 
-  {
-    if ( iter == 0 ) strassen_beg = omp_get_wtime();
-    dstrassen
-    (
-      HMLP_OP_N, HMLP_OP_N,
-      m, n, k,
-      A, m,
-      B, k,
-      C, m 
-    );
-  }
-  strassen_time = omp_get_wtime() - strassen_beg;
-  // ------------------------------------------------------------------------
-
-  // ------------------------------------------------------------------------
-  // Call the reference function (NN)
-  // ------------------------------------------------------------------------
-  for ( auto iter = 0; iter < n_iter; iter ++ ) 
-  {
-    if ( iter == 0 ) ref_beg = omp_get_wtime();
-    hmlp::xgemm
-    ( 
-      "N", "N", 
-      m, n, k, 
-      1.0, A,     m, 
-           B,     k, 
-      1.0, C_ref, m 
-    );
-  }
-  ref_time = omp_get_wtime() - ref_beg;
-  // ------------------------------------------------------------------------
-
-  ref_time  /= n_iter;
-  strassen_time /= n_iter;
-
-
-  //printf( "C:" );
-  //hmlp_printmatrix( C, m, m, n );
-  //printf( "C_ref:" );
-  //hmlp_printmatrix( C_ref, m, m, n );
-
-
-  compute_error( m, n, C, m, C_ref, m );
-
-  printf( "NN %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
-      m, n, k, flops / strassen_time, flops / ref_time );
-
-
+//  // ------------------------------------------------------------------------
+//  // Call my implementation (NN)
+//  // ------------------------------------------------------------------------
+//  for ( auto iter = 0; iter < n_iter; iter ++ ) 
+//  {
+//    if ( iter == 0 ) strassen_beg = omp_get_wtime();
+//    dstrassen
+//    (
+//      HMLP_OP_N, HMLP_OP_N,
+//      m, n, k,
+//      A, m,
+//      B, k,
+//      C, m 
+//    );
+//  }
+//  strassen_time = omp_get_wtime() - strassen_beg;
+//  // ------------------------------------------------------------------------
+//
+//  // ------------------------------------------------------------------------
+//  // Call the reference function (NN)
+//  // ------------------------------------------------------------------------
+//  for ( auto iter = 0; iter < n_iter; iter ++ ) 
+//  {
+//    if ( iter == 0 ) ref_beg = omp_get_wtime();
+//    hmlp::xgemm
+//    ( 
+//      "N", "N", 
+//      m, n, k, 
+//      1.0, A,     m, 
+//           B,     k, 
+//      1.0, C_ref, m 
+//    );
+//  }
+//  ref_time = omp_get_wtime() - ref_beg;
+//  // ------------------------------------------------------------------------
+//
+//  ref_time  /= n_iter;
+//  strassen_time /= n_iter;
+//
+//
+//  //printf( "C:" );
+//  //hmlp_printmatrix( C, m, m, n );
+//  //printf( "C_ref:" );
+//  //hmlp_printmatrix( C_ref, m, m, n );
+//
+//
+//  compute_error( m, n, C, m, C_ref, m );
+//
+//  printf( "NN %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
+//      m, n, k, flops / strassen_time, flops / ref_time );
+//
+//
 //  // ------------------------------------------------------------------------
 //  // Call my implementation (TN)
 //  // ------------------------------------------------------------------------
@@ -247,7 +247,7 @@ void test_strassen( int m, int n, int k )
 //      m, n, k, 
 //      1.0, A,     k, 
 //           B,     k, 
-//      0.0, C_ref, m 
+//      1.0, C_ref, m 
 //    );
 //  }
 //  ref_time = omp_get_wtime() - ref_beg;
@@ -255,6 +255,7 @@ void test_strassen( int m, int n, int k )
 //
 //  ref_time  /= n_iter;
 //  strassen_time /= n_iter;
+//
 //
 //  compute_error( m, n, C, m, C_ref, m );
 //
@@ -293,7 +294,7 @@ void test_strassen( int m, int n, int k )
 //      m, n, k, 
 //      1.0, A,     k, 
 //           B,     n, 
-//      0.0, C_ref, m 
+//      1.0, C_ref, m 
 //    );
 //  }
 //  ref_time = omp_get_wtime() - ref_beg;
@@ -301,57 +302,70 @@ void test_strassen( int m, int n, int k )
 //
 //  ref_time  /= n_iter;
 //  strassen_time /= n_iter;
+//
+//  printf( "C:" );
+//  hmlp_printmatrix( C, m, m, n );
+//  printf( "C_ref:" );
+//  hmlp_printmatrix( C_ref, m, m, n );
+//
 //
 //  compute_error( m, n, C, m, C_ref, m );
 //
 //  printf( "TT %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
 //      m, n, k, flops / strassen_time, flops / ref_time );
-//
-//
-//
-//  // ------------------------------------------------------------------------
-//  // Call my implementation (NT)
-//  // ------------------------------------------------------------------------
-//  for ( auto iter = -1; iter < n_iter; iter ++ ) 
-//  {
-//    if ( iter == 0 ) strassen_beg = omp_get_wtime();
-//    dstrassen
-//    (
-//      HMLP_OP_N, HMLP_OP_T,
-//      m, n, k,
-//      A, m,
-//      B, n,
-//      C, m 
-//    );
-//  }
-//  strassen_time = omp_get_wtime() - strassen_beg;
-//  // ------------------------------------------------------------------------
-//
-//  // ------------------------------------------------------------------------
-//  // Call the reference function (NT)
-//  // ------------------------------------------------------------------------
-//  for ( auto iter = -1; iter < n_iter; iter ++ ) 
-//  {
-//    if ( iter == 0 ) ref_beg = omp_get_wtime();
-//    hmlp::xgemm
-//    ( 
-//      "N", "T", 
-//      m, n, k, 
-//      1.0, A,     m, 
-//           B,     n, 
-//      0.0, C_ref, m 
-//    );
-//  }
-//  ref_time = omp_get_wtime() - ref_beg;
-//  // ------------------------------------------------------------------------
-//
-//  ref_time  /= n_iter;
-//  strassen_time /= n_iter;
-//
-//  compute_error( m, n, C, m, C_ref, m );
-//
-//  printf( "NT %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
-//      m, n, k, flops / strassen_time, flops / ref_time );
+
+
+
+  // ------------------------------------------------------------------------
+  // Call my implementation (NT)
+  // ------------------------------------------------------------------------
+  for ( auto iter = -1; iter < n_iter; iter ++ ) 
+  {
+    if ( iter == 0 ) strassen_beg = omp_get_wtime();
+    dstrassen
+    (
+      HMLP_OP_N, HMLP_OP_T,
+      m, n, k,
+      A, m,
+      B, n,
+      C, m 
+    );
+  }
+  strassen_time = omp_get_wtime() - strassen_beg;
+  // ------------------------------------------------------------------------
+
+  // ------------------------------------------------------------------------
+  // Call the reference function (NT)
+  // ------------------------------------------------------------------------
+  for ( auto iter = -1; iter < n_iter; iter ++ ) 
+  {
+    if ( iter == 0 ) ref_beg = omp_get_wtime();
+    hmlp::xgemm
+    ( 
+      "N", "T", 
+      m, n, k, 
+      1.0, A,     m, 
+           B,     n, 
+      1.0, C_ref, m 
+    );
+  }
+  ref_time = omp_get_wtime() - ref_beg;
+  // ------------------------------------------------------------------------
+
+  ref_time  /= n_iter;
+  strassen_time /= n_iter;
+
+
+  printf( "C:" );
+  hmlp_printmatrix( C, m, m, n );
+  printf( "C_ref:" );
+  hmlp_printmatrix( C_ref, m, m, n );
+
+
+  compute_error( m, n, C, m, C_ref, m );
+
+  printf( "NT %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
+      m, n, k, flops / strassen_time, flops / ref_time );
 
 }
 
