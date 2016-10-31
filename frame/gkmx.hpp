@@ -160,7 +160,8 @@ void fused_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          &C[ j * ldc + i ], ldc,
+          //&C[ j * ldc + i ], ldc,
+          &C[ ( j / NR ) * ldc + i ], ldc, // for conv_relu_pool
           &aux
         );
       }
