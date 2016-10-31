@@ -32,7 +32,13 @@ inline void pack2D
     {
       for ( auto i = 0; i < m; i ++ )
       {
-        *packX ++ = (*x0_pntr[ i ] ++) + gamma * (*x1_pntr[ i ] ++) ;
+        //*packX ++ = (*x0_pntr[ i ] ++) + gamma * (*x1_pntr[ i ] ++) ;
+
+        *packX = ( *x0_pntr[ i ] ) + gamma * ( *x1_pntr[ i ] ) ;
+        //printf( "TRANS:*x0_pntr[i]:%lf, gamma:%lf, x1_pntr[i]:%lf,packX:%lf\n",*x0_pntr[i], gamma, *x1_pntr[i], *packX);
+        packX ++;
+        x0_pntr[ i ] += 1;
+        x1_pntr[ i ] += 1;
       }
       for ( auto i = m; i < FOLD; i ++ )
       {
@@ -62,6 +68,7 @@ inline void pack2D
       for ( auto i = 0; i < m; i ++ )
       {
         *packX = *x0_pntr[ i ] + gamma * *x1_pntr[ i ];
+        //printf( "NOTRANS:*x0_pntr[i]:%lf, gamma:%lf, x1_pntr[i]:%lf,packX:%lf\n",*x0_pntr[i], gamma, *x1_pntr[i], *packX);
         packX ++;
         x0_pntr[ i ] += ldx;
         x1_pntr[ i ] += ldx;

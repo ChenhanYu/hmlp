@@ -372,6 +372,8 @@ void straprim
   TB *packB 
 )
 {
+  //printf( "m: %d, n: %d, k: %d\n", m, n, k );
+
   packA  += ( thread.jc_id * thread.ic_nt                ) * PACK_MC * KC
           + ( thread.ic_id                               ) * PACK_MC * KC;
   packB  += ( thread.jc_id                               ) * pack_nc * KC;
@@ -413,11 +415,13 @@ void straprim
               &B0[ ( jc + j ) * ldb + pc ], ldb, &packB[ jp * pb ] 
             );
           } else {
+
             pack2D<true, PACK_NR>                            // packB
             (
               min( jb - j, NR ), pb, 
               &B0[ ( jc + j ) * ldb + pc ], &B1[ ( jc + j ) * ldb + pc ], ldb, delta, &packB[ jp * pb ] 
             );
+
           }
 
         }
@@ -441,6 +445,11 @@ void straprim
         //printf( "After packB\n" );
       }
       pc_comm.Barrier();
+
+    //printf( "packB:\n" );
+    //hmlp_printmatrix( packB, PACK_NR, 4, 1 );
+
+
 
       for ( int ic  = loop4th.beg(); 
                 ic  < loop4th.end(); 
@@ -724,16 +733,16 @@ void strassen
   hmlp_acquire_mpart( ms, ks, A, lda, 2, 2, 1, 1, &A11 );
 
   double *B00, *B01, *B10, *B11;
-  hmlp_acquire_mpart( ms, ks, B, lda, 2, 2, 0, 0, &B00 );
-  hmlp_acquire_mpart( ms, ks, B, lda, 2, 2, 0, 1, &B01 );
-  hmlp_acquire_mpart( ms, ks, B, lda, 2, 2, 1, 0, &B10 );
-  hmlp_acquire_mpart( ms, ks, B, lda, 2, 2, 1, 1, &B11 );
+  hmlp_acquire_mpart( ks, ns, B, ldb, 2, 2, 0, 0, &B00 );
+  hmlp_acquire_mpart( ks, ns, B, ldb, 2, 2, 0, 1, &B01 );
+  hmlp_acquire_mpart( ks, ns, B, ldb, 2, 2, 1, 0, &B10 );
+  hmlp_acquire_mpart( ks, ns, B, ldb, 2, 2, 1, 1, &B11 );
 
   double *C00, *C01, *C10, *C11;
-  hmlp_acquire_mpart( ms, ks, C, lda, 2, 2, 0, 0, &C00 );
-  hmlp_acquire_mpart( ms, ks, C, lda, 2, 2, 0, 1, &C01 );
-  hmlp_acquire_mpart( ms, ks, C, lda, 2, 2, 1, 0, &C10 );
-  hmlp_acquire_mpart( ms, ks, C, lda, 2, 2, 1, 1, &C11 );
+  hmlp_acquire_mpart( ms, ns, C, ldc, 2, 2, 0, 0, &C00 );
+  hmlp_acquire_mpart( ms, ns, C, ldc, 2, 2, 0, 1, &C01 );
+  hmlp_acquire_mpart( ms, ns, C, ldc, 2, 2, 1, 0, &C10 );
+  hmlp_acquire_mpart( ms, ns, C, ldc, 2, 2, 1, 1, &C11 );
 
   md = md / 2, kd = kd / 2, nd = nd / 2;
 
@@ -754,12 +763,17 @@ void strassen
 
     //printf( "flag1\n" );
 
-    //printf( "A00:" );
+    //printf( "A00:\n" );
     //hmlp_printmatrix( A00, m, md, kd );
-    //printf( "C00:" );
+    //printf( "B00:\n" );
+    //hmlp_printmatrix( B00, k, kd, nd );
+    //printf( "C00:\n" );
     //hmlp_printmatrix( C00, m, md, nd );
-    //printf( "C01:" );
+    //printf( "C01:\n" );
     //hmlp_printmatrix( C11, m, md, nd );
+
+
+    //exit( 0 );
 
     // M2: C10 = 1*C10+1*(A10+A11)B00; C11 = 1*C11-1*(A10+A11)B00
     STRAPRIM( A10, A11, 1, B00, NULL, 0, C10, C11, 1, -1 )
