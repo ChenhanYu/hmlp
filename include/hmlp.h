@@ -1,6 +1,16 @@
 #ifndef HMLP_H
 #define HMLP_H
 
+#ifdef HMLP_USE_CUDA 
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cusparse_v2.h>
+#include <thrust/pair.h>
+#endif
+
+
+
+
 typedef enum 
 {
   HMLP_OP_N,

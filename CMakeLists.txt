@@ -17,15 +17,32 @@ set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RELEASE_POSTFIX "")
 set (CMAKE_DEBUG_POSTFIX "-debug")
 
-
 # Turn on testing.
 ENABLE_TESTING()
-
 
 # Decide architecture
 set (HMLP_ARCH_MAJOR $ENV{HMLP_ARCH_MAJOR})
 set (HMLP_ARCH_MINOR $ENV{HMLP_ARCH_MINOR})
 set (HMLP_ARCH ${HMLP_ARCH_MAJOR}/${HMLP_ARCH_MINOR})
+
+
+if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  find_package (CUDA REQUIRED)
+  include (FindCUDA)
+  set (HMLP_CUFLAGS          "${HMLP_CUFLAGS} -DHMLP_USE_CUDA")
+endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+
+
+set (HMLP_GPU_ARCH_MAJOR $ENV{HMLP_GPU_ARCH_MAJOR})
+set (HMLP_GPU_ARCH_MINOR $ENV{HMLP_GPU_ARCH_MINOR})
+set (HMLP_GPU_ARCH ${HMLP_GPU_ARCH_MAJOR}/${HMLP_GPU_ARCH_MINOR})
+
+
+# GPU Compiler ptions
+list (APPEND CUDA_NVCC_FLAGS "-O3")
+# list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_20,code=sm_20)
+# list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_30,code=sm_30)
+list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_35,code=sm_35)
 
 
 # Compiler Options (HMLP can use Intel or GNU compilers.)
@@ -56,7 +73,6 @@ if ($ENV{HMLP_MIC_AVX512} MATCHES "true")
 endif ($ENV{HMLP_MIC_AVX512} MATCHES "true")
 
 
-
 if ($ENV{HMLP_USE_BLAS} MATCHES "true")
   set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
 endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
@@ -80,6 +96,11 @@ set (MKL_DIR $ENV{HMLP_MKL_DIR})
 
 # Headers.
 include_directories ("include" "frame" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}" "${MKL_DIR}/include")
+
+if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  include_directories ("/usr/local/cuda/include" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_GPU_ARCH}")
+endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+
 file (GLOB HMLP_HDRS ${CMAKE_SOURCE_DIR}/include/*)
 install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 
@@ -87,12 +108,20 @@ install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 # Library dependencies
 file (GLOB FRAME_CC_SRC  ${CMAKE_SOURCE_DIR}/frame/*.c)
 file (GLOB FRAME_CXX_SRC ${CMAKE_SOURCE_DIR}/frame/*.cpp)
+file (GLOB FRAME_CU_SRC ${CMAKE_SOURCE_DIR}/frame/*.cu)
 file (GLOB KERNEL_SRC ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.cpp)
-file (GLOB PACKAGE_SRC ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
+file (GLOB PACKAGE_CXX_SRC ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
+file (GLOB PACKAGE_CU_SRC ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 
 # Build the static library.
-add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_SRC})
+
+
+if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_CXX_SRC} ${PACKAGE_CU_SRC})
+else ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_CXX_SRC})
+endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
 # Build the executable files.

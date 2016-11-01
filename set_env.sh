@@ -3,22 +3,29 @@ export HMLP_DIR=$PWD
 echo "HMLP_DIR = $HMLP_DIR"
 
 ## Manually set the target architecture.
-#export HMLP_ARCH_MAJOR=gpu
-#export HMLP_ARCH_MINOR=kepler
-
+export HMLP_GPU_ARCH_MAJOR=gpu
+export HMLP_GPU_ARCH_MINOR=kepler
 export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=sandybridge
+
+# export HMLP_ARCH_MAJOR=x86_64
 # export HMLP_ARCH_MINOR=haswell
 
 # export HMLP_ARCH_MAJOR=mic
 # export HMLP_ARCH_MINOR=knl
 
+export HMLP_GPU_ARCH=$HMLP_GPU_ARCH_MAJOR/$HMLP_GPU_ARCH_MINOR
 export HMLP_ARCH=$HMLP_ARCH_MAJOR/$HMLP_ARCH_MINOR
+echo "HMLP_GPU_ARCH = $HMLP_GPU_ARCH"
 echo "HMLP_ARCH = $HMLP_ARCH"
 
 ## Compiler options (if false, then use GNU compilers)
 export HMLP_USE_INTEL=true
 echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
+
+## GPU compiler options (if true, compile the gpu library as well)
+export HMLP_USE_CUDA=false
+echo "HMLP_USE_CUDA = $HMLP_USE_CUDA"
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
@@ -32,8 +39,8 @@ echo "HMLP_USE_VML = $HMLP_USE_VML"
 export HMLP_MIC_AVX512=false
 
 ## Manually set the mkl path
-export HMLP_MKL_DIR=$TACC_MKL_DIR
-# export HMLP_MKL_DIR=/opt/intel/mkl
+# export HMLP_MKL_DIR=$TACC_MKL_DIR
+export HMLP_MKL_DIR=/opt/intel/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
 ## Parallel options
