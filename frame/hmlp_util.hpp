@@ -47,6 +47,7 @@ void hmlp_free( T *ptr )
 // Split into m x n, get the subblock starting from i th row and j th column.
 template<typename T>
 void hmlp_acquire_mpart( 
+        hmlpOperation_t transX,
         int m,
         int n,
         T *src_buff,
@@ -59,7 +60,12 @@ void hmlp_acquire_mpart(
         )
 {
     //printf( "m: %d, n: %d, lda: %d, x: %d, y: %d, i: %d, j: %d\n", m, n, lda, x, y, i, j );
-    *dst_buff = &src_buff[ m / x * i + ( n / y * j ) * lda ]; //src( m/x*i, n/y*j )
+  if ( transX == HMLP_OP_N ) {
+    *dst_buff = &src_buff[ ( m / x * i ) + ( n / y * j ) * lda ]; //src( m/x*i, n/y*j )
+  } else {
+    *dst_buff = &src_buff[ ( m / x * i ) * lda + ( n / y * j ) ]; //src( m/x*i, n/y*j )
+    /* x,y,i,j split partition dimension and id after the transposition */
+  }
 }
 
 

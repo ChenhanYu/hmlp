@@ -1,3 +1,7 @@
+//#pragma once
+#ifndef STRA_RANKK_HPP
+#define STRA_RANKK_HPP
+
 #include <stdio.h>
 #include <immintrin.h> // AVX
 
@@ -239,15 +243,40 @@ struct stra_k_asm_d8x4
       double *a, 
       double *b, 
       int len,
-      double **c_list, int c_ldc, double *alpha_list,
+      double **my_c_list, int c_ldc, double *alpha_list,
       aux_s<double, double, double, double> *aux ) const 
   {
+    //printf( "enter micro\n" );
     unsigned long long len_c = (unsigned long long)(len);
     unsigned long long ldc   = (unsigned long long)(c_ldc);
 
-	double*   b_next = aux->b_next;
+	double*   b_next = (double *)(aux->b_next);
     unsigned long long k_iter = (unsigned long long)k / 4;
     unsigned long long k_left = (unsigned long long)k % 4;
+
+    double** c_list = my_c_list;
+
+    //printf( "k_iter:%lu,k_left:%lu\n", k_iter, k_left );
+
+    //int i, j;
+    //printf( "c0:\n" );
+    //for ( i = 0; i < 8; i ++ ) {
+    //  for ( j = 0; j < 4; j ++ ) {
+    //    printf( "%lf ", c_list[0][j * (int)ldc + i] );
+    //  }
+    //  printf( "\n" );
+    //}
+    //printf( "c1:\n" );
+    //for ( i = 0; i < 8; i ++ ) {
+    //  for ( j = 0; j < 4; j ++ ) {
+    //    printf( "%lf ", c_list[1][j * (int)ldc + i] );
+    //  }
+    //  printf( "\n" );
+    //}
+    ////printf( "c_list[0][0]: %lf\n", c_list[0][0] );
+    ////printf( "c_list[1][0]: %lf\n", c_list[1][0] );
+
+    //printf( "before asm\n" );
 
 	__asm__ volatile
 	(
@@ -574,6 +603,7 @@ struct stra_k_asm_d8x4
 	"vbroadcastsd    (%%rax), %%ymm6             \n\t" // load alpha_list[ i ] and duplicate
     "                                            \n\t"
     "                                            \n\t"
+	//"jmp              .DDONE                      \n\t"
 	"vmovapd    0 * 32(%%rdx),  %%ymm0           \n\t" // ymm0 = c_list[1]( 0:3, 0 )
 	"vmulpd            %%ymm6,  %%ymm9,  %%ymm1  \n\t" // scale by alpha2, ymm1 = ymm6( alpha2 ) * ymm9( ab0_3:0 )
 	"vaddpd            %%ymm1,  %%ymm0,  %%ymm1  \n\t" // ymm1 = ymm0 + ymm1
@@ -620,6 +650,7 @@ struct stra_k_asm_d8x4
 	"decq   %%rsi                                \n\t" // i -= 1;
 	"jne    .DSTORELOOP                          \n\t" // iterate again if i != 0.
 	"                                            \n\t"
+    ".DDONE:                                     \n\t"
 	"                                            \n\t"
 	: // output operands (none)
 	: // input operands
@@ -642,7 +673,8 @@ struct stra_k_asm_d8x4
 	  "memory"
 	);
 
-
-
+    //printf( "leave micro\n" );
   }
 };
+
+#endif

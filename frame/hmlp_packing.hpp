@@ -13,6 +13,7 @@ inline void pack2D
   T *X0, T *X1, int ldx, T gamma, int *xmap, T *packX
 )
 {
+  //printf( "X0[0]: %lf, X1[0]: %lf\n", X0[0], X1[0] );
   T *x0_pntr[ FOLD ];
   T *x1_pntr[ FOLD ];
 
