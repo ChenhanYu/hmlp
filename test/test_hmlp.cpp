@@ -131,8 +131,10 @@ void test_hmlp( int m, int n, int k )
   u    = (double*)malloc( sizeof(double) * nx * rhs ); // rhs leading
   w    = (double*)malloc( sizeof(double) * nx * rhs ); // rhs leading
   umkl = (double*)malloc( sizeof(double) * nx * rhs ); // rhs leading
-  C    = (double*)malloc( sizeof(double) * m * n );
-  C_ref= (double*)malloc( sizeof(double) * m * n );
+  //C    = (double*)malloc( sizeof(double) * m * n );
+  //C_ref= (double*)malloc( sizeof(double) * m * n );
+  posix_memalign( (void**)&C,     32, sizeof(T) * m * n );
+  posix_memalign( (void**)&C_ref, 32, sizeof(T) * m * n );
 #endif
   // ------------------------------------------------------------------------
 
@@ -140,27 +142,33 @@ void test_hmlp( int m, int n, int k )
   // ------------------------------------------------------------------------
   // Initialization
   // ------------------------------------------------------------------------
-  for ( i = 0; i < nx; i ++ ) {
-    for ( p = 0; p < rhs; p ++ ) {
+  for ( i = 0; i < nx; i ++ ) 
+  {
+    for ( p = 0; p < rhs; p ++ ) 
+    {
       u[ i * rhs + p ]    = 0.0;
       umkl[ i * rhs + p ] = 0.0;
       w[ i * rhs + p ]    = (double)( rand() % 1000 ) / 1000.0;
     }
   }
 
-  for ( i = 0; i < m; i ++ ) {
+  for ( i = 0; i < m; i ++ ) 
+  {
     amap[ i ] = i;
     umap[ i ] = i;
   }
 
-  for ( j = 0; j < n; j ++ ) {
+  for ( j = 0; j < n; j ++ ) 
+  {
     bmap[ j ] = j;
     wmap[ j ] = j;
   }
 
   // random[ 0, 0.1 ]
-  for ( i = 0; i < nx; i ++ ) {
-    for ( p = 0; p < k; p ++ ) {
+  for ( i = 0; i < nx; i ++ ) 
+  {
+    for ( p = 0; p < k; p ++ ) 
+    {
       XA[ i * k + p ] = (double)( rand() % 100 ) / 1000.0;	
     }
   }
@@ -289,13 +297,21 @@ void test_hmlp( int m, int n, int k )
     }
   }
 
-
-
-
   flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 37.0 );
   printf( "%d, %d, %d, %5.2lf, %5.2lf;\n", 
       m, n, k, flops / dgsks_time, flops / ref_time );
 
+  free( amap );
+  free( umap );
+  free( bmap );
+  free( wmap );
+  free( XA );
+  free( XA2 );
+  free( u );
+  free( w );
+  free( umkl );
+  free( C );
+  free( C_ref );
 }
 
 

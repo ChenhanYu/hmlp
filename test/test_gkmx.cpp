@@ -104,8 +104,10 @@ void test_gkmx( int m, int n, int k )
 #else
   A     = (T*)malloc( sizeof(T) * m * k );
   B     = (T*)malloc( sizeof(T) * k * n );
-  C     = (T*)malloc( sizeof(T) * m * n );
-  C_ref = (T*)malloc( sizeof(T) * m * n );
+  //C     = (T*)malloc( sizeof(T) * m * n );
+  //C_ref = (T*)malloc( sizeof(T) * m * n );
+  posix_memalign( (void**)&C,     32, sizeof(T) * m * n );
+  posix_memalign( (void**)&C_ref, 32, sizeof(T) * m * n );
 #endif
   // ------------------------------------------------------------------------
 

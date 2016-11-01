@@ -30,13 +30,16 @@ void dgsks
     case KS_GAUSSIAN:
 
       // Sandy-bridge
-      rank_k_int_d8x4 semiringkernel;
-      gaussian_ref_d8x4 microkernel;
+      //rank_k_int_d8x4 semiringkernel;
+      rank_k_asm_d8x4 semiringkernel;
+      //gaussian_ref_d8x4 microkernel;
+      gaussian_int_d8x4 microkernel;
       gsks<
         104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
         true, false, false,
-        rank_k_int_d8x4,
-        gaussian_ref_d8x4,
+        //rank_k_int_d8x4,
+        rank_k_asm_d8x4,
+        gaussian_int_d8x4,
         double, double, double, double>
       ( 
         kernel,

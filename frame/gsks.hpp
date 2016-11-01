@@ -662,6 +662,16 @@ void gsks(
     }                                                      // end 6th loop
   */
   }                                                        // end omp region
+
+  hmlp_free( packA_buff );
+  hmlp_free( packB_buff );
+  hmlp_free( packu_buff );
+  hmlp_free( packw_buff );
+  if ( USE_L2NORM )
+  {
+    hmlp_free( packA2_buff );
+    hmlp_free( packB2_buff );
+  }
 }                                                          // end gsks
 
 

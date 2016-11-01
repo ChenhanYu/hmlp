@@ -17,15 +17,15 @@ export HMLP_ARCH=$HMLP_ARCH_MAJOR/$HMLP_ARCH_MINOR
 echo "HMLP_ARCH = $HMLP_ARCH"
 
 ## Compiler options (if false, then use GNU compilers)
-export HMLP_USE_INTEL=flase
+export HMLP_USE_INTEL=true
 echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 
 ## Whether use BLAS or not?
-export HMLP_USE_BLAS=flase
+export HMLP_USE_BLAS=true
 echo "HMLP_USE_BLAS = $HMLP_USE_BLAS"
 
 ## Whether use VML or not? (only if you have MKL)
-export HMLP_USE_VML=false
+export HMLP_USE_VML=true
 echo "HMLP_USE_VML = $HMLP_USE_VML"
 
 ## Compile with KNL -xMIC-AVX512
@@ -37,7 +37,7 @@ export HMLP_MKL_DIR=$TACC_MKL_DIR
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
 ## Parallel options
-export KMP_AFFINITY=
+# export KMP_AFFINITY=compact
 export OMP_PROC_BIND=spread
 export OMP_NUM_THREADS=1
 export KS_JC_NT=1
