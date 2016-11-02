@@ -320,7 +320,7 @@ void strassen
  
   // NN case for testing
   strassen_internal
-  <false,false, 16, 16, 80, 64, 16, 1, 16, 16, 16, 16,
+  <false,false, 16, 16, 64, 64, 16, 1, 16, 16, 16, 16,
   SQ2NRM, OPKERNEL, OP1, OP2>
   (
     stream,

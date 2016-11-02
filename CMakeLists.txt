@@ -133,6 +133,9 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   cuda_add_executable (test_gkmm_gpu.x ${CMAKE_SOURCE_DIR}/test/test_gkmm_gpu.cu)
   target_link_libraries(test_gkmm_gpu.x hmlp)
   cuda_add_cublas_to_target(test_gkmm_gpu.x)
+  cuda_add_executable (test_strassen_gpu.x ${CMAKE_SOURCE_DIR}/test/test_strassen_gpu.cu)
+  target_link_libraries(test_strassen_gpu.x hmlp)
+  cuda_add_cublas_to_target(test_strassen_gpu.x)
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
