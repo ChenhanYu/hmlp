@@ -11,10 +11,37 @@
 #include <utility>
 #include <thrust/functional.h>
 
+// This is ugly but ... we will see later.
+#define PRECISION_d 1
+
+// Tunned parameters 
+#include <dgemm_param_nn.h>
+#include <dgemm_param_nt.h>
+#include <dgemm_param_tn.h>
+#include <dgemm_param_tt.h>
+#include <sgemm_param_nn.h>
+#include <sgemm_param_nt.h>
+#include <sgemm_param_tn.h>
+#include <sgemm_param_tt.h>
+
 // GKMX template
 #include <gkmm_gpu.hpp>
 
 using namespace hmlp::gkmm;
+
+
+template <typename T>
+struct identity 
+{
+  __host__ __device__ __forceinline__ T operator()( const T& x, int i, int j, int b ) const 
+  {
+    return x; 
+  }
+  T** A2;
+  T** B2;
+};
+
+
 
 /**
  *  @brief This gkmm instance shows how to implement Gaussian kernel matrix
@@ -41,7 +68,7 @@ void gkmm_dfma
   thrust::multiplies<double> op2; 
 
   // Declare kernel operation
-  thrust::identity<double> opkernel;
+  identity<double> opkernel;
 
   // Declare <TV> initial value.
   double initV = 0.0;
@@ -49,7 +76,9 @@ void gkmm_dfma
   // Declare SQ2NRM
   const bool sq2nrm = false;
 
-  gkmm<sq2nrm, thrust::identity<double>, thrust::plus<double>, thrust::multiplies<double> >
+  gkmm
+  <sq2nrm, identity<double>, thrust::plus<double>, thrust::multiplies<double>,
+  double, double, double, double>
   (
     stream, 
     transA, transB,
@@ -60,7 +89,55 @@ void gkmm_dfma
     batchSize,
     opkernel, op1, op2, initV
   );
-}
+};
+
+void gkmm_dfma
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  const double *Aarray, int lda, int loa, 
+  const double *Barray, int ldb, int lob,
+        double *Carray, int ldc, int loc,
+  int batchSize
+)
+{
+  // Declare semi-rings.
+  thrust::plus<double> op1;
+  thrust::multiplies<double> op2; 
+
+  // Declare kernel operation
+  identity<double> opkernel;
+
+  // Declare <TV> initial value.
+  double initV = 0.0;
+
+  // Declare SQ2NRM
+  const bool sq2nrm = false;
+
+  gkmm
+  <sq2nrm, identity<double>, thrust::plus<double>, thrust::multiplies<double>,
+  double, double, double, double>
+  (
+    stream, 
+    transA, transB,
+    m, n, k,
+    Aarray, lda, loa,
+    Barray, ldb, lob,
+    Carray, ldc, loc,
+    batchSize,
+    opkernel, op1, op2, initV
+  );
+};
+
+
+
+
+
+
+
+
+
 
 ///** 
 // *  @brief This is the same gkmm instance that takes strided matrices.

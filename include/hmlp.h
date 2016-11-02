@@ -1,46 +1,69 @@
 #ifndef HMLP_H
 #define HMLP_H
 
-#ifdef HMLP_USE_CUDA 
-#include <cuda_runtime.h>
-#include <cublas_v2.h>
-#include <cusparse_v2.h>
-#include <thrust/pair.h>
-#endif
-
-
-
-
 typedef enum 
 {
   HMLP_OP_N,
   HMLP_OP_T
 } hmlpOperation_t;
 
+
+#ifdef HMLP_USE_CUDA 
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cusparse_v2.h>
+#include <thrust/pair.h>
+
+void gkmm_dfma
+(
+  cudaStream_t stream,
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  const double *Aarray[], int lda,
+  const double *Barray[], int ldb,
+        double *Carray[], int ldc,
+  int batchSize
+);
+
+void gkmm_dfma
+(
+  cudaStream_t stream,
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  const double *Aarray, int lda, int loa, 
+  const double *Barray, int ldb, int lob,
+        double *Carray, int ldc, int loc,
+  int batchSize
+);
+
+#endif
+
+
+
 void gkmx_dfma
 (
   hmlpOperation_t transA, hmlpOperation_t transB,
-	int m, int n, int k,
-	double *A, int lda,
-	double *B, int ldb,
-	double *C, int ldc
+  int m, int n, int k,
+  double *A, int lda,
+  double *B, int ldb,
+  double *C, int ldc
 );
 
 void gkmx_dconv_relu_pool
 (
   hmlpOperation_t transA, hmlpOperation_t transB,
-	int m, int n, int k,
-	double *A, int lda,
-	double *B, int ldb,
-	double *C, int ldc
+  int m, int n, int k,
+  double *A, int lda,
+  double *B, int ldb,
+  double *C, int ldc
 );
 
 void dstrassen(
   hmlpOperation_t transA, hmlpOperation_t transB,
-	int m, int n, int k,
-	double *A, int lda,
-	double *B, int ldb,
-	double *C, int ldc
+  int m, int n, int k,
+  double *A, int lda,
+  double *B, int ldb,
+  double *C, int ldc
 );
 
 

@@ -25,25 +25,19 @@ set (HMLP_ARCH_MAJOR $ENV{HMLP_ARCH_MAJOR})
 set (HMLP_ARCH_MINOR $ENV{HMLP_ARCH_MINOR})
 set (HMLP_ARCH ${HMLP_ARCH_MAJOR}/${HMLP_ARCH_MINOR})
 
-
-if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  find_package (CUDA REQUIRED)
-  include (FindCUDA)
-  set (HMLP_CUFLAGS          "${HMLP_CUFLAGS} -DHMLP_USE_CUDA")
-  set (CUDA_PROPAGATE_HOST_FLAGS "false")
-endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-
-
 set (HMLP_GPU_ARCH_MAJOR $ENV{HMLP_GPU_ARCH_MAJOR})
 set (HMLP_GPU_ARCH_MINOR $ENV{HMLP_GPU_ARCH_MINOR})
 set (HMLP_GPU_ARCH ${HMLP_GPU_ARCH_MAJOR}/${HMLP_GPU_ARCH_MINOR})
 
-
 # GPU Compiler ptions
-list (APPEND CUDA_NVCC_FLAGS "-O3")
-# list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_20,code=sm_20)
-# list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_30,code=sm_30)
-list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_35,code=sm_35)
+if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  find_package (CUDA REQUIRED)
+  include (FindCUDA)
+  list (APPEND CUDA_NVCC_FLAGS "-O3")
+  list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_35,code=sm_35)
+  list (APPEND CUDA_NVCC_FLAGS -DHMLP_USE_CUDA)
+  set (CUDA_PROPAGATE_HOST_FLAGS "false")
+endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
 # Compiler Options (HMLP can use Intel or GNU compilers.)
@@ -132,6 +126,16 @@ add_executable (test_strassen.x ${CMAKE_SOURCE_DIR}/test/test_strassen.cpp)
 target_link_libraries(test_strassen.x hmlp)
 add_executable (test_conv_relu_pool.x ${CMAKE_SOURCE_DIR}/test/test_conv_relu_pool.cpp)
 target_link_libraries(test_conv_relu_pool.x hmlp)
+
+
+if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  cuda_add_executable (test_gkmm_gpu.x ${CMAKE_SOURCE_DIR}/test/test_gkmm_gpu.cu)
+  target_link_libraries(test_gkmm_gpu.x hmlp)
+  cuda_add_cublas_to_target(test_gkmm_gpu.x)
+endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+
+
+
 
 
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)

@@ -18,6 +18,14 @@
 #include <hmlp.h>
 #include <hmlp_util.hpp>
 
+#ifndef mymax
+#define mymax(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef mymin
+#define mymin(a, b) ((a) < (b) ? (a) : (b))
+#endif
+#define fetch(A, m, n, bound) offs_d##A[mymin(n*LD##A+m, bound)]
+
 namespace hmlp
 {
 namespace gkmm
@@ -26,8 +34,8 @@ namespace gkmm
 #define version(s,v) s ## _V_ ## v
 
 // GKMM macros (see gkmx_template_kernel_batched.hxx for the definition.)
-#define gkmm_macro(ta,tb,s,v) gkmm_template_batched_internal \
-  < ta, tb, s ## _V_ ## v, TA, TB, TC, TV, SQ2NRM, OPKERNEL, OP1, OP2> \
+#define gkmm_macro(ta,tb,s,v) gkmm_internal \
+  < ta, tb, s ## _V_ ## v, SQ2NRM, OPKERNEL, OP1, OP2, TA, TB, TC, TV> \
   ( \
   stream, \
   m, n, k, \
@@ -37,8 +45,8 @@ namespace gkmm
   batchSize, \
   opkernel, op1, op2, initV ) 
 
-#define gkmm_strided_macro(ta,tb,s,v) gkmm_template_batched_strided_internal \
-  < ta, tb, s ## _V_ ## v, TA, TB, TC, TV, SQ2NRM, OPKERNEL, OP1, OP2> \
+#define gkmm_strided_macro(ta,tb,s,v) gkmm_internal \
+  < ta, tb, s ## _V_ ## v, SQ2NRM, OPKERNEL, OP1, OP2, TA, TB, TC, TV> \
   ( \
   stream, \
   m, n, k, \

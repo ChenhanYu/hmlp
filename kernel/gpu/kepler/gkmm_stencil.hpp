@@ -68,12 +68,12 @@
 
   int m, n, k, kk;
 
-  // Initialize C with init1.
+  // Initialize rC<TV> with initV.
   #pragma unroll
   for (n = 0; n < THR_N; n++)
     #pragma unroll
     for (m = 0; m < THR_M; m++)
-      rC[ n ][ m ] = init1;
+      rC[ n ][ m ] = initV;
 
 
 
