@@ -192,7 +192,7 @@ void strassen_internal
 )
 {
   dim3 dimBlock( DIM_X, DIM_Y );
-  dim3 dimGrid( hmlp_ceildiv( m, BLK_M ), hmlp_ceildiv( n, BLK_N ), batchSize );
+  dim3 dimGrid( hmlp_ceildiv( m / 2, BLK_M ), hmlp_ceildiv( n / 2, BLK_N ), batchSize );
 
   strassen_kernel<
     TRANSA, TRANSB,
@@ -235,7 +235,7 @@ void strassen_internal
 )
 {
   dim3 dimBlock( DIM_X, DIM_Y );
-  dim3 dimGrid( hmlp_ceildiv( m, BLK_M ), hmlp_ceildiv( n, BLK_N ), batchSize );
+  dim3 dimGrid( hmlp_ceildiv( m / 2, BLK_M ), hmlp_ceildiv( n / 2, BLK_N ), batchSize );
 
   strassen_kernel<
     TRANSA, TRANSB,
@@ -320,7 +320,7 @@ void strassen
  
   // NN case for testing
   strassen_internal
-  <false,false, 16, 16, 64, 64, 16, 1, 16, 16, 16, 16,
+  <false,false, 16, 16, 80, 64, 16, 1, 16, 16, 16, 16,
   SQ2NRM, OPKERNEL, OP1, OP2>
   (
     stream,

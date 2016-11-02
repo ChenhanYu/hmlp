@@ -161,7 +161,7 @@
       boundB   -= BLK_K;
     }
 
-    #pragma unroll
+    //#pragma unroll
     for (n = 0; n < ( TRANSA?BLK_M/DIM_YA:BLK_K/DIM_YA ); n++)
       #pragma unroll
       for (m = 0; m < ( TRANSA?BLK_K/DIM_XA:BLK_M/DIM_XA ); m++)
@@ -170,7 +170,7 @@
                  + fetch(A1, m*DIM_XA, n*DIM_YA, boundA);
       }
 
-    #pragma unroll
+    //#pragma unroll
     for (n = 0; n < ( TRANSB?BLK_K/DIM_YB:BLK_N/DIM_YB ); n++)
       #pragma unroll
       for (m = 0; m < ( TRANSB?BLK_N/DIM_XB:BLK_K/DIM_XB ); m++)
