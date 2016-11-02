@@ -91,44 +91,44 @@ void dstrassen
   );
 };
 
-//void gkmm_dfma
-//(
-//  cudaStream_t stream, 
-//  hmlpOperation_t transA, hmlpOperation_t transB, 
-//  int m, int n, int k,
-//  const double *Aarray, int lda, int loa, 
-//  const double *Barray, int ldb, int lob,
-//        double *Carray, int ldc, int loc,
-//  int batchSize
-//)
-//{
-//  // Declare semi-rings.
-//  thrust::plus<double> op1;
-//  thrust::multiplies<double> op2; 
-//
-//  // Declare kernel operation
-//  identity<double> opkernel;
-//
-//  // Declare <TV> initial value.
-//  double initV = 0.0;
-//
-//  // Declare SQ2NRM
-//  const bool sq2nrm = false;
-//
-//  gkmm
-//  <sq2nrm, identity<double>, thrust::plus<double>, thrust::multiplies<double>,
-//  double, double, double, double>
-//  (
-//    stream, 
-//    transA, transB,
-//    m, n, k,
-//    Aarray, lda, loa,
-//    Barray, ldb, lob,
-//    Carray, ldc, loc,
-//    batchSize,
-//    opkernel, op1, op2, initV
-//  );
-//};
+void dstrassen
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  const double *Aarray, int lda, int loa, 
+  const double *Barray, int ldb, int lob,
+        double *Carray, int ldc, int loc,
+  int batchSize
+)
+{
+  // Declare semi-rings.
+  thrust::plus<double> op1;
+  thrust::multiplies<double> op2; 
+
+  // Declare kernel operation
+  identity<double> opkernel;
+
+  // Declare <TV> initial value.
+  double initV = 0.0;
+
+  // Declare SQ2NRM
+  const bool sq2nrm = false;
+
+  strassen
+  <sq2nrm, identity<double>, thrust::plus<double>, thrust::multiplies<double>,
+  double, double, double, double>
+  (
+    stream, 
+    transA, transB,
+    m, n, k,
+    Aarray, lda, loa,
+    Barray, ldb, lob,
+    Carray, ldc, loc,
+    batchSize,
+    opkernel, op1, op2, initV
+  );
+};
 
 
 

@@ -152,38 +152,24 @@ static __global__ void strassen_kernel
 };
 
 
-//template<bool TRANSA, bool TRANSB,
-//const int DIM_X, const int DIM_Y, 
-//const int BLK_M, const int BLK_N, const int BLK_K,
-//const int DIM_XA, const int DIM_YA, 
-//const int DIM_XB, const int DIM_YB,
-//bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
-//typename TA, typename TB, typename TC, typename TV>
-//static __global__ void gkmm_kernel
-//(
-//  int M, int N, int K,
-//  const TA *A, int LDA, int LOA,
-//  const TB *B, int LDB, int LOB,
-//        TC *C, int LDC, int LOC,
-//  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV 
-//)
-//{
-//  gkmm_device<
-//    TRANSA, TRANSB,
-//    DIM_X, DIM_Y, 
-//    BLK_M, BLK_N, BLK_K,
-//    DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
-//    (BLK_M/DIM_X), (BLK_N/DIM_Y), 
-//    SQ2NRM, OPKERNEL, OP1, OP2,
-//    TA, TB, TC, TV>
-//  (
-//    M, N, K, 
-//    A + LOA * blockIdx.z, LDA,
-//    B + LOB * blockIdx.z, LDB,
-//    C + LOC * blockIdx.z, LDC,
-//    opkernel, op1, op2, initV 
-//  );
-//};
+template<bool TRANSA, bool TRANSB,
+const int DIM_X, const int DIM_Y, 
+const int BLK_M, const int BLK_N, const int BLK_K,
+const int DIM_XA, const int DIM_YA, 
+const int DIM_XB, const int DIM_YB,
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
+typename TA, typename TB, typename TC, typename TV>
+static __global__ void strassen_kernel
+(
+  int M, int N, int K,
+  const TA *A, int LDA, int LOA,
+  const TB *B, int LDB, int LOB,
+        TC *C, int LDC, int LOC,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV 
+)
+{
+  // To be implemented
+};
 
 
 template<
@@ -226,47 +212,47 @@ void strassen_internal
 };
 
 
-///**
-// *  batched version
-// */ 
-//template<
-//bool TRANSA, bool TRANSB,
-//const int DIM_X, const int DIM_Y, 
-//const int BLK_M, const int BLK_N, const int BLK_K,
-//const int dim_vec,
-//const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
-//bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
-//typename TA, typename TB, typename TC, typename TV>
-//void gkmm_internal
-//(
-//  cudaStream_t stream, 
-//  int m, int n, int k,
-//  const TA *Aarray, int lda, int loa,
-//  const TB *Barray, int ldb, int lob,
-//        TC *Carray, int ldc, int loc,
-//  int batchSize,
-//  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV 
-//)
-//{
-//  dim3 dimBlock( DIM_X, DIM_Y );
-//  dim3 dimGrid( hmlp_ceildiv( m, BLK_M ), hmlp_ceildiv( n, BLK_N ), batchSize );
-//
-//  gkmm_kernel<
-//    TRANSA, TRANSB,
-//    DIM_X, DIM_Y, 
-//    BLK_M, BLK_N, BLK_K, 
-//    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
-//    SQ2NRM, OPKERNEL, OP1, OP2,
-//    TA, TB, TC, TV>
-//  <<< dimGrid, dimBlock, 0, stream >>>
-//  ( 
-//    m, n, k, 
-//    Aarray, lda, loa,
-//    Barray, ldb, lob,
-//    Carray, ldc, loc,
-//    opkernel, op1, op2, initV
-//  );
-//};
+/**
+ *  batched version
+ */ 
+template<
+bool TRANSA, bool TRANSB,
+const int DIM_X, const int DIM_Y, 
+const int BLK_M, const int BLK_N, const int BLK_K,
+const int dim_vec,
+const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
+typename TA, typename TB, typename TC, typename TV>
+void strassen_internal
+(
+  cudaStream_t stream, 
+  int m, int n, int k,
+  const TA *Aarray, int lda, int loa,
+  const TB *Barray, int ldb, int lob,
+        TC *Carray, int ldc, int loc,
+  int batchSize,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV 
+)
+{
+  dim3 dimBlock( DIM_X, DIM_Y );
+  dim3 dimGrid( hmlp_ceildiv( m, BLK_M ), hmlp_ceildiv( n, BLK_N ), batchSize );
+
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda, loa,
+    Barray, ldb, lob,
+    Carray, ldc, loc,
+    opkernel, op1, op2, initV
+  );
+};
 
 
 /**
@@ -388,34 +374,49 @@ void strassen
  *  @init1 Initial value of the semi-ring operators
  *
  */ 
-//template<
-//bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
-//typename TA, typename TB, typename TC, typename TV> 
-//void gkmm
-//(
-//  cudaStream_t stream, 
-//  hmlpOperation_t transA, hmlpOperation_t transB, 
-//  int m, int n, int k,
-//  const TA *Aarray, int lda, int loa,
-//  const TB *Barray, int ldb, int lob,
-//        TC *Carray, int ldc, int loc,
-//  int batchSize,
-//  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
-//)
-//{
-//  // Early return.
-//  if ( m <= 0 || n <= 0 || k <= 0 ) return;
-//
-//  // Specify input formats
-//  int shape = 0;
-//  if      ( transA == HMLP_OP_N && transB == HMLP_OP_N ) { shape = 0; } // nn
-//  else if ( transA == HMLP_OP_N && transB == HMLP_OP_T ) { shape = 1; } // nt
-//  else if ( transA == HMLP_OP_T && transB == HMLP_OP_N ) { shape = 3; } // tn
-//  else if ( transA == HMLP_OP_T && transB == HMLP_OP_T ) { shape = 4; } // tt
-//
-//  // Autotuned decision tree
-//  #include <gkmm_strided_autotune.hpp>
-//};
+template<
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
+typename TA, typename TB, typename TC, typename TV> 
+void strassen
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  const TA *Aarray, int lda, int loa,
+  const TB *Barray, int ldb, int lob,
+        TC *Carray, int ldc, int loc,
+  int batchSize,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
+)
+{
+  // Early return.
+  if ( m <= 0 || n <= 0 || k <= 0 ) return;
+
+  // Specify input formats
+  int shape = 0;
+  if      ( transA == HMLP_OP_N && transB == HMLP_OP_N ) { shape = 0; } // nn
+  else if ( transA == HMLP_OP_N && transB == HMLP_OP_T ) { shape = 1; } // nt
+  else if ( transA == HMLP_OP_T && transB == HMLP_OP_N ) { shape = 3; } // tn
+  else if ( transA == HMLP_OP_T && transB == HMLP_OP_T ) { shape = 4; } // tt
+
+  // Autotuned decision tree
+  //#include <gkmm_strided_autotune.hpp>
+
+  // NN case for testing
+  strassen_internal
+  <false,false, 16, 16, 80, 64, 16, 1, 16, 16, 16, 16,
+  SQ2NRM, OPKERNEL, OP1, OP2>
+  (
+    stream,
+    m, n, k, 
+    Aarray, lda, loa, 
+    Barray, ldb, lob,
+    Carray, ldc, loc,
+    batchSize,
+    opkernel, op1, op2, initV
+  );
+
+};
 
 
 }; // end namespace gkmm

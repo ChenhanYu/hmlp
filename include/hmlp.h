@@ -8,37 +8,6 @@ typedef enum
 } hmlpOperation_t;
 
 
-#ifdef HMLP_USE_CUDA 
-#include <cuda_runtime.h>
-#include <cublas_v2.h>
-#include <cusparse_v2.h>
-#include <thrust/pair.h>
-
-void gkmm_dfma
-(
-  cudaStream_t stream,
-  hmlpOperation_t transA, hmlpOperation_t transB,
-  int m, int n, int k,
-  const double *Aarray[], int lda,
-  const double *Barray[], int ldb,
-        double *Carray[], int ldc,
-  int batchSize
-);
-
-void gkmm_dfma
-(
-  cudaStream_t stream,
-  hmlpOperation_t transA, hmlpOperation_t transB,
-  int m, int n, int k,
-  const double *Aarray, int lda, int loa, 
-  const double *Barray, int ldb, int lob,
-        double *Carray, int ldc, int loc,
-  int batchSize
-);
-
-#endif
-
-
 
 void gkmx_dfma
 (
@@ -117,5 +86,56 @@ void dgsks_ref
   double *w,             int *wmap
 );
 
+
+#ifdef HMLP_USE_CUDA 
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cusparse_v2.h>
+#include <thrust/pair.h>
+
+void gkmm_dfma
+(
+  cudaStream_t stream,
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  const double *Aarray[], int lda,
+  const double *Barray[], int ldb,
+        double *Carray[], int ldc,
+  int batchSize
+);
+
+void gkmm_dfma
+(
+  cudaStream_t stream,
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  const double *Aarray, int lda, int loa, 
+  const double *Barray, int ldb, int lob,
+        double *Carray, int ldc, int loc,
+  int batchSize
+);
+
+void dstrassen
+(
+  cudaStream_t stream,
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  const double *Aarray[], int lda,
+  const double *Barray[], int ldb,
+        double *Carray[], int ldc,
+  int batchSize
+);
+
+void dstrassen
+(
+  cudaStream_t stream,
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  const double *Aarray, int lda, int loa, 
+  const double *Barray, int ldb, int lob,
+        double *Carray, int ldc, int loc,
+  int batchSize
+);
+#endif // end ifdef HMLP_USE_CUDA
 
 #endif // define HMLP_H
