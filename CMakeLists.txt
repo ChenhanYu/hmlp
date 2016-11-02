@@ -111,7 +111,8 @@ file (GLOB PACKAGE_CU_SRC ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 # Build the static library.
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  cuda_add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_CXX_SRC} ${PACKAGE_CU_SRC})
+  cuda_add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+    ${PACKAGE_CXX_SRC} ${FRAME_CU_SRC} ${PACKAGE_CU_SRC})
 else ($ENV{HMLP_USE_CUDA} MATCHES "true")
   add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_CXX_SRC})
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")

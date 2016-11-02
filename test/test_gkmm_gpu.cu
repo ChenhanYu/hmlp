@@ -21,10 +21,11 @@
 #include <thrust/device_vector.h>
 
 #include <hmlp.h>
+#include <hmlp_blas_lapack.h>
 
 #define GFLOPS 1073741824
 
-//using namespace hmlp::gkmm;
+using namespace hmlp;
 
 
 /** 
@@ -37,8 +38,11 @@
 template <typename T>
 void test_gkmm( int m, int n, int k, int batchSize )
 {
-  float gkmm_time = 0.0, gkmm_strided_time = 0.0;
+  float gkmm_time = 0.0, gkmm_strided_time = 0.0, ref_time = 0.0;
   double flops = 0.0;
+
+  cublasHandle_t handle;
+  cublasCreate( &handle );
 
   cudaEvent_t gkmx_beg, gkmx_end;
   cublasOperation_t transa = CUBLAS_OP_N; 
@@ -49,24 +53,27 @@ void test_gkmm( int m, int n, int k, int batchSize )
   // Thrust style
   thrust::host_vector<T> h_A( m * k * batchSize );
   thrust::host_vector<T> h_B( k * n * batchSize );
-  thrust::host_vector<T> h_C( m * n * batchSize );
+  thrust::host_vector<T> h_C( m * n * batchSize, (T)0.0 );
+  thrust::host_vector<T> h_Cref( m * n * batchSize, (T)0.0 );
 
   for ( int i = 0; i < batchSize; i ++ ) 
   {
     for ( int j = 0; j < m * k; j ++ ) h_A[ i * m * k + j ] = (T) rand() / (T) RAND_MAX;
     for ( int j = 0; j < k * n; j ++ ) h_B[ i * k * n + j ] = (T) rand() / (T) RAND_MAX;
-    for ( int j = 0; j < m * n; j ++ ) h_C[ i * m * n + j ] = (T) 0.0;
+    //for ( int j = 0; j < m * n; j ++ ) h_C[ i * m * n + j ] = (T) 0.0;
   }
 
   // memcpyHostToDevice
   thrust::device_vector<T> d_A = h_A;
   thrust::device_vector<T> d_B = h_B;
   thrust::device_vector<T> d_C = h_C;
+  thrust::device_vector<T> d_Cref = h_Cref;
 
   // Thrust style
   thrust::device_vector<T*> d_Ap( batchSize );
   thrust::device_vector<T*> d_Bp( batchSize );
   thrust::device_vector<T*> d_Cp( batchSize );
+  thrust::device_vector<T*> d_Crefp( batchSize );
 
   // Caculate device pointers
   for ( int i = 0; i < batchSize; ++ i ) 
@@ -74,6 +81,7 @@ void test_gkmm( int m, int n, int k, int batchSize )
     d_Ap[ i ] = d_A.data().get() + i * m * k;
     d_Bp[ i ] = d_B.data().get() + i * k * n;
     d_Cp[ i ] = d_C.data().get() + i * m * n;
+    d_Crefp[ i ] = d_Cref.data().get() + i * m * n;
   }
   
   // Non-strided GKMM
@@ -112,10 +120,31 @@ void test_gkmm( int m, int n, int k, int batchSize )
   cudaEventElapsedTime( &gkmm_strided_time, gkmx_beg, gkmx_end );
   gkmm_strided_time /= 1000.0;
 
+  // Reference 
+  cudaEventRecord( gkmx_beg, 0 );
+  xgemm_batched 
+  (
+    handle, 
+    CUBLAS_OP_N, CUBLAS_OP_N,
+    m, n, k,
+    1.0,
+    d_Ap.data().get(), m,
+    d_Bp.data().get(), k, 0.0,
+    d_Cp.data().get(), m,
+    batchSize 
+  );
+  cudaThreadSynchronize();
+  cudaEventRecord( gkmx_end, 0 );
+  cudaEventSynchronize( gkmx_end );
+  cudaEventElapsedTime( &ref_time, gkmx_beg, gkmx_end );
+  ref_time /= 1000.0;
+
+
+
   //flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k ) * batchSize;
   flops = ( 2.0 * m * n * k ) * (double)batchSize / ( 1000.0 * 1000.0 * 1000.0 );
-  printf( "%4d, %4d, %4d, %4d, %f, %f;\n", m, n, k, batchSize, 
-      flops / gkmm_time, flops / gkmm_strided_time 
+  printf( "%4d, %4d, %4d, %4d, %f, %f, %f;\n", m, n, k, batchSize, 
+      flops / gkmm_time, flops / gkmm_strided_time, flops / ref_time
       //gkmm_time, gkmm_strided_time 
       );
 }

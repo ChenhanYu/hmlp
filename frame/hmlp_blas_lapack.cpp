@@ -2,7 +2,10 @@
 #include <stdlib.h>
 #include <omp.h>
 
+#include <hmlp_blas_lapack.h>
+
 // #define DEBUG_XGEMM 1
+
 
 
 extern "C"
@@ -86,6 +89,9 @@ void xgemm
   }
 #endif
 }
+
+
+
 
 
 }; // end namespace hmlp
