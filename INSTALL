@@ -6,7 +6,7 @@ INSTALL
 HMLP is tested on LINUX and OSX.
 Compilation REQUIRES:
 
-Intel or GNU compilers with AVX and OpenMP support (x86_64);
+Intel or GNU compilers with, c++11, AVX and OpenMP support (x86_64);
 
 Intel-16 or later compilers (Intel MIC, KNL);
 
@@ -20,11 +20,13 @@ Edit set_env.sh for compilation options.
 
 Set HMLP_USE_INTEL = true  to use Intel compilers.
 Set HMLP_USE_INTEL = false to use GNU compilers.
+Set HMLP_USE_CUDA  = true  to compile code with cuda templates. 
 Set HMLP_USE_BLAS  = false if you don't have a BLAS library.
 Set HMLP_USE_VNL   = true  to activate Intel VML.
 
-The default BLAS library for Intel compiler is MKL, and the
-default BLAS for GNU is Netlib (-lblas).
+The default BLAS library for Intel compiler is MKL.
+The default BLAS for GNU is Netlib (-lblas). 
+The default BLAS for nvcc is CUBLAS.
 
 
 Installation:
