@@ -16,7 +16,7 @@
 #define GKMX_CUH
 
 #include <hmlp.h>
-
+#include <hmlp_util.hpp>
 
 namespace hmlp
 {
@@ -26,7 +26,7 @@ namespace gkmm
 #define version(s,v) s ## _V_ ## v
 
 // GKMM macros (see gkmx_template_kernel_batched.hxx for the definition.)
-#define gkmm(ta,tb,s,v) gkmm_template_batched_internal \
+#define gkmm_macro(ta,tb,s,v) gkmm_template_batched_internal \
   < ta, tb, s ## _V_ ## v, TA, TB, TC, TV, SQ2NRM, OPKERNEL, OP1, OP2> \
   ( \
   stream, \
@@ -37,7 +37,7 @@ namespace gkmm
   batchSize, \
   opkernel, op1, op2, initV ) 
 
-#define gkmm_strided(ta,tb,s,v) gkmm_template_batched_strided_internal \
+#define gkmm_strided_macro(ta,tb,s,v) gkmm_template_batched_strided_internal \
   < ta, tb, s ## _V_ ## v, TA, TB, TC, TV, SQ2NRM, OPKERNEL, OP1, OP2> \
   ( \
   stream, \
@@ -134,7 +134,7 @@ static __global__ void gkmm_kernel
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
 )
 {
-  gkmm_template_device<
+  gkmm_device<
     TRANSA, TRANSB,
     DIM_X, DIM_Y, 
     BLK_M, BLK_N, BLK_K,
@@ -168,7 +168,7 @@ static __global__ void gkmm_kernel
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV 
 )
 {
-  gkmm_template_device<
+  gkmm_device<
     TRANSA, TRANSB,
     DIM_X, DIM_Y, 
     BLK_M, BLK_N, BLK_K,
@@ -206,9 +206,9 @@ void gkmm_internal
 )
 {
   dim3 dimBlock( DIM_X, DIM_Y );
-  dim3 dimGrid( gkmx_ceildiv( m, BLK_M ), gkmx_ceildiv( n, BLK_N ), batchSize );
+  dim3 dimGrid( hmlp_ceildiv( m, BLK_M ), hmlp_ceildiv( n, BLK_N ), batchSize );
 
-  gkmm_template_batched_kernel<
+  gkmm_kernel<
     TRANSA, TRANSB,
     DIM_X, DIM_Y, 
     BLK_M, BLK_N, BLK_K, 
@@ -249,9 +249,9 @@ void gkmm_internal
 )
 {
   dim3 dimBlock( DIM_X, DIM_Y );
-  dim3 dimGrid( gkmx_ceildiv( m, BLK_M ), gkmx_ceildiv( n, BLK_N ), batchSize );
+  dim3 dimGrid( hmlp_ceildiv( m, BLK_M ), hmlp_ceildiv( n, BLK_N ), batchSize );
 
-  gkmm_template_batched_strided_kernel<
+  gkmm_kernel<
     TRANSA, TRANSB,
     DIM_X, DIM_Y, 
     BLK_M, BLK_N, BLK_K, 

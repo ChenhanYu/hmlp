@@ -87,6 +87,14 @@ void hmlp_printmatrix(
 }
 
 
+//__host__ __device__
+static inline int hmlp_ceildiv( int x, int y )
+{
+    return ( x + y - 1 ) / y;
+}
+
+
+
 
 }; // end namespace hmlp
 

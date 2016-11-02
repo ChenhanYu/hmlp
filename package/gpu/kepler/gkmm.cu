@@ -12,7 +12,7 @@
 #include <thrust/functional.h>
 
 // GKMX template
-#include <gkmx_gpu.hpp>
+#include <gkmm_gpu.hpp>
 
 using namespace hmlp::gkmm;
 
@@ -49,7 +49,7 @@ void gkmm_dfma
   // Declare SQ2NRM
   const bool sq2nrm = false;
 
-  gkmm<sq2nrm, thrust::identity<double>, thurst::plus<double>, thrust::multiplies<double> >
+  gkmm<sq2nrm, thrust::identity<double>, thrust::plus<double>, thrust::multiplies<double> >
   (
     stream, 
     transA, transB,

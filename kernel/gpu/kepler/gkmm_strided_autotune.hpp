@@ -5,21 +5,21 @@
       {
         if ( k < 32 ) {
           if ( k == 8 && n == 24 ) {
-            gkmm_strided(false,false,NN,32);
+            gkmm_strided_macro(false,false,NN,32);
           }
           else if ( n < 32 ) {
-            gkmm_strided(false,false,NN,49);
+            gkmm_strided_macro(false,false,NN,49);
           }
           else {
-            gkmm_strided(false,false,NN,158);
+            gkmm_strided_macro(false,false,NN,158);
           }
         }
         else {
           if ( m < 80 ) {
-            gkmm_strided(false,false,NN,93);
+            gkmm_strided_macro(false,false,NN,93);
           }
           else { 
-            gkmm_strided(false,false,NN,158);
+            gkmm_strided_macro(false,false,NN,158);
           }
         }
       }
@@ -27,27 +27,27 @@
     case 1: // nt
       {
         if ( k < 128 ) { 
-          gkmm_strided(false,true,NT,160);
+          gkmm_strided_macro(false,true,NT,160);
         }
         else {
           if ( m < 256 ) 
-            gkmm_strided(false,true,NT,160);
+            gkmm_strided_macro(false,true,NT,160);
           else 
-            gkmm_strided(false,true,NT,190);
+            gkmm_strided_macro(false,true,NT,190);
         }
       }
       break;
     case 3: // tn
       {
         if ( k < 64 ) {
-          gkmm_strided(true,false,TN,207);
+          gkmm_strided_macro(true,false,TN,207);
         }
         else {
           if ( m < 256 ) {
-            gkmm_strided(true,false,TN,207);
+            gkmm_strided_macro(true,false,TN,207);
           }
           else {
-            gkmm_strided(true,false,TN,209);
+            gkmm_strided_macro(true,false,TN,209);
           }
         }
       }
@@ -55,14 +55,14 @@
     case 4: // tt
       {
         if ( k < 128 ) {
-          gkmm_strided(true,true,TT,81);
+          gkmm_strided_macro(true,true,TT,81);
         }
         else {
           if ( m < 256 ) {
-            gkmm_strided(true,true,TT,81);
+            gkmm_strided_macro(true,true,TT,81);
           }
           else {
-            gkmm_strided(true,true,TT,85);
+            gkmm_strided_macro(true,true,TT,85);
           }
         }
       }
@@ -78,32 +78,32 @@
       {
         if (k < 64) {
           if (k == 8 && n == 24) {
-            gkmm_strided(false,false,NN,512);
+            gkmm_strided_macro(false,false,NN,512);
           }
           else if (n < 32) {
-            gkmm_strided(false,false,NN,510);
+            gkmm_strided_macro(false,false,NN,510);
           }
           else {
-            gkmm_strided(false,false,NN,504);
+            gkmm_strided_macro(false,false,NN,504);
           }
         }
         else {
-          gkmm_strided(false,false,NN,518);
+          gkmm_strided_macro(false,false,NN,518);
         }
       }
       break;
     case 1: // nt
       {
-        gkmm_strided(false,true,NT,734);
+        gkmm_strided_macro(false,true,NT,734);
       }
       break;
     case 3: // tn
       {
         if (k < 64) {
-          gkmm_strided(true,false,TN,654);
+          gkmm_strided_macro(true,false,TN,654);
         }
         else {
-          gkmm_strided(true,false,TN,666);
+          gkmm_strided_macro(true,false,TN,666);
         }
       }
       break;
@@ -111,14 +111,14 @@
       {
         if (k < 128) {
             if (m < 128) {
-              gkmm_strided(true,true,TT,275);
+              gkmm_strided_macro(true,true,TT,275);
             }
             else {
-              gkmm_strided(true,true,TT,312);
+              gkmm_strided_macro(true,true,TT,312);
             }
         }
         else {
-          gkmm_strided(true,true,TT,312);
+          gkmm_strided_macro(true,true,TT,312);
         }
       }
       break;

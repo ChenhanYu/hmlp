@@ -30,6 +30,7 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   find_package (CUDA REQUIRED)
   include (FindCUDA)
   set (HMLP_CUFLAGS          "${HMLP_CUFLAGS} -DHMLP_USE_CUDA")
+  set (CUDA_PROPAGATE_HOST_FLAGS "false")
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
@@ -115,10 +116,8 @@ file (GLOB PACKAGE_CU_SRC ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 
 # Build the static library.
-
-
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_CXX_SRC} ${PACKAGE_CU_SRC})
+  cuda_add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_CXX_SRC} ${PACKAGE_CU_SRC})
 else ($ENV{HMLP_USE_CUDA} MATCHES "true")
   add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_CXX_SRC})
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
@@ -155,5 +154,7 @@ message ("CFLAGS       =${CMAKE_C_FLAGS}")
 message ("CXX          =${CMAKE_CXX_COMPILER}")
 message ("CXXFLAGS     =${CMAKE_CXX_FLAGS}")
 message ("Linker       =${CMAKE_EXE_LINKER_FLAGS}")
+message ("HMLP_ARCH    =${HMLP_GPU_ARCH}")
+message ("NVCCFLAGS    =${CUDA_NVCC_FLAGS}")
 message ("MKLDIR       =${MKL_DIR}")
 message ("===================================================")
