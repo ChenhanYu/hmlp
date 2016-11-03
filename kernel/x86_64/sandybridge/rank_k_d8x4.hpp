@@ -252,11 +252,11 @@ struct rank_k_asm_d8x4
 	"                                            \n\t"
 	"movq      %0, %%rsi                         \n\t" // i = k_iter;                     ( v )
 	"testq  %%rsi, %%rsi                         \n\t" // check i via logical AND.        ( v )
-	"je     .DCONSIDKLEFT                        \n\t" // if i == 0, jump to code that    ( v )
+	"je     .DCONSIDKLEFT%=                        \n\t" // if i == 0, jump to code that    ( v )
 	"                                            \n\t" // contains the k_left loop.
 	"                                            \n\t"
 	"                                            \n\t"
-	".DLOOPKITER:                                \n\t" // MAIN LOOP
+	".DLOOPKITER%=:                                \n\t" // MAIN LOOP
 	"                                            \n\t"
 	"addq         $4 * 4 * 8,  %%r15             \n\t" // b_next += 4*4 (unroll x nr)     ( v )
 	"                                            \n\t"
@@ -383,22 +383,22 @@ struct rank_k_asm_d8x4
 	"                                            \n\t"
 	"                                            \n\t"
 	"decq   %%rsi                                \n\t" // i -= 1;
-	"jne    .DLOOPKITER                          \n\t" // iterate again if i != 0.
+	"jne    .DLOOPKITER%=                          \n\t" // iterate again if i != 0.
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
-	".DCONSIDKLEFT:                              \n\t"
+	".DCONSIDKLEFT%=:                              \n\t"
 	"                                            \n\t"
 	"movq      %1, %%rsi                         \n\t" // i = k_left;
 	"testq  %%rsi, %%rsi                         \n\t" // check i via logical AND.
-	"je     .DPOSTACCUM                          \n\t" // if i == 0, we're done; jump to end.
+	"je     .DPOSTACCUM%=                          \n\t" // if i == 0, we're done; jump to end.
 	"                                            \n\t" // else, we prepare to enter k_left loop.
 	"                                            \n\t"
 	"                                            \n\t"
-	".DLOOPKLEFT:                                \n\t" // EDGE LOOP
+	".DLOOPKLEFT%=:                                \n\t" // EDGE LOOP
 	"                                            \n\t"
 	"vmovapd   1 * 32(%%rax),  %%ymm1            \n\t" // preload a47 
 	"addq         $8 * 1 * 8,  %%rax             \n\t" // a += 8 (1 x mr)
@@ -431,10 +431,10 @@ struct rank_k_asm_d8x4
 	"                                            \n\t"
 	"                                            \n\t"
 	"decq   %%rsi                                \n\t" // i -= 1;
-	"jne    .DLOOPKLEFT                          \n\t" // iterate again if i != 0.
+	"jne    .DLOOPKLEFT%=                          \n\t" // iterate again if i != 0.
 	"                                            \n\t"
 	"                                            \n\t"
-	".DPOSTACCUM:                                \n\t"
+	".DPOSTACCUM%=:                                \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t" // ymm15:  ymm13:  ymm11:  ymm9:
@@ -511,7 +511,7 @@ struct rank_k_asm_d8x4
 	"                                            \n\t"
 	"movq      %6, %%rdi                         \n\t" // load pc
 	"testq  %%rdi, %%rdi                         \n\t" // check pc via logical AND.        ( v )
-	"je     .DNOLOADC                            \n\t" // if pc == 0, jump to code
+	"je     .DNOLOADC%=                            \n\t" // if pc == 0, jump to code
 	"                                            \n\t"
 	"                                            \n\t"
     "movq                %7, %%rdi               \n\t" // load ldc
@@ -569,11 +569,11 @@ struct rank_k_asm_d8x4
 	"vmovapd           %%ymm0,  1 * 32(%%rcx)    \n\t" // C_c( 4:7, 3 ) = ymm0
 	"                                            \n\t"
 	"                                            \n\t"
-	"jmp    .DDONE                               \n\t"
+	"jmp    .DDONE%=                               \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
-	".DNOLOADC:                                  \n\t"
+	".DNOLOADC%=:                                  \n\t"
 	"                                            \n\t"
     "movq                %7, %%rdi               \n\t" // load ldc
     "leaq        (,%%rdi,8), %%rdi               \n\t" // ldc * sizeof(double)
@@ -604,7 +604,7 @@ struct rank_k_asm_d8x4
 	"vmovapd           %%ymm14, 1 * 32(%%rcx)    \n\t" // C_c( 0:3, 0 ) = ymm14
 	"                                            \n\t"
 	"                                            \n\t"
-	".DDONE:                                     \n\t"
+	".DDONE%=:                                     \n\t"
 	"                                            \n\t"
 	: // output operands (none)
 	: // input operands
@@ -614,7 +614,7 @@ struct rank_k_asm_d8x4
 	  "m" (b),           // 3
 	  "m" (c),           // 4
 	  "m" (aux->b_next), // 5
-      "m" (pc)           // 6
+      "m" (pc),           // 6
       "m" (ldc64)        // 7
 	: // register clobber list
 	  "rax", "rbx", "rcx", "rsi", "rdi",

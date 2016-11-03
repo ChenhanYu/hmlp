@@ -1,6 +1,19 @@
 # Check cmake version.
 cmake_minimum_required (VERSION 2.8)
 
+# Compiler Options (HMLP can use Intel or GNU compilers.)
+if ($ENV{HMLP_USE_INTEL} MATCHES "true")
+  set (CMAKE_C_COMPILER   icc )
+  set (CMAKE_CXX_COMPILER icpc)
+  set (HMLP_CFLAGS          "-std=c++11 -O3 -qopenmp -mavx -Werror -Wall -pedantic")
+  set (CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp -lm")
+else ($ENV{HMLP_USE_INTEL} MATCHES "true")
+  set (CMAKE_C_COMPILER   gcc)
+  set (CMAKE_CXX_COMPILER g++)
+  set (HMLP_CFLAGS          "-std=c++11 -O3 -fopenmp -mavx")
+  set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
+endif ($ENV{HMLP_USE_INTEL} MATCHES "true")
+
 
 # Project specification.
 project (HMLP)
@@ -40,19 +53,6 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
-# Compiler Options (HMLP can use Intel or GNU compilers.)
-if ($ENV{HMLP_USE_INTEL} MATCHES "true")
-  set (CMAKE_C_COMPILER   icc )
-  set (CMAKE_CXX_COMPILER icpc)
-  set (HMLP_CFLAGS          "-std=c++11 -O3 -qopenmp -mavx -Werror -Wall -pedantic")
-  set (CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp -lm")
-else ($ENV{HMLP_USE_INTEL} MATCHES "true")
-  set (CMAKE_C_COMPILER   gcc)
-  set (CMAKE_CXX_COMPILER g++)
-  set (HMLP_CFLAGS          "-std=c++11 -O3 -fopenmp -mavx")
-  set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
-endif ($ENV{HMLP_USE_INTEL} MATCHES "true")
-
 
 if ($ENV{HMLP_USE_VML} MATCHES "true")
   if ($ENV{HMLP_USE_INTEL} MATCHES "true")
@@ -67,20 +67,20 @@ if ($ENV{HMLP_MIC_AVX512} MATCHES "true")
   endif ($ENV{HMLP_USE_INTEL} MATCHES "true")
 endif ($ENV{HMLP_MIC_AVX512} MATCHES "true")
 
-
 if ($ENV{HMLP_USE_BLAS} MATCHES "true")
+  set(BLA_STATIC on)
+  find_package (BLAS REQUIRED)
   set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
 endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
 set (CMAKE_C_FLAGS      "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
 set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS}")
-
 
 # Linking infos.
 if (($ENV{HMLP_USE_BLAS} MATCHES "true") OR ($ENV{HMLP_USE_VML} MATCHES "true"))
   if ($ENV{HMLP_USE_INTEL} MATCHES "true")
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
   else ($ENV{HMLP_USE_INTEL} MATCHES "true")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lblas")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
   endif ($ENV{HMLP_USE_INTEL} MATCHES "true")
 endif (($ENV{HMLP_USE_BLAS} MATCHES "true") OR ($ENV{HMLP_USE_VML} MATCHES "true"))
 
@@ -92,7 +92,6 @@ set (MKL_DIR $ENV{HMLP_MKL_DIR})
 # Headers.
 include_directories ("include" "frame" "${MKL_DIR}/include")
 include_directories ( "kernel/reference" "kernel/${HMLP_ARCH}" )
-
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   include_directories ("/usr/local/cuda/include" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_GPU_ARCH}")
@@ -117,6 +116,7 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
     ${PACKAGE_CXX_SRC} ${FRAME_CU_SRC} ${PACKAGE_CU_SRC})
 else ($ENV{HMLP_USE_CUDA} MATCHES "true")
   add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC} ${PACKAGE_CXX_SRC})
+  target_link_libraries (hmlp ${BLAS_LIBRARIES})
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 

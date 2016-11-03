@@ -249,11 +249,11 @@ struct conv_relu_pool2x2_asm_d8x4
 	"                                            \n\t"
 	"movq      %0, %%rsi                         \n\t" // i = k_iter;                     ( v )
 	"testq  %%rsi, %%rsi                         \n\t" // check i via logical AND.        ( v )
-	"je     .DCONSIDKLEFT                        \n\t" // if i == 0, jump to code that    ( v )
+	"je     .CNN_DCONSIDKLEFT%=                  \n\t" // if i == 0, jump to code that    ( v )
 	"                                            \n\t" // contains the k_left loop.
 	"                                            \n\t"
 	"                                            \n\t"
-	".CNN_DLOOPKITER:                                \n\t" // MAIN LOOP
+	".CNN_DLOOPKITER%=:                                \n\t" // MAIN LOOP
 	"                                            \n\t"
 	"addq         $4 * 4 * 8,  %%r15             \n\t" // b_next += 4*4 (unroll x nr)     ( v )
 	"                                            \n\t"
@@ -380,22 +380,22 @@ struct conv_relu_pool2x2_asm_d8x4
 	"                                            \n\t"
 	"                                            \n\t"
 	"decq   %%rsi                                \n\t" // i -= 1;
-	"jne    .CNN_DLOOPKITER                          \n\t" // iterate again if i != 0.
+	"jne    .CNN_DLOOPKITER%=                          \n\t" // iterate again if i != 0.
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
-	".CNN_DCONSIDKLEFT:                              \n\t"
+	".CNN_DCONSIDKLEFT%=:                              \n\t"
 	"                                            \n\t"
 	"movq      %1, %%rsi                         \n\t" // i = k_left;
 	"testq  %%rsi, %%rsi                         \n\t" // check i via logical AND.
-	"je     .DPOSTACCUM                          \n\t" // if i == 0, we're done; jump to end.
+	"je     .CNN_DPOSTACCUM%=                    \n\t" // if i == 0, we're done; jump to end.
 	"                                            \n\t" // else, we prepare to enter k_left loop.
 	"                                            \n\t"
 	"                                            \n\t"
-	".CNN_DLOOPKLEFT:                                \n\t" // EDGE LOOP
+	".CNN_DLOOPKLEFT%=:                                \n\t" // EDGE LOOP
 	"                                            \n\t"
 	"vmovapd   1 * 32(%%rax),  %%ymm1            \n\t" // preload a47 
 	"addq         $8 * 1 * 8,  %%rax             \n\t" // a += 8 (1 x mr)
@@ -428,10 +428,10 @@ struct conv_relu_pool2x2_asm_d8x4
 	"                                            \n\t"
 	"                                            \n\t"
 	"decq   %%rsi                                \n\t" // i -= 1;
-	"jne    .CNN_DLOOPKLEFT                          \n\t" // iterate again if i != 0.
+	"jne    .CNN_DLOOPKLEFT%=                          \n\t" // iterate again if i != 0.
 	"                                            \n\t"
 	"                                            \n\t"
-	".CNN_DPOSTACCUM:                                \n\t"
+	".CNN_DPOSTACCUM%=:                                \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t" // ymm15:  ymm13:  ymm11:  ymm9:
@@ -508,7 +508,7 @@ struct conv_relu_pool2x2_asm_d8x4
 	"                                            \n\t"
 	"movq      %6, %%rdi                         \n\t" // load pc
 	"testq  %%rdi, %%rdi                         \n\t" // check pc via logical AND.        ( v )
-	"je     .CNN_DNOLOADC                            \n\t" // if pc == 0, jump to code
+	"je     .CNN_DNOLOADC%=                            \n\t" // if pc == 0, jump to code
 	"                                            \n\t"
 	"                                            \n\t"
     "movq                %7, %%rdi               \n\t" // load ldc
@@ -559,7 +559,7 @@ struct conv_relu_pool2x2_asm_d8x4
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
-	".CNN_DNOLOADC:                                  \n\t"
+	".CNN_DNOLOADC%=:                                  \n\t"
 	"                                            \n\t"
 	"vmaxpd            %%ymm11, %%ymm9,  %%ymm9  \n\t" // max( ymm9, ymm11 )
 	"vmaxpd            %%ymm10, %%ymm8,  %%ymm8  \n\t" // max( ymm8, ymm10 )
@@ -573,7 +573,7 @@ struct conv_relu_pool2x2_asm_d8x4
 	"vmovapd           %%ymm8,  1 * 32(%%rcx)    \n\t" // C_c( 0:3, 0 ) = ymm8
 	"                                            \n\t"
 	"                                            \n\t"
-	".CNN_DDONE:                                     \n\t"
+	".CNN_DDONE%=:                                     \n\t"
 	"                                            \n\t"
 	: // output operands (none)
 	: // input operands
@@ -583,7 +583,7 @@ struct conv_relu_pool2x2_asm_d8x4
 	  "m" (b),           // 3
 	  "m" (c),           // 4
 	  "m" (aux->b_next), // 5
-      "m" (pc)           // 6
+      "m" (pc),           // 6
       "m" (ldc64)        // 7
 	: // register clobber list
 	  "rax", "rbx", "rcx", "rsi", "rdi",

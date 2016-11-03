@@ -299,24 +299,24 @@ struct stra_k_asm_d8x4
     "                                            \n\t"
 	"movq      %5, %%rsi                         \n\t" // i = len;                        ( v )
     "                                            \n\t"
-    ".DPREFETCHLOOP:                             \n\t"
+    ".DPREFETCHLOOP%=:                             \n\t"
     "                                            \n\t"
 	"movq       0 * 8(%%rcx),  %%rdx             \n\t" // load address of c_list[ i ]: rdx = c_list[ i ] ( address )
     "                                            \n\t"
 	"testq  %%rdx, %%rdx                         \n\t" // check rdx via logical AND.      ( v )
-	"je     .DC1NULL                             \n\t" // if rdx == 0, jump to code that  ( v )
+	"je     .DC%=1NULL                             \n\t" // if rdx == 0, jump to code that  ( v )
     "leaq   (%%rdx,%%rdi,2), %%r11               \n\t" // load address of c_list[ i ] + 2 * ldc;
     "prefetcht0   3 * 8(%%rdx)                   \n\t" // prefetch c_list[ i ] + 0 * ldc
     "prefetcht0   3 * 8(%%rdx,%%rdi)             \n\t" // prefetch c_list[ i ] + 1 * ldc
     "prefetcht0   3 * 8(%%r11)                   \n\t" // prefetch c_list[ i ] + 2 * ldc
     "prefetcht0   3 * 8(%%r11,%%rdi)             \n\t" // prefetch c_list[ i ] + 3 * ldc
     "                                            \n\t"
-    ".DC1NULL:                                   \n\t" // if C1 == NULL, code to jump
+    ".DC%=1NULL:                                   \n\t" // if C1 == NULL, code to jump
     "                                            \n\t"
 	"addq              $1 * 8,  %%rcx            \n\t" // c_list += 8
     "                                            \n\t"
 	"decq   %%rsi                                \n\t" // i -= 1;
-	"jne    .DPREFETCHLOOP                       \n\t" // iterate again if i != 0.
+	"jne    .DPREFETCHLOOP%=                       \n\t" // iterate again if i != 0.
     "                                            \n\t"
     "                                            \n\t"
     "                                            \n\t"
@@ -333,11 +333,11 @@ struct stra_k_asm_d8x4
 	"                                            \n\t"
 	"movq      %0, %%rsi                         \n\t" // i = k_iter;                     ( v )
 	"testq  %%rsi, %%rsi                         \n\t" // check i via logical AND.        ( v )
-	"je     .DCONSIDKLEFT                        \n\t" // if i == 0, jump to code that    ( v )
+	"je     .DCONSIDKLEFT%=                        \n\t" // if i == 0, jump to code that    ( v )
 	"                                            \n\t" // contains the k_left loop.
 	"                                            \n\t"
 	"                                            \n\t"
-	".DLOOPKITER:                                \n\t" // MAIN LOOP
+	".DLOOPKITER%=:                                \n\t" // MAIN LOOP
 	"                                            \n\t"
 	"addq         $4 * 4 * 8,  %%r15             \n\t" // b_next += 4*4 (unroll x nr)     ( v )
 	"                                            \n\t"
@@ -464,22 +464,22 @@ struct stra_k_asm_d8x4
 	"                                            \n\t"
 	"                                            \n\t"
 	"decq   %%rsi                                \n\t" // i -= 1;
-	"jne    .DLOOPKITER                          \n\t" // iterate again if i != 0.
+	"jne    .DLOOPKITER%=                          \n\t" // iterate again if i != 0.
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
-	".DCONSIDKLEFT:                              \n\t"
+	".DCONSIDKLEFT%=:                              \n\t"
 	"                                            \n\t"
 	"movq      %1, %%rsi                         \n\t" // i = k_left;
 	"testq  %%rsi, %%rsi                         \n\t" // check i via logical AND.
-	"je     .DPOSTACCUM                          \n\t" // if i == 0, we're done; jump to end.
+	"je     .DPOSTACCUM%=                          \n\t" // if i == 0, we're done; jump to end.
 	"                                            \n\t" // else, we prepare to enter k_left loop.
 	"                                            \n\t"
 	"                                            \n\t"
-	".DLOOPKLEFT:                                \n\t" // EDGE LOOP
+	".DLOOPKLEFT%=:                                \n\t" // EDGE LOOP
 	"                                            \n\t"
 	"vmovapd   1 * 32(%%rax),  %%ymm1            \n\t" // preload a47 
 	"addq         $8 * 1 * 8,  %%rax             \n\t" // a += 8 (1 x mr)
@@ -512,11 +512,11 @@ struct stra_k_asm_d8x4
 	"                                            \n\t"
 	"                                            \n\t"
 	"decq   %%rsi                                \n\t" // i -= 1;
-	"jne    .DLOOPKLEFT                          \n\t" // iterate again if i != 0.
+	"jne    .DLOOPKLEFT%=                          \n\t" // iterate again if i != 0.
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
-	".DPOSTACCUM:                                \n\t"
+	".DPOSTACCUM%=:                                \n\t"
 	"                                            \n\t"
 	"                                            \n\t"
 	"                                            \n\t" // ymm15:  ymm13:  ymm11:  ymm9:
@@ -594,7 +594,7 @@ struct stra_k_asm_d8x4
     "                                            \n\t"
 	"movq      %5, %%rsi                         \n\t" // i = len;                        ( v )
     "                                            \n\t"
-    ".DSTORELOOP:                                \n\t"
+    ".DSTORELOOP%=:                                \n\t"
     "                                            \n\t"
 	"movq       0 * 8(%%rcx),  %%rdx             \n\t" // rdx = c_list[ i ] ( address )
     "                                            \n\t"
@@ -603,7 +603,7 @@ struct stra_k_asm_d8x4
 	"vbroadcastsd    (%%rax), %%ymm6             \n\t" // load alpha_list[ i ] and duplicate
     "                                            \n\t"
     "                                            \n\t"
-	//"jmp              .DDONE                      \n\t"
+	//"jmp              .DDONE%=                      \n\t"
 	"vmovapd    0 * 32(%%rdx),  %%ymm0           \n\t" // ymm0 = c_list[1]( 0:3, 0 )
 	"vmulpd            %%ymm6,  %%ymm9,  %%ymm1  \n\t" // scale by alpha2, ymm1 = ymm6( alpha2 ) * ymm9( ab0_3:0 )
 	"vaddpd            %%ymm1,  %%ymm0,  %%ymm1  \n\t" // ymm1 = ymm0 + ymm1
@@ -648,9 +648,9 @@ struct stra_k_asm_d8x4
 	"addq              $1 * 8,  %%rax            \n\t" // alpha_list += 8
 	"                                            \n\t"
 	"decq   %%rsi                                \n\t" // i -= 1;
-	"jne    .DSTORELOOP                          \n\t" // iterate again if i != 0.
+	"jne    .DSTORELOOP%=                          \n\t" // iterate again if i != 0.
 	"                                            \n\t"
-    ".DDONE:                                     \n\t"
+    ".DDONE%=:                                     \n\t"
 	"                                            \n\t"
 	: // output operands (none)
 	: // input operands
