@@ -1,6 +1,15 @@
 # Check cmake version.
 cmake_minimum_required (VERSION 2.8)
 
+# Project specification.
+project (HMLP)
+set (HMLP_VERSION_MAJOR 1)
+set (HMLP_VERSION_MINOR 1)
+set (HMLP_VERSION_PATCH 0)
+set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
+
+
+
 # Compiler Options (HMLP can use Intel or GNU compilers.)
 if ($ENV{HMLP_USE_INTEL} MATCHES "true")
   FIND_PROGRAM(ICC_PATH "icc")
@@ -16,13 +25,6 @@ else ($ENV{HMLP_USE_INTEL} MATCHES "true")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 endif ($ENV{HMLP_USE_INTEL} MATCHES "true")
 
-
-# Project specification.
-project (HMLP)
-set (HMLP_VERSION_MAJOR 1)
-set (HMLP_VERSION_MINOR 1)
-set (HMLP_VERSION_PATCH 0)
-set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
 
 
 # Configure the path structure.
