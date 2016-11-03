@@ -1,12 +1,9 @@
 
-# HMLP (High Performance Machine Learning Primitives)
+## HMLP (High Performance Machine Learning Primitives)
 
-## README
----
+# README
 
-HMLP currently is not an open source project. Do not distribute.
-
-
+**HMLP currently is not an open source project. Do not distribute!!!**
 
 Thank you for deciding to give HMLP a try!
 This code can be used directly or pluged into many learning tasks such as
@@ -28,14 +25,9 @@ check the Githup repo:
 
 github.com/ChenhanYu/hmlp
 
-Thank you again for being intersted in HMLP!
 
-Best regards,
 
-Chenhan D. Yu
-chenhan@cs.utexas.edu
-
-## INSTALL
+# INSTALL
 
 HMLP is tested on LINUX and OSX. Compilation REQUIRES:
 
@@ -46,8 +38,7 @@ Intel-16 or later compilers (Intel MIC, KNL);
 nvcc (NVIDIA GPU).
 
 
-Configuration:
---------------
+**Configuration:**
 
 Edit set_env.sh for compilation options.
 
@@ -68,32 +59,26 @@ The default BLAS for GNU is Netlib (-lblas).
 The default BLAS for nvcc is CUBLAS.
 
 
-Installation:
--------------
+**Installation:**
 
 Use cmake:
 
-```
 >source set_env.sh
 >mkdir build
 >cd build
 >cmake ..
 >make
 >make install
-```
 
 
-Testing and compilation example:
---------------------------------
+**Testing and compilation example:**
 
 The default compilation will also compile all the test drivers.
 To run some basic examples from the testing drivers:
 
-```
 >cd /build/bin
 >./run_hmlp.sh
 >./run_gkmx.sh
-```
 
 
 To us HMLP library you need to include the
@@ -114,8 +99,8 @@ Compilation example:
 
 
 ## ACKNOWLEDGEMENTS
----
 
+```
 The HMLP library was primarily authored by
 
   Chenhan D. Yu             (The University of Texas at Austin)
@@ -137,3 +122,14 @@ The gratitude especially goes to the following individual who walks
 me through the whole BLIS framework.
 
   Field Van Zee             (The University of Texas at Austin)
+```
+
+
+Thank you again for being intersted in HMLP!
+
+Best regards,
+
+Chenhan D. Yu
+
+chenhan@cs.utexas.edu
+
