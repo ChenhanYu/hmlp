@@ -1,7 +1,7 @@
 
 ## HMLP (High Performance Machine Learning Primitives)
 
-# README
+### README
 
 **HMLP currently is not an open source project. Do not distribute!!!**
 
@@ -27,7 +27,7 @@ github.com/ChenhanYu/hmlp
 
 
 
-# INSTALL
+### INSTALL
 
 HMLP is tested on LINUX and OSX. Compilation REQUIRES:
 
@@ -42,15 +42,13 @@ nvcc (NVIDIA GPU).
 
 Edit set_env.sh for compilation options.
 
+```
 Set HMLP_USE_INTEL = true  to use Intel compilers.
-
 Set HMLP_USE_INTEL = false to use GNU compilers.
-
 Set HMLP_USE_CUDA  = true  to compile code with cuda templates. 
-
 Set HMLP_USE_BLAS  = false if you don't have a BLAS library.
-
 Set HMLP_USE_VNL   = true  to activate Intel VML.
+```
 
 The default BLAS library for Intel compiler is MKL.
 
@@ -63,23 +61,25 @@ The default BLAS for nvcc is CUBLAS.
 
 Use cmake:
 
+```{r, engine='bash', count_lines}
 >source set_env.sh
 >mkdir build
 >cd build
 >cmake ..
 >make
 >make install
-
+```
 
 **Testing and compilation example:**
 
 The default compilation will also compile all the test drivers.
 To run some basic examples from the testing drivers:
 
+```{r, engine='bash', count_lines}
 >cd /build/bin
 >./run_hmlp.sh
 >./run_gkmx.sh
-
+```
 
 To us HMLP library you need to include the
 header files <hmlp.h> 
@@ -94,12 +94,35 @@ C/C++ example:
 ```
 
 Compilation example:
->icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/lib/libhmlp.a
+```{r, engine='bash', count_lines}
+icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/lib/libhmlp.a
+```
 
+
+## LICENSE
+```bash
+The HMLP library is licensed under the following license, typically
+known as the GPL-3.0 license.
+
+Copyright (C) 2014-2016, The University of Texas at Austin
+
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+```
 
 
 ## ACKNOWLEDGEMENTS
-
 ```
 The HMLP library was primarily authored by
 
