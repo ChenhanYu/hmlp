@@ -30,7 +30,13 @@ T *hmlp_malloc( int m, int n, int size )
   }
 
   return ptr;
-}
+};
+
+template<int ALIGN_SIZE, typename T>
+T *hmlp_malloc( int n )
+{
+  return hmlp_malloc<ALIGN_SIZE, T>( n, 1, sizeof(T) );
+};
 
 template<typename T>
 void hmlp_free( T *ptr )

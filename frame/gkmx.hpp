@@ -1,6 +1,9 @@
 #ifndef GKMX_HPP
 #define GKMX_HPP
 
+#include <assert.h>
+#include <typeinfo>
+
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
 #include <hmlp_packing.hpp>
@@ -9,12 +12,15 @@
 #include <hmlp_thread_info.hpp>
 #include <hmlp_runtime.hpp>
 
+// reference microkernels 
+#include <semiring_mrxnr.hpp>
+#include <fused_mrxnr.hpp>
+
+
 namespace hmlp
 {
 namespace gkmx
 {
-
-#define min( i, j ) ( (i)<(j) ? (i): (j) )
 
 /**
  *
@@ -49,13 +55,13 @@ void rank_k_macro_kernel
     aux.pc       = pc;
     aux.b_next   = packB;
     aux.do_packC = 0;
-    aux.jb       = min( n - j, NR );
+    aux.jb       = std::min( n - j, NR );
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
               i  < loop2nd.end(); 
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
-      aux.ib = min( m - i, MR );
+      aux.ib = std::min( m - i, MR );
       if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
@@ -74,43 +80,37 @@ void rank_k_macro_kernel
       }
       else                                                 // corner case
       {
-        // TODO: this should be initC.
-        TV ctmp[ MR * NR ] = { (TV)0.0 };
+        TV ctmp[ MR * NR ];
+
+        if ( pc ) // initilize ctmp
+        {
+          for ( auto jj = 0; jj < aux.jb; jj ++ )
+            for ( auto ii = 0; ii < aux.ib; ii ++ )
+              ctmp[ jj * MR + ii ] = C[ ( j + jj ) * ldc + i + ii ];
+        }
+
         semiringkernel
-        (
-          k,
-          &packA[ ip * k ],
-          &packB[ jp * k ],
-          ctmp, MR,
-          &aux
-        );
-        if ( pc )
-        {
-          for ( auto jj = 0; jj < aux.jb; jj ++ )
-          {
-            for ( auto ii = 0; ii < aux.ib; ii ++ )
-            {
-              C[ ( j + jj ) * ldc + i + ii ] += ctmp[ jj * MR + ii ];
-            }
-          }
-        }
-        else 
-        {
-          for ( auto jj = 0; jj < aux.jb; jj ++ )
-          {
-            for ( auto ii = 0; ii < aux.ib; ii ++ )
-            {
-              C[ ( j + jj ) * ldc + i + ii ] = ctmp[ jj * MR + ii ];
-            }
-          }
-        }
+          (
+           k,
+           &packA[ ip * k ],
+           &packB[ jp * k ],
+           ctmp, MR,
+           &aux
+          );
+
+        for ( auto jj = 0; jj < aux.jb; jj ++ )
+          for ( auto ii = 0; ii < aux.ib; ii ++ )
+            C[ ( j + jj ) * ldc + i + ii ] = ctmp[ jj * MR + ii ];
       }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
 }                                                          // end rank_k_macro_kernel
 
 /**
- *
+ *  @brief fused_macro_kernel contains the 3rd, 2nd loops and the fused micro
+ *         kernel. Notice that here C has type TC, which is differnet from the
+ *         one in rank_k_macro_kernel. ctmp used in the conner case is also
+ *         type TC. 
  */ 
 template<int KC, int MR, int NR, int PACK_MR, int PACK_NR,
     typename MICROKERNEL,
@@ -122,7 +122,7 @@ void fused_macro_kernel
   int  m,  int n,  int k,
   TA *packA,
   TB *packB,
-  TV *C, int ldc,
+  TC *C, int ldc,
   MICROKERNEL microkernel
 )
 {
@@ -141,13 +141,13 @@ void fused_macro_kernel
     aux.pc       = pc;
     aux.b_next   = packB;
     aux.do_packC = 0;
-    aux.jb       = min( n - j, NR );
+    aux.jb       = std::min( n - j, NR );
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
               i  < loop2nd.end(); 
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
-      aux.ib = min( m - i, MR );
+      aux.ib = std::min( m - i, MR );
       if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
@@ -167,8 +167,15 @@ void fused_macro_kernel
       }
       else                                                 // corner case
       {
-        // TODO: this should be initC.
-        TV ctmp[ MR * NR ] = { (TV)0.0 };
+        TC ctmp[ MR * NR ];
+
+        if ( pc ) // initilize ctmp
+        {
+          for ( auto jj = 0; jj < aux.jb; jj ++ )
+            for ( auto ii = 0; ii < aux.ib; ii ++ )
+              ctmp[ jj * MR + ii ] = C[ ( j + jj ) * ldc + i + ii ];
+        }
+
         microkernel
         (
           k,
@@ -178,26 +185,10 @@ void fused_macro_kernel
           &aux
         );
 
-        if ( pc )
-        {
-          for ( auto jj = 0; jj < aux.jb; jj ++ )
-          {
-            for ( auto ii = 0; ii < aux.ib; ii ++ )
-            {
-              C[ ( j + jj ) * ldc + i + ii ] += ctmp[ jj * MR + ii ];
-            }
-          }
-        }
-        else 
-        {
-          for ( auto jj = 0; jj < aux.jb; jj ++ )
-          {
-            for ( auto ii = 0; ii < aux.ib; ii ++ )
-            {
-              C[ ( j + jj ) * ldc + i + ii ] = ctmp[ jj * MR + ii ];
-            }
-          }
-        }
+        for ( auto jj = 0; jj < aux.jb; jj ++ )
+          for ( auto ii = 0; ii < aux.ib; ii ++ )
+            C[ ( j + jj ) * ldc + i + ii ] = ctmp[ jj * MR + ii ];
+
       }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
@@ -242,14 +233,14 @@ void gkmx_internal
             jc += loop6th.inc() )                          // beg 6th loop 
   {
     auto &jc_comm = *thread.jc_comm;
-    auto jb = min( n - jc, nc );
+    auto jb = std::min( n - jc, nc );
 
     for ( int pc  = loop5th.beg();
               pc  < loop5th.end();
               pc += loop5th.inc() )
     {
       auto &pc_comm = *thread.pc_comm;
-      auto pb = min( k - pc, KC );
+      auto pb = std::min( k - pc, KC );
       auto is_the_last_pc_iteration = ( pc + KC >= k );
       auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
       auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
@@ -262,7 +253,7 @@ void gkmx_internal
         {
           pack2D<true, PACK_NR>                            // packB
           (
-            min( jb - j, NR ), pb, 
+            std::min( jb - j, NR ), pb, 
             &B[ ( jc + j ) * ldb + pc ], ldb, &packB[ jp * pb ] 
           );
         }
@@ -270,7 +261,7 @@ void gkmx_internal
         {
           pack2D<false, PACK_NR>                           // packB (transB)
           (
-            min( jb - j, NR ), pb, 
+            std::min( jb - j, NR ), pb, 
             &B[ pc * ldb + ( jc + j ) ], ldb, &packB[ jp * pb ] 
           );
         }
@@ -282,7 +273,7 @@ void gkmx_internal
                 ic += loop4th.inc() )                      // beg 4th loop
       {
         auto &ic_comm = *thread.ic_comm;
-        auto ib = min( m - ic, MC );
+        auto ib = std::min( m - ic, MC );
         auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt ); 
         auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt ); 
 
@@ -294,7 +285,7 @@ void gkmx_internal
           {
             pack2D<false, PACK_MR>                         // packA 
             ( 
-              min( ib - i, MR ), pb,
+              std::min( ib - i, MR ), pb,
               &A[ pc * lda + ( ic + i ) ], lda, &packA[ ip * pb ] 
             );
           }
@@ -302,7 +293,7 @@ void gkmx_internal
           {
             pack2D<true, PACK_MR>                          // packA (transA)
             ( 
-              min( ib - i, MR ), pb,
+              std::min( ib - i, MR ), pb,
               &A[ ( ic + i ) * lda + pc ], lda, &packA[ ip * pb ] 
             );
           }
@@ -379,14 +370,23 @@ void gkmx
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
 
-  // Check the environment variable.
-  str = getenv( "KS_JC_NT" );
-  if ( str ) jc_nt = (int)strtol( str, NULL, 10 );
-  str = getenv( "KS_IC_NT" );
-  if ( str ) ic_nt = (int)strtol( str, NULL, 10 );
-  str = getenv( "KS_JR_NT" );
-  if ( str ) jr_nt = (int)strtol( str, NULL, 10 );
+  // type checking (currently assume TC == TV)
+  if ( typeid(TC) != typeid(TV) && k > KC )
+  {
+    printf( "gkmx: currently k(%d) must be smaller than %d when TC != TV\n", k, KC );
+    exit( 1 );
+  }
 
+  if ( omp_get_num_threads() == 1 && omp_get_max_threads() > 1 )
+  {
+    // Check the environment variable.
+    str = getenv( "KS_JC_NT" );
+    if ( str ) jc_nt = (int)strtol( str, NULL, 10 );
+    str = getenv( "KS_IC_NT" );
+    if ( str ) ic_nt = (int)strtol( str, NULL, 10 );
+    str = getenv( "KS_JR_NT" );
+    if ( str ) jr_nt = (int)strtol( str, NULL, 10 );
+  }
 
   if ( jc_nt > 1 )
   {
@@ -395,8 +395,8 @@ void gkmx
   }
 
   // allocate packing memory
-  packA_buff  = hmlp_malloc<ALIGN_SIZE, TA>( KC, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );
-  packB_buff  = hmlp_malloc<ALIGN_SIZE, TB>( KC, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) ); 
+  packA_buff  = hmlp_malloc<ALIGN_SIZE, TA>( KC * ( PACK_MC + 1 ) * jc_nt * ic_nt );
+  packB_buff  = hmlp_malloc<ALIGN_SIZE, TB>( KC * ( pack_nc + 1 ) * jc_nt         ); 
 
   // allocate tree communicator
   thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
@@ -430,11 +430,106 @@ void gkmx
       packA_buff,
       packB_buff
     );
-  }                                                        // end omp  
+  }                                                        // end omp parallel
 
   hmlp_free( packA_buff );
   hmlp_free( packB_buff );
-}                                                          // end gkmx
+};                                                         // end gkmx
+
+
+/*
+ *
+ */ 
+template<
+  int MC, int NC, int KC, int MR, int NR, 
+  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
+  bool USE_STRASSEN,
+  typename OPKERNEL, typename OP1, typename OP2,
+  typename TA, typename TB, typename TC, typename TV>
+void gkmm
+(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  TA *A, int lda,
+  TB *B, int ldb,
+  TC *C, int ldc,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
+)
+{
+  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
+  fused_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV> fusedkernel;
+
+  semiringkernel.op1 = op1;
+  semiringkernel.op2 = op2;
+  semiringkernel.initV = initV;
+
+  fusedkernel.op1 = op1;
+  fusedkernel.op2 = op2;
+  fusedkernel.opkernel = opkernel;
+  fusedkernel.initV = initV;
+
+  gkmx
+  <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+  USE_STRASSEN,
+  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
+  fused_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
+  TA, TB, TC, TV>
+  (
+    transA, transB,
+    m, n, k,
+    A, lda,
+    B, ldb,
+    C, ldc,
+    semiringkernel, fusedkernel
+  );
+};
+
+
+/**
+ *  batched interface
+ *
+ *  TODO: the problem is how to manage thread here? Do I want to use omp
+ *  nested? or there is a better way to deal with this.
+ *
+ */ 
+template<
+  int MC, int NC, int KC, int MR, int NR, 
+  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
+  bool USE_STRASSEN,
+  typename OPKERNEL, typename OP1, typename OP2,
+  typename TA, typename TB, typename TC, typename TV>
+void gkmm
+(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  TA *Aarray[], int lda,
+  TB *Barray[], int ldb,
+  TC *Carray[], int ldc,
+  int batchSize,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
+)
+{
+  #pragma omp parallel for
+  for ( auto b = 0; b < batchSize; b ++ )
+  {
+    gkmm
+    <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+    USE_STRASSEN,
+    OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+    (
+      transA, transB,
+      m, n, k, 
+      Aarray[ b ], lda,
+      Barray[ b ], ldb,
+      Carray[ b ], ldc,
+      opkernel, op1, op2, initV
+    );
+  }
+};
+
+
+
 
 
 }; // end namespace gkmx

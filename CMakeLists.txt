@@ -90,7 +90,9 @@ set (MKL_DIR $ENV{HMLP_MKL_DIR})
 
 
 # Headers.
-include_directories ("include" "frame" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}" "${MKL_DIR}/include")
+include_directories ("include" "frame" "${MKL_DIR}/include")
+include_directories ( "kernel/reference" "kernel/${HMLP_ARCH}" )
+
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   include_directories ("/usr/local/cuda/include" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_GPU_ARCH}")
