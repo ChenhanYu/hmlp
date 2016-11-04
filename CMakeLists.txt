@@ -136,7 +136,8 @@ add_executable (test_strassen.x ${CMAKE_SOURCE_DIR}/test/test_strassen.cpp)
 target_link_libraries(test_strassen.x hmlp)
 add_executable (test_conv_relu_pool.x ${CMAKE_SOURCE_DIR}/test/test_conv_relu_pool.cpp)
 target_link_libraries(test_conv_relu_pool.x hmlp)
-
+add_executable (test_gsknn.x ${CMAKE_SOURCE_DIR}/test/test_gsknn.cpp)
+target_link_libraries(test_gsknn.x hmlp)
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   cuda_add_executable (test_gkmm_gpu.x ${CMAKE_SOURCE_DIR}/test/test_gkmm_gpu.cu)

@@ -2,7 +2,7 @@
 #define HMLP_INTERNAL_HPP
 
 template<typename TA, typename TB, typename TC, typename TV>
-struct aux_s 
+struct aux_s
 {
   TA *a_next;
 
@@ -18,5 +18,28 @@ struct aux_s
 
   int do_packC;
 };
+
+template<typename TA, typename TB, typename TC, typename TV>
+struct aux_d
+{
+  TA *a_next;
+
+  TB *b_next;
+
+  TC *D;
+
+  TV *c_buff;
+
+  int *I;
+
+  int ib;
+
+  int jb;
+
+  int pc;
+
+  int ldr;
+};
+
 
 #endif // define HMLP_INTERNAL_HPP

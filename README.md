@@ -11,7 +11,11 @@ kernel summation, nearest neighbor search, k-means clustering, convolution
 networks. It is also possible to create a specific general N-body operator by
 using our template frameworks.
 
-See [INSTALL]((https://github.com/ChenhanYu/hmlp#install) on how to install it. 
+See [INSTALL](https://github.com/ChenhanYu/hmlp#install) on how to install it.
+Checkout [LICENSE](https://github.com/ChenhanYu/hmlp#license) if you want to 
+use or redistribute any part of HMLP. Notice that different parts of HMLP may
+have different license. We usually annotate the specific license on the top
+of the file.
 
 HMLP (High Performance Machine Learning Primitives) is a portable framework 
 that provides a high performance memory efficient kernel summation based
@@ -103,7 +107,6 @@ known as the GPL-3.0 license.
 
 Copyright (C) 2014-2016, The University of Texas at Austin
 
-
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -127,16 +130,16 @@ The HMLP library was primarily authored by
 
 but many others have contributed input and feedback, including:
 
-  Jianyu Huang              (The University of Texas at Austin)
-  Field Van Zee             (The University of Texas at Austin)
-  Tyler Smith               (The University of Texas at Austin)
-  Bill March                (The University of Texas at Austin)
-  George Biros              (The University of Texas at Austin)
-  Robert van de Geijn       (The University of Texas at Austin)
   Woody Austin              (The University of Texas at Austin)
+  Matthew Badin             (Qualcomm Corp. Santa Clara)
+  George Biros              (The University of Texas at Austin)
   Cris Cecka                (NVIDIA Corp. Santa Clara)
   Michael Garland           (NVIDIA Corp.)
-  Matthew Badin             (Qualcomm Corp. Santa Clara)
+  Jianyu Huang              (The University of Texas at Austin)
+  Bill March                (The University of Texas at Austin)
+  Tyler Smith               (The University of Texas at Austin)
+  Robert van de Geijn       (The University of Texas at Austin)
+  Field Van Zee             (The University of Texas at Austin)
 
 The gratitude especially goes to the following individual who walks
 me through the whole BLIS framework.
