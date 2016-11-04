@@ -1,7 +1,7 @@
 #ifndef HMLP_H
 #define HMLP_H
 
-typedef enum 
+typedef enum
 {
   HMLP_OP_N,
   HMLP_OP_T
@@ -52,7 +52,7 @@ void dstrassen(
 
 
 
-typedef enum 
+typedef enum
 {
   KS_GAUSSIAN,
   KS_POLYNOMIAL,
@@ -64,7 +64,7 @@ typedef enum
   KS_EPANECHNIKOV
 } ks_type;
 
-struct kernel_s 
+struct kernel_s
 {
   ks_type type;
   double powe;
@@ -97,8 +97,28 @@ void dgsks_ref
   double *w,             int *wmap
 );
 
+void dgsknn
+(
+  ks_t *kernel,
+  int m, int n, int k,
+  double *u,             int *umap,
+  double *A, double *A2, int *amap,
+  double *B, double *B2, int *bmap,
+  double *w,             int *wmap
+);
 
-#ifdef HMLP_USE_CUDA 
+void dgsknn_ref
+(
+  ks_t *kernel,
+  int m, int n, int k,
+  double *u,             int *umap,
+  double *A, double *A2, int *amap,
+  double *B, double *B2, int *bmap,
+  double *w,             int *wmap
+);
+
+
+#ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <cusparse_v2.h>
@@ -120,7 +140,7 @@ void gkmm_dfma
   cudaStream_t stream,
   hmlpOperation_t transA, hmlpOperation_t transB,
   int m, int n, int k,
-  const double *Aarray, int lda, int loa, 
+  const double *Aarray, int lda, int loa,
   const double *Barray, int ldb, int lob,
         double *Carray, int ldc, int loc,
   int batchSize
@@ -142,7 +162,7 @@ void dstrassen
   cudaStream_t stream,
   hmlpOperation_t transA, hmlpOperation_t transB,
   int m, int n, int k,
-  const double *Aarray, int lda, int loa, 
+  const double *Aarray, int lda, int loa,
   const double *Barray, int ldb, int lob,
         double *Carray, int ldc, int loc,
   int batchSize
