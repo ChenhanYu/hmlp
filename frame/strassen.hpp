@@ -850,7 +850,10 @@ void strassen_internal
   //hmlp_printmatrix( C00, m, md, nd );
 
   //printf( "before dynamic peeling\n" );
-  hmlp_dynamic_peeling( transA, transB, m, n, k, A, lda, B, ldb, C, ldc, 2, 2, 2 );
+
+  if ( omp_get_thread_num() == 0 ) { //Chief thread
+    hmlp_dynamic_peeling( transA, transB, m, n, k, A, lda, B, ldb, C, ldc, 2, 2, 2 );
+  }
 
 }
 
