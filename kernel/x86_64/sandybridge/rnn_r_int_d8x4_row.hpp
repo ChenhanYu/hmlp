@@ -4,7 +4,66 @@
 
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
+#include <gsknn.hpp>
 #include <avx_type.h> // self-defined vector type
+
+inline void swap_double( double *x, int i, int j ) {
+  double tmp = x[ i ];
+  x[ i ] = x[ j ];
+  x[ j ] = tmp;
+}
+
+inline void swap_int( int *x, int i, int j ) {
+  int    tmp = x[ i ];
+  x[ i ] = x[ j ];
+  x[ j ] = tmp;
+}
+
+inline void HeapAdjust_d(
+    double *D,
+    int    s,
+    int    n,
+    int    *I
+    )
+{
+  int    j;
+
+  while ( 2 * s + 1 < n ) {
+    j = 2 * s + 1;
+    if ( ( j + 1 ) < n ) {
+      if ( D[ j ] < D[ j + 1 ] ) j ++;
+    }
+    if ( D[ s ] < D[ j ] ) {
+      swap_double( D, s, j );
+      swap_int( I, s, j );
+      s = j;
+    }
+    else break;
+  }
+}
+
+inline void heapSelect_d(
+    int    m,
+    int    r,
+    double *x,
+    int    *alpha,
+    double *D,
+    int    *I
+    )
+{
+  int    i;
+
+  for ( i = 0; i < m; i ++ ) {
+    if ( x[ i ] > D[ 0 ] ) {
+      continue;
+    }
+    else {
+      D[ 0 ] = x[ i ];
+      I[ 0 ] = alpha[ i ];
+      HeapAdjust_d( D, 0, r, I );
+    }
+  }
+}
 
 struct rnn_r_int_d8x4_row
 {
@@ -342,7 +401,7 @@ struct rnn_r_int_d8x4_row
   b0.v     = _mm256_cmp_pd( c03_0.v, aa_tmp.v, 0x1 );
   if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
     _mm256_store_pd( c     , c03_0.v );
-    // heapSelect_d( aux->jb, r, c + 0, bmap, D + 0 * ldr, I + 0 * ldr );
+    heapSelect_d( aux->jb, r, c + 0, bmap, D + 0 * ldr, I + 0 * ldr );
   }
 
   if ( aux->ib > 1 ) {
@@ -350,7 +409,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c03_1.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 4, c03_1.v );
-      // heapSelect_d( aux->jb, r, c + 4, bmap, D + 1 * ldr, I + 1 * ldr );
+      heapSelect_d( aux->jb, r, c + 4, bmap, D + 1 * ldr, I + 1 * ldr );
     }
   }
 
@@ -359,7 +418,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c03_2.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 8, c03_2.v );
-      // heapSelect_d( aux->jb, r, c + 8, bmap, D + 2 * ldr, I + 2 * ldr );
+      heapSelect_d( aux->jb, r, c + 8, bmap, D + 2 * ldr, I + 2 * ldr );
     }
   }
 

@@ -24,7 +24,6 @@
 
 #define NUM_POINTS 10240
 #define GFLOPS 1073741824
-#define TOLERANCE 1E-13
 
 void compute_error(
     int    r,
@@ -84,8 +83,8 @@ void compute_error(
     }
   }
 
-    free( Set1 );
-    free( Set2 );
+  free( Set1 );
+  free( Set2 );
 }
 
 

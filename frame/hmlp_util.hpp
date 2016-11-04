@@ -23,7 +23,7 @@ T *hmlp_malloc( int m, int n, int size )
   err = posix_memalign( (void**)&ptr, (size_t)ALIGN_SIZE, size * m * n );
 #endif
 
-  if ( err ) 
+  if ( err )
   {
     printf( "hmlp_malloc(): posix_memalign() failures\n" );
     exit( 1 );
@@ -52,7 +52,7 @@ void hmlp_free( T *ptr )
 
 // Split into m x n, get the subblock starting from i th row and j th column.
 template<typename T>
-void hmlp_acquire_mpart( 
+void hmlp_acquire_mpart(
         hmlpOperation_t transX,
         int m,
         int n,
@@ -99,7 +99,17 @@ static inline int hmlp_ceildiv( int x, int y )
     return ( x + y - 1 ) / y;
 }
 
+inline void swap_double( double *x, int i, int j ) {
+  double tmp = x[ i ];
+  x[ i ] = x[ j ];
+  x[ j ] = tmp;
+}
 
+inline void swap_int( int *x, int i, int j ) {
+  int    tmp = x[ i ];
+  x[ i ] = x[ j ];
+  x[ j ] = tmp;
+}
 
 
 }; // end namespace hmlp

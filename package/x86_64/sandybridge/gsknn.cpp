@@ -19,7 +19,7 @@ void dgsknn
   rank_k_asm_d8x4 semiringkernel;
   rnn_r_int_d8x4_row microkernel;
   gsknn<
-    104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
+    104, 2048, 256, 8, 4, 104, 2048, 8, 4, 32,
     false,
     rank_k_asm_d8x4,
     rnn_r_int_d8x4_row,

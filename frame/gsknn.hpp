@@ -120,7 +120,7 @@ void gsknn_internal
   packB2 += ( thread.jc_id                               ) * PACK_NC;
   // packC  += ( thread.jc_id                               ) * ldpackc * padn;
 
-  auto loop6th = GetRange( 0, n, NC, thread.jc_id, thread.jc_nt );
+  auto loop6th = GetRange( 0, n, NC );
   auto loop5th = GetRange( 0, k, KC );
   auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );
 
@@ -333,8 +333,9 @@ void gsknn_ref
 )
 {
   int    i, j, p;
-  double beg, time_heap;
+  double beg, time_collect, time_dgemm, time_square, time_heap;
   std::vector<T> packA, packB, C;
+  double fneg2 = -2.0, fzero = 0.0;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
@@ -343,15 +344,112 @@ void gsknn_ref
   packB.resize( k * n );
   C.resize( m * n );
 
+  // Collect As from A and B.
+  beg = omp_get_wtime();
+  #pragma omp parallel for private( p )
+  for ( i = 0; i < m; i ++ ) {
+    for ( p = 0; p < k; p ++ ) {
+      packA[ i * k + p ] = A[ amap[ i ] * k + p ];
+    }
+  }
+  #pragma omp parallel for private( p )
+  for ( j = 0; j < n; j ++ ) {
+    for ( p = 0; p < k; p ++ ) {
+      packB[ j * k + p ] = B[ bmap[ j ] * k + p ];
+    }
+  }
+  time_collect = omp_get_wtime() - beg;
+
+  // Compute the inner-product term.
+  beg = omp_get_wtime();
+  #ifdef USE_BLAS
+    xgemm
+    (
+      "T", "N",
+      m, n, k,
+      fneg2,        packA.data(), k,
+                    packB.data(), k,
+      fzero,        C.data(),     m
+    );
+  #else
+    #pragma omp parallel for private( i, p )
+    for ( j = 0; j < n; j ++ ) {
+      for ( i = 0; i < m; i ++ ) {
+        C[ j * m + i ] = 0.0;
+        for ( p = 0; p < k; p ++ ) {
+          C[ j * m + i ] += packA[ i * k + p ] * packB[ j * k + p ];
+        }
+      }
+    }
+  #endif
+  time_dgemm = omp_get_wtime() - beg;
+
+  beg = omp_get_wtime();
+  #pragma omp parallel for private( i )
+  for ( j = 0; j < n; j ++ ) {
+    for ( i = 0; i < m; i ++ ) {
+      C[ j * m + i ] *= -2.0;
+      C[ j * m + i ] += A2[ amap[ i ] ];
+      C[ j * m + i ] += B2[ bmap[ j ] ];
+    }
+  }
+  time_square = omp_get_wtime() - beg;
+
   // Pure C Max Heap implementation.
   beg = omp_get_wtime();
   #pragma omp parallel for schedule( dynamic )
   for ( j = 0; j < n; j ++ ) {
-    // heapSelect_d( m, r, &C[ j * m ], alpha, &D[ j * r ], &I[ j * r ] );
+    heapSelect_d( m, r, &C[ j * m ], amap, &D[ j * r ], &I[ j * r ] );
   }
   time_heap = omp_get_wtime() - beg;
 
 } // end void gsknn_ref
+
+inline void HeapAdjust_d(
+    double *D,
+    int    s,
+    int    n,
+    int    *I
+    )
+{
+  int    j;
+
+  while ( 2 * s + 1 < n ) {
+    j = 2 * s + 1;
+    if ( ( j + 1 ) < n ) {
+      if ( D[ j ] < D[ j + 1 ] ) j ++;
+    }
+    if ( D[ s ] < D[ j ] ) {
+      swap_double( D, s, j );
+      swap_int( I, s, j );
+      s = j;
+    }
+    else break;
+  }
+}
+
+inline void heapSelect_d(
+    int    m,
+    int    r,
+    double *x,
+    int    *alpha,
+    double *D,
+    int    *I
+    )
+{
+  int    i;
+
+  for ( i = 0; i < m; i ++ ) {
+    if ( x[ i ] > D[ 0 ] ) {
+      continue;
+    }
+    else {
+      D[ 0 ] = x[ i ];
+      I[ 0 ] = alpha[ i ];
+      HeapAdjust_d( D, 0, r, I );
+    }
+  }
+}
 
 
 }; // end namespace gsknn
