@@ -99,24 +99,19 @@ void dgsks_ref
 
 void dgsknn
 (
-  ks_t *kernel,
-  int m, int n, int k,
-  double *u,             int *umap,
+  int m, int n, int k, int r,
   double *A, double *A2, int *amap,
   double *B, double *B2, int *bmap,
-  double *w,             int *wmap
+  double *D,             int *I
 );
 
 void dgsknn_ref
 (
-  ks_t *kernel,
-  int m, int n, int k,
-  double *u,             int *umap,
+  int m, int n, int k, int r,
   double *A, double *A2, int *amap,
   double *B, double *B2, int *bmap,
-  double *w,             int *wmap
+  double *D,             int *I
 );
-
 
 #ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>

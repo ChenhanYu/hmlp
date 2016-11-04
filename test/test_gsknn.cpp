@@ -1,7 +1,7 @@
 /*
  * test_dgsknn.c
  *
- * Chenhan D. Yu
+ * Leslie Rice
  *
  * Department of Computer Science, University of Texas at Austin
  *
@@ -9,20 +9,7 @@
  * this is the main function to exam the correctness between dgsknn()
  * and dgsknn_ref().
  *
- * Todo:
- *
- * Chenhan
- * Apr 27, 2015: readjust the flops count of the polynomail,
- * laplace, tanh kernel.
- *
- * Modification:
- * Chenhan
- * Apr 27, 2015: New tanh kernel configuration.
- *
- * Chenhan
- * Dec  7, 2015: Simplify
- *
- * */
+ */
 
 
 #include <stdio.h>
@@ -35,46 +22,70 @@
 #include <hbwmalloc.h>
 #endif
 
-#define NUM_POINTS 24000
+#define NUM_POINTS 10240
 #define GFLOPS 1073741824
 #define TOLERANCE 1E-13
 
 void compute_error(
-    int    m,
-    int    rhs,
-    double *u_test,
-    double *u_gold
+    int    r,
+    int    n,
+    double *D,
+    int    *I,
+    double *D_gold,
+    int    *I_gold
     )
 {
-  int    i, p, max_idx;
-  double max_err, abs_err, rel_err;
-  double tmp, nrm2;
 
-  max_idx = -1;
-  max_err = 0.0;
-  nrm2    = 0.0;
-  rel_err = 0.0;
+  int    i, j, p;
+  double *D1, *D2;
+  int    *I1, *I2, *Set1, *Set2;
 
-  for ( i = 0; i < m; i ++ ) {
-    for ( p = 0; p < rhs; p ++ ) {
-      tmp = fabs( u_test[ i * rhs + p ] - u_gold[ i * rhs + p ] );
-      if ( tmp > max_err ) {
-        max_err = tmp;
-        max_idx = i;
+  #ifdef HMLP_MIC_AVX512
+    Set1 = (int*)hbw_malloc( sizeof(int) * NUM_POINTS );
+    Set2 = (int*)hbw_malloc( sizeof(int) * NUM_POINTS );
+  #else
+    Set1 = (int*)malloc( sizeof(int) * NUM_POINTS );
+    Set2 = (int*)malloc( sizeof(int) * NUM_POINTS );
+  #endif
+
+  // Check set equvilent.
+  for ( j = 0; j < n; j ++ ) {
+    for ( i = 0; i < NUM_POINTS; i ++ ) {
+      Set1[ i ] = 0;
+      Set2[ i ] = 0;
+    }
+    for ( i = 0; i < r; i ++ ) {
+      p = I[ j * r + i ];
+      Set1[ p ] = i;
+      Set2[ p ] = 1;
+    }
+    for ( i = 0; i < r; i ++ ) {
+      p = I_gold[ j * r + i ];
+      if ( Set2[ p ] == 0 ) {
+        Set1[ p ] = i;
+        Set2[ p ] = 2;
       }
-      rel_err += tmp * tmp;
-      nrm2    += u_gold[ i * rhs + p ] * u_gold[ i * rhs + p ];
+      else {
+        Set2[ p ] = 0;
+      }
+    }
+    for ( i = 0; i < NUM_POINTS; i ++ ) {
+      if ( Set2[ i ] == 1 && D[ j * r ] != D[ j * r + Set1[ i ] ] ) {
+        printf( "(%E,%E,%d,%d,%E,1,%d)\n", D[ j * r ], D_gold[ j * r ],
+            j, i, D[ j * r + Set1[ i ] ], I[ j * r ] );
+      }
+      if ( Set2[ i ] == 2 && D_gold[ j * r ] != D_gold[ j * r + Set1[ i ] ] ) {
+        printf( "(%E,%E,%d,%d,%E,2,%d)\n", D[ j * r ], D_gold[ j * r ],
+            j, i, D_gold[ j * r + Set1[ i ] ], I_gold[ j * r ] );
+        if ( D_gold[ j * r ] < D_gold[ j * r + Set1[ i ] ] ) {
+          printf( "bug\n" );
+        }
+      }
     }
   }
 
-  abs_err = sqrt( rel_err );
-  rel_err /= nrm2;
-  rel_err = sqrt( rel_err );
-
-  if ( rel_err > TOLERANCE ) {
-	  printf( "rel error = %E, abs error = %E, max error = %E, idx = %d\n",
-		  rel_err, abs_err, max_err, max_idx );
-  }
+    free( Set1 );
+    free( Set2 );
 }
 
 
@@ -93,16 +104,15 @@ void compute_error(
  * --------------------------------------------------------------------------
  */
 template<typename T>
-void test_hmlp( int m, int n, int k )
+void test_gsknn( int m, int n, int k, int r )
 {
-  int    i, j, p, nx, iter, n_iter, rhs;
-  int    *amap, *bmap, *wmap, *umap;
-  double *XA, *XB, *XA2, *XB2, *u, *w, *h, *umkl, *C, *C_ref;
+  int    i, j, p, nx, iter, n_iter;
+  int    *amap, *bmap, *I, *I_mkl;
+  double *XA, *XB, *XA2, *XB2, *D, *D_mkl;
   double tmp, error, flops;
   double ref_beg, ref_time, dgsknn_beg, dgsknn_time;
 
   nx     = NUM_POINTS;
-  rhs    = 1;
   n_iter = 1;
 
 
@@ -110,31 +120,23 @@ void test_hmlp( int m, int n, int k )
   // Memory allocation for all common buffers
   // ------------------------------------------------------------------------
 #ifdef HMLP_MIC_AVX512
-  amap = (int*)hbw_malloc( sizeof(int) * m );
-  umap = (int*)hbw_malloc( sizeof(int) * m );
-  bmap = (int*)hbw_malloc( sizeof(int) * n );
-  wmap = (int*)hbw_malloc( sizeof(int) * n );
-  XA   = (double*)hbw_malloc( sizeof(double) * k * nx );   // k   leading
-  XA2  = (double*)hbw_malloc( sizeof(double) * nx );
-  u    = (double*)hbw_malloc( sizeof(double) * nx * rhs ); // rhs leading
-  w    = (double*)hbw_malloc( sizeof(double) * nx * rhs ); // rhs leading
-  umkl = (double*)hbw_malloc( sizeof(double) * nx * rhs ); // rhs leading
-  C    = (double*)hbw_malloc( sizeof(double) * m * n );
-  C_ref= (double*)hbw_malloc( sizeof(double) * m * n );
+  amap  = (int*)hbw_malloc( sizeof(int) * m );
+  bmap  = (int*)hbw_malloc( sizeof(int) * n );
+  I     = (int*)hbw_malloc( sizeof(int) * r * n );
+  I_mkl = (int*)hbw_malloc( sizeof(int) * r * n );
+  XA    = (double*)hbw_malloc( sizeof(double) * k * nx );   // k   leading
+  XA2   = (double*)hbw_malloc( sizeof(double) * nx );
+  D     = (double*)hbw_malloc( sizeof(double) * r * n );
+  D_mkl = (double*)hbw_malloc( sizeof(double) * r * n );
 #else
   amap = (int*)malloc( sizeof(int) * m );
-  umap = (int*)malloc( sizeof(int) * m );
   bmap = (int*)malloc( sizeof(int) * n );
-  wmap = (int*)malloc( sizeof(int) * n );
+  I     = (int*)malloc( sizeof(int) * r * n );
+  I_mkl = (int*)malloc( sizeof(int) * r * n );
   XA   = (double*)malloc( sizeof(double) * k * nx );   // k   leading
   XA2  = (double*)malloc( sizeof(double) * nx );
-  u    = (double*)malloc( sizeof(double) * nx * rhs ); // rhs leading
-  w    = (double*)malloc( sizeof(double) * nx * rhs ); // rhs leading
-  umkl = (double*)malloc( sizeof(double) * nx * rhs ); // rhs leading
-  //C    = (double*)malloc( sizeof(double) * m * n );
-  //C_ref= (double*)malloc( sizeof(double) * m * n );
-  posix_memalign( (void**)&C,     32, sizeof(T) * m * n );
-  posix_memalign( (void**)&C_ref, 32, sizeof(T) * m * n );
+  D     = (double*)malloc( sizeof(double) * r * n );
+  D_mkl = (double*)malloc( sizeof(double) * r * n );
 #endif
   // ------------------------------------------------------------------------
 
@@ -142,26 +144,15 @@ void test_hmlp( int m, int n, int k )
   // ------------------------------------------------------------------------
   // Initialization
   // ------------------------------------------------------------------------
-  for ( i = 0; i < nx; i ++ )
-  {
-    for ( p = 0; p < rhs; p ++ )
-    {
-      u[ i * rhs + p ]    = 0.0;
-      umkl[ i * rhs + p ] = 0.0;
-      w[ i * rhs + p ]    = (double)( rand() % 1000 ) / 1000.0;
-    }
-  }
 
   for ( i = 0; i < m; i ++ )
   {
     amap[ i ] = i;
-    umap[ i ] = i;
   }
 
   for ( j = 0; j < n; j ++ )
   {
     bmap[ j ] = j;
-    wmap[ j ] = j;
   }
 
   // random[ 0, 0.1 ]
@@ -195,45 +186,34 @@ void test_hmlp( int m, int n, int k )
   XB2 = XA2;
   // ------------------------------------------------------------------------
 
-
   // ------------------------------------------------------------------------
   // Call my implementation
   // ------------------------------------------------------------------------
-  // for ( iter = -1; iter < n_iter; iter ++ )
-  // {
-  //   if ( iter == 0 ) dgsknn_beg = omp_get_wtime();
-  //   dgemm_tn(
-  //       m, n, k,
-  //       XA, k, amap,
-  //       XB, k, bmap,
-  //       C, m
-  //   );
-  // }
-  // dgsknn_time = omp_get_wtime() - dgsknn_beg;
-  // ------------------------------------------------------------------------
-
-  // ------------------------------------------------------------------------
-  // Call my implementation
-  // ------------------------------------------------------------------------
-  ks_t kernel;
-  kernel.type = KS_GAUSSIAN;
-  kernel.scal = -0.5;
   for ( iter = -1; iter < n_iter; iter ++ )
   {
     if ( iter == 0 ) dgsknn_beg = omp_get_wtime();
     dgsknn(
-        &kernel,
-        m, n, k,
-        u,       umap,
+        m, n, k, r,
         XA, XA2, amap,
         XB, XB2, bmap,
-        w,       wmap
+        D,       I
     );
   }
   dgsknn_time = omp_get_wtime() - dgsknn_beg;
   // ------------------------------------------------------------------------
 
+  // ------------------------------------------------------------------------
+  // Initialize D ( distance ) to the maximum double and I ( index ) to -1.
+  // ------------------------------------------------------------------------
 
+  for ( j = 0; j < n; j ++ ) {
+    for ( i = 0; i < r; i ++ ) {
+      D[ j * r + i ]     = 1.79E+308;
+      I[ j * r + i ]     = -1;
+      D_mkl[ j * r + i ] = 1.79E+308;
+      I_mkl[ j * r + i ] = -1;
+    }
+  }
 
   // ------------------------------------------------------------------------
   // Call the reference function
@@ -243,26 +223,12 @@ void test_hmlp( int m, int n, int k )
     if ( iter == 0 ) ref_beg = omp_get_wtime();
 
     dgsknn_ref(
-        &kernel,
-        m, n, k,
-        umkl,    umap,
+        m, n, k, r,
         XA, XA2, amap,
         XB, XB2, bmap,
-        w,       wmap
+        D_mkl,   I_mkl
         );
 
-
-    //for ( j = 0; j < n; j ++ )
-    //{
-    //  for ( i = 0; i < m; i ++ )
-    //  {
-    //    C_ref[ j * m + i ] = 0.0;
-    //    for ( p = 0; p < k; p ++ )
-    //    {
-    //      C_ref[ j * m + i ] += XA[ i * k + p ] * XB[ j * k + p ];
-    //    }
-    //  }
-    //}
   }
   ref_time = omp_get_wtime() - ref_beg;
   // ------------------------------------------------------------------------
@@ -270,61 +236,41 @@ void test_hmlp( int m, int n, int k )
   ref_time   /= n_iter;
   dgsknn_time /= n_iter;
 
-  //for ( j = 0; j < n; j ++ )
-  //{
-  //  for ( i = 0; i < m; i ++ )
-  //  {
-  //    double myc, goldc;
-  //    myc = C[ j * m + i ];
-  //    goldc = C_ref[ j * m + i ];
-  //    if ( fabs( myc - goldc ) > 1E-9 )
-  //    {
-  //      printf( "C( %d, %d ) diff %E, %E\n", i, j, myc, goldc );
-  //    }
-  //  }
-  //}
-
-  for ( i = 0; i < nx; i ++ )
-  {
-    double u_test, u_goal;
-
-    u_test = u[ i ];
-    u_goal = umkl[ i ];
-    if ( fabs( u_test - u_goal ) > 1E-9 )
-    {
-      printf( "u( %d ) diff %E, %E\n", i, u_test, u_goal );
-      break;
-    }
-  }
+  compute_error(
+      r,
+      n,
+      D,
+      I,
+      D_mkl,
+      I_mkl
+      );
 
   flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 37.0 );
-  printf( "%d, %d, %d, %5.2lf, %5.2lf;\n",
-      m, n, k, flops / dgsknn_time, flops / ref_time );
+  printf( "%d, %d, %d, %d, %5.2lf, %5.2lf;\n",
+      m, n, k, r, flops / dgsknn_time, flops / ref_time );
 
   free( amap );
-  free( umap );
   free( bmap );
-  free( wmap );
   free( XA );
   free( XA2 );
-  free( u );
-  free( w );
-  free( umkl );
-  free( C );
-  free( C_ref );
+  free( D );
+  free( I );
+  free( D_mkl );
+  free( I_mkl );
 }
 
 
 
 int main( int argc, char *argv[] )
 {
-  int    m, n, k;
+  int    m, n, k, r;
 
   sscanf( argv[ 1 ], "%d", &m );
   sscanf( argv[ 2 ], "%d", &n );
   sscanf( argv[ 3 ], "%d", &k );
+  sscanf( argv[ 4 ], "%d", &r );
 
-  test_hmlp<double>( m, n, k );
+  test_gsknn<double>( m, n, k, r );
 
   return 0;
 }
