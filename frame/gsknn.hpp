@@ -399,57 +399,11 @@ void gsknn_ref
   beg = omp_get_wtime();
   #pragma omp parallel for schedule( dynamic )
   for ( j = 0; j < n; j ++ ) {
-    heapSelect_d( m, r, &C[ j * m ], amap, &D[ j * r ], &I[ j * r ] );
+    heap_select<T>( m, r, &C[ j * m ], amap, &D[ j * r ], &I[ j * r ] );
   }
   time_heap = omp_get_wtime() - beg;
 
 } // end void gsknn_ref
-
-inline void HeapAdjust_d(
-    double *D,
-    int    s,
-    int    n,
-    int    *I
-    )
-{
-  int    j;
-
-  while ( 2 * s + 1 < n ) {
-    j = 2 * s + 1;
-    if ( ( j + 1 ) < n ) {
-      if ( D[ j ] < D[ j + 1 ] ) j ++;
-    }
-    if ( D[ s ] < D[ j ] ) {
-      swap_double( D, s, j );
-      swap_int( I, s, j );
-      s = j;
-    }
-    else break;
-  }
-}
-
-inline void heapSelect_d(
-    int    m,
-    int    r,
-    double *x,
-    int    *alpha,
-    double *D,
-    int    *I
-    )
-{
-  int    i;
-
-  for ( i = 0; i < m; i ++ ) {
-    if ( x[ i ] > D[ 0 ] ) {
-      continue;
-    }
-    else {
-      D[ 0 ] = x[ i ];
-      I[ 0 ] = alpha[ i ];
-      HeapAdjust_d( D, 0, r, I );
-    }
-  }
-}
 
 
 }; // end namespace gsknn
