@@ -203,12 +203,12 @@ void test_gsknn( int m, int n, int k, int r )
   for ( iter = -1; iter < n_iter; iter ++ )
   {
     if ( iter == 0 ) dgsknn_beg = omp_get_wtime();
-    // dgsknn(
-    //     m, n, k, r,
-    //     XA, XA2, amap,
-    //     XB, XB2, bmap,
-    //     D,       I
-    // );
+    dgsknn(
+        n, m, k, r,
+        XB, XB2, bmap,
+        XA, XA2, amap,
+        D,       I
+    );
   }
   dgsknn_time = omp_get_wtime() - dgsknn_beg;
   // ------------------------------------------------------------------------

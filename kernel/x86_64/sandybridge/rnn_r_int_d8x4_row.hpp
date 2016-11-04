@@ -14,8 +14,8 @@ struct rnn_r_int_d8x4_row
   (
    int k,
    int r,
-   double *aa, double *a,
-   double *bb, double *b,
+   double *a, double *aa,
+   double *b, double *bb,
    double *c,
    aux_d<double, double, double, double> *aux,
    int *bmap

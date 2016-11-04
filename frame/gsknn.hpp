@@ -44,6 +44,8 @@ void fused_macro_kernel
   MICROKERNEL microkernel
 )
 {
+  TV c[ MR * NR ] __attribute__((aligned(32)));
+  double *cbuff = c;
   thread_communicator &ic_comm = *thread.ic_comm;
 
   auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );
@@ -80,7 +82,7 @@ void fused_macro_kernel
         packA2 + ip,
         packB  + jp * k,
         packB2 + jp,
-        packC  + j * ldc + i * NR,                         // packed
+        cbuff,
         &aux,
         bmap   + j
       );
@@ -118,7 +120,6 @@ void gsknn_internal
   packA2 += ( thread.jc_id * thread.ic_nt + thread.ic_id ) * PACK_MC;
   packB  += ( thread.jc_id                               ) * PACK_NC * KC;
   packB2 += ( thread.jc_id                               ) * PACK_NC;
-  // packC  += ( thread.jc_id                               ) * ldpackc * padn;
 
   auto loop6th = GetRange( 0, n, NC );
   auto loop5th = GetRange( 0, k, KC );
@@ -269,18 +270,8 @@ void gsknn(
   packA2_buff = hmlp_malloc<ALIGN_SIZE, TA>(  1, ( PACK_MC + 1 ) * ic_nt,         sizeof(TA) );
   packB2_buff = hmlp_malloc<ALIGN_SIZE, TB>(  1, ( PACK_NC + 1 ),                 sizeof(TB) );
 
-  // Temporary bufferm <TV> to store the semi-ring rank-k update
-  if ( k > KC )
-  {
-    ldpackc  = ( ( m - 1 ) / PACK_MR + 1 ) * PACK_MR;
-    padn = PACK_NC;
-    if ( n < PACK_NC ) padn = ( ( n - 1 ) / PACK_NR + 1 ) * PACK_NR ;
-    packC_buff = hmlp_malloc<ALIGN_SIZE, TV>( ldpackc, padn, sizeof(TV) );
-  }
-
   // allocate tree communicator
-  thread_communicator my_comm( ic_nt, ic_nt, ic_nt, ic_nt );
-
+  thread_communicator my_comm( 1, ic_nt, 1, 1 );
 
   #pragma omp parallel num_threads( my_comm.GetNumThreads() )
   {
@@ -367,7 +358,7 @@ void gsknn_ref
     (
       "T", "N",
       m, n, k,
-      fneg2,        packA.data(), k,
+      1.0,          packA.data(), k,
                     packB.data(), k,
       fzero,        C.data(),     m
     );
