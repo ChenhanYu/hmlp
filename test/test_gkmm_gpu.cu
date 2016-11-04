@@ -28,6 +28,68 @@
 using namespace hmlp;
 
 
+template<typename T>
+void compute_error
+(
+  int m, int n,
+  T *test, int ldtest,
+  T *goal, int ldgoal
+)
+{
+  std::tuple<int, int, T> max_err( -1, -1, (T)0.0 );
+  T abs_err = 0.0, rel_err = 0.0, nrm2 = 0.0;
+
+  for ( auto j = 0; j < n; j ++ ) 
+  {
+    for ( auto i = 0; i < m; i ++ ) 
+    {
+      auto tmp_goal = goal[ j * ldgoal + i ];
+      auto tmp_test = test[ j * ldtest + i ];
+      auto err = fabs( tmp_test - tmp_goal );
+      if ( err > std::get<2>( max_err ) ) 
+      {
+        max_err = std::make_tuple( i, j, err );
+      }
+      rel_err += err * err;
+      nrm2    += tmp_goal * tmp_goal;
+    }
+  }
+
+  abs_err = sqrt( rel_err );
+  rel_err /= nrm2;
+  rel_err = sqrt( rel_err );
+
+  if ( rel_err > TOLERANCE ) 
+  {
+	  printf( "rel error %E, abs error %E, max error %E at (%d %d)\n", 
+		  rel_err, abs_err, std::get<2>( max_err ), 
+      std::get<0>( max_err ), std::get<1>( max_err ) );
+  }
+};
+
+template<typename T>
+void compute_error
+(
+  int m, int n,
+  T *test, int ldtest,
+  T *goal, int ldgoal,
+  int batchSize, int stride
+)
+{
+  for ( auto b = 0; b < batchSize; b ++ )
+  {
+    compute_error
+    ( 
+      m, n, 
+      test + b * stride, ldtest, 
+      goal + b * stride, ldgoal
+    );
+  }
+};
+
+
+
+
 /** 
  *  @brief This is an example to invoke the gkmm instance with a Gaussian
  *         kernel function. A2 and B2 are precomputed to accelerate the
@@ -120,6 +182,7 @@ void test_gkmm( int m, int n, int k, int batchSize )
   cudaEventElapsedTime( &gkmm_strided_time, gkmx_beg, gkmx_end );
   gkmm_strided_time /= 1000.0;
 
+
   // Reference 
   cudaEventRecord( gkmx_beg, 0 );
   xgemm_batched 
@@ -130,7 +193,7 @@ void test_gkmm( int m, int n, int k, int batchSize )
     1.0,
     d_Ap.data().get(), m,
     d_Bp.data().get(), k, 0.0,
-    d_Cp.data().get(), m,
+    d_Crefp.data().get(), m,
     batchSize 
   );
   cudaThreadSynchronize();
@@ -139,7 +202,18 @@ void test_gkmm( int m, int n, int k, int batchSize )
   cudaEventElapsedTime( &ref_time, gkmx_beg, gkmx_end );
   ref_time /= 1000.0;
 
+   
+  thrust::copy( d_C.begin(), d_C.end(), h_C.begin() );
+  thrust::copy( d_Cref.begin(), d_Cref.end(), h_Cref.begin() );
 
+  compute_error
+  (
+    m, n, 
+    h_C.data(),    m, 
+    h_Cref.data(), m,
+    batchSize,
+    m * n
+  );
 
   //flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k ) * batchSize;
   flops = ( 2.0 * m * n * k ) * (double)batchSize / ( 1000.0 * 1000.0 * 1000.0 );
