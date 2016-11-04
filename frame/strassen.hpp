@@ -760,6 +760,96 @@ void hmlp_dynamic_peeling
 }
 
 
+template<
+  int MC, int NC, int KC, int MR, int NR, 
+  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
+  bool USE_STRASSEN,
+  typename STRA_SEMIRINGKERNEL, typename STRA_MICROKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
+void strassen_internal
+(
+  worker &thread,
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  TA *A, int lda,
+  TB *B, int ldb,
+  TC *C, int ldc,
+  STRA_SEMIRINGKERNEL stra_semiringkernel,
+  STRA_MICROKERNEL stra_microkernel,
+  int nc, int pack_nc,
+  TA *packA_buff,
+  TB *packB_buff
+)
+{
+
+  int ms, ks, ns;
+  int md, kd, nd;
+  int mr, kr, nr;
+
+  mr = m % ( 2 ), kr = k % ( 2 ), nr = n % ( 2 );
+  md = m - mr, kd = k - kr, nd = n - nr;
+
+  // Partition code.
+  ms=md, ks=kd, ns=nd;
+  double *A00, *A01, *A10, *A11;
+  hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 0, 0, &A00 );
+  hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 0, 1, &A01 );
+  hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 1, 0, &A10 );
+  hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 1, 1, &A11 );
+
+  double *B00, *B01, *B10, *B11;
+  hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 0, 0, &B00 );
+  hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 0, 1, &B01 );
+  hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 1, 0, &B10 );
+  hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 1, 1, &B11 );
+
+  double *C00, *C01, *C10, *C11;
+  hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 0, 0, &C00 );
+  hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 0, 1, &C01 );
+  hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 1, 0, &C10 );
+  hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 1, 1, &C11 );
+
+  md = md / 2, kd = kd / 2, nd = nd / 2;
+
+  // M1: C00 = 1*C00+1*(A00+A11)(B00+B11); C11 = 1*C11+1*(A00+A11)(B00+B11)
+  STRAPRIM( A00, A11, 1, B00, B11, 1, C00, C11, 1, 1 );
+
+  //printf( "A00:\n" );
+  //hmlp_printmatrix( A00, m, md, kd );
+  //printf( "A11:\n" );
+  //hmlp_printmatrix( A11, m, md, kd );
+  //printf( "B00:\n" );
+  //hmlp_printmatrix( B00, k, kd, nd );
+  //printf( "B11:\n" );
+  //hmlp_printmatrix( B11, k, kd, nd );
+  //printf( "C00:\n" );
+  //hmlp_printmatrix( C00, m, md, nd );
+  //printf( "C01:\n" );
+  //hmlp_printmatrix( C11, m, md, nd );
+
+  // M2: C10 = 1*C10+1*(A10+A11)B00; C11 = 1*C11-1*(A10+A11)B00
+  STRAPRIM( A10, A11, 1, B00, NULL, 0, C10, C11, 1, -1 )
+
+  // M3: C01 = 1*C01+1*A00(B01-B11); C11 = 1*C11+1*A00(B01-B11)
+  STRAPRIM( A00, NULL, 0, B01, B11, -1, C01, C11, 1, 1 )
+  // M4: C00 = 1*C00+1*A11(B10-B00); C10 = 1*C10+1*A11(B10-B00)
+  STRAPRIM( A11, NULL, 0, B10, B00, -1, C00, C10, 1, 1 )
+  // M5: C00 = 1*C00-1*(A00+A01)B11; C01 = 1*C01+1*(A00+A01)B11
+  STRAPRIM( A00, A01, 1, B11, NULL, 0, C00, C01, -1, 1 )
+  // M6: C11 = 1*C11+(A10-A00)(B00+B01)
+  STRAPRIM( A10, A00, -1, B00, B01, 1, C11, NULL, 1, 0 )
+  // M7: C00 = 1*C00+(A01-A11)(B10+B11)
+  STRAPRIM( A01, A11, -1, B10, B11, 1, C00, NULL, 1, 0 )
+
+  //printf( "C00:" );
+  //hmlp_printmatrix( C00, m, md, nd );
+
+  //printf( "before dynamic peeling\n" );
+  hmlp_dynamic_peeling( transA, transB, m, n, k, A, lda, B, ldb, C, ldc, 2, 2, 2 );
+
+}
+
+
 /**
  *
  *
@@ -813,116 +903,36 @@ void strassen
   // allocate tree communicator
   thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
 
-
-
-  int ms, ks, ns;
-  int md, kd, nd;
-  int mr, kr, nr;
-
-  mr = m % ( 2 ), kr = k % ( 2 ), nr = n % ( 2 );
-  md = m - mr, kd = k - kr, nd = n - nr;
-
-  // Partition code.
-  ms=md, ks=kd, ns=nd;
-  double *A00, *A01, *A10, *A11;
-  hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 0, 0, &A00 );
-  hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 0, 1, &A01 );
-  hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 1, 0, &A10 );
-  hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 1, 1, &A11 );
-
-  double *B00, *B01, *B10, *B11;
-  hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 0, 0, &B00 );
-  hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 0, 1, &B01 );
-  hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 1, 0, &B10 );
-  hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 1, 1, &B11 );
-
-
-  //printf( "B:\n" );
-  //hmlp_printmatrix( B, k, k, n );
-
-  //printf( "B00:\n" );
-  //hmlp_printmatrix( B00, k, kd/2, nd/2 );
-  //printf( "B01:\n" );
-  //hmlp_printmatrix( B01, k, kd/2, nd/2 );
-  //printf( "B10:\n" );
-  //hmlp_printmatrix( B10, k, kd/2, nd/2 );
-  //printf( "B11:\n" );
-  //hmlp_printmatrix( B11, k, kd/2, nd/2 );
-
-
-  double *C00, *C01, *C10, *C11;
-  hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 0, 0, &C00 );
-  hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 0, 1, &C01 );
-  hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 1, 0, &C10 );
-  hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 1, 1, &C11 );
-
-  md = md / 2, kd = kd / 2, nd = nd / 2;
-
-  //printf( "flag-1\n" );
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
     worker thread( &my_comm );
 
-    if ( USE_STRASSEN )
-    {
-      printf( "strassen: strassen algorithms haven't been implemented." );
-      exit( 1 );
-    }
-
-    //printf( "flag0\n" );
-    // M1: C00 = 1*C00+1*(A00+A11)(B00+B11); C11 = 1*C11+1*(A00+A11)(B00+B11)
-    STRAPRIM( A00, A11, 1, B00, B11, 1, C00, C11, 1, 1 );
-
-
-    //printf( "flag1\n" );
-
-    //printf( "A00:\n" );
-    //hmlp_printmatrix( A00, m, md, kd );
-    //printf( "A11:\n" );
-    //hmlp_printmatrix( A11, m, md, kd );
-    //printf( "B00:\n" );
-    //hmlp_printmatrix( B00, k, kd, nd );
-    //printf( "B11:\n" );
-    //hmlp_printmatrix( B11, k, kd, nd );
-    //printf( "C00:\n" );
-    //hmlp_printmatrix( C00, m, md, nd );
-    //printf( "C01:\n" );
-    //hmlp_printmatrix( C11, m, md, nd );
+    strassen_internal
+    <MC, NC, KC, MR, NR,
+    PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+    USE_STRASSEN,
+    STRA_SEMIRINGKERNEL, STRA_MICROKERNEL,
+    TA, TB, TC, TB>
+    (
+       thread,
+       transA, transB,
+       m, n, k,
+       A, lda,
+       B, ldb,
+       C, ldc,
+       stra_semiringkernel,
+       stra_microkernel,
+       nc, pack_nc,
+       packA_buff,
+       packB_buff
+    );
 
 
-    //exit( 0 );
-
-    // M2: C10 = 1*C10+1*(A10+A11)B00; C11 = 1*C11-1*(A10+A11)B00
-    STRAPRIM( A10, A11, 1, B00, NULL, 0, C10, C11, 1, -1 )
 
 
-    // M3: C01 = 1*C01+1*A00(B01-B11); C11 = 1*C11+1*A00(B01-B11)
-    STRAPRIM( A00, NULL, 0, B01, B11, -1, C01, C11, 1, 1 )
-
-
-    // M4: C00 = 1*C00+1*A11(B10-B00); C10 = 1*C10+1*A11(B10-B00)
-    STRAPRIM( A11, NULL, 0, B10, B00, -1, C00, C10, 1, 1 )
-    // M5: C00 = 1*C00-1*(A00+A01)B11; C01 = 1*C01+1*(A00+A01)B11
-    STRAPRIM( A00, A01, 1, B11, NULL, 0, C00, C01, -1, 1 )
-
-
-    // M6: C11 = 1*C11+(A10-A00)(B00+B01)
-    STRAPRIM( A10, A00, -1, B00, B01, 1, C11, NULL, 1, 0 )
-
-
-    // M7: C00 = 1*C00+(A01-A11)(B10+B11)
-    STRAPRIM( A01, A11, -1, B10, B11, 1, C00, NULL, 1, 0 )
-
-
-    //printf( "C00:" );
-    //hmlp_printmatrix( C00, m, md, nd );
-
-  //printf( "before dynamic peeling\n" );
-    hmlp_dynamic_peeling( transA, transB, m, n, k, A, lda, B, ldb, C, ldc, 2, 2, 2 );
-
-  }                                                        // end omp  
-
-}                                                          // end strassen
+  }
+                                                        // end omp  
+}                                                       // end strassen
 
 
 }; // end namespace strassen
