@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <typeinfo>
+#include <algorithm>
 
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
@@ -11,6 +12,9 @@
 #include <hmlp_thread_communicator.hpp>
 #include <hmlp_thread_info.hpp>
 #include <hmlp_runtime.hpp>
+
+// For USE_STRASSEN
+#include <strassen.hpp>
 
 // reference microkernels 
 #include <semiring_mrxnr.hpp>
@@ -209,7 +213,7 @@ void gkmx_internal
 (
   worker &thread,
   hmlpOperation_t transA, hmlpOperation_t transB,
-  int m, int n, int k,
+  int m, int n, int k, int k_stra,
   TA *A, int lda,
   TB *B, int ldb,
   TC *C, int ldc,
@@ -224,9 +228,9 @@ void gkmx_internal
           + ( thread.ic_id                               ) * PACK_MC * KC;
   packB  += ( thread.jc_id                               ) * pack_nc * KC;
 
-  auto loop6th = GetRange( 0, n, nc, thread.jc_id, thread.jc_nt );
-  auto loop5th = GetRange( 0, k, KC );
-  auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );
+  auto loop6th = GetRange( 0,      n, nc, thread.jc_id, thread.jc_nt );
+  auto loop5th = GetRange( k_stra, k, KC );
+  auto loop4th = GetRange( 0,      m, MC, thread.ic_id, thread.ic_nt );
 
   for ( int jc  = loop6th.beg(); 
             jc  < loop6th.end(); 
@@ -346,9 +350,9 @@ void gkmx_internal
 template<
   int MC, int NC, int KC, int MR, int NR, 
   int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
-  bool USE_STRASSEN,
+  bool USE_STRASSEN = false,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
-  typename TA, typename TB, typename TC, typename TV>
+  typename TA, typename TB, typename TC, typename TV = TC>
 void gkmx
 (
   hmlpOperation_t transA, hmlpOperation_t transB,
@@ -361,6 +365,7 @@ void gkmx
 )
 {
   int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
+  int k_stra = 0;
   int nc = NC, pack_nc = PACK_NC;
   char *str;
 
@@ -402,26 +407,67 @@ void gkmx
   thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
 
 
+  if ( USE_STRASSEN )
+  {
+    assert( typeid(TA) == typeid(TB) );
+    assert( typeid(TC) == typeid(TV) );
+    k_stra = k - k % KC;
+    //if ( transA == HMLP_OP_N ) A_left = A + k_stra * lda;
+    //else                       A_left = A + k_stra *   1;
+    //if ( transB == HMLP_OP_N ) B_left = B + k_stra *   1;
+    //else                       B_left = B + k_stra * ldb;
+
+    if ( k_stra == k ) k_stra -= KC;
+
+    if ( k_stra )
+    {
+      #pragma omp parallel for
+      for ( int i = 0; i < n * ldc; i ++ ) C[ i ] = 0.0;
+    }
+  }
+
+
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
     worker thread( &my_comm );
 
     if ( USE_STRASSEN )
     {
-      printf( "gkmx: strassen algorithms haven't been implemented." );
-      exit( 1 );
+      //printf( "gkmx: strassen algorithms haven't been implemented." );
+      //exit( 1 );
+
+      strassen::strassen_internal
+      <MC, NC, KC, MR, NR,
+      PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+      USE_STRASSEN,
+      SEMIRINGKERNEL, SEMIRINGKERNEL,
+      TA, TB, TC, TV>
+      (
+        thread,
+        transA, transB,
+        m, n, k_stra,
+        A, lda,
+        B, ldb,
+        C, ldc,
+        semiringkernel, semiringkernel,
+        nc, pack_nc,
+        packA_buff,
+        packB_buff
+      );
     }
 
+
+    // TODO: currently the indicies of A and B are incorrect.
     gkmx_internal
     <MC, NC, KC, MR, NR, 
     PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
     USE_STRASSEN,
     SEMIRINGKERNEL, MICROKERNEL,
-    TA, TB, TC, TB>
+    TA, TB, TC, TV>
     (
       thread,
       transA, transB,
-      m, n, k,
+      m, n, k, k_stra,
       A, lda,
       B, ldb,
       C, ldc,
@@ -437,15 +483,23 @@ void gkmx
 };                                                         // end gkmx
 
 
-/*
- *
+/**
+ *  @beief  
  */ 
 template<
-  int MC, int NC, int KC, int MR, int NR, 
-  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
-  bool USE_STRASSEN,
+  int MC            = 104, 
+  int NC            = 1024, 
+  int KC            = 256, 
+  int MR            = 8, 
+  int NR            = 4, 
+  int PACK_MC       = 104, 
+  int PACK_NC       = 1024, 
+  int PACK_MR       = 8, 
+  int PACK_NR       = 4, 
+  int ALIGN_SIZE    = 32,
+  bool USE_STRASSEN = false,
   typename OPKERNEL, typename OP1, typename OP2,
-  typename TA, typename TB, typename TC, typename TV>
+  typename TA, typename TB, typename TC, typename TV = TC>
 void gkmm
 (
   hmlpOperation_t transA, hmlpOperation_t transB,
@@ -483,6 +537,10 @@ void gkmm
     semiringkernel, fusedkernel
   );
 };
+
+
+
+
 
 
 /**
