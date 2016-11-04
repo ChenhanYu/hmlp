@@ -134,9 +134,11 @@ but many others have contributed input and feedback, including:
   Matthew Badin             (Qualcomm Corp. Santa Clara)
   George Biros              (The University of Texas at Austin)
   Cris Cecka                (NVIDIA Corp. Santa Clara)
+  Krzysztof Drewniak        (The University of Texas at Austin)
   Michael Garland           (NVIDIA Corp.)
   Jianyu Huang              (The University of Texas at Austin)
   Bill March                (The University of Texas at Austin)
+  Leslie Rice               (The University of Texas at Austin)
   Tyler Smith               (The University of Texas at Austin)
   Robert van de Geijn       (The University of Texas at Austin)
   Field Van Zee             (The University of Texas at Austin)
@@ -152,7 +154,5 @@ Thank you again for being intersted in HMLP!
 
 Best regards,
 
-Chenhan D. Yu
-
-chenhan@cs.utexas.edu
+Chenhan D. Yu --- chenhan@cs.utexas.edu
 
