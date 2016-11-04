@@ -19,11 +19,13 @@
 #include <cublas_v2.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <thrust/tuple.h>
 
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
 
 #define GFLOPS 1073741824
+#define TOLERANCE 1E-13
 
 using namespace hmlp;
 
@@ -36,19 +38,19 @@ void compute_error
   T *goal, int ldgoal
 )
 {
-  std::tuple<int, int, T> max_err( -1, -1, (T)0.0 );
+  thrust::tuple<int, int, T> max_err( -1, -1, (T)0.0 );
   T abs_err = 0.0, rel_err = 0.0, nrm2 = 0.0;
 
-  for ( auto j = 0; j < n; j ++ ) 
+  for ( int j = 0; j < n; j ++ ) 
   {
-    for ( auto i = 0; i < m; i ++ ) 
+    for ( int i = 0; i < m; i ++ ) 
     {
-      auto tmp_goal = goal[ j * ldgoal + i ];
-      auto tmp_test = test[ j * ldtest + i ];
-      auto err = fabs( tmp_test - tmp_goal );
-      if ( err > std::get<2>( max_err ) ) 
+      T tmp_goal = goal[ j * ldgoal + i ];
+      T tmp_test = test[ j * ldtest + i ];
+      T err = fabs( tmp_test - tmp_goal );
+      if ( err > thrust::get<2>( max_err ) ) 
       {
-        max_err = std::make_tuple( i, j, err );
+        max_err = thrust::make_tuple( i, j, err );
       }
       rel_err += err * err;
       nrm2    += tmp_goal * tmp_goal;
@@ -62,8 +64,8 @@ void compute_error
   if ( rel_err > TOLERANCE ) 
   {
 	  printf( "rel error %E, abs error %E, max error %E at (%d %d)\n", 
-		  rel_err, abs_err, std::get<2>( max_err ), 
-      std::get<0>( max_err ), std::get<1>( max_err ) );
+		  rel_err, abs_err, thrust::get<2>( max_err ), 
+          thrust::get<0>( max_err ), thrust::get<1>( max_err ) );
   }
 };
 
@@ -76,7 +78,7 @@ void compute_error
   int batchSize, int stride
 )
 {
-  for ( auto b = 0; b < batchSize; b ++ )
+  for ( int b = 0; b < batchSize; b ++ )
   {
     compute_error
     ( 
