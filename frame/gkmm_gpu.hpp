@@ -26,10 +26,20 @@
 #endif
 #define fetch(A, m, n, bound) offs_d##A[mymin(n*LD##A+m, bound)]
 
+#define GKMX_GPU_CONFIG \
+bool TRANSA, bool TRANSB,\
+int DIM_X, int DIM_Y,\
+int BLK_M, int BLK_N, int BLK_K,\
+int DIM_XA, int DIM_YA, int DIM_XB, int DIM_YB
+
+
+
 namespace hmlp
 {
 namespace gkmm
 {
+
+
 
 #define version(s,v) s ## _V_ ## v
 
@@ -60,11 +70,12 @@ namespace gkmm
 
 
 template<
-bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y,
-const int BLK_M, const int BLK_N, const int BLK_K, 
-const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB, 
-const int THR_M, const int THR_N, 
+//bool TRANSA, bool TRANSB,
+//const int DIM_X, const int DIM_Y,
+//const int BLK_M, const int BLK_N, const int BLK_K, 
+//const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB, 
+//const int THR_M, const int THR_N,
+GKMX_CPU_CONFIG,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 static __device__ void gkmm_device
@@ -122,7 +133,6 @@ static __device__ void gkmm_device
 
 #endif /* (__CUDA_ARCH__ >= 200) */
 };
-
 
 
 template<
@@ -408,6 +418,333 @@ void gkmm
   // Autotuned decision tree
   #include <gkmm_strided_autotune.hpp>
 };
+
+
+
+/**
+ *  @brief gkrm 
+ *
+ *
+ */
+
+template<
+bool TRANSA, bool TRANSB,
+const int DIM_X, const int DIM_Y,
+const int BLK_M, const int BLK_N, const int BLK_K, 
+const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB, 
+const int THR_M, const int THR_N, 
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
+typename TA, typename TB, typename TC, typename TV>
+static __device__ void gkrm_device
+(
+  int M, int N, int K,
+  const TA* __restrict__ A, int LDA,
+  const TB* __restrict__ B, int LDB,
+        TC* __restrict__ C, int LDC,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, OPREDUCE opreduce, TC initC 
+)
+{
+  TC rc[THR_M];
+
+  // Semi-ring rank-k update template
+  #include <gkmm_stencil.hpp>
+
+  // SQ2NRM option
+  if ( SQ2NRM ) 
+  {
+    __syncthreads();
+    if ( idt < BLK_M && blx * BLK_M + idt < M ) 
+    {
+      sA[ 0 ][ idt ] = opkernel.A2[ blockIdx.z ][ blx * BLK_M + idt ];
+    }
+    if ( idt < BLK_N && bly * BLK_N + idt < N ) 
+    {
+      sB[ idt ][ 0 ] = opkernel.B2[ blockIdx.z ][ bly * BLK_N + idt ];
+    }
+    __syncthreads();
+  }
+
+  #pragma unroll
+  for ( m = 0; m < THR_M; m ++ ) 
+  {
+    int coord_dCm = blx*BLK_M + m*DIM_X + idx;
+    int offsC = ( bly * DIM_Y + idy ) * LDC + coord_dCm;
+    #pragma unroll
+    for ( n = 0; n < THR_N; n ++ ) 
+    {
+      int coord_dCn = bly*BLK_N + n*DIM_Y + idy;
+      if ( coord_dCm < M && coord_dCn < N ) 
+      {
+        TV  &regC = rC[ n ][ m ];
+        TC regK;
+        if ( SQ2NRM ) 
+        {
+          regC *= -2.0;
+          regC += sA[ 0 ][ m * DIM_X + idx ] + sB[ n * DIM_Y + idy ][ 0 ];
+        }
+        regK = opkernel( regC, coord_dCm, coord_dCn, blockIdx.z );
+        if ( !n ) 
+        {
+          rc[ m ] = regK;
+        }
+        else 
+        {
+          rc[ m ] = opreduce( rc[ m ], regK, coord_dCm, coord_dCn, blockIdx.z );
+        }
+      }
+    }
+    // For special case where DIM_Y < N, we need condition idy < N.
+    if ( coord_dCm < M && bly * BLK_N < N && idy < N ) 
+    {
+      C[ offsC ] = rc[ m ];
+    }
+  }
+};
+
+
+
+
+
+
+
+
+
+template<
+//bool TRANSA, bool TRANSB,
+//const int DIM_X, const int DIM_Y, 
+//const int BLK_M, const int BLK_N, const int BLK_K,
+//const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
+GKMX_GPU_CONFIG,
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
+typename TA, typename TB, typename TC, typename TV>
+static __global__ void gkrm_kernel
+(
+  int M, int N, int K,
+  const TA *Aarray[], int LDA,
+  const TB *Barray[], int LDB,
+        TC *Carray[], int LDC,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, OPREDUCE opreduce, TC initC 
+)
+{
+  gkrm_device<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K,
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+    (BLK_M/DIM_X), (BLK_N/DIM_Y), 
+    SQ2NRM, OPKERNEL, OP1, OP2, OPREDUCE,
+    TA, TB, TC, TV>
+  (
+    M, N, K, 
+    Aarray[ blockIdx.z ], LDA,
+    Barray[ blockIdx.z ], LDB,
+    Carray[ blockIdx.z ], LDC,
+    opkernel, op1, op2, initV, opreduce, initC 
+  );
+};
+
+template<
+//bool TRANSA, bool TRANSB,
+//const int DIM_X, const int DIM_Y, 
+//const int BLK_M, const int BLK_N, const int BLK_K,
+//const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
+GKMX_GPU_CONFIG,
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
+typename TA, typename TB, typename TC, typename TV>
+static __global__ void gkrm_kernel
+(
+  int M, int N, int K,
+  const TA *A, int LDA, int LOA,
+  const TB *B, int LDB, int LOB,
+        TC *C, int LDC, int LOC,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, OPREDUCE opreduce, TC initC 
+)
+{
+  gkrm_device<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K,
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+    (BLK_M/DIM_X), (BLK_N/DIM_Y), 
+    SQ2NRM, OPKERNEL, OP1, OP2, OPREDUCE,
+    TA, TB, TC, TV>
+  (
+    M, N, K, 
+    A + LOA * blockIdx.z, LDA,
+    B + LOB * blockIdx.z, LDB,
+    C + LOC * blockIdx.z, LDC,
+    opkernel, op1, op2, initV, opreduce, initC 
+  );
+};
+
+
+template<
+bool TRANSA, bool TRANSB,
+const int DIM_X, const int DIM_Y, 
+const int BLK_M, const int BLK_N, const int BLK_K,
+const int dim_vec, 
+const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
+typename TA, typename TB, typename TC, typename TV>
+void gkrm_internal
+(
+  cudaStream_t stream, 
+  int m, int n, int k,
+  const TA *Aarray[], int lda,
+  const TB *Barray[], int ldb,
+        TC *Carray[], int ldc,
+  int batchSize,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, OPREDUCE opreduce, TC initC
+)
+{
+  dim3 dimBlock( DIM_X, DIM_Y );
+  dim3 dimGrid( hmlp_ceildiv( m, BLK_M ), hmlp_ceildiv( n, BLK_N ), batchSize );
+
+  gkrm_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+    SQ2NRM, OPKERNEL, OP1, OP2, OPREDUCE,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc, 
+    opkernel, op1, op2, init1, opreduce, init2 
+  );
+
+  dim3 dimBlockReduce( 256, 1 );
+  dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
+
+  reduce_template_batched_kernel
+  <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
+  <<< dimGridReduce, dimBlockReduce, 0, stream >>>
+  ( m, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y, Carray, ldc, opreduce );
+};
+
+template <
+bool TRANSA, bool TRANSB,
+const int DIM_X, const int DIM_Y, 
+const int BLK_M, const int BLK_N, const int BLK_K,
+const int dim_vec, 
+const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
+typename TA, typename TB, typename TC, typename TV>
+void gkrm_internal
+(
+  cudaStream_t stream, 
+  int m, int n, int k,
+  const TA *Aarray, int lda, int loa,
+  const TB *Barray, int ldb, int lob,
+        TC *Carray, int ldc, int loc,
+  int batchSize,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, OPREDUCE opreduce, TC initC 
+)
+{
+  dim3 dimBlock( DIM_X, DIM_Y );
+  dim3 dimGrid( gkmx_ceildiv( m, BLK_M ), gkmx_ceildiv( n, BLK_N ), batchSize );
+
+  gkrm_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+    SQ2NRM, OPKERNEL, OP1, OP2, OPREDUCE,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda, loa,
+    Barray, ldb, lob,
+    Carray, ldc, loc, 
+    opkernel, op1, op2, initV, opreduce, initC 
+  );
+
+  dim3 dimBlockReduce( 256, 1 );
+  dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
+
+  reduce_template_batched_strided_kernel
+  <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
+  <<< dimGridReduce, dimBlockReduce, 0, stream >>>
+  ( m, min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), Carray, ldc, loc, opreduce );
+};
+
+
+template<
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE
+typename TA, typename TB, typename TC, typename TV> 
+void gkrm
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  const TA *Aarray[], int lda, 
+  const TB *Barray[], int ldb, 
+        TC *Carray[], int ldc, 
+  int batchSize,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV 
+)
+{
+  // Early return.
+  if ( m <= 0 || n <= 0 || k <= 0 ) return;
+
+  // Specify input formats
+  int shape = 0;
+  if      ( transA == HMLP_OP_N && transB == HMLP_OP_N ) { shape = 0; } // nn
+  else if ( transA == HMLP_OP_N && transB == HMLP_OP_T ) { shape = 1; } // nt
+  else if ( transA == HMLP_OP_T && transB == HMLP_OP_N ) { shape = 3; } // tn
+  else if ( transA == HMLP_OP_T && transB == HMLP_OP_T ) { shape = 4; } // tt
+
+  // Autotuned decision tree
+  #include <gkrm_autotune.hpp>
+};
+
+
+template<
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE
+typename TA, typename TB, typename TC, typename TV> 
+void gkrm
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  const TA *Aarray, int lda, int loa,
+  const TB *Barray, int ldb, int lob,
+        TC *Carray, int ldc, int loc,
+  int batchSize,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, 
+  OPREDUCE opreduce, TC initC
+)
+{
+  // Early return.
+  if ( m <= 0 || n <= 0 || k <= 0 ) return;
+
+  // Specify input formats
+  int shape = 0;
+  if      ( transA == HMLP_OP_N && transB == HMLP_OP_N ) { shape = 0; } // nn
+  else if ( transA == HMLP_OP_N && transB == HMLP_OP_T ) { shape = 1; } // nt
+  else if ( transA == HMLP_OP_T && transB == HMLP_OP_N ) { shape = 3; } // tn
+  else if ( transA == HMLP_OP_T && transB == HMLP_OP_T ) { shape = 4; } // tt
+
+  // Autotuned decision tree
+  #include <gkrm_strided_autotune.hpp>
+};
+
+
+
+
+
+
+
+
+}; // end namespace gkmm
+}; // end namespace hmlp
+
+
+
+
+
 
 
 }; // end namespace gkmm
