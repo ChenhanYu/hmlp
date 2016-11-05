@@ -29,6 +29,59 @@ namespace gsknn
  */
 template<
   int KC, int MR, int NR, int PACK_MR, int PACK_NR,
+  typename SEMIRINGKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
+void rank_k_macro_kernel
+(
+  worker &thread,
+  int ic, int jc, int pc,
+  int  m, int n,  int  k,
+  TA *packA,
+  TB *packB,
+  TC *packC, int ldc,
+  SEMIRINGKERNEL semiringkernel
+)
+{
+  thread_communicator &ic_comm = *thread.ic_comm;
+
+  auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );
+  auto pack3rd = GetRange( 0, n, PACK_NR, thread.jr_id, ic_comm.GetNumThreads() );
+  auto loop2nd = GetRange( 0, m,      MR );
+  auto pack2nd = GetRange( 0, m, PACK_MR );
+
+  for ( int j   = loop3rd.beg(), jp  = pack3rd.beg();
+            j   < loop3rd.end();
+            j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
+  {
+    struct aux_s<TA, TB, TC, TV> aux;
+    aux.pc       = pc;
+    aux.b_next   = packB;
+
+    for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();
+              i  < loop2nd.end();
+              i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
+    {
+      if ( i + MR >= m )
+      {
+        aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
+      }
+      semiringkernel
+      (
+        k,
+        &packA[ ip * k ],
+        &packB[ jp * k ],
+        &packC[ j * ldc + i * NR ], ldc,
+        &aux
+      );
+    }                                                      // end 2nd loop
+  }                                                        // end 3rd loop
+}                                                          // end rank_k_macro_kernel
+
+/**
+ *
+ */
+template<
+  int KC, int MR, int NR, int PACK_MR, int PACK_NR,
   typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
@@ -39,12 +92,12 @@ void fused_macro_kernel
   TA *packA, TA *packA2,
   TB *packB, TB *packB2,
   int *bmap,
-  TC *D,  int *I,  int ldr,
-  TV *packC, int ldc,
+  TV *D,  int *I,  int ldr,
+  TC *packC, int ldc,
   MICROKERNEL microkernel
 )
 {
-  TV c[ MR * NR ] __attribute__((aligned(32)));
+  double c[ MR * NR ] __attribute__((aligned(32)));
   double *cbuff = c;
   thread_communicator &ic_comm = *thread.ic_comm;
 
@@ -57,7 +110,7 @@ void fused_macro_kernel
             j   < loop3rd.end();
             j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
   {
-    struct aux_d<TA, TB, TC, TV> aux;
+    struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
     aux.b_next   = packB;
     aux.ldr      = ldr;
@@ -106,15 +159,16 @@ void gsknn_internal
   int m, int n, int k, int r,
   TA *A, TA *A2, int *amap,
   TB *B, TB *B2, int *bmap,
-  TC *D,         int *I,
+  TV *D,         int *I,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel,
   TA *packA, TA *packA2,
   TB *packB, TB *packB2,
-  TV *packC, int ldpackc, int padn,
+  TC *packC, int ldpackc, int padn,
   int ldr
 )
 {
+
   packA  += ( thread.jc_id * thread.ic_nt                ) * PACK_MC * KC
           + ( thread.ic_id                               ) * PACK_MC * KC;
   packA2 += ( thread.jc_id * thread.ic_nt + thread.ic_id ) * PACK_MC;
@@ -125,103 +179,225 @@ void gsknn_internal
   auto loop5th = GetRange( 0, k, KC );
   auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );
 
-  for ( int jc  = loop6th.beg();
-            jc  < loop6th.end();
-            jc += loop6th.inc() )                          // beg 6th loop
-  {
-    auto &jc_comm = *thread.jc_comm;
-    auto jb = min( n - jc, NC );
+  if ( k > KC ) {
+    ldpackc = ( ( m - 1 ) / MR + 1 ) * MR;
+    padn = NC;
+    if ( n < NC ) padn = ( (n - 1 ) / NR + 1 ) * NR;
 
-    for ( int pc  = loop5th.beg();
-              pc  < loop5th.end();
-              pc += loop5th.inc() )
+    packC = hmlp_malloc<ALIGN_SIZE, TC>(  ldpackc, padn, sizeof(TC) );
+
+    for ( int jc  = loop6th.beg();
+              jc  < loop6th.end();
+              jc += loop6th.inc() )                          // beg 6th loop
     {
-      auto &pc_comm = *thread.pc_comm;
-      auto pb = min( k - pc, KC );
-      auto is_the_last_pc_iteration = ( pc + KC >= k );
+      auto &jc_comm = *thread.jc_comm;
+      auto jb = min( n - jc, NC );
 
-      auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() );
-      auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() );
-
-      for ( int j   = looppkB.beg(), jp  = packpkB.beg();
-                j   < looppkB.end();
-                j  += looppkB.inc(), jp += packpkB.inc() )
+      for ( int pc  = loop5th.beg();
+                pc  < loop5th.end();
+                pc += loop5th.inc() )
       {
-        pack2D<true, PACK_NR>                              // packB
-        (
-          min( jb - j, NR ), pb,
-          &B[ pc ], k, &bmap[ jc + j ], &packB[ jp * pb ]
-        );
+        auto &pc_comm = *thread.pc_comm;
+        auto pb = min( k - pc, KC );
+        auto is_the_last_pc_iteration = ( pc + KC >= k );
 
+        auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() );
+        auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() );
 
-        if ( is_the_last_pc_iteration )
+        for ( int j   = looppkB.beg(), jp  = packpkB.beg();
+                  j   < looppkB.end();
+                  j  += looppkB.inc(), jp += packpkB.inc() )
         {
-
-          pack2D<true, PACK_NR>                          // packB2
+          pack2D<true, PACK_NR>                              // packB
           (
-            min( jb - j, NR ), 1,
-            &B2[ 0 ], 1, &bmap[ jc + j ], &packB2[ jp * 1 ]
+            min( jb - j, NR ), pb,
+            &B[ pc ], k, &bmap[ jc + j ], &packB[ jp * pb ]
           );
 
-
-        }
-      }
-      pc_comm.Barrier();
-
-      for ( int ic  = loop4th.beg();
-                ic  < loop4th.end();
-                ic += loop4th.inc() )                      // beg 4th loop
-      {
-        auto &ic_comm = *thread.ic_comm;
-        auto ib = min( m - ic, MC );
-
-        auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt );
-        auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt );
-
-        for ( int i   = looppkA.beg(), ip  = packpkA.beg();
-                  i   < looppkA.end();
-                  i  += looppkA.inc(), ip += packpkA.inc() )
-        {
-          pack2D<true, PACK_MR>                            // packA
-          (
-            min( ib - i, MR ), pb,
-            &A[ pc ], k, &amap[ ic + i ], &packA[ ip * pb ]
-          );
 
           if ( is_the_last_pc_iteration )
           {
-            pack2D<true, PACK_MR>                        // packA2
+
+            pack2D<true, PACK_NR>                          // packB2
             (
-              min( ib - i, MR ), 1,
-              &A2[ 0 ], 1, &amap[ ic + i ], &packA2[ ip * 1 ]
+              min( jb - j, NR ), 1,
+              &B2[ 0 ], 1, &bmap[ jc + j ], &packB2[ jp * 1 ]
             );
+
 
           }
         }
+        pc_comm.Barrier();
+
+        for ( int ic  = loop4th.beg();
+                  ic  < loop4th.end();
+                  ic += loop4th.inc() )                      // beg 4th loop
+        {
+          auto &ic_comm = *thread.ic_comm;
+          auto ib = min( m - ic, MC );
+
+          auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt );
+          auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt );
+
+          for ( int i   = looppkA.beg(), ip  = packpkA.beg();
+                    i   < looppkA.end();
+                    i  += looppkA.inc(), ip += packpkA.inc() )
+          {
+            pack2D<true, PACK_MR>                            // packA
+            (
+              min( ib - i, MR ), pb,
+              &A[ pc ], k, &amap[ ic + i ], &packA[ ip * pb ]
+            );
+
+            if ( is_the_last_pc_iteration )
+            {
+              pack2D<true, PACK_MR>                         // packA2
+              (
+                min( ib - i, MR ), 1,
+                &A2[ 0 ], 1, &amap[ ic + i ], &packA2[ ip * 1 ]
+              );
+
+            }
+          }
 
 
-        ic_comm.Barrier();
+          ic_comm.Barrier();
+
+          if ( pc + KC  < k ) {
+            rank_k_macro_kernel
+            <KC, MR, NR, PACK_MR, PACK_NR, SEMIRINGKERNEL, TA, TB, TC, TV>
+            (
+              thread,
+              ic, jc, pc,
+              ib, jb, pb,
+              packA,
+              packB,
+              packC + ic * padn,
+              ( ( ib - 1 ) / MR + 1 ) * MR,
+              semiringkernel
+            );
+          } else {
+            fused_macro_kernel
+            <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
+            (
+              thread,
+              pc,
+              ib, jb, pb, r,
+              packA, packA2,
+              packB, packB2, bmap + jc,
+              D + ic * ldr,  I + ic * ldr,  ldr,
+              packC + ic * padn,
+              ( ( ib - 1 ) / MR + 1 ) * MR,
+              microkernel
+            );
+          }
+          ic_comm.Barrier();
+
+        }                                                    // end 4th loop
+        pc_comm.Barrier();
+      }                                                      // end 5th loop
+    }                                                        // end 6th loop
+    free( packC );
+  }
+  else {
+    for ( int jc  = loop6th.beg();
+              jc  < loop6th.end();
+              jc += loop6th.inc() )                          // beg 6th loop
+    {
+      auto &jc_comm = *thread.jc_comm;
+      auto jb = min( n - jc, NC );
+
+      for ( int pc  = loop5th.beg();
+                pc  < loop5th.end();
+                pc += loop5th.inc() )
+      {
+        auto &pc_comm = *thread.pc_comm;
+        auto pb = min( k - pc, KC );
+        auto is_the_last_pc_iteration = ( pc + KC >= k );
+
+        auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() );
+        auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() );
+
+        for ( int j   = looppkB.beg(), jp  = packpkB.beg();
+                  j   < looppkB.end();
+                  j  += looppkB.inc(), jp += packpkB.inc() )
+        {
+          pack2D<true, PACK_NR>                              // packB
+          (
+            min( jb - j, NR ), pb,
+            &B[ pc ], k, &bmap[ jc + j ], &packB[ jp * pb ]
+          );
 
 
-        fused_macro_kernel
-        <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
-        (
-          thread,
-          pc,
-          ib, jb, pb, r,
-          packA, packA2,
-          packB, packB2, bmap + jc,
-          D + ic * ldr,  I + ic * ldr,  ldr,
-          packC + ic * padn,                             // packed
-          ( ( ib - 1 ) / MR + 1 ) * MR,                  // packed ldc
-          microkernel
-        );
-        ic_comm.Barrier();                                 // sync all jr_id!!
+          if ( is_the_last_pc_iteration )
+          {
 
-      }                                                    // end 4th loop
-      pc_comm.Barrier();
-    }                                                      // end 5th loop
-  }                                                        // end 6th loop
+            pack2D<true, PACK_NR>                           // packB2
+            (
+              min( jb - j, NR ), 1,
+              &B2[ 0 ], 1, &bmap[ jc + j ], &packB2[ jp * 1 ]
+            );
+
+
+          }
+        }
+        pc_comm.Barrier();
+
+        for ( int ic  = loop4th.beg();
+                  ic  < loop4th.end();
+                  ic += loop4th.inc() )                      // beg 4th loop
+        {
+          auto &ic_comm = *thread.ic_comm;
+          auto ib = min( m - ic, MC );
+
+          auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt );
+          auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt );
+
+          for ( int i   = looppkA.beg(), ip  = packpkA.beg();
+                    i   < looppkA.end();
+                    i  += looppkA.inc(), ip += packpkA.inc() )
+          {
+            pack2D<true, PACK_MR>                            // packA
+            (
+              min( ib - i, MR ), pb,
+              &A[ pc ], k, &amap[ ic + i ], &packA[ ip * pb ]
+            );
+
+            if ( is_the_last_pc_iteration )
+            {
+              pack2D<true, PACK_MR>                        // packA2
+              (
+                min( ib - i, MR ), 1,
+                &A2[ 0 ], 1, &amap[ ic + i ], &packA2[ ip * 1 ]
+              );
+
+            }
+          }
+
+
+          ic_comm.Barrier();
+
+
+          fused_macro_kernel
+          <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
+          (
+            thread,
+            pc,
+            ib, jb, pb, r,
+            packA, packA2,
+            packB, packB2, bmap + jc,
+            D + ic * ldr,  I + ic * ldr,  ldr,
+            NULL,
+            0,
+            microkernel
+          );
+          ic_comm.Barrier();                                 // sync all jr_id!!
+
+        }                                                    // end 4th loop
+        pc_comm.Barrier();
+      }                                                      // end 5th loop
+    }                                                        // end 6th loop
+  }
 }                                                          // end gsknn_internal
 
 
@@ -253,7 +429,6 @@ void gsknn(
 
   TA *packA_buff = NULL, *packA2_buff = NULL;
   TB *packB_buff = NULL, *packB2_buff = NULL;
-  TV *packC_buff = NULL;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
@@ -297,7 +472,7 @@ void gsknn(
       semiringkernel, microkernel,
       packA_buff, packA2_buff,
       packB_buff, packB2_buff,
-      packC_buff, ldpackc, padn,
+      NULL, ldpackc, padn,
       ldr
     );
 
@@ -326,7 +501,7 @@ void gsknn_ref
   int    i, j, p;
   double beg, time_collect, time_dgemm, time_square, time_heap;
   std::vector<T> packA, packB, C;
-  double fneg2 = -2.0, fzero = 0.0;
+  double fneg2 = -2.0, fzero = 0.0, fone = 1.0;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
@@ -358,7 +533,7 @@ void gsknn_ref
     (
       "T", "N",
       m, n, k,
-      1.0,          packA.data(), k,
+      fone,         packA.data(), k,
                     packB.data(), k,
       fzero,        C.data(),     m
     );

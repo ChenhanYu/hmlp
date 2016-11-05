@@ -2,7 +2,7 @@
 #include <gsknn.hpp>
 
 // Sandy-bridge
-#include <rank_k_d8x4.hpp>
+#include <rnn_rank_k_asm_d8x4.hpp>
 #include <rnn_r_int_d8x4_row.hpp>
 
 using namespace hmlp::gsknn;
@@ -16,12 +16,12 @@ void dgsknn
 )
 {
   // Sandy-bridge
-  rank_k_asm_d8x4 semiringkernel;
+  rnn_rank_k_asm_d8x4 semiringkernel;
   rnn_r_int_d8x4_row microkernel;
   gsknn<
     104, 2048, 256, 8, 4, 104, 2048, 8, 4, 32,
     false,
-    rank_k_asm_d8x4,
+    rnn_rank_k_asm_d8x4,
     rnn_r_int_d8x4_row,
     double, double, double, double>
   (

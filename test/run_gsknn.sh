@@ -4,7 +4,7 @@ m=4097
 n=4097
 r=128
 kmin=4
-kmax=256
+kmax=600
 kinc=31
 
 echo 'KNN = ['

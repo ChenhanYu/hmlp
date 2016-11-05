@@ -17,7 +17,7 @@ struct rnn_r_int_d8x4_row
    double *a, double *aa,
    double *b, double *bb,
    double *c,
-   aux_d<double, double, double, double> *aux,
+   aux_s<double, double, double, double> *aux,
    int *bmap
   ) const
   {
