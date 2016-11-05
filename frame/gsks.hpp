@@ -396,13 +396,9 @@ void gsks(
   if ( m == 0 || n == 0 || k == 0 ) return;
 
   // Check the environment variable.
-  str = getenv( "KS_JC_NT" );
-  if ( str ) jc_nt = (int)strtol( str, NULL, 10 );
-  str = getenv( "KS_IC_NT" );
-  if ( str ) ic_nt = (int)strtol( str, NULL, 10 );
-  str = getenv( "KS_JR_NT" );
-  if ( str ) jr_nt = (int)strtol( str, NULL, 10 );
-
+  jc_nt = hmlp_read_nway_from_env( "KS_JC_NT" );
+  ic_nt = hmlp_read_nway_from_env( "KS_IC_NT" );
+  jr_nt = hmlp_read_nway_from_env( "KS_JR_NT" );
 
   if ( jc_nt > 1 )
   {

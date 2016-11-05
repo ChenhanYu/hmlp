@@ -38,7 +38,8 @@ void gkmx_dfma
 
   gkmx
   <104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
-  false,
+  //false,
+  true,
   //rank_k_asm_d8x4, rank_k_asm_d8x4,
   rank_k_int_d8x4, rank_k_int_d8x4,
   double, double, double, double>
@@ -72,7 +73,8 @@ void gkmx_dfma_simple
 
   gkmm
   <104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
-  false>
+  //false>
+  true>
   (
     transA, transB,
     m, n, k,

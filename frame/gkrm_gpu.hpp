@@ -23,6 +23,8 @@ namespace hmlp
 namespace gkrm
 {
 
+#define GKMX_GPU_CONFIG 
+
 #define version(s,v) s ## _V_ ## v
 
 // GKRM macros (see gkmx_template_kernel_batched.hxx for the definition.)
@@ -295,18 +297,6 @@ void gkrm_internal
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
   ( m, min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), Carray, ldc, loc, opreduce );
 };
-
-
-/**
- *  @brief GKMMV cuda kernel wrapper with double pointers. A global reduction
- *         kernel is followed after the local reduction in gkrm.
- */ 
-template< bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y, 
-const int BLK_M, const int BLK_N, const int BLK_K,
-const int dim_vec, 
-const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
-
 
 
 

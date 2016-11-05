@@ -99,6 +99,17 @@ static inline int hmlp_ceildiv( int x, int y )
     return ( x + y - 1 ) / y;
 }
 
+static inline int hmlp_read_nway_from_env( char* env )
+{
+  int number = 1;
+  char* str = getenv( env );
+  if( str != NULL )
+  {
+    number = strtol( str, NULL, 10 );
+  }
+  return number;
+}
+
 template<typename T>
 inline void swap( T *x, int i, int j ) {
   T tmp = x[ i ];

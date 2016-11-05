@@ -74,6 +74,47 @@ struct rank_k_ref_d8x4
 
 struct rank_k_int_d8x4 
 {
+  // Strassen interface
+  inline void operator()
+  ( 
+      int k, 
+      double *a, 
+      double *b, 
+      int len,
+      double **c, int ldc, double *alpha,
+      aux_s<double, double, double, double> *aux 
+  ) const 
+  {
+    double c_reg[ 8 * 4 ] = { 0.0 };
+
+    for ( int p = 0; p < k; p ++ ) 
+    {
+      #pragma unroll
+      for ( int j = 0; j < 4; j ++ )
+      {
+        #pragma unroll
+        for ( int i = 0; i < 8; i ++ ) 
+        {
+          c_reg[ j * 8 + i ] += a[ p * 8 + i ] * b[ p * 4 + j ];
+        }
+      }
+    }
+
+    for ( int t = 0; t < len; t ++ )
+    {
+      #pragma unroll
+      for ( int j = 0; j < 4; j ++ )
+      {
+        #pragma unroll
+        for ( int i = 0; i < 8; i ++ ) 
+        {
+          c[ t ][ j * ldc + i ] += alpha[ t ] * c_reg[ j * 8 + i ];
+        }
+      }
+    }
+  };
+
+  // Non-strassen interface
   inline void operator()
   ( 
     int k, 
@@ -188,11 +229,52 @@ struct rank_k_int_d8x4
       _mm256_store_pd( (double*)( c + 3 * ldc     ), c03_3.v );
       _mm256_store_pd( (double*)( c + 3 * ldc + 4 ), c47_3.v );
     }
-  }
+  };
 };
 
 struct rank_k_asm_d8x4 
 {
+  // Strassen interface
+  inline void operator()
+  ( 
+      int k, 
+      double *a, 
+      double *b, 
+      int len,
+      double **c, int ldc, double *alpha,
+      aux_s<double, double, double, double> *aux 
+  ) const 
+  {
+    double c_reg[ 8 * 4 ] = { 0.0 };
+
+    for ( int p = 0; p < k; p ++ ) 
+    {
+      #pragma unroll
+      for ( int j = 0; j < 4; j ++ )
+      {
+        #pragma unroll
+        for ( int i = 0; i < 8; i ++ ) 
+        {
+          c_reg[ j * 8 + i ] += a[ p * 8 + i ] * b[ p * 4 + j ];
+        }
+      }
+    }
+
+    for ( int t = 0; t < len; t ++ )
+    {
+      #pragma unroll
+      for ( int j = 0; j < 4; j ++ )
+      {
+        #pragma unroll
+        for ( int i = 0; i < 8; i ++ ) 
+        {
+          c[ t ][ j * ldc + i ] += alpha[ t ] * c_reg[ j * 8 + i ];
+        }
+      }
+    }
+  };
+
+  // Non-strassen interface
   inline void operator()
   ( 
     int k, 
