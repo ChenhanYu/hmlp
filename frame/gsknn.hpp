@@ -17,6 +17,9 @@
 #include <hmlp_thread_info.hpp>
 #include <hmlp_runtime.hpp>
 
+// For USE_STRASSEN
+#include <strassen.hpp>
+
 namespace hmlp
 {
 namespace gsknn
@@ -127,6 +130,9 @@ void fused_macro_kernel
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
+      if ( pc ) {
+        cbuff = packC + j * ldc + i * NR;
+      }
       microkernel
       (
         k,
@@ -156,7 +162,7 @@ template<
 void gsknn_internal
 (
   worker &thread,
-  int m, int n, int k, int r,
+  int m, int n, int k, int k_stra, int r,
   TA *A, TA *A2, int *amap,
   TB *B, TB *B2, int *bmap,
   TV *D,         int *I,
@@ -176,10 +182,10 @@ void gsknn_internal
   packB2 += ( thread.jc_id                               ) * PACK_NC;
 
   auto loop6th = GetRange( 0, n, NC );
-  auto loop5th = GetRange( 0, k, KC );
+  auto loop5th = GetRange( k_stra, k, KC );
   auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );
 
-  if ( k > KC ) {
+  if ( k - k_stra > KC ) {
     ldpackc = ( ( m - 1 ) / MR + 1 ) * MR;
     padn = NC;
     if ( n < NC ) padn = ( (n - 1 ) / NR + 1 ) * NR;
@@ -377,20 +383,36 @@ void gsknn_internal
 
           ic_comm.Barrier();
 
+          if ( k_stra ) {
+            fused_macro_kernel
+            <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
+            (
+              thread,
+              pc,
+              ib, jb, pb, r,
+              packA, packA2,
+              packB, packB2, bmap + jc,
+              D + ic * ldr,  I + ic * ldr,  ldr,
+              packC + jc * m + ic,
+              m,
+              microkernel
+            );
+          } else {
+            fused_macro_kernel
+            <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
+            (
+              thread,
+              pc,
+              ib, jb, pb, r,
+              packA, packA2,
+              packB, packB2, bmap + jc,
+              D + ic * ldr,  I + ic * ldr,  ldr,
+              NULL,
+              0,
+              microkernel
+            );
+          }
 
-          fused_macro_kernel
-          <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
-          (
-            thread,
-            pc,
-            ib, jb, pb, r,
-            packA, packA2,
-            packB, packB2, bmap + jc,
-            D + ic * ldr,  I + ic * ldr,  ldr,
-            NULL,
-            0,
-            microkernel
-          );
           ic_comm.Barrier();                                 // sync all jr_id!!
 
         }                                                    // end 4th loop
@@ -417,18 +439,20 @@ void gsknn(
     int m, int n, int k, int r,
     TA *A, TA *A2, int *amap,
     TB *B, TB *B2, int *bmap,
-    TC *D,         int *I,
+    TV *D,         int *I,
     SEMIRINGKERNEL semiringkernel,
     MICROKERNEL microkernel
     )
 {
   int ic_nt = 1;
+  int k_stra = 0;
   int ldpackc = 0, padn = 0;
   int ldr = 0;
   char *str;
 
   TA *packA_buff = NULL, *packA2_buff = NULL;
   TB *packB_buff = NULL, *packB2_buff = NULL;
+  TC *packC_buff = NULL;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
@@ -448,14 +472,48 @@ void gsknn(
   // allocate tree communicator
   thread_communicator my_comm( 1, ic_nt, 1, 1 );
 
+  if ( USE_STRASSEN )
+  {
+    // assert( typeid(TA) == typeid(TB) );
+    // assert( typeid(TC) == typeid(TV) );
+    k_stra = k - k % KC;
+
+    if ( k_stra == k ) k_stra -= KC;
+
+    if ( k_stra )
+    {
+      packC_buff = hmlp_malloc<ALIGN_SIZE, TC>(  m, n, sizeof(TC) );
+
+      #pragma omp parallel for
+      for ( int i = 0; i < m * n; i ++ ) packC_buff[ i ] = 0.0;
+    }
+
+  }
+
   #pragma omp parallel num_threads( my_comm.GetNumThreads() )
   {
     worker thread( &my_comm );
 
-    if ( USE_STRASSEN )
+    if ( USE_STRASSEN && k > KC )
     {
-      printf( "gsknn: strassen algorithms haven't been implemented." );
-      exit( 1 );
+      strassen::strassen_internal
+      <MC, NC, KC, MR, NR,
+      PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+      USE_STRASSEN,
+      SEMIRINGKERNEL, SEMIRINGKERNEL,
+      TA, TB, TC, TV>
+      (
+        thread,
+        HMLP_OP_T, HMLP_OP_N,
+        m, n, k_stra,
+        A, m,
+        B, k,
+        packC_buff, m,
+        semiringkernel, semiringkernel,
+        NC, PACK_NC,
+        packA_buff,
+        packB_buff
+      );
     }
 
     gsknn_internal
@@ -465,14 +523,14 @@ void gsknn(
     TA, TB, TC, TB>
     (
       thread,
-      m, n, k, r,
+      m, n, k, k_stra, r,
       A, A2, amap,
       B, B2, bmap,
       D,     I,
       semiringkernel, microkernel,
       packA_buff, packA2_buff,
       packB_buff, packB2_buff,
-      NULL, ldpackc, padn,
+      packC_buff, ldpackc, padn,
       ldr
     );
 
@@ -482,7 +540,7 @@ void gsknn(
   hmlp_free( packB_buff );
   hmlp_free( packA2_buff );
   hmlp_free( packB2_buff );
-
+  hmlp_free( packC_buff );
 }                                                          // end gsknn
 
 
