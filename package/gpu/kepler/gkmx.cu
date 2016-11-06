@@ -25,21 +25,87 @@
 #include <sgemm_param_tt.h>
 
 // GKMX template
-#include <gkmm_gpu.hpp>
+#include <gkmx_gpu.hpp>
 
-using namespace hmlp::gkmm;
+using namespace hmlp::gkmx;
 
 
 template <typename T>
 struct identity 
 {
-  __host__ __device__ __forceinline__ T operator()( const T& x, int i, int j, int b ) const 
+  __host__ __device__ __forceinline__ T operator()
+  ( 
+    const T& x, int i, int j, int b 
+  ) const 
   {
     return x; 
   }
   T** A2;
   T** B2;
 };
+
+
+template <typename TV, typename TC>
+struct kmeans 
+{
+  __host__ __device__ __forceinline__ TC operator()
+  ( 
+    const TV& x, int i, int j, int b 
+  ) const 
+  { 
+    return thrust::make_pair( x , j ); 
+  }
+  TV** A2;
+  TV** B2;
+};
+
+template <typename TC>
+struct argmin 
+{
+  __host__ __device__ __forceinline__ TC operator()
+  ( 
+    const TC& lhs, const TC& rhs, int i, int j, int b 
+  ) const 
+  {
+    return lhs.first < rhs.first ? lhs : rhs;
+  }
+};
+
+
+
+
+/**
+ *  @brief Compute the square 2-norm of X (d leading).
+ */ 
+void dsq2nrm
+(
+  hmlpOperation_t transX, 
+  int d, int n, 
+  double* X2array[], const double* Xarray[], double* X, int ldx, 
+  int batchSize 
+)
+{
+  if ( transX )
+  {
+    sq2nrm<double, false, true>
+    ( 
+      d, n, 
+      X2array, Xarray, NULL, ldx, 
+      0, batchSize 
+    );
+  }
+  else 
+  {
+    sq2nrm<double, false, false>
+    ( 
+      d, n, 
+      X2array, Xarray, NULL, ldx, 
+      0, batchSize 
+    );
+  }
+};
+
+
 
 
 
@@ -182,61 +248,67 @@ void gkmm_dfma
 //        op1, op2, init1 );
 //}
 //
-///**
-// *  @brief This gkmm instance shows how to implement one kmeans iteration
-// *         using GKRX. op1 and op2 compose the FMA instruction. The initial
-// *         value of FMA is zero. sq2nrm is set
-// *         to be true so that a^2 -2ab + b^2 expansion is used. We use gkmx
-// *         structure to pass in the double pointer arrays of A2 and B2.
-// *         The rbf kernel performs identify transfromation. Only the first
-// *         column of C is meaningful. The pair contains the centroid assignment
-// *         and the distance.
-// *         
-// */ 
-//void dgkrm_batched_instance(
-//    cudaStream_t stream, cublasOperation_t transA, cublasOperation_t transB, 
-//    int m, int n, int k,
-//    const double *Aarray[], int lda,
-//    const double *Barray[], int ldb,
-//    thrust::pair<double,int> *Carray[], int ldc, 
-//    int batchSize, struct gkmx_s<double> *gkmx )
-//{
-//  // Declare semi-rings.
-//  add<double> op1;
-//  mul<double> op2; 
-//
-//  // Declare kernel operation
-//  kmeans<double, thrust::pair<double,int> > opkernel;
-//
-//  // Declare reduce operation
-//  argmin<thrust::pair<double,int> > opreduce; 
-//
-//  // Declare <TV> initial value.
-//  double init1 = 0.0;
-//
-//  // Declare <TC> initial value.
-//  thrust::pair<double,int> init2;
-//  init2.first  = 999999.99;
-//  init2.second = -1;
-//
-//  // Declare SQ2NRM
-//  const bool sq2nrm = true;
-//
-//  opkernel.A2 = gkmx->A2;
-//  opkernel.B2 = gkmx->B2;
-//
-//  gkrm_template_batched<
-//  double, double, thrust::pair<double,int>, double, 
-//  sq2nrm, kmeans<double, thrust::pair<double,int> >, add<double>, mul<double>, argmin<thrust::pair<double,int> > >(
-//      stream, transA, transB,
-//      m, n, k,
-//      Aarray, lda,
-//      Barray, ldb,
-//      Carray, ldc,
-//      batchSize,
-//      opkernel, op1, op2, init1, opreduce, init2 );
-//}
-//
+
+/**
+ *  @brief This gkmm instance shows how to implement one kmeans iteration
+ *         using GKRX. op1 and op2 compose the FMA instruction. The initial
+ *         value of FMA is zero. sq2nrm is set
+ *         to be true so that a^2 -2ab + b^2 expansion is used. We use gkmx
+ *         structure to pass in the double pointer arrays of A2 and B2.
+ *         The rbf kernel performs identify transfromation. Only the first
+ *         column of C is meaningful. The pair contains the centroid assignment
+ *         and the distance.
+ *         
+ */ 
+void gkrm_dkmean
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  double *Aarray[], double *A2array[], int lda,
+  double *Barray[], double *B2array[], int ldb,
+  thrust::pair<double,int>  *Carray[], int ldc, 
+  int batchSize
+)
+{
+  // Declare semi-rings.
+  thrust::plus<double> op1;
+  thrust::multiplies<double> op2; 
+
+  // Declare kernel operation
+  kmeans<double, thrust::pair<double,int> > opkernel;
+
+  // Declare reduce operation
+  argmin<thrust::pair<double,int> > opreduce; 
+
+  // Declare <TV> initial value.
+  double initV = 0.0;
+
+  // Declare <TC> initial value.
+  thrust::pair<double,int> initC( 999999.99, -1 );
+
+  // Declare SQ2NRM
+  const bool sq2nrm = true;
+
+  opkernel.A2 = A2array;
+  opkernel.B2 = B2array;
+
+  gkrm<
+  sq2nrm, kmeans<double, thrust::pair<double,int> >, 
+  thrust::plus<double>, thrust::multiplies<double>, 
+  argmin<thrust::pair<double,int> > >
+  (
+    stream, 
+    transA, transB,
+    m, n, k,
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    batchSize,
+    opkernel, op1, op2, initV, opreduce, initC
+  );
+}
+
 ///*
 // *
 // */ 

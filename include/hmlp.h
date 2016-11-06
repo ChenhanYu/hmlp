@@ -119,6 +119,15 @@ void dgsknn_ref
 #include <cusparse_v2.h>
 #include <thrust/pair.h>
 
+
+void dsq2nrm
+(
+  hmlpOperation_t transX, 
+  int d, int n, 
+  double* X2array[], const double* Xarray[], double* X, int ldx, 
+  int batchSize 
+);
+
 void gkmm_dfma
 (
   cudaStream_t stream,
@@ -138,6 +147,17 @@ void gkmm_dfma
   const double *Aarray, int lda, int loa,
   const double *Barray, int ldb, int lob,
         double *Carray, int ldc, int loc,
+  int batchSize
+);
+
+void gkrm_dkmean
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  double *Aarray[], double *A2array[], int lda,
+  double *Barray[], double *B2array[], int ldb,
+  thrust::pair<double,int>  *Carray[], int ldc, 
   int batchSize
 );
 

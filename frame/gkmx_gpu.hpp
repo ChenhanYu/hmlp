@@ -15,6 +15,8 @@
 #ifndef GKMX_CUH
 #define GKMX_CUH
 
+#include <thrust/functional.h>
+
 #include <hmlp.h>
 #include <hmlp_util.hpp>
 
@@ -25,6 +27,7 @@
 #define mymin(a, b) ((a) < (b) ? (a) : (b))
 #endif
 #define fetch(A, m, n, bound) offs_d##A[mymin(n*LD##A+m, bound)]
+//#define fetch(A, m, n, bound) offs_d##A[thrust::minimum<int>(n*LD##A+m, bound)]
 
 #define GKMX_GPU_CONFIG \
 bool TRANSA, bool TRANSB,\
@@ -32,16 +35,8 @@ int DIM_X, int DIM_Y,\
 int BLK_M, int BLK_N, int BLK_K,\
 int DIM_XA, int DIM_YA, int DIM_XB, int DIM_YB
 
-
-
-namespace hmlp
-{
-namespace gkmm
-{
-
-
-
 #define version(s,v) s ## _V_ ## v
+
 
 // GKMM macros (see gkmx_template_kernel_batched.hxx for the definition.)
 #define gkmm_macro(ta,tb,s,v) gkmm_internal \
@@ -66,16 +61,38 @@ namespace gkmm
   batchSize, \
   opkernel, op1, op2, initV ) 
 
+// GKRM macros (see gkmx_template_kernel_batched.hxx for the definition.)
+#define gkrm_macro(ta,tb,s,v) gkrm_internal \
+  < ta, tb, s ## _V_ ## v, SQ2NRM, OPKERNEL, OP1, OP2, OPREDUCE, TA, TB, TC, TV> \
+  ( \
+  stream, \
+  m, n, k, \
+  Aarray, lda, \
+  Barray, ldb, \
+  Carray, ldc, \
+  batchSize, \
+  opkernel, op1, op2, initV, opreduce, initC ) 
 
+#define gkrm_strided_macro(ta,tb,s,v) gkrm_internal \
+  < ta, tb, s ## _V_ ## v, SQ2NRM, OPKERNEL, OP1, OP2, OPREDUCE, TA, TB, TC, TV> \
+  ( \
+  stream, \
+  m, n, k, \
+  Aarray, lda, loa, \
+  Barray, ldb, lob, \
+  Carray, ldc, loc, \
+  batchSize, \
+  opkernel, op1, op2, initV, opreduce, initC ) 
+
+
+namespace hmlp
+{
+namespace gkmx
+{
 
 
 template<
-//bool TRANSA, bool TRANSB,
-//const int DIM_X, const int DIM_Y,
-//const int BLK_M, const int BLK_N, const int BLK_K, 
-//const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB, 
-//const int THR_M, const int THR_N,
-GKMX_CPU_CONFIG,
+GKMX_GPU_CONFIG, int THR_M, int THR_N,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 static __device__ void gkmm_device
@@ -136,11 +153,7 @@ static __device__ void gkmm_device
 
 
 template<
-bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y, 
-const int BLK_M, const int BLK_N, const int BLK_K,
-const int DIM_XA, const int DIM_YA, 
-const int DIM_XB, const int DIM_YB,
+GKMX_GPU_CONFIG,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 static __global__ void gkmm_kernel
@@ -170,11 +183,8 @@ static __global__ void gkmm_kernel
 };
 
 
-template<bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y, 
-const int BLK_M, const int BLK_N, const int BLK_K,
-const int DIM_XA, const int DIM_YA, 
-const int DIM_XB, const int DIM_YB,
+template<
+GKMX_GPU_CONFIG,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 static __global__ void gkmm_kernel
@@ -428,11 +438,7 @@ void gkmm
  */
 
 template<
-bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y,
-const int BLK_M, const int BLK_N, const int BLK_K, 
-const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB, 
-const int THR_M, const int THR_N, 
+GKMX_GPU_CONFIG, int THR_M, int THR_N, 
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
 typename TA, typename TB, typename TC, typename TV>
 static __device__ void gkrm_device
@@ -502,18 +508,80 @@ static __device__ void gkrm_device
 };
 
 
+/** 
+ *  @brief A simple row-wise reduction, which does not exploit the parallelism
+ *         of the binary tree.
+ */ 
+template<
+typename T, int DIM_X, int DIM_Y, int BLK_M, int BLK_N, typename OPREDUCE>
+static __device__
+void reduce_device
+( 
+  int M, int N, 
+  T* __restrict__ C, int LDC,
+  OPREDUCE opreduce
+)
+{
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if ( idx < M ) 
+  {
+    T ru = C[ idx ];
+    for ( int j = 1; j < N; j ++ ) 
+    {
+      ru = opreduce( ru, C[ j * LDC + idx ], idx, j, blockIdx.z );    
+    }
+    C[ idx ] = ru;
+  }
+}
 
 
+template<
+typename T, int DIM_X, int DIM_Y, int BLK_M,
+int BLK_N, typename OPREDUCE>
+static __global__
+void reduce_kernel
+( 
+  int M, int N, 
+  T** Carray, int LDC,
+  OPREDUCE opreduce 
+)
+{
+  reduce_device
+  <T, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
+  ( 
+    M, N, 
+    Carray[ blockIdx.z ], LDC, 
+    opreduce 
+  );
+};
 
 
+/*
+ *
+ */ 
+template<
+typename T, int DIM_X, int DIM_Y, int BLK_M,
+int BLK_N, typename OPREDUCE>
+static __global__
+void reduce__kernel
+( 
+  int M, int N, 
+  T* Carray, int LDC, int LOC,
+  OPREDUCE opreduce 
+)
+{
+  reduce_device 
+  <T, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
+  ( 
+    M, N, 
+    Carray + blockIdx.z * LOC, LDC, 
+    opreduce 
+  );
+};
 
 
 
 template<
-//bool TRANSA, bool TRANSB,
-//const int DIM_X, const int DIM_Y, 
-//const int BLK_M, const int BLK_N, const int BLK_K,
-//const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
 GKMX_GPU_CONFIG,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
 typename TA, typename TB, typename TC, typename TV>
@@ -543,10 +611,6 @@ static __global__ void gkrm_kernel
 };
 
 template<
-//bool TRANSA, bool TRANSB,
-//const int DIM_X, const int DIM_Y, 
-//const int BLK_M, const int BLK_N, const int BLK_K,
-//const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
 GKMX_GPU_CONFIG,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
 typename TA, typename TB, typename TC, typename TV>
@@ -588,9 +652,9 @@ void gkrm_internal
 (
   cudaStream_t stream, 
   int m, int n, int k,
-  const TA *Aarray[], int lda,
-  const TB *Barray[], int ldb,
-        TC *Carray[], int ldc,
+  TA *Aarray[], int lda,
+  TB *Barray[], int ldb,
+  TC *Carray[], int ldc,
   int batchSize,
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, OPREDUCE opreduce, TC initC
 )
@@ -608,19 +672,23 @@ void gkrm_internal
   <<< dimGrid, dimBlock, 0, stream >>>
   ( 
     m, n, k, 
-    Aarray, lda,
-    Barray, ldb,
+    (const TA**)Aarray, lda,
+    (const TB**)Barray, ldb,
     Carray, ldc, 
-    opkernel, op1, op2, init1, opreduce, init2 
+    opkernel, op1, op2, initV, opreduce, initC
   );
 
   dim3 dimBlockReduce( 256, 1 );
   dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
 
-  reduce_template_batched_kernel
+  reduce_kernel
   <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
-  ( m, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y, Carray, ldc, opreduce );
+  ( 
+    m, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y, 
+    Carray, ldc, 
+    opreduce 
+  );
 };
 
 template <
@@ -635,9 +703,9 @@ void gkrm_internal
 (
   cudaStream_t stream, 
   int m, int n, int k,
-  const TA *Aarray, int lda, int loa,
-  const TB *Barray, int ldb, int lob,
-        TC *Carray, int ldc, int loc,
+  TA *Aarray, int lda, int loa,
+  TB *Barray, int ldb, int lob,
+  TC *Carray, int ldc, int loc,
   int batchSize,
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, OPREDUCE opreduce, TC initC 
 )
@@ -655,8 +723,8 @@ void gkrm_internal
   <<< dimGrid, dimBlock, 0, stream >>>
   ( 
     m, n, k, 
-    Aarray, lda, loa,
-    Barray, ldb, lob,
+    (const TA*)Aarray, lda, loa,
+    (const TB*)Barray, ldb, lob,
     Carray, ldc, loc, 
     opkernel, op1, op2, initV, opreduce, initC 
   );
@@ -664,26 +732,31 @@ void gkrm_internal
   dim3 dimBlockReduce( 256, 1 );
   dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
 
-  reduce_template_batched_strided_kernel
+  reduce__kernel
   <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
-  ( m, min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), Carray, ldc, loc, opreduce );
+  ( 
+    m, thrust::minimum<int>( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), 
+    Carray, ldc, loc, 
+    opreduce 
+  );
 };
 
 
 template<
-bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
 typename TA, typename TB, typename TC, typename TV> 
 void gkrm
 (
   cudaStream_t stream, 
   hmlpOperation_t transA, hmlpOperation_t transB, 
   int m, int n, int k,
-  const TA *Aarray[], int lda, 
-  const TB *Barray[], int ldb, 
-        TC *Carray[], int ldc, 
+  TA *Aarray[], int lda, 
+  TB *Barray[], int ldb, 
+  TC *Carray[], int ldc, 
   int batchSize,
-  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV 
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV,
+  OPREDUCE opreduce, TC initC
 )
 {
   // Early return.
@@ -702,16 +775,16 @@ void gkrm
 
 
 template<
-bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE
+bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
 typename TA, typename TB, typename TC, typename TV> 
 void gkrm
 (
   cudaStream_t stream, 
   hmlpOperation_t transA, hmlpOperation_t transB, 
   int m, int n, int k,
-  const TA *Aarray, int lda, int loa,
-  const TB *Barray, int ldb, int lob,
-        TC *Carray, int ldc, int loc,
+  TA *Aarray, int lda, int loa,
+  TB *Barray, int ldb, int lob,
+  TC *Carray, int ldc, int loc,
   int batchSize,
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, 
   OPREDUCE opreduce, TC initC
@@ -733,21 +806,94 @@ void gkrm
 
 
 
+/** 
+ *  @brief  Compute square 2-norms for an input matrix X. 
+ *  @param 
+ *
+ */
+template <typename T, bool TRANSX>
+static __device__ void sq2nrm_device
+(
+  int d, int n, 
+  T* __restrict__ X2, const T* __restrict__ X, int ldx 
+)
+{
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  T sum = 0.0, tmp;
+  if ( idx < n ) 
+  {
+    if ( TRANSX ) 
+    {
+      for ( int p = 0; p < d; p ++ ) 
+      {
+        tmp = X[ p * ldx + idx ];
+        sum += tmp * tmp;
+      }
+    }
+    else 
+    {
+      for ( int p = 0; p < d; p ++ ) 
+      {
+        tmp = X[ idx * ldx + p ];
+        sum += tmp * tmp;
+      }
+    }
+    X2[ idx ] = sum;
+  }
+};
+
+template <typename T, bool STRIDED, bool TRANSX>
+static void __global__ sq2nrm_kernel
+(
+  int d, int n, 
+  T* X2array[], const T* Xarray[], const T* X, int ldx, long long int lox 
+)
+{
+  int batchid = blockIdx.z;
+  if ( STRIDED ) 
+  {
+    sq2nrm_device<T, TRANSX>
+    ( 
+      d, n, 
+      X2array[ batchid ], X + batchid * lox, ldx 
+    );
+  }
+  else 
+  {
+    sq2nrm_device<T, TRANSX>
+    ( 
+      d, n, 
+      X2array[ batchid ], Xarray[ batchid ], ldx 
+    );
+  }
+};
+
+template <typename T, bool STRIDED, bool TRANSX>
+void sq2nrm
+(
+  int d, int n, 
+  T* X2array[], const T* Xarray[], const T* X, int ldx, long long int lox, 
+  int batchSize 
+)
+{
+  dim3 dimBlock( 256, 1 );
+  dim3 dimGrid( ( n - 1 ) / 256 + 1, 1, batchSize );
+
+  sq2nrm_kernel<T, STRIDED, TRANSX>
+  <<<dimGrid, dimBlock, 0, 0>>>
+  ( 
+    d, n, 
+    X2array, Xarray, X, ldx, lox 
+  );
+};
 
 
 
 
 
-}; // end namespace gkmm
-}; // end namespace hmlp
 
 
-
-
-
-
-
-}; // end namespace gkmm
+}; // end namespace gkmx
 }; // end namespace hmlp
 
 
