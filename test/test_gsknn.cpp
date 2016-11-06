@@ -17,75 +17,73 @@
 #include <omp.h>
 #include <math.h>
 #include <hmlp.h>
+#include <hmlp_util.hpp>
 
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
 #endif
 
 #define NUM_POINTS 10240
-#define GFLOPS 1073741824
 #define TOLERANCE 1E-13
+#define GFLOPS 1073741824
 
+using namespace hmlp;
+
+template<typename T>
 void compute_error(
     int    r,
     int    n,
-    double *D,
+    T *D,
     int    *I,
-    double *D_gold,
+    T *D_gold,
     int    *I_gold
     )
 {
 
   int    i, j, p;
-  double *D1, *D2;
+  T *D1, *D2;
   int    *I1, *I2, *Set1, *Set2;
 
   #ifdef HMLP_MIC_AVX512
-    Set1 = (int*)hbw_malloc( sizeof(int) * NUM_POINTS );
-    Set2 = (int*)hbw_malloc( sizeof(int) * NUM_POINTS );
+    D1 = (T*)hbw_malloc( sizeof(T) * r * n );
+    D2 = (T*)hbw_malloc( sizeof(T) * r * n );
+    I1 = (int*)hbw_malloc( sizeof(int) * r * n );
+    I2 = (int*)hbw_malloc( sizeof(int) * r * n );
   #else
-    Set1 = (int*)malloc( sizeof(int) * NUM_POINTS );
-    Set2 = (int*)malloc( sizeof(int) * NUM_POINTS );
+    D1 = (T*)malloc( sizeof(T) * r * n );
+    D2 = (T*)malloc( sizeof(T) * r * n );
+    I1 = (int*)malloc( sizeof(int) * r * n );
+    I2 = (int*)malloc( sizeof(int) * r * n );
   #endif
 
-  // Check set equvilent.
+  // Check error using bubbleSort.
   for ( j = 0; j < n; j ++ ) {
-    for ( i = 0; i < NUM_POINTS; i ++ ) {
-      Set1[ i ] = 0;
-      Set2[ i ] = 0;
-    }
     for ( i = 0; i < r; i ++ ) {
-      p = I[ j * r + i ];
-      Set1[ p ] = i;
-      Set2[ p ] = 1;
+      D1[ j * r + i ] = D[ j * r + i ];
+      I1[ j * r + i ] = I[ j * r + i ];
+      D2[ j * r + i ] = D_gold[ j * r + i ];
+      I2[ j * r + i ] = I_gold[ j * r + i ];
     }
+    bubble_sort<T>( r, &D1[ j * r ], &I1[ j * r ] );
+    bubble_sort<T>( r, &D2[ j * r ], &I2[ j * r ] );
+  }
+
+  for ( j = 0; j < n; j ++ ) {
     for ( i = 0; i < r; i ++ ) {
-      p = I_gold[ j * r + i ];
-      if ( Set2[ p ] == 0 ) {
-        Set1[ p ] = i;
-        Set2[ p ] = 2;
-      }
-      else {
-        Set2[ p ] = 0;
-      }
-    }
-    for ( i = 0; i < NUM_POINTS; i ++ ) {
-      if ( Set2[ i ] == 1 && D[ j * r ] != D[ j * r + Set1[ i ] ] ) {
-        printf( "(%E,%E,%d,%d,%E,1,%d)\n", D[ j * r ], D_gold[ j * r ],
-            j, i, D[ j * r + Set1[ i ] ], I[ j * r ] );
-      }
-      if ( Set2[ i ] == 2 && D_gold[ j * r ] != D_gold[ j * r + Set1[ i ] ] ) {
-        printf( "(%E,%E,%d,%d,%E,2,%d)\n", D[ j * r ], D_gold[ j * r ],
-            j, i, D_gold[ j * r + Set1[ i ] ], I_gold[ j * r ] );
-        if ( D_gold[ j * r ] < D_gold[ j * r + Set1[ i ] ] ) {
-          printf( "bug\n" );
+      if ( I1[ j * r + i ] != I2[ j * r + i ] ) {
+        if ( fabs( D1[ j * r + i ] - D2[ j * r + i ] ) > TOLERANCE ) {
+          printf( "D[ %d ][ %d ] != D_gold, %E, %E\n", i, j, D1[ j * r + i ], D2[ j * r + i ] );
+          printf( "I[ %d ][ %d ] != I_gold, %d, %d\n", i, j, I1[ j * r + i ], I2[ j * r + i ] );
+          break;
         }
       }
     }
   }
 
-    free( Set1 );
-    free( Set2 );
+  free(D1);
+  free(D2);
+  free(I1);
+  free(I2);
 }
 
 
@@ -108,7 +106,7 @@ void test_gsknn( int m, int n, int k, int r )
 {
   int    i, j, p, nx, iter, n_iter;
   int    *amap, *bmap, *I, *I_mkl;
-  double *XA, *XB, *XA2, *XB2, *D, *D_mkl;
+  T *XA, *XB, *XA2, *XB2, *D, *D_mkl;
   double tmp, error, flops;
   double ref_beg, ref_time, dgsknn_beg, dgsknn_time;
 
@@ -124,19 +122,19 @@ void test_gsknn( int m, int n, int k, int r )
   bmap  = (int*)hbw_malloc( sizeof(int) * n );
   I     = (int*)hbw_malloc( sizeof(int) * r * n );
   I_mkl = (int*)hbw_malloc( sizeof(int) * r * n );
-  XA    = (double*)hbw_malloc( sizeof(double) * k * nx );   // k   leading
-  XA2   = (double*)hbw_malloc( sizeof(double) * nx );
-  D     = (double*)hbw_malloc( sizeof(double) * r * n );
-  D_mkl = (double*)hbw_malloc( sizeof(double) * r * n );
+  XA    = (T*)hbw_malloc( sizeof(T) * k * nx );   // k   leading
+  XA2   = (T*)hbw_malloc( sizeof(T) * nx );
+  D     = (T*)hbw_malloc( sizeof(T) * r * n );
+  D_mkl = (T*)hbw_malloc( sizeof(T) * r * n );
 #else
   amap = (int*)malloc( sizeof(int) * m );
   bmap = (int*)malloc( sizeof(int) * n );
   I     = (int*)malloc( sizeof(int) * r * n );
   I_mkl = (int*)malloc( sizeof(int) * r * n );
-  XA   = (double*)malloc( sizeof(double) * k * nx );   // k   leading
-  XA2  = (double*)malloc( sizeof(double) * nx );
-  D     = (double*)malloc( sizeof(double) * r * n );
-  D_mkl = (double*)malloc( sizeof(double) * r * n );
+  XA   = (T*)malloc( sizeof(T) * k * nx );   // k   leading
+  XA2  = (T*)malloc( sizeof(T) * nx );
+  D     = (T*)malloc( sizeof(T) * r * n );
+  D_mkl = (T*)malloc( sizeof(T) * r * n );
 #endif
   // ------------------------------------------------------------------------
 
@@ -160,7 +158,7 @@ void test_gsknn( int m, int n, int k, int r )
   {
     for ( p = 0; p < k; p ++ )
     {
-      XA[ i * k + p ] = (double)( rand() % 100 ) / 1000.0;
+      XA[ i * k + p ] = (T)( rand() % 100 ) / 1000.0;
     }
   }
   // ------------------------------------------------------------------------
@@ -187,22 +185,6 @@ void test_gsknn( int m, int n, int k, int r )
   // ------------------------------------------------------------------------
 
   // ------------------------------------------------------------------------
-  // Call my implementation
-  // ------------------------------------------------------------------------
-  for ( iter = -1; iter < n_iter; iter ++ )
-  {
-    if ( iter == 0 ) dgsknn_beg = omp_get_wtime();
-    dgsknn(
-        m, n, k, r,
-        XA, XA2, amap,
-        XB, XB2, bmap,
-        D,       I
-    );
-  }
-  dgsknn_time = omp_get_wtime() - dgsknn_beg;
-  // ------------------------------------------------------------------------
-
-  // ------------------------------------------------------------------------
   // Initialize D ( distance ) to the maximum double and I ( index ) to -1.
   // ------------------------------------------------------------------------
 
@@ -214,6 +196,22 @@ void test_gsknn( int m, int n, int k, int r )
       I_mkl[ j * r + i ] = -1;
     }
   }
+
+  // ------------------------------------------------------------------------
+  // Call my implementation
+  // ------------------------------------------------------------------------
+  for ( iter = -1; iter < n_iter; iter ++ )
+  {
+    if ( iter == 0 ) dgsknn_beg = omp_get_wtime();
+    dgsknn(
+        n, m, k, r,
+        XB, XB2, bmap,
+        XA, XA2, amap,
+        D,       I
+    );
+  }
+  dgsknn_time = omp_get_wtime() - dgsknn_beg;
+  // ------------------------------------------------------------------------
 
   // ------------------------------------------------------------------------
   // Call the reference function
@@ -236,7 +234,7 @@ void test_gsknn( int m, int n, int k, int r )
   ref_time   /= n_iter;
   dgsknn_time /= n_iter;
 
-  compute_error(
+  compute_error<T>(
       r,
       n,
       D,
