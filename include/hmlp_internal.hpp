@@ -23,6 +23,8 @@ struct aux_s
   int do_packC;
 
   int ldr;
+
+  int ldc;
 };
 
 
