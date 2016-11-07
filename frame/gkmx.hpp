@@ -116,9 +116,10 @@ void rank_k_macro_kernel
  *         one in rank_k_macro_kernel. ctmp used in the conner case is also
  *         type TC. 
  */ 
-template<int KC, int MR, int NR, int PACK_MR, int PACK_NR,
-    typename MICROKERNEL,
-    typename TA, typename TB, typename TC, typename TV>
+template<
+int KC, int MR, int NR, int PACK_MR, int PACK_NR,
+typename MICROKERNEL,
+typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
 (
   worker &thread,
@@ -409,10 +410,6 @@ void gkmx
     assert( typeid(TA) == typeid(TB) );
     assert( typeid(TC) == typeid(TV) );
     k_stra = k - k % KC;
-    //if ( transA == HMLP_OP_N ) A_left = A + k_stra * lda;
-    //else                       A_left = A + k_stra *   1;
-    //if ( transB == HMLP_OP_N ) B_left = B + k_stra *   1;
-    //else                       B_left = B + k_stra * ldb;
 
     if ( k_stra == k ) k_stra -= KC;
 
@@ -536,10 +533,6 @@ void gkmm
 };
 
 
-
-
-
-
 /**
  *  batched interface
  *
@@ -585,6 +578,62 @@ void gkmm
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ *  @beief  
+ */ 
+template<
+  int MC            = 104, 
+  int NC            = 1024, 
+  int KC            = 256, 
+  int MR            = 8, 
+  int NR            = 4, 
+  int PACK_MC       = 104, 
+  int PACK_NC       = 1024, 
+  int PACK_MR       = 8, 
+  int PACK_NR       = 4, 
+  int ALIGN_SIZE    = 32,
+  bool USE_STRASSEN = false,
+  typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
+  typename TA, typename TB, typename TC, typename TV = TC>
+void gkrm
+(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  TA *A, int lda,
+  TB *B, int ldb,
+  TC *C, int ldc,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, 
+  OPREDUCE opreduce, TC initC
+)
+{
+  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
+  gkrm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, OPREDUCE, TA, TB, TC, TV> gkrmkernel;
+
+  semiringkernel.op1 = op1;
+  semiringkernel.op2 = op2;
+  semiringkernel.initV = initV;
+  
+  gkrmkernel.op1 = op1;
+  gkrmkernel.op2 = op2;
+  gkrmkernel.opkernel = opkernel;
+  gkrmkernel.initV = initV;
+  gkrmkernel.opreduce = opreduce;
+  gkrmkernel.initC = initC;
+};
 
 
 
