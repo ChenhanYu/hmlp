@@ -54,16 +54,33 @@ range GetRange
   int beg, int end, int nb 
 );
 
-
 class hmlp_runtime
 {
   public:
 
     hmlp_runtime();
 
+    void init();
+
+    void finalize();
+
+    void pool_init();
+
+    void acquire_memory();
+
+    void release_memory( void* ptr );
+
   private:
+    
+    bool is_init = false;
+
+    std::size_t pool_size_in_bytes;
+
+    void *pool;
 };
 
+// Create the global runtime object.
+static hmlp_runtime rt;
 
 }; // end namespace hmlp
 

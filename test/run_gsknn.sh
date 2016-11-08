@@ -2,9 +2,9 @@
 
 m=4097
 n=4097
-r=10
+r=128
 kmin=4
-kmax=2048
+kmax=600
 kinc=31
 
 echo 'KNN = ['

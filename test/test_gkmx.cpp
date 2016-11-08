@@ -340,7 +340,11 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 2 ], "%d", &n );
   sscanf( argv[ 3 ], "%d", &k );
 
+  //hmlp_init();
+
   test_gkmx<double>( m, n, k );
+
+  //hmlp_finalize();
 
   return 0;
 };

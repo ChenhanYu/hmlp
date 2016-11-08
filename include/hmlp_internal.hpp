@@ -10,25 +10,7 @@ struct aux_s
 
   TC *c_buff;
 
-  int ib;
-
-  int jb;
-
-  int pc;
-
-  int do_packC;
-};
-
-template<typename TA, typename TB, typename TC, typename TV>
-struct aux_d
-{
-  TA *a_next;
-
-  TB *b_next;
-
-  TC *D;
-
-  TV *c_buff;
+  TV *D;
 
   int *I;
 
@@ -38,7 +20,11 @@ struct aux_d
 
   int pc;
 
+  int do_packC;
+
   int ldr;
+
+  int ldc;
 };
 
 

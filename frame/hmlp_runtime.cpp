@@ -1,5 +1,16 @@
 #include <hmlp_runtime.hpp>
 
+void hmlp_init()
+{
+  hmlp::rt.init();
+};
+
+void hmlp_finalize()
+{
+  hmlp::rt.finalize();
+};
+
+
 namespace hmlp
 {
 
@@ -66,8 +77,43 @@ range GetRange( int beg, int end, int nb )
 };
 
 
-
 hmlp_runtime::hmlp_runtime()
 {};
+
+void hmlp_runtime::init()
+{
+  #pragma omp critical (init)
+  {
+    if ( !is_init )
+    {
+      printf( "hmlp_init()\n" );
+
+      pool_init();
+    }
+  }
+};
+
+void hmlp_runtime::finalize()
+{
+  #pragma omp critical (init)
+  {
+    printf( "hmlp_finalize()\n" );
+  }
+};
+
+void hmlp_runtime::pool_init()
+{
+
+};
+
+void hmlp_runtime::acquire_memory()
+{
+
+};
+
+void hmlp_runtime::release_memory( void *ptr )
+{
+
+};
 
 }; // end namespace hmlp

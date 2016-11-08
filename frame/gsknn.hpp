@@ -17,12 +17,68 @@
 #include <hmlp_thread_info.hpp>
 #include <hmlp_runtime.hpp>
 
+// For USE_STRASSEN
+#include <strassen.hpp>
+
 namespace hmlp
 {
 namespace gsknn
 {
 
 #define min( i, j ) ( (i)<(j) ? (i): (j) )
+
+/**
+ *
+ */
+template<
+  int KC, int MR, int NR, int PACK_MR, int PACK_NR,
+  typename SEMIRINGKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
+void rank_k_macro_kernel
+(
+  worker &thread,
+  int ic, int jc, int pc,
+  int  m, int n,  int  k,
+  TA *packA,
+  TB *packB,
+  TC *packC, int ldc,
+  SEMIRINGKERNEL semiringkernel
+)
+{
+  thread_communicator &ic_comm = *thread.ic_comm;
+
+  auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );
+  auto pack3rd = GetRange( 0, n, PACK_NR, thread.jr_id, ic_comm.GetNumThreads() );
+  auto loop2nd = GetRange( 0, m,      MR );
+  auto pack2nd = GetRange( 0, m, PACK_MR );
+
+  for ( int j   = loop3rd.beg(), jp  = pack3rd.beg();
+            j   < loop3rd.end();
+            j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
+  {
+    struct aux_s<TA, TB, TC, TV> aux;
+    aux.pc       = pc;
+    aux.b_next   = packB;
+
+    for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();
+              i  < loop2nd.end();
+              i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
+    {
+      if ( i + MR >= m )
+      {
+        aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
+      }
+      semiringkernel
+      (
+        k,
+        &packA[ ip * k ],
+        &packB[ jp * k ],
+        &packC[ j * ldc + i * NR ], ldc,
+        &aux
+      );
+    }                                                      // end 2nd loop
+  }                                                        // end 3rd loop
+}                                                          // end rank_k_macro_kernel
 
 /**
  *
@@ -39,11 +95,13 @@ void fused_macro_kernel
   TA *packA, TA *packA2,
   TB *packB, TB *packB2,
   int *bmap,
-  TC *D,  int *I,  int ldr,
-  TV *packC, int ldc,
+  TV *D,  int *I,  int ldr,
+  TC *packC, int ldc,
   MICROKERNEL microkernel
 )
 {
+  double c[ ldc * NR ] __attribute__((aligned(32)));
+  double *cbuff = c;
   thread_communicator &ic_comm = *thread.ic_comm;
 
   auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );
@@ -55,11 +113,12 @@ void fused_macro_kernel
             j   < loop3rd.end();
             j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
   {
-    struct aux_d<TA, TB, TC, TV> aux;
+    struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
     aux.b_next   = packB;
     aux.ldr      = ldr;
     aux.jb       = min( n - j, NR );
+    aux.ldc      = ldc;
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();
               i  < loop2nd.end();
@@ -72,6 +131,9 @@ void fused_macro_kernel
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
+      if ( pc ) {
+        cbuff = packC + j * ldc + i * NR;
+      }
       microkernel
       (
         k,
@@ -80,7 +142,7 @@ void fused_macro_kernel
         packA2 + ip,
         packB  + jp * k,
         packB2 + jp,
-        packC  + j * ldc + i * NR,                         // packed
+        cbuff,
         &aux,
         bmap   + j
       );
@@ -101,27 +163,27 @@ template<
 void gsknn_internal
 (
   worker &thread,
-  int m, int n, int k, int r,
+  int m, int n, int k, int k_stra, int r,
   TA *A, TA *A2, int *amap,
   TB *B, TB *B2, int *bmap,
-  TC *D,         int *I,
+  TV *D,         int *I,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel,
   TA *packA, TA *packA2,
   TB *packB, TB *packB2,
-  TV *packC, int ldpackc, int padn,
+  TC *packC, int ldpackc, int padn,
   int ldr
 )
 {
+
   packA  += ( thread.jc_id * thread.ic_nt                ) * PACK_MC * KC
           + ( thread.ic_id                               ) * PACK_MC * KC;
   packA2 += ( thread.jc_id * thread.ic_nt + thread.ic_id ) * PACK_MC;
   packB  += ( thread.jc_id                               ) * PACK_NC * KC;
   packB2 += ( thread.jc_id                               ) * PACK_NC;
-  // packC  += ( thread.jc_id                               ) * ldpackc * padn;
 
-  auto loop6th = GetRange( 0, n, NC, thread.jc_id, thread.jc_nt );
-  auto loop5th = GetRange( 0, k, KC );
+  auto loop6th = GetRange( 0, n, NC );
+  auto loop5th = GetRange( k_stra, k, KC );
   auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );
 
   for ( int jc  = loop6th.beg();
@@ -156,7 +218,7 @@ void gsknn_internal
         if ( is_the_last_pc_iteration )
         {
 
-          pack2D<true, PACK_NR>                          // packB2
+          pack2D<true, PACK_NR>                           // packB2
           (
             min( jb - j, NR ), 1,
             &B2[ 0 ], 1, &bmap[ jc + j ], &packB2[ jp * 1 ]
@@ -200,21 +262,36 @@ void gsknn_internal
 
 
         ic_comm.Barrier();
+        if ( pc + KC  < k ) {
+          rank_k_macro_kernel
+          <KC, MR, NR, PACK_MR, PACK_NR, SEMIRINGKERNEL, TA, TB, TC, TV>
+          (
+            thread,
+            ic, jc, pc,
+            ib, jb, pb,
+            packA,
+            packB,
+            packC + jc * ldpackc + ic,
+            ldpackc,
+            semiringkernel
+          );
+        }
+        else {
+          fused_macro_kernel
+          <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
+          (
+            thread,
+            pc,
+            ib, jb, pb, r,
+            packA, packA2,
+            packB, packB2, bmap + jc,
+            D + ic * ldr,  I + ic * ldr,  ldr,
+            packC + jc * ldpackc + ic,
+            ldpackc,
+            microkernel
+          );
+        }
 
-
-        fused_macro_kernel
-        <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
-        (
-          thread,
-          pc,
-          ib, jb, pb, r,
-          packA, packA2,
-          packB, packB2, bmap + jc,
-          D + ic * ldr,  I + ic * ldr,  ldr,
-          packC + ic * padn,                             // packed
-          ( ( ib - 1 ) / MR + 1 ) * MR,                  // packed ldc
-          microkernel
-        );
         ic_comm.Barrier();                                 // sync all jr_id!!
 
       }                                                    // end 4th loop
@@ -240,19 +317,20 @@ void gsknn(
     int m, int n, int k, int r,
     TA *A, TA *A2, int *amap,
     TB *B, TB *B2, int *bmap,
-    TC *D,         int *I,
+    TV *D,         int *I,
     SEMIRINGKERNEL semiringkernel,
     MICROKERNEL microkernel
     )
 {
   int ic_nt = 1;
+  int k_stra = 0;
   int ldpackc = 0, padn = 0;
   int ldr = 0;
   char *str;
 
   TA *packA_buff = NULL, *packA2_buff = NULL;
   TB *packB_buff = NULL, *packB2_buff = NULL;
-  TV *packC_buff = NULL;
+  TC *packC_buff = NULL;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
@@ -261,6 +339,7 @@ void gsknn(
   str = getenv( "KS_IC_NT" );
   if ( str ) ic_nt = (int)strtol( str, NULL, 10 );
 
+  ldpackc = m;
   ldr = r;
 
   // allocate packing memory
@@ -268,28 +347,51 @@ void gsknn(
   packB_buff  = hmlp_malloc<ALIGN_SIZE, TB>( KC, ( PACK_NC + 1 ),                 sizeof(TB) );
   packA2_buff = hmlp_malloc<ALIGN_SIZE, TA>(  1, ( PACK_MC + 1 ) * ic_nt,         sizeof(TA) );
   packB2_buff = hmlp_malloc<ALIGN_SIZE, TB>(  1, ( PACK_NC + 1 ),                 sizeof(TB) );
-
-  // Temporary bufferm <TV> to store the semi-ring rank-k update
-  if ( k > KC )
-  {
-    ldpackc  = ( ( m - 1 ) / PACK_MR + 1 ) * PACK_MR;
-    padn = PACK_NC;
-    if ( n < PACK_NC ) padn = ( ( n - 1 ) / PACK_NR + 1 ) * PACK_NR ;
-    packC_buff = hmlp_malloc<ALIGN_SIZE, TV>( ldpackc, padn, sizeof(TV) );
+  if ( k > KC ) {
+    packC_buff = hmlp_malloc<ALIGN_SIZE, TC>(  m, n, sizeof(TC) );
   }
 
   // allocate tree communicator
-  thread_communicator my_comm( ic_nt, ic_nt, ic_nt, ic_nt );
+  thread_communicator my_comm( 1, ic_nt, 1, 1 );
 
+  if ( USE_STRASSEN )
+  {
+    k_stra = k - k % KC;
+
+    if ( k_stra == k ) k_stra -= KC;
+
+    if ( k_stra )
+    {
+      #pragma omp parallel for
+      for ( int i = 0; i < m * n; i ++ ) packC_buff[ i ] = 0.0;
+    }
+
+  }
 
   #pragma omp parallel num_threads( my_comm.GetNumThreads() )
   {
     worker thread( &my_comm );
 
-    if ( USE_STRASSEN )
+    if ( USE_STRASSEN && k > KC )
     {
-      printf( "gsknn: strassen algorithms haven't been implemented." );
-      exit( 1 );
+      strassen::strassen_internal
+      <MC, NC, KC, MR, NR,
+      PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+      USE_STRASSEN,
+      SEMIRINGKERNEL, SEMIRINGKERNEL,
+      TA, TB, TC, TV>
+      (
+        thread,
+        HMLP_OP_T, HMLP_OP_N,
+        m, n, k_stra,
+        A, k,
+        B, k,
+        packC_buff, ldpackc,
+        semiringkernel, semiringkernel,
+        NC, PACK_NC,
+        packA_buff,
+        packB_buff
+      );
     }
 
     gsknn_internal
@@ -299,7 +401,7 @@ void gsknn(
     TA, TB, TC, TB>
     (
       thread,
-      m, n, k, r,
+      m, n, k, k_stra, r,
       A, A2, amap,
       B, B2, bmap,
       D,     I,
@@ -316,7 +418,7 @@ void gsknn(
   hmlp_free( packB_buff );
   hmlp_free( packA2_buff );
   hmlp_free( packB2_buff );
-
+  hmlp_free( packC_buff );
 }                                                          // end gsknn
 
 
@@ -333,8 +435,9 @@ void gsknn_ref
 )
 {
   int    i, j, p;
-  double beg, time_heap;
+  double beg, time_collect, time_dgemm, time_square, time_heap;
   std::vector<T> packA, packB, C;
+  double fneg2 = -2.0, fzero = 0.0, fone = 1.0;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
@@ -343,11 +446,62 @@ void gsknn_ref
   packB.resize( k * n );
   C.resize( m * n );
 
+  // Collect As from A and B.
+  beg = omp_get_wtime();
+  #pragma omp parallel for private( p )
+  for ( i = 0; i < m; i ++ ) {
+    for ( p = 0; p < k; p ++ ) {
+      packA[ i * k + p ] = A[ amap[ i ] * k + p ];
+    }
+  }
+  #pragma omp parallel for private( p )
+  for ( j = 0; j < n; j ++ ) {
+    for ( p = 0; p < k; p ++ ) {
+      packB[ j * k + p ] = B[ bmap[ j ] * k + p ];
+    }
+  }
+  time_collect = omp_get_wtime() - beg;
+
+  // Compute the inner-product term.
+  beg = omp_get_wtime();
+  #ifdef USE_BLAS
+    xgemm
+    (
+      "T", "N",
+      m, n, k,
+      fone,         packA.data(), k,
+                    packB.data(), k,
+      fzero,        C.data(),     m
+    );
+  #else
+    #pragma omp parallel for private( i, p )
+    for ( j = 0; j < n; j ++ ) {
+      for ( i = 0; i < m; i ++ ) {
+        C[ j * m + i ] = 0.0;
+        for ( p = 0; p < k; p ++ ) {
+          C[ j * m + i ] += packA[ i * k + p ] * packB[ j * k + p ];
+        }
+      }
+    }
+  #endif
+  time_dgemm = omp_get_wtime() - beg;
+
+  beg = omp_get_wtime();
+  #pragma omp parallel for private( i )
+  for ( j = 0; j < n; j ++ ) {
+    for ( i = 0; i < m; i ++ ) {
+      C[ j * m + i ] *= -2.0;
+      C[ j * m + i ] += A2[ amap[ i ] ];
+      C[ j * m + i ] += B2[ bmap[ j ] ];
+    }
+  }
+  time_square = omp_get_wtime() - beg;
+
   // Pure C Max Heap implementation.
   beg = omp_get_wtime();
   #pragma omp parallel for schedule( dynamic )
   for ( j = 0; j < n; j ++ ) {
-    // heapSelect_d( m, r, &C[ j * m ], alpha, &D[ j * r ], &I[ j * r ] );
+    heap_select<T>( m, r, &C[ j * m ], amap, &D[ j * r ], &I[ j * r ] );
   }
   time_heap = omp_get_wtime() - beg;
 

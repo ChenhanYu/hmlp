@@ -73,7 +73,7 @@ if ($ENV{HMLP_MIC_AVX512} MATCHES "true")
 endif ($ENV{HMLP_MIC_AVX512} MATCHES "true")
 
 if ($ENV{HMLP_USE_BLAS} MATCHES "true")
-  #set(BLA_STATIC on)
+  set(BLA_STATIC on)
   #find_package (BLAS REQUIRED)
   set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
 endif ($ENV{HMLP_USE_BLAS} MATCHES "true")

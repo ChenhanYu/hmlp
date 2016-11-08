@@ -24,7 +24,7 @@ export HMLP_USE_INTEL=true
 echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 
 ## GPU compiler options (if true, compile the gpu library as well)
-export HMLP_USE_CUDA=false
+export HMLP_USE_CUDA=true
 echo "HMLP_USE_CUDA = $HMLP_USE_CUDA"
 
 ## Whether use BLAS or not?
@@ -39,8 +39,8 @@ echo "HMLP_USE_VML = $HMLP_USE_VML"
 export HMLP_MIC_AVX512=false
 
 ## Manually set the mkl path
-# export HMLP_MKL_DIR=$TACC_MKL_DIR
-export HMLP_MKL_DIR=/opt/intel/mkl
+export HMLP_MKL_DIR=$TACC_MKL_DIR
+# export HMLP_MKL_DIR=/opt/intel/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
 ## Parallel options

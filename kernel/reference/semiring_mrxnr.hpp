@@ -15,11 +15,11 @@ struct semiring_mrxnr
     TA *a, 
     TB *b,
     int len,
-    TV **c, int ldc, TV *alpha, 
+    TV **v, int ldv, TV *alpha, 
     aux_s<TA, TB, TC, TV> *aux 
   ) const 
   {
-    TV regC[ MR * NR ] = { 0.0 };
+    TV regV[ MR * NR ] = { 0.0 };
 
     // semiring rank-k update
     for ( int p = 0; p < k; p ++ )
@@ -28,7 +28,7 @@ struct semiring_mrxnr
       for ( int j = 0; j < NR; j ++ )
         #pragma simd
         for ( int i = 0; i < MR; i ++ )
-          regC[ j * MR + i ] += a[ p * MR + i ] * b[ p * NR + j ];
+          regV[ j * MR + i ] += a[ p * MR + i ] * b[ p * NR + j ];
     }
 
     // store back
@@ -40,7 +40,7 @@ struct semiring_mrxnr
         #pragma simd
         for ( int i = 0; i < MR; i ++ ) 
         {
-          c[ t ][ j * ldc + i ] += alpha[ t ] * regC[ j * MR + i ];
+          v[ t ][ j * ldv + i ] += alpha[ t ] * regV[ j * MR + i ];
         }
       }
     }
@@ -52,11 +52,11 @@ struct semiring_mrxnr
     int k, 
     TA *a, 
     TB *b, 
-    TV *c, int ldc, 
+    TV *v, int ldv,
     aux_s<TA, TB, TC, TV> *aux 
   ) const 
   {
-    TV regC[ MR * NR ];
+    TV regV[ MR * NR ];
 
     if ( !aux->pc ) // Initialize
     {
@@ -64,7 +64,7 @@ struct semiring_mrxnr
       for ( int j = 0; j < NR; j ++ )
         #pragma simd
         for ( int i = 0; i < MR; i ++ )
-          regC[ j * MR + i ] = initV;
+          regV[ j * MR + i ] = initV;
     }
     else // accumulate
     {
@@ -72,7 +72,7 @@ struct semiring_mrxnr
       for ( int j = 0; j < NR; j ++ )
         #pragma simd
         for ( int i = 0; i < MR; i ++ )
-          regC[ j * MR + i ] = c[ j * ldc + i ];
+          regV[ j * MR + i ] = v[ j * ldv + i ];
     }
     
     // semiring rank-k update
@@ -82,8 +82,8 @@ struct semiring_mrxnr
       for ( int j = 0; j < NR; j ++ )
         #pragma simd
         for ( int i = 0; i < MR; i ++ )
-          regC[ j * MR + i ] = 
-            op1( regC[ j * MR + i ], op2( a[ p * MR + i ], b[ p * NR + j ] ) );
+          regV[ j * MR + i ] = 
+            op1( regV[ j * MR + i ], op2( a[ p * MR + i ], b[ p * NR + j ] ) );
         
     }
 
@@ -92,7 +92,7 @@ struct semiring_mrxnr
     for ( int j = 0; j < NR; j ++ )
       #pragma simd
       for ( int i = 0; i < MR; i ++ )
-        c[ j * ldc + i ] = regC[ j * MR + i ];
+        v[ j * ldv + i ] = regV[ j * MR + i ];
 
   };
 };

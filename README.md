@@ -14,29 +14,44 @@ using our template frameworks.
 See [INSTALL](https://github.com/ChenhanYu/hmlp#install) on how to install it.
 Checkout [LICENSE](https://github.com/ChenhanYu/hmlp#license) if you want to 
 use or redistribute any part of HMLP. Notice that different parts of HMLP may
-have different license. We usually annotate the specific license on the top
+have different licenses. We usually annotate the specific license on the top
 of the file.
 
 HMLP (High Performance Machine Learning Primitives) is a portable framework 
-that provides a high performance memory efficient kernel summation based
-on the BLIS framework.
+that provides high performance, memory efficient matrix-matrix multiplication
+like operations and their extension based on the BLIS framework. 
+Currently, HMLP has implementations on Intel x86_64, Knights Landing, ARM and 
+NVIDIA GPU. We may further support other architectures in the future.
 
-HMLP has several features. For further details of this project, please
-check the wiki pages at:
+
+Depending on your need, you may only require the basic features if you just
+want to use some existing primitives. Acoording to the feature you require we
+suggest that you read different part of documents. Please checkout the wiki
+pages at:
 
 https:://github.com/ChenhanYu/hmlp/wiki
+
+to see what feature better suit your need.
+
+Architecture dependent
+implementations (a.k.a microkernels or kernels in short) are identified and
+saperated from the c++ loop base framework. Thus, porting any HMLP primitive
+to an new architecture **only require** rewriting the kernel part. 
+You are welcome to contribute more kernels beyond this list. Checkout the
+guildline on implementing microkernel for HMLP at our wiki pages.
+
 
 
 
 ### INSTALL
 
-HMLP is tested on LINUX and OSX. Compilation REQUIRES:
+HMLP is tested on LINUX and OSX. Compilation **REQUIRES:**
 
-Intel or GNU compilers with, c++11, AVX and OpenMP support (x86_64);
+Intel or GNU compilers with c++11, AVX and OpenMP support (for x86_64);
 
-Intel-16 or later compilers (Intel MIC, KNL);
+Intel-16 or later compilers (for Intel MIC, KNL);
 
-nvcc (NVIDIA GPU).
+nvcc (for NVIDIA GPU with capability > 2.0).
 
 
 **Configuration:**
@@ -134,9 +149,11 @@ but many others have contributed input and feedback, including:
   Matthew Badin             (Qualcomm Corp. Santa Clara)
   George Biros              (The University of Texas at Austin)
   Cris Cecka                (NVIDIA Corp. Santa Clara)
+  Krzysztof Drewniak        (The University of Texas at Austin)
   Michael Garland           (NVIDIA Corp.)
   Jianyu Huang              (The University of Texas at Austin)
   Bill March                (The University of Texas at Austin)
+  Leslie Rice               (The University of Texas at Austin)
   Tyler Smith               (The University of Texas at Austin)
   Robert van de Geijn       (The University of Texas at Austin)
   Field Van Zee             (The University of Texas at Austin)
@@ -152,7 +169,5 @@ Thank you again for being intersted in HMLP!
 
 Best regards,
 
-Chenhan D. Yu
-
-chenhan@cs.utexas.edu
+Chenhan D. Yu --- chenhan@cs.utexas.edu
 

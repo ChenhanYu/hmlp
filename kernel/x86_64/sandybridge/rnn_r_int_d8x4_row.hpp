@@ -3,7 +3,9 @@
 #include <immintrin.h> // AVX
 
 #include <hmlp.h>
+#include <hmlp_util.hpp>
 #include <hmlp_internal.hpp>
+#include <gsknn.hpp>
 #include <avx_type.h> // self-defined vector type
 
 struct rnn_r_int_d8x4_row
@@ -12,16 +14,17 @@ struct rnn_r_int_d8x4_row
   (
    int k,
    int r,
-   double *aa, double *a,
-   double *bb, double *b,
+   double *a, double *aa,
+   double *b, double *bb,
    double *c,
-   aux_d<double, double, double, double> *aux,
+   aux_s<double, double, double, double> *aux,
    int *bmap
   ) const
   {
   int    i, j, ldr;
   int    *I = aux->I;
   double *D = aux->D;
+  int   ldc = aux->ldc;
 
   double neg2 = -2.0;
   double dzero = 0.0;
@@ -225,28 +228,28 @@ struct rnn_r_int_d8x4_row
 
 
   if ( aux->pc ) {
-    c_tmp.v = _mm256_load_pd( c +  0 );
+    c_tmp.v = _mm256_load_pd( c + 0 );
     c03_0.v = _mm256_add_pd( c_tmp.v, c03_0.v );
 
-    c_tmp.v = _mm256_load_pd( c +  4 );
+    c_tmp.v = _mm256_load_pd( c + 4 );
     c47_0.v = _mm256_add_pd( c_tmp.v, c47_0.v );
 
-    c_tmp.v = _mm256_load_pd( c +  8 );
+    c_tmp.v = _mm256_load_pd( c + ldc );
     c03_1.v = _mm256_add_pd( c_tmp.v, c03_1.v );
 
-    c_tmp.v = _mm256_load_pd( c + 12 );
+    c_tmp.v = _mm256_load_pd( c + ldc + 4 );
     c47_1.v = _mm256_add_pd( c_tmp.v, c47_1.v );
 
-    c_tmp.v = _mm256_load_pd( c + 16 );
+    c_tmp.v = _mm256_load_pd( c + 2*ldc );
     c03_2.v = _mm256_add_pd( c_tmp.v, c03_2.v );
 
-    c_tmp.v = _mm256_load_pd( c + 20 );
+    c_tmp.v = _mm256_load_pd( c + 2*ldc + 4 );
     c47_2.v = _mm256_add_pd( c_tmp.v, c47_2.v );
 
-    c_tmp.v = _mm256_load_pd( c + 24 );
+    c_tmp.v = _mm256_load_pd( c + 3*ldc );
     c03_3.v = _mm256_add_pd( c_tmp.v, c03_3.v );
 
-    c_tmp.v = _mm256_load_pd( c + 28 );
+    c_tmp.v = _mm256_load_pd( c + 3*ldc + 4 );
     c47_3.v = _mm256_add_pd( c_tmp.v, c47_3.v );
   }
 
@@ -342,7 +345,7 @@ struct rnn_r_int_d8x4_row
   b0.v     = _mm256_cmp_pd( c03_0.v, aa_tmp.v, 0x1 );
   if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
     _mm256_store_pd( c     , c03_0.v );
-    // heapSelect_d( aux->jb, r, c + 0, bmap, D + 0 * ldr, I + 0 * ldr );
+    hmlp::heap_select<double>( aux->jb, r, c + 0, bmap, D + 0 * ldr, I + 0 * ldr );
   }
 
   if ( aux->ib > 1 ) {
@@ -350,7 +353,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c03_1.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 4, c03_1.v );
-      // heapSelect_d( aux->jb, r, c + 4, bmap, D + 1 * ldr, I + 1 * ldr );
+      hmlp::heap_select<double>( aux->jb, r, c + 4, bmap, D + 1 * ldr, I + 1 * ldr );
     }
   }
 
@@ -359,7 +362,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c03_2.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 8, c03_2.v );
-      // heapSelect_d( aux->jb, r, c + 8, bmap, D + 2 * ldr, I + 2 * ldr );
+      hmlp::heap_select<double>( aux->jb, r, c + 8, bmap, D + 2 * ldr, I + 2 * ldr );
     }
   }
 
@@ -368,7 +371,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c03_3.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 12, c03_3.v );
-      // heapSelect_d( aux->jb, r, c + 12, bmap, D + 3 * ldr, I + 3 * ldr );
+      hmlp::heap_select<double>( aux->jb, r, c + 12, bmap, D + 3 * ldr, I + 3 * ldr );
     }
   }
 
@@ -377,7 +380,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c47_0.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 16, c47_0.v );
-      // heapSelect_d( aux->jb, r, c + 16, bmap, D + 4 * ldr, I + 4 * ldr );
+      hmlp::heap_select<double>( aux->jb, r, c + 16, bmap, D + 4 * ldr, I + 4 * ldr );
     }
   }
 
@@ -386,7 +389,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c47_1.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 20, c47_1.v );
-      // heapSelect_d( aux->jb, r, c + 20, bmap, D + 5 * ldr, I + 5 * ldr );
+      hmlp::heap_select<double>( aux->jb, r, c + 20, bmap, D + 5 * ldr, I + 5 * ldr );
     }
   }
 
@@ -395,7 +398,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c47_2.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 24, c47_2.v );
-      // heapSelect_d( aux->jb, r, c + 24, bmap, D + 6 * ldr, I + 6 * ldr );
+      hmlp::heap_select<double>( aux->jb, r, c + 24, bmap, D + 6 * ldr, I + 6 * ldr );
     }
   }
 
@@ -404,7 +407,7 @@ struct rnn_r_int_d8x4_row
     b0.v     = _mm256_cmp_pd( c47_3.v, aa_tmp.v, 0x1 );
     if ( !_mm256_testz_pd( b0.v, b0.v ) ) {
       _mm256_store_pd( c + 28, c47_3.v );
-      // heapSelect_d( aux->jb, r, c + 28, bmap, D + 7 * ldr, I + 7 * ldr );
+      hmlp::heap_select<double>( aux->jb, r, c + 28, bmap, D + 7 * ldr, I + 7 * ldr );
     }
   }
   }
