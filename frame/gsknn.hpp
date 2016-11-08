@@ -59,23 +59,51 @@ void rank_k_macro_kernel
     struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
     aux.b_next   = packB;
+    aux.do_packC = 0;
+    aux.jb       = min( n - j, NR );
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();
               i  < loop2nd.end();
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
+      aux.ib = min( m - i, MR );
       if ( i + MR >= m )
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
-      semiringkernel
-      (
-        k,
-        &packA[ ip * k ],
-        &packB[ jp * k ],
-        &packC[ j * ldc + i * NR ], ldc,
-        &aux
-      );
+
+      if ( aux.jb == NR && aux.ib == MR )
+      {
+        semiringkernel
+        (
+          k,
+          &packA[ ip * k ],
+          &packB[ jp * k ],
+          &packC[ j * ldc + i ], ldc,
+          &aux
+        );
+      }
+      else
+      {
+        double c[ MR * NR ] __attribute__((aligned(32)));
+        double *cbuff = c;
+        if ( pc ) {
+          for ( auto jj = 0; jj < aux.jb; jj ++ )
+            for ( auto ii = 0; ii < aux.ib; ii ++ )
+              cbuff[ jj * MR + ii ] = packC[ ( j + jj ) * ldc + i + ii ];
+        }
+        semiringkernel
+        (
+          k,
+          &packA[ ip * k ],
+          &packB[ jp * k ],
+          cbuff, MR,
+          &aux
+        );
+        for ( auto jj = 0; jj < aux.jb; jj ++ )
+          for ( auto ii = 0; ii < aux.ib; ii ++ )
+            packC[ ( j + jj ) * ldc + i + ii ] = cbuff[ jj * MR + ii ];
+      }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
 }                                                          // end rank_k_macro_kernel
@@ -100,7 +128,7 @@ void fused_macro_kernel
   MICROKERNEL microkernel
 )
 {
-  double c[ ldc * NR ] __attribute__((aligned(32)));
+  double c[ MR * NR ] __attribute__((aligned(32)));
   double *cbuff = c;
   thread_communicator &ic_comm = *thread.ic_comm;
 
@@ -118,7 +146,7 @@ void fused_macro_kernel
     aux.b_next   = packB;
     aux.ldr      = ldr;
     aux.jb       = min( n - j, NR );
-    aux.ldc      = ldc;
+    // aux.ldc      = ldc;
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();
               i  < loop2nd.end();
@@ -132,7 +160,9 @@ void fused_macro_kernel
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
       if ( pc ) {
-        cbuff = packC + j * ldc + i * NR;
+        for ( auto jj = 0; jj < aux.jb; jj ++ )
+          for ( auto ii = 0; ii < aux.ib; ii ++ )
+            cbuff[ jj * MR + ii ] = packC[ ( j + jj ) * ldc + i + ii ];
       }
       microkernel
       (
@@ -146,6 +176,11 @@ void fused_macro_kernel
         &aux,
         bmap   + j
       );
+      if ( pc ) {
+        for ( auto jj = 0; jj < aux.jb; jj ++ )
+          for ( auto ii = 0; ii < aux.ib; ii ++ )
+            packC[ ( j + jj ) * ldc + i + ii ] = cbuff[ jj * MR + ii ];
+      }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
 }                                                          // end fused_macro_kernel

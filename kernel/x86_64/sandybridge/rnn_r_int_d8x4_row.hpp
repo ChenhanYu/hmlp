@@ -24,7 +24,7 @@ struct rnn_r_int_d8x4_row
   int    i, j, ldr;
   int    *I = aux->I;
   double *D = aux->D;
-  int   ldc = aux->ldc;
+  // int   ldc = aux->ldc;
 
   double neg2 = -2.0;
   double dzero = 0.0;
@@ -228,28 +228,28 @@ struct rnn_r_int_d8x4_row
 
 
   if ( aux->pc ) {
-    c_tmp.v = _mm256_load_pd( c + 0 );
+    c_tmp.v = _mm256_load_pd( c +  0 );
     c03_0.v = _mm256_add_pd( c_tmp.v, c03_0.v );
 
-    c_tmp.v = _mm256_load_pd( c + 4 );
+    c_tmp.v = _mm256_load_pd( c +  4 );
     c47_0.v = _mm256_add_pd( c_tmp.v, c47_0.v );
 
-    c_tmp.v = _mm256_load_pd( c + ldc );
+    c_tmp.v = _mm256_load_pd( c +  8 );
     c03_1.v = _mm256_add_pd( c_tmp.v, c03_1.v );
 
-    c_tmp.v = _mm256_load_pd( c + ldc + 4 );
+    c_tmp.v = _mm256_load_pd( c + 12 );
     c47_1.v = _mm256_add_pd( c_tmp.v, c47_1.v );
 
-    c_tmp.v = _mm256_load_pd( c + 2*ldc );
+    c_tmp.v = _mm256_load_pd( c + 16 );
     c03_2.v = _mm256_add_pd( c_tmp.v, c03_2.v );
 
-    c_tmp.v = _mm256_load_pd( c + 2*ldc + 4 );
+    c_tmp.v = _mm256_load_pd( c + 20 );
     c47_2.v = _mm256_add_pd( c_tmp.v, c47_2.v );
 
-    c_tmp.v = _mm256_load_pd( c + 3*ldc );
+    c_tmp.v = _mm256_load_pd( c + 24 );
     c03_3.v = _mm256_add_pd( c_tmp.v, c03_3.v );
 
-    c_tmp.v = _mm256_load_pd( c + 3*ldc + 4 );
+    c_tmp.v = _mm256_load_pd( c + 28 );
     c47_3.v = _mm256_add_pd( c_tmp.v, c47_3.v );
   }
 
