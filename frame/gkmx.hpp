@@ -40,7 +40,7 @@ void rank_k_macro_kernel
   int  m, int n,  int  k,
   TA *packA,
   TB *packB,
-  TV *C, int ldc,
+  TV *V, int ldv,
   SEMIRINGKERNEL semiringkernel
 )
 {
@@ -78,33 +78,33 @@ void rank_k_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          &C[ j * ldc + i ], ldc,
+          &V[ j * ldv + i ], ldv,
           &aux
         );
       }
       else                                                 // corner case
       {
-        TV ctmp[ MR * NR ];
+        TV vtmp[ MR * NR ];
 
         if ( pc ) // initilize ctmp
         {
           for ( auto jj = 0; jj < aux.jb; jj ++ )
             for ( auto ii = 0; ii < aux.ib; ii ++ )
-              ctmp[ jj * MR + ii ] = C[ ( j + jj ) * ldc + i + ii ];
+              vtmp[ jj * MR + ii ] = V[ ( j + jj ) * ldv + i + ii ];
         }
 
         semiringkernel
-          (
-           k,
-           &packA[ ip * k ],
-           &packB[ jp * k ],
-           ctmp, MR,
-           &aux
-          );
+        (
+          k,
+          &packA[ ip * k ],
+          &packB[ jp * k ],
+          vtmp, MR,
+          &aux
+        );
 
         for ( auto jj = 0; jj < aux.jb; jj ++ )
           for ( auto ii = 0; ii < aux.ib; ii ++ )
-            C[ ( j + jj ) * ldc + i + ii ] = ctmp[ jj * MR + ii ];
+            V[ ( j + jj ) * ldv + i + ii ] = vtmp[ jj * MR + ii ];
       }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
@@ -118,7 +118,7 @@ void rank_k_macro_kernel
  */ 
 template<
 int KC, int MR, int NR, int PACK_MR, int PACK_NR,
-typename MICROKERNEL,
+typename FUSEDKERNEL,
 typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
 (
@@ -128,7 +128,8 @@ void fused_macro_kernel
   TA *packA,
   TB *packB,
   TC *C, int ldc,
-  MICROKERNEL microkernel
+  TV *V, int ldv,
+  FUSEDKERNEL fusedkernel
 )
 {
   thread_communicator &ic_comm = *thread.ic_comm;
@@ -160,7 +161,7 @@ void fused_macro_kernel
 
       if ( aux.jb == NR && aux.ib == MR )                 
       {
-        microkernel
+        fusedkernel
         (
           k,
           &packA[ ip * k ],
@@ -181,7 +182,7 @@ void fused_macro_kernel
               ctmp[ jj * MR + ii ] = C[ ( j + jj ) * ldc + i + ii ];
         }
 
-        microkernel
+        fusedkernel
         (
           k,
           &packA[ ip * k ],
@@ -218,6 +219,7 @@ void gkmx_internal
   TA *A, int lda,
   TB *B, int ldb,
   TC *C, int ldc,
+  TV *V, int ldv,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel,
   int nc, int pack_nc,
@@ -315,7 +317,8 @@ void gkmx_internal
             ib, jb, pb,
             packA, 
             packB, 
-            C + jc * ldc + ic, ldc, 
+            C + jc * ldc + ic, ldc,
+            V + jc * ldv + ic, ldv,
             microkernel
           );
         }
@@ -329,7 +332,8 @@ void gkmx_internal
             ib, jb, pb,
             packA,
             packB,
-            C + jc * ldc + ic, ldc, 
+            //C + jc * ldc + ic, ldc, 
+            V + jc * ldv + ic, ldv, 
             semiringkernel
           );
         }
@@ -366,12 +370,13 @@ void gkmx
 )
 {
   int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
-  int k_stra = 0;
+  int k_stra = 0; int ldv = 0;
   int nc = NC, pack_nc = PACK_NC;
   char *str;
 
   TA *packA_buff = NULL;
   TB *packB_buff = NULL;
+  TV *V = NULL;
 
   // Early return if possible
   if ( m == 0 || n == 0 || k == 0 ) return;
@@ -401,6 +406,19 @@ void gkmx
   packA_buff  = hmlp_malloc<ALIGN_SIZE, TA>( KC * ( PACK_MC + 1 ) * jc_nt * ic_nt );
   packB_buff  = hmlp_malloc<ALIGN_SIZE, TB>( KC * ( pack_nc + 1 ) * jc_nt         ); 
 
+
+  // allocate V if k > KC
+  if ( k > KC && typeid(TC) != typeid(TV) )
+  {
+    V = hmlp_malloc<ALIGN_SIZE, TV>( m * n );
+    ldv = m;
+  }
+  else
+  {
+    V = C;
+    ldv = ldc;
+  }
+
   // allocate tree communicator
   thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
 
@@ -416,7 +434,7 @@ void gkmx
     if ( k_stra )
     {
       #pragma omp parallel for
-      for ( int i = 0; i < n * ldc; i ++ ) C[ i ] = 0.0;
+      for ( int i = 0; i < n * ldv; i ++ ) V[ i ] = 0.0;
     }
   }
 
@@ -427,9 +445,6 @@ void gkmx
 
     if ( USE_STRASSEN )
     {
-      //printf( "gkmx: strassen algorithms haven't been implemented." );
-      //exit( 1 );
-
       strassen::strassen_internal
       <MC, NC, KC, MR, NR,
       PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
@@ -442,7 +457,7 @@ void gkmx
         m, n, k_stra,
         A, lda,
         B, ldb,
-        C, ldc,
+        V, ldv,
         semiringkernel, semiringkernel,
         nc, pack_nc,
         packA_buff,
@@ -450,8 +465,6 @@ void gkmx
       );
     }
 
-
-    // TODO: currently the indicies of A and B are incorrect.
     gkmx_internal
     <MC, NC, KC, MR, NR, 
     PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
@@ -465,6 +478,7 @@ void gkmx
       A, lda,
       B, ldb,
       C, ldc,
+      V, ldv,
       semiringkernel, microkernel,
       nc, pack_nc,
       packA_buff,
@@ -474,6 +488,7 @@ void gkmx
 
   hmlp_free( packA_buff );
   hmlp_free( packB_buff );
+  //hmlp_free( V );
 };                                                         // end gkmx
 
 
@@ -505,22 +520,22 @@ void gkmm
 )
 {
   semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
-  fused_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV> fusedkernel;
+  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV> gkmmkernel;
 
   semiringkernel.op1 = op1;
   semiringkernel.op2 = op2;
   semiringkernel.initV = initV;
 
-  fusedkernel.op1 = op1;
-  fusedkernel.op2 = op2;
-  fusedkernel.opkernel = opkernel;
-  fusedkernel.initV = initV;
+  gkmmkernel.op1 = op1;
+  gkmmkernel.op2 = op2;
+  gkmmkernel.opkernel = opkernel;
+  gkmmkernel.initV = initV;
 
   gkmx
   <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
   USE_STRASSEN,
   semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
-  fused_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
+  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
   TA, TB, TC, TV>
   (
     transA, transB,
@@ -528,7 +543,7 @@ void gkmm
     A, lda,
     B, ldb,
     C, ldc,
-    semiringkernel, fusedkernel
+    semiringkernel, gkmmkernel
   );
 };
 
@@ -633,6 +648,21 @@ void gkrm
   gkrmkernel.initV = initV;
   gkrmkernel.opreduce = opreduce;
   gkrmkernel.initC = initC;
+
+  gkmx
+  <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+  USE_STRASSEN,
+  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
+  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
+  TA, TB, TC, TV>
+  (
+    transA, transB,
+    m, n, k,
+    A, lda,
+    B, ldb,
+    C, 0,
+    semiringkernel, gkrmkernel
+  );
 };
 
 

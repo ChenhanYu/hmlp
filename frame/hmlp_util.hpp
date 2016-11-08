@@ -12,6 +12,7 @@
 namespace hmlp
 {
 
+
 template<int ALIGN_SIZE, typename T>
 T *hmlp_malloc( int m, int n, int size )
 {

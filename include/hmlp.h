@@ -1,6 +1,11 @@
 #ifndef HMLP_H
 #define HMLP_H
 
+void hmlp_init();
+void hmlp_finalize();
+
+
+
 typedef enum
 {
   HMLP_OP_N,
