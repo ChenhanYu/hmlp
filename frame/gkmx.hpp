@@ -660,7 +660,7 @@ void gkrm
     m, n, k,
     A, lda,
     B, ldb,
-    C, 0,
+    C, 0, // TODO: is there a better way to do this?
     semiringkernel, gkrmkernel
   );
 };

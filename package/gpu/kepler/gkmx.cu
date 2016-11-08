@@ -260,7 +260,7 @@ void gkmm_dfma
  *         and the distance.
  *         
  */ 
-void gkrm_dkmean
+void gkrm_dkmeans
 (
   cudaStream_t stream, 
   hmlpOperation_t transA, hmlpOperation_t transB, 
