@@ -30,18 +30,18 @@ void gkmx_dfma
 )
 {
   // Sandy-bridge
-  //rank_k_asm_d8x4 semiringkernel;
-  //rank_k_asm_d8x4 microkernel;
+  rank_k_asm_d8x4 semiringkernel;
+  rank_k_asm_d8x4 microkernel;
 
-  rank_k_int_d8x4 semiringkernel;
-  rank_k_int_d8x4 microkernel;
+  //rank_k_int_d8x4 semiringkernel;
+  //rank_k_int_d8x4 microkernel;
 
   gkmx
   <104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
   //false,
   true,
-  //rank_k_asm_d8x4, rank_k_asm_d8x4,
-  rank_k_int_d8x4, rank_k_int_d8x4,
+  rank_k_asm_d8x4, rank_k_asm_d8x4,
+  //rank_k_int_d8x4, rank_k_int_d8x4,
   double, double, double, double>
   (
     transA, transB,

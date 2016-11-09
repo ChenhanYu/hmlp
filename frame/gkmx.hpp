@@ -20,6 +20,8 @@
 #include <semiring_mrxnr.hpp>
 #include <fused_mrxnr.hpp>
 
+//#define GKMX_CONFIG \
+
 
 namespace hmlp
 {
@@ -413,7 +415,7 @@ void gkmx
     V = hmlp_malloc<ALIGN_SIZE, TV>( m * n );
     ldv = m;
   }
-  else
+  else // TODO: do not free V in this case.
   {
     V = C;
     ldv = ldc;

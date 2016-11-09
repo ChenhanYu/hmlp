@@ -1,5 +1,17 @@
+#include <cstdlib>
+#include <cstdio>
+#include <cstddef>
+
 #ifndef HMLP_INTERNAL_HPP
 #define HMLP_INTERNAL_HPP
+
+#define restrict __restrict__
+
+//#define dim_t std::size_t
+//#define int_t std::size_t
+typedef std::size_t dim_t;
+typedef std::size_t inc_t;
+
 
 template<typename TA, typename TB, typename TC, typename TV>
 struct aux_s
