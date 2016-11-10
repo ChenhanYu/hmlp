@@ -93,6 +93,7 @@ void test_gkmx( int m, int n, int k )
 
   int n_iter = 1;
 
+
   // ------------------------------------------------------------------------
   // Memory allocation for all common buffers
   // ------------------------------------------------------------------------
@@ -110,7 +111,6 @@ void test_gkmx( int m, int n, int k )
   posix_memalign( (void**)&C_ref, 32, sizeof(T) * m * n );
 #endif
   // ------------------------------------------------------------------------
-
 
   // ------------------------------------------------------------------------
   // Initialization
@@ -139,8 +139,8 @@ void test_gkmx( int m, int n, int k )
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    //gkmx_dfma
-    gkmx_dfma_simple
+    gkmx_dfma
+    //gkmx_dfma_simple
     (
       HMLP_OP_N, HMLP_OP_N,
       m, n, k,
@@ -279,7 +279,8 @@ void test_gkmx( int m, int n, int k )
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    gkmx_dfma
+    //gkmx_dfma
+    gkmx_dfma_simple
     (
       HMLP_OP_N, HMLP_OP_T,
       m, n, k,

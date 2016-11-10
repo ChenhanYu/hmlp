@@ -5,6 +5,10 @@ echo "HMLP_DIR = $HMLP_DIR"
 ## Manually set the target architecture.
 export HMLP_GPU_ARCH_MAJOR=gpu
 export HMLP_GPU_ARCH_MINOR=kepler
+
+# export HMLP_ARCH_MAJOR=arm
+# export HMLP_ARCH_MINOR=armv7a
+
 export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=sandybridge
 

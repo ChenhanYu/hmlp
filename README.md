@@ -49,6 +49,8 @@ HMLP is tested on LINUX and OSX. Compilation **REQUIRES:**
 
 Intel or GNU compilers with c++11, AVX and OpenMP support (for x86_64);
 
+Arm GNU compilers (see [Cross Compilation]() for details on compilation on Android) with OpenMP support (for arm);
+
 Intel-16 or later compilers (for Intel MIC, KNL);
 
 nvcc (for NVIDIA GPU with capability > 2.0).
@@ -84,7 +86,23 @@ Use cmake:
 >cmake ..
 >make
 >make install
-```
+
+**Cross Compilation**
+
+If your Arm is run with OS that has native compiler and cmake support, then the
+installation instruction above should work just fine.
+However, while your target runs an Android OS, which currently does not have a native
+C/C++ compiler, you will need to cross compile HMLP on your Linux or OSX first.
+Although there are many ways to do cross compilation, we suggest that users
+follow these instructions:
+
+1. Install Android Studio with LLDB, cmake and NDK support.
+2. Create stand-alone-toolchain from NDK.
+3. Install adb (Android Debug)
+4. Compile HMLP with cmake. It will look for your arm gcc/g++, ar and ranlib
+   support.
+5. Use the following  
+
 
 **Testing and compilation example:**
 

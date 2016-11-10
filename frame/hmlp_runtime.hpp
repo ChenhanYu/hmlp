@@ -3,6 +3,7 @@
 
 #include <tuple>
 #include <stdio.h>
+#include <stdlib.h>
 #include <iostream>
 #include <cstddef>
 #include <omp.h>

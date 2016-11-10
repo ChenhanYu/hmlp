@@ -169,6 +169,7 @@ void fused_macro_kernel
           &packA[ ip * k ],
           &packB[ jp * k ],
           &C[ j * ldc + i ], ldc,
+          //&V[ j * ldc + i ], ldv,
           //&C[ ( j / NR ) * ldc + i ], ldc, // for conv_relu_pool
           &aux
         );
@@ -176,6 +177,7 @@ void fused_macro_kernel
       else                                                 // corner case
       {
         TC ctmp[ MR * NR ];
+        //TV vtmp[ MR * NR ];
 
         if ( pc ) // initilize ctmp
         {
@@ -190,6 +192,7 @@ void fused_macro_kernel
           &packA[ ip * k ],
           &packB[ jp * k ],
           ctmp, MR,
+          //vtmp, MR,
           &aux
         );
 
@@ -417,7 +420,7 @@ void gkmx
   }
   else // TODO: do not free V in this case.
   {
-    V = C;
+    V = reinterpret_cast<TV*>( C );
     ldv = ldc;
   }
 
@@ -510,7 +513,7 @@ template<
   int ALIGN_SIZE    = 32,
   bool USE_STRASSEN = false,
   typename OPKERNEL, typename OP1, typename OP2,
-  typename TA, typename TB, typename TC, typename TV = TC>
+  typename TA, typename TB, typename TC, typename TV>
 void gkmm
 (
   hmlpOperation_t transA, hmlpOperation_t transB,

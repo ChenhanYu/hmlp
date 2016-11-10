@@ -110,7 +110,7 @@ void rank_k_macro_kernel
       {
 
         if ( alpha1 == 0 || C1 == NULL ) {
-          double *c_list[1], alpha_list[1];
+          TV *c_list[1], alpha_list[1];
           c_list[0] = &C0[ j * ldc + i ];
           alpha_list[0] = alpha0;
 
@@ -125,7 +125,7 @@ void rank_k_macro_kernel
 
         } else {
 
-          double *c_list[2], alpha_list[2];
+          TV *c_list[2], alpha_list[2];
           c_list[0] = &C0[ j * ldc + i ]; c_list[1] = &C1[ j * ldc + i ];
           alpha_list[0] = alpha0; alpha_list[1] = alpha1;
           semiringkernel
@@ -157,7 +157,7 @@ void rank_k_macro_kernel
         // TODO: this should be initC.
         TV ctmp[ MR * NR ] = { (TV)0.0 };
 
-        double *c_list[1], alpha_list[1];
+        TV *c_list[1], alpha_list[1];
         c_list[0] = ctmp;
         alpha_list[0] = 1;
 
@@ -386,7 +386,7 @@ void straprim
   int m, int n, int k,
   TA *A0, TA *A1, int lda, TA gamma,
   TB *B0, TB *B1, int ldb, TB delta,
-  TC *C0, TC *C1, int ldc, TC alpha0, TC alpha1,
+  TV *C0, TV *C1, int ldc, TV alpha0, TV alpha1,
   STRA_SEMIRINGKERNEL stra_semiringkernel,
   STRA_MICROKERNEL stra_microkernel,
   int nc, int pack_nc,
@@ -664,7 +664,7 @@ void straprim
   int m, int n, int k,
   TA *A0, TA *A1, int lda, TA gamma, int *amap,
   TB *B0, TB *B1, int ldb, TB delta, int *bmap,
-  TC *C0, TC *C1, int ldc, TC alpha0, TC alpha1,
+  TV *C0, TV *C1, int ldc, TV alpha0, TV alpha1,
   STRA_SEMIRINGKERNEL stra_semiringkernel,
   STRA_MICROKERNEL stra_microkernel,
   int nc, int pack_nc,
@@ -911,14 +911,14 @@ void straprim
   }                                                        // end 6th loop
 }                                                          // end strassen_internal
 
-template<typename TA, typename TB, typename TC>
+template<typename TA, typename TB, typename TV>
 void hmlp_dynamic_peeling
 (
   hmlpOperation_t transA, hmlpOperation_t transB,
   int m, int n, int k,
   TA *A, int lda,
   TB *B, int ldb,
-  TC *C, int ldc,
+  TV *C, int ldc,
   int dim1, int dim2, int dim3
 )
 {
@@ -929,7 +929,9 @@ void hmlp_dynamic_peeling
   int ms = m - mr;
   int ns = n - nr;
   int ks = k - kr;
-  double *A_extra, *B_extra, *C_extra;
+  TA *A_extra;
+  TB *B_extra;
+  TV *C_extra;
 
   char transA_val, transB_val;
   char *char_transA = &transA_val, *char_transB = &transB_val;
@@ -1039,7 +1041,7 @@ void hmlp_dynamic_peeling
 
   //printf( "flag d9\n" );
 
-    double *C_extra = &C[ ms + 0 * ldc ];// mr * ns
+    TV *C_extra = &C[ ms + 0 * ldc ];// mr * ns
     if ( ns > 0 )
     {
       //bl_dgemm( mr, ns, k, A_extra, lda, B_extra, ldb, C_extra, ldc );
@@ -1062,7 +1064,7 @@ void strassen_internal
   int m, int n, int k,
   TA *A, int lda, int *amap,
   TB *B, int ldb, int *bmap,
-  TC *C, int ldc,
+  TV *C, int ldc,
   STRA_SEMIRINGKERNEL stra_semiringkernel,
   STRA_MICROKERNEL stra_microkernel,
   int nc, int pack_nc,
@@ -1080,19 +1082,19 @@ void strassen_internal
 
   // Partition code.
   ms=md, ks=kd, ns=nd;
-  double *A00, *A01, *A10, *A11;
+  TA *A00, *A01, *A10, *A11;
   hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 0, 0, &A00 );
   hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 0, 1, &A01 );
   hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 1, 0, &A10 );
   hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 1, 1, &A11 );
 
-  double *B00, *B01, *B10, *B11;
+  TB *B00, *B01, *B10, *B11;
   hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 0, 0, &B00 );
   hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 0, 1, &B01 );
   hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 1, 0, &B10 );
   hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 1, 1, &B11 );
 
-  double *C00, *C01, *C10, *C11;
+  TV *C00, *C01, *C10, *C11;
   hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 0, 0, &C00 );
   hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 0, 1, &C01 );
   hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 1, 0, &C10 );
@@ -1134,7 +1136,7 @@ void strassen_internal
   int m, int n, int k,
   TA *A, int lda,
   TB *B, int ldb,
-  TC *C, int ldc,
+  TV *C, int ldc,
   STRA_SEMIRINGKERNEL stra_semiringkernel,
   STRA_MICROKERNEL stra_microkernel,
   int nc, int pack_nc,
@@ -1152,19 +1154,19 @@ void strassen_internal
 
   // Partition code.
   ms=md, ks=kd, ns=nd;
-  double *A00, *A01, *A10, *A11;
+  TA *A00, *A01, *A10, *A11;
   hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 0, 0, &A00 );
   hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 0, 1, &A01 );
   hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 1, 0, &A10 );
   hmlp_acquire_mpart( transA, ms, ks, A, lda, 2, 2, 1, 1, &A11 );
 
-  double *B00, *B01, *B10, *B11;
+  TB *B00, *B01, *B10, *B11;
   hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 0, 0, &B00 );
   hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 0, 1, &B01 );
   hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 1, 0, &B10 );
   hmlp_acquire_mpart( transB, ks, ns, B, ldb, 2, 2, 1, 1, &B11 );
 
-  double *C00, *C01, *C10, *C11;
+  TV *C00, *C01, *C10, *C11;
   hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 0, 0, &C00 );
   hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 0, 1, &C01 );
   hmlp_acquire_mpart( HMLP_OP_N, ms, ns, C, ldc, 2, 2, 1, 0, &C10 );
@@ -1230,7 +1232,7 @@ void strassen
   int m, int n, int k,
   TA *A, int lda,
   TB *B, int ldb,
-  TC *C, int ldc,
+  TV *C, int ldc,
   STRA_SEMIRINGKERNEL stra_semiringkernel,
   STRA_MICROKERNEL stra_microkernel
 )

@@ -1,8 +1,8 @@
 // GKMX templates
 #include <gkmx.hpp>
 
-// Sandy-bridge
-#include <rank_k_d8x4.hpp>
+// Armv7a
+#include <rank_k_d4x4.hpp>
 
 using namespace hmlp::gkmx;
 
@@ -39,18 +39,14 @@ void gkmx_dfma
   double *C, int ldc
 )
 {
-  // Sandy-bridge
-  rank_k_asm_d8x4 semiringkernel;
-  rank_k_asm_d8x4 microkernel;
-
-  //rank_k_int_d8x4 semiringkernel;
-  //rank_k_int_d8x4 microkernel;
+  // Armv7a
+  rank_k_asm_d6x8 semiringkernel;
+  rank_k_asm_d6x8 microkernel;
 
   gkmx
-  <104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
+  <192, 4096, 256, 4, , 192, 4096, 4, 4, 16,
   false,
-  rank_k_asm_d8x4, rank_k_asm_d8x4,
-  //rank_k_int_d8x4, rank_k_int_d8x4,
+  rank_k_asm_d6x8, rank_k_asm_d6x8,
   double, double, double, double>
   (
     transA, transB,
