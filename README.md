@@ -86,8 +86,9 @@ Use cmake:
 >cmake ..
 >make
 >make install
+```
 
-**Cross Compilation**
+**Cross Compilation:**
 
 If your Arm is run with OS that has native compiler and cmake support, then the
 installation instruction above should work just fine.
@@ -98,11 +99,20 @@ follow these instructions:
 
 1. Install Android Studio with LLDB, cmake and NDK support.
 2. Create stand-alone-toolchain from NDK.
-3. Install adb (Android Debug)
+3. Install adb (Android Debug Bridge)
 4. Compile HMLP with cmake. It will look for your arm gcc/g++, ar and ranlib
    support.
-5. Use the following  
+5. Use the following instructions to push executables and scripts in hmlp/build/bin.
 
+
+```{r, engine='bash', count_lines}
+>adb devices
+>adb push /hmlp/build/bin/* /data/local/tmp
+>adb shell
+>cd /data/local/tmp
+>./run_hmlp.sh
+>./run_gkmx.sh
+```
 
 **Testing and compilation example:**
 
