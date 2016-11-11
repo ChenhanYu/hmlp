@@ -2,7 +2,6 @@
 #include <gsknn.hpp>
 
 // Sandy-bridge
-// #include <rnn_rank_k_asm_d8x4.hpp>
 #include <rank_k_d8x4.hpp>
 #include <rnn_r_int_d8x4_row.hpp>
 
