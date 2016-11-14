@@ -3,40 +3,11 @@
 namespace hmlp
 {
 
-//range::range( int beg, int end, int inc )
-//{
-//  info = std::make_tuple( beg, end, inc );
-//};
-//
-//int range::beg()
-//{
-//  return std::get<0>( info );
-//};
-//
-//int range::end()
-//{
-//  return std::get<1>( info );
-//};
-//
-//int range::inc()
-//{
-//  return std::get<2>( info );
-//};
-
 std::ostream& operator<<( std::ostream& os, const thread_communicator& obj )
 {
   os << obj.name << obj.comm_id;
   return os;
 };
-
-//range thread_communicator::GetRange( int beg, int end, int nb, int tid )
-//{
-//  {
-//    auto tid_beg = beg + tid * nb;
-//    auto tid_inc = n_threads * nb;
-//    return range( tid_beg, end, tid_inc );
-//  }
-//};
 
 void thread_communicator::Create( int level, int num_threads, int *config )
 {
@@ -49,11 +20,11 @@ void thread_communicator::Create( int level, int num_threads, int *config )
     n_threads = num_threads;
     n_groups = config[ level ]; 
 
-    if      ( level == 4 ) name = "jc_comm";
-    else if ( level == 3 ) name = "pc_comm";
-    else if ( level == 2 ) name = "ic_comm";
-    else if ( level == 1 ) name = "jr_comm";
-    else                   name = "na_comm";
+    if      ( level == 4 ) name = std::string( "jc_comm" );
+    else if ( level == 3 ) name = std::string( "pc_comm" );
+    else if ( level == 2 ) name = std::string( "ic_comm" );
+    else if ( level == 1 ) name = std::string( "jr_comm" );
+    else                   name = std::string( "na_comm" );
 
     // std::cout << name << ", " << n_threads << ", " << n_groups << "\n";
 
@@ -85,7 +56,7 @@ thread_communicator::thread_communicator( int jc_nt, int pc_nt, int ic_nt, int j
   int config[ 6 ] = { 0, 0, jr_nt, ic_nt, pc_nt, jc_nt };
   n_threads = jc_nt * pc_nt * ic_nt * jr_nt;
   n_groups  = jc_nt;
-  name = "my_comm";
+  name = std::string( "my_comm" );
   kids = new thread_communicator[ n_groups ]();
 
   for ( int i = 0; i < n_groups; i ++ ) 
@@ -103,7 +74,7 @@ int thread_communicator::GetNumThreads()
 int thread_communicator::GetNumGroups() 
 {
   return n_groups;
-}
+};
 
 // OpenMP thread barrier from BLIS
 void thread_communicator::Barrier()
@@ -131,7 +102,49 @@ void thread_communicator::Barrier()
 void thread_communicator::Print()
 {
   Barrier();
-}
+};
+
+
+
+worker::worker( thread_communicator *comm ) :
+  tid( 0 ), jc_id( 0 ), pc_id( 0 ), ic_id( 0 ), jr_id( 0 )
+{
+  int tmp;
+
+  tid   = omp_get_thread_num();
+  tmp   = tid;
+
+  my_comm = comm;
+
+  jc_nt = my_comm->GetNumGroups();
+  jc_id = tmp / ( my_comm->GetNumThreads() / my_comm->GetNumGroups() );
+  tmp   = tmp % ( my_comm->GetNumThreads() / my_comm->GetNumGroups() );
+
+  jc_comm = &(my_comm->kids[ jc_id ]);
+
+  pc_nt = jc_comm->GetNumGroups();
+  pc_id = tmp / ( jc_comm->GetNumThreads() / jc_comm->GetNumGroups() );
+  tmp   = tmp % ( jc_comm->GetNumThreads() / jc_comm->GetNumGroups() );
+
+  pc_comm = &(jc_comm->kids[ pc_id ]);
+
+  ic_jr = tmp; // for parallel packB
+  ic_nt = pc_comm->GetNumGroups();
+  ic_id = tmp / ( pc_comm->GetNumThreads() / pc_comm->GetNumGroups() );
+  jr_id = tmp % ( pc_comm->GetNumThreads() / pc_comm->GetNumGroups() );
+
+  ic_comm = &(pc_comm->kids[ ic_id ]);
+  jr_nt = ic_comm->GetNumGroups();
+
+  //printf( "tid %2d jc_id %2d pc_id %2d ic_id %2d jr_id %2d, ic_jr %2d\n",
+  //    tid, jc_id, pc_id, ic_id, jr_id, ic_jr );
+};
+
+
+
+
+
+
 
 
 }; // end namespace hmlp

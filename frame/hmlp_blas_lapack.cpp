@@ -30,7 +30,7 @@ namespace hmlp
 
 void xgemm
 (
-  char *transA, char *transB,
+  const char *transA, const char *transB,
   int m, int n, int k, 
   double alpha,
   double *A, int lda,
@@ -38,6 +38,7 @@ void xgemm
   double *C, int ldc
 )
 {
+#ifdef HMLP_USE_BLAS
   dgemm_
   (
     transA, transB, 
@@ -46,6 +47,31 @@ void xgemm
             B, &ldb, 
     &beta,  C, &ldc 
   );
+#else
+  //printf( "xgemm: configure HMLP_USE_BLAS=true to enable BLAS support.\n" );
+  for ( int p = 0; p < k; p ++ )
+  {
+    for ( int j = 0; j < n; j ++ )
+    {
+      for ( int i = 0; i < m; i ++ )
+      {
+        double a, b;
+        if ( *transA == 'T' ) a = A[ i * lda + p ];
+        else                 a = A[ p * lda + i ];
+        if ( *transB == 'T' ) b = B[ p * ldb + j ];
+        else                 b = B[ j * ldb + p ];
+        if ( p == 0 )
+        {
+          C[ j * ldc + i ] = beta * C[ j * ldc + i ] + alpha * a * b;
+        }
+        else 
+        {
+          C[ j * ldc + i ] += alpha * a * b;
+        }
+      }
+    }
+  }
+#endif
 #ifdef DEBUG_XGEMM
   printf( "hmlp::xgemm debug\n" );
   for ( int i = 0; i < m; i ++ )
@@ -61,7 +87,7 @@ void xgemm
 
 void xgemm
 (
-  char *transA, char *transB,
+  const char *transA, const char *transB,
   int m, int n, int k, 
   float alpha,
   float *A, int lda,
@@ -69,6 +95,7 @@ void xgemm
   float *C, int ldc
 )
 {
+#ifdef HMLP_USE_BLAS
   sgemm_
   (
    transA, transB, 
@@ -77,6 +104,31 @@ void xgemm
            B, &ldb, 
    &beta,  C, &ldc 
   );
+#else
+  //printf( "xgemm: configure HMLP_USE_BLAS=true to enable BLAS support.\n" );
+  for ( int p = 0; p < k; p ++ )
+  {
+    for ( int j = 0; j < n; j ++ )
+    {
+      for ( int i = 0; i < m; i ++ )
+      {
+        double a, b;
+        if ( *transA == 'T' ) a = A[ i * lda + p ];
+        else                 a = A[ p * lda + i ];
+        if ( *transB == 'T' ) b = B[ p * ldb + j ];
+        else                 b = B[ j * ldb + p ];
+        if ( p == 0 )
+        {
+          C[ j * ldc + i ] = beta * C[ j * ldc + i ] + alpha * a * b;
+        }
+        else 
+        {
+          C[ j * ldc + i ] += alpha * a * b;
+        }
+      }
+    }
+  }
+#endif
 #ifdef DEBUG_XGEMM
   printf( "hmlp::xgemm debug\n" );
   for ( int i = 0; i < m; i ++ )

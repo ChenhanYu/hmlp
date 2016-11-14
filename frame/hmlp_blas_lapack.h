@@ -13,7 +13,7 @@ namespace hmlp
 
 void xgemm
 (
-  char *transA, char *transB,
+  const char *transA, const char *transB,
   int m, int n, int k, 
   float alpha,
   float *A, int lda,
@@ -23,7 +23,7 @@ void xgemm
 
 void xgemm
 (
-  char *transA, char *transB,
+  const char *transA, const char *transB,
   int m, int n, int k, 
   double alpha,
   double *A, int lda,

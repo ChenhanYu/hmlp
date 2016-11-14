@@ -100,7 +100,7 @@ static inline int hmlp_ceildiv( int x, int y )
     return ( x + y - 1 ) / y;
 }
 
-static inline int hmlp_read_nway_from_env( char* env )
+static inline int hmlp_read_nway_from_env( const char* env )
 {
   int number = 1;
   char* str = getenv( env );
@@ -112,28 +112,33 @@ static inline int hmlp_read_nway_from_env( char* env )
 }
 
 template<typename T>
-inline void swap( T *x, int i, int j ) {
+inline void swap( T *x, int i, int j ) 
+{
   T tmp = x[ i ];
   x[ i ] = x[ j ];
   x[ j ] = tmp;
 }
 
 template<typename T>
-inline void heap_adjust(
-    T *D,
-    int    s,
-    int    n,
-    int    *I
-    )
+inline void heap_adjust
+(
+  T *D,
+  int s,
+  int n,
+  int *I
+)
 {
   int    j;
 
-  while ( 2 * s + 1 < n ) {
+  while ( 2 * s + 1 < n ) 
+  {
     j = 2 * s + 1;
-    if ( ( j + 1 ) < n ) {
+    if ( ( j + 1 ) < n ) 
+    {
       if ( D[ j ] < D[ j + 1 ] ) j ++;
     }
-    if ( D[ s ] < D[ j ] ) {
+    if ( D[ s ] < D[ j ] ) 
+    {
       swap<T>( D, s, j );
       swap<int>( I, s, j );
       s = j;
@@ -143,14 +148,15 @@ inline void heap_adjust(
 }
 
 template<typename T>
-inline void heap_select(
-    int    m,
-    int    r,
-    T *x,
-    int    *alpha,
-    T *D,
-    int    *I
-    )
+inline void heap_select
+(
+  int m,
+  int r,
+  T *x,
+  int *alpha,
+  T *D,
+  int *I
+)
 {
   int    i;
 

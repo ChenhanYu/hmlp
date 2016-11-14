@@ -139,6 +139,7 @@ void test_gkmx( int m, int n, int k )
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
+    //gkmx_sfma
     gkmx_dfma
     //gkmx_dfma_simple
     (
@@ -185,8 +186,9 @@ void test_gkmx( int m, int n, int k )
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    gkmx_dfma_simple
-    //gkmx_dfma
+    //gkmx_sfma
+    gkmx_dfma
+    //gkmx_dfma_simple
     (
       HMLP_OP_T, HMLP_OP_N,
       m, n, k,
@@ -232,8 +234,9 @@ void test_gkmx( int m, int n, int k )
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    //gkmx_dfma
-    gkmx_dfma_simple
+    //gkmx_sfma
+    gkmx_dfma
+    //gkmx_dfma_simple
     (
       HMLP_OP_T, HMLP_OP_T,
       m, n, k,
@@ -279,8 +282,9 @@ void test_gkmx( int m, int n, int k )
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    //gkmx_dfma
-    gkmx_dfma_simple
+    //gkmx_sfma
+    gkmx_dfma
+    //gkmx_dfma_simple
     (
       HMLP_OP_N, HMLP_OP_T,
       m, n, k,
@@ -343,6 +347,7 @@ int main( int argc, char *argv[] )
 
   //hmlp_init();
 
+  //test_gkmx<float>( m, n, k );
   test_gkmx<double>( m, n, k );
 
   //hmlp_finalize();

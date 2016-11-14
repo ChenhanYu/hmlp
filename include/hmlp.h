@@ -13,6 +13,15 @@ typedef enum
 } hmlpOperation_t;
 
 
+void gkmx_sfma
+(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  float *A, int lda,
+  float *B, int ldb,
+  float *C, int ldc
+);
+
 
 void gkmx_dfma
 (

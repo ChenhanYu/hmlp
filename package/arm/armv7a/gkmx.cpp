@@ -40,13 +40,13 @@ void gkmx_dfma
 )
 {
   // Armv7a
-  rank_k_asm_d6x8 semiringkernel;
-  rank_k_asm_d6x8 microkernel;
+  rank_k_asm_d4x4 semiringkernel;
+  rank_k_asm_d4x4 microkernel;
 
   gkmx
-  <192, 4096, 256, 4, , 192, 4096, 4, 4, 16,
+  <192, 4096, 256, 4, 4, 192, 4096, 4, 4, 16,
   false,
-  rank_k_asm_d6x8, rank_k_asm_d6x8,
+  rank_k_asm_d4x4, rank_k_asm_d4x4,
   double, double, double, double>
   (
     transA, transB,
@@ -59,6 +59,34 @@ void gkmx_dfma
   );
 };
 
+void gkmx_sfma
+(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+	int m, int n, int k,
+	float *A, int lda,
+  float *B, int ldb,
+  float *C, int ldc
+)
+{
+  // Armv7a
+  rank_k_asm_s4x4 semiringkernel;
+  rank_k_asm_s4x4 microkernel;
+
+  gkmx
+  <192, 4096, 256, 4, 4, 192, 4096, 4, 4, 16,
+  false,
+  rank_k_asm_s4x4, rank_k_asm_s4x4,
+  float, float, float, float>
+  (
+    transA, transB,
+    m, n, k,
+    A, lda,
+    B, ldb,
+    C, ldc,
+    semiringkernel,
+    microkernel
+  );
+};
 
 void gkmx_dfma_simple
 (

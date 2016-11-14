@@ -1,7 +1,7 @@
 #ifndef HMLP_THREAD_COMMUNICATOR_HPP
 #define HMLP_THREAD_COMMUNICATOR_HPP
 
-#include <tuple>
+#include <string>
 #include <stdio.h>
 #include <iostream>
 #include <cstddef>
@@ -28,13 +28,11 @@ class thread_communicator
 
     int GetNumGroups();
 
-    //range GetRange( int beg, int end, int nb, int tid );
-
     friend std::ostream& operator<<( std::ostream& os, const thread_communicator& obj );
 
     thread_communicator *kids;
 
-    char *name;
+    std::string name;
 
 	private:
 
@@ -50,6 +48,50 @@ class thread_communicator
 
 	  int           barrier_threads_arrived;
 };
+
+
+class worker 
+{
+  public:
+
+    //worker();
+
+	  //worker( int jc_nt, int pc_nt, int ic_nt, int jr_nt );
+   
+    worker( thread_communicator *my_comm );
+
+    int tid;
+
+    int jc_id;
+
+    int pc_id;
+
+    int ic_id;
+
+    int jr_id;
+
+    int ic_jr;
+
+    int jc_nt;
+
+    int pc_nt;
+
+    int ic_nt;
+
+    int jr_nt;
+
+    thread_communicator *my_comm;
+
+    thread_communicator *jc_comm;
+
+    thread_communicator *pc_comm;
+
+    thread_communicator *ic_comm;
+};
+
+
+
+
 
 
 
