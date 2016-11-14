@@ -146,7 +146,6 @@ void fused_macro_kernel
     aux.b_next   = packB;
     aux.ldr      = ldr;
     aux.jb       = min( n - j, NR );
-    // aux.ldc      = ldc;
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();
               i  < loop2nd.end();
@@ -225,7 +224,6 @@ void gsknn_internal
             jc  < loop6th.end();
             jc += loop6th.inc() )                          // beg 6th loop
   {
-    auto &jc_comm = *thread.jc_comm;
     auto jb = min( n - jc, NC );
 
     for ( int pc  = loop5th.beg();
@@ -271,8 +269,8 @@ void gsknn_internal
         auto &ic_comm = *thread.ic_comm;
         auto ib = min( m - ic, MC );
 
-        auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt );
-        auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt );
+        auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, 1 );
+        auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, 1 );
 
         for ( int i   = looppkA.beg(), ip  = packpkA.beg();
                   i   < looppkA.end();
@@ -387,7 +385,7 @@ void gsknn(
   }
 
   // allocate tree communicator
-  thread_communicator my_comm( 1, ic_nt, 1, 1 );
+  thread_communicator my_comm( 1, 1, ic_nt, 1 );
 
   if ( USE_STRASSEN )
   {
@@ -419,8 +417,8 @@ void gsknn(
         thread,
         HMLP_OP_T, HMLP_OP_N,
         m, n, k_stra,
-        A, k,
-        B, k,
+        A, k, amap,
+        B, k, bmap,
         packC_buff, ldpackc,
         semiringkernel, semiringkernel,
         NC, PACK_NC,
