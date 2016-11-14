@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstddef>
+#include <stdint.h>
 
 #ifndef HMLP_INTERNAL_HPP
 #define HMLP_INTERNAL_HPP

@@ -6,10 +6,43 @@
 #include <thrust/tuple.h>
 
 #include<hmlp.h>
+#include<hmlp_blas_lapack.h>
+#include<gkmx_gpu.hpp>
+
+using namespace hmlp;
+
+
+template <typename TV, typename TC>
+struct kmeans 
+{
+  __host__ __device__ __forceinline__ TC operator()
+  ( 
+    const TV& x, int i, int j, int b 
+  ) const 
+  { 
+    return thrust::make_pair( x , j ); 
+  }
+  TV** A2;
+  TV** B2;
+};
+
+template <typename TC>
+struct argmin 
+{
+  __host__ __device__ __forceinline__ TC operator()
+  ( 
+    const TC& lhs, const TC& rhs, int i, int j, int b 
+  ) const 
+  {
+    return lhs.first < rhs.first ? lhs : rhs;
+  }
+};
+
+
 
 
 template<typename T>
-void kmeans
+void kmeans_ref
 (
   cudaStream_t stream, 
   //hmlpOperation_t transA, hmlpOperation_t transB, 
@@ -21,25 +54,52 @@ void kmeans
 )
 {
   cublasHandle_t handle;
+  cublasCreate( &handle );
 
-  // create handle;
+  thrust::device_vector<T>  Varray( ldc * n * batchSize, 0.0 );
+  thrust::device_vector<T*> Varrayp( batchSize );
 
-  thrust::device_vector<T> Varray( m * n * batchSize, 0.0 );
+  kmeans<T, thrust::pair<T, int> > opkernel;
+  argmin<thrust::pair<T, int> > opreduce;
+
+  for ( int i = 0; i < batchSize; ++ i ) 
+  {
+    Varrayp[ i ] = Varray.data().get() + i * ldc * n;
+  }
 
   xgemm_batched
   (
     handle,
     CUBLAS_OP_T, CUBLAS_OP_N,
+    m, n, k,
     1.0,
     Aarray, lda,
     Barray, ldb, 0.0,
-    Varray, ldc,
+    Varrayp.data().get(), ldc,
     batchSize
   );
 
   // Compute the 2-norm here and reduce
-  
+  gkmx::transform
+  <T, thrust::pair<T, int>, false, true, kmeans<T, thrust::pair<T, int> > >
+  (
+    0,
+    m, n, 
+    Varrayp.data().get(), Varray.data().get(), 
+    Carray, Carray[ 0 ], ldc, ldc * n,
+    batchSize, 
+    opkernel 
+  );
 
+  gkmx::reduce
+  <thrust::pair<T, int>, false, argmin<thrust::pair<T, int> > >
+  (
+    0,
+    m, n,
+    Carray, Carray[ 0 ], ldc, ldc * n,
+    batchSize,
+    opreduce
+  );
 };
 
 void dkmeans
@@ -53,13 +113,13 @@ void dkmeans
   int batchSize
 )
 {
-  keams<double>
+  kmeans_ref<double>
   (
     stream,
     m, n, k,
     Aarray, A2array, lda,
     Barray, B2array, ldb,
-    C,               ldc,
+    Carray,          ldc,
     batchSize
   );
 }
@@ -75,13 +135,13 @@ void skmeans
   int batchSize
 )
 {
-  keams<float>
+  kmeans_ref<float>
   (
     stream,
     m, n, k,
     Aarray, A2array, lda,
     Barray, B2array, ldb,
-    C,               ldc,
+    Carray,          ldc,
     batchSize
   );
 }

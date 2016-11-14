@@ -110,8 +110,8 @@ void test_gkmm( int m, int n, int k, int batchSize )
   cublasCreate( &handle );
 
   cudaEvent_t gkmx_beg, gkmx_end;
-  cublasOperation_t transa = CUBLAS_OP_N; 
-  cublasOperation_t transb = CUBLAS_OP_N;
+  // cublasOperation_t transa = CUBLAS_OP_N; 
+  // cublasOperation_t transb = CUBLAS_OP_N;
   cudaEventCreate( &gkmx_beg );
   cudaEventCreate( &gkmx_end );
 
@@ -243,8 +243,8 @@ void test_gkrm( int m, int n, int k, int batchSize )
   double flops = 0.0;
 
   cudaEvent_t gkmx_beg, gkmx_end;
-  cublasOperation_t transa = CUBLAS_OP_N; 
-  cublasOperation_t transb = CUBLAS_OP_N; 
+  // cublasOperation_t transa = CUBLAS_OP_N; 
+  // cublasOperation_t transb = CUBLAS_OP_N; 
   cudaEventCreate( &gkmx_beg );
   cudaEventCreate( &gkmx_end );
 
@@ -278,7 +278,7 @@ void test_gkrm( int m, int n, int k, int batchSize )
   thrust::device_vector<T*>  d_Ap( batchSize );
   thrust::device_vector<T*>  d_Bp( batchSize );
   thrust::device_vector<TC*> d_Cp( batchSize );
-  thrust::device_vector<T*>  d_Dp( batchSize );
+  thrust::device_vector<TC*> d_Op( batchSize );
 
   thrust::host_vector<TC*>   h_Cp( batchSize );
   thrust::host_vector<TC*>   h_Op( batchSize );
@@ -289,7 +289,7 @@ void test_gkrm( int m, int n, int k, int batchSize )
     d_Ap[ i ] = d_A.data().get() + i * m * k;
     d_Bp[ i ] = d_B.data().get() + i * k * n;
     d_Cp[ i ] = d_C.data().get() + i * m * n;
-    d_Dp[ i ] = d_D.data().get() + i * m * n;
+    d_Op[ i ] = d_O.data().get() + i * m * n;
 
     h_Cp[ i ] = h_C.data() + i * m * n;
     h_Op[ i ] = h_O.data() + i * m * n;
@@ -326,7 +326,7 @@ void test_gkrm( int m, int n, int k, int batchSize )
 
   // batch_cuda_gkrm
   cudaEventRecord( gkmx_beg, 0 );
-  gkrm_dkmean
+  gkrm_dkmeans
   (
     0, 
     HMLP_OP_T, HMLP_OP_N,
@@ -359,6 +359,29 @@ void test_gkrm( int m, int n, int k, int batchSize )
   cudaEventSynchronize( gkmx_end );
   cudaEventElapsedTime( &gkrm_strided_time, gkmx_beg, gkmx_end );
   gkrm_strided_time /= 1000.0;
+
+  // Reference
+  cudaEventRecord( gkmx_beg, 0 );
+  dkmeans
+  (
+    0, 
+    //transa, transb,
+    m, n, k, 
+    d_Ap.data().get(), d_A2p.data().get(), m,
+    d_Bp.data().get(), d_B2p.data().get(), k,
+    d_Op.data().get(), m,
+    batchSize
+  );
+  cudaThreadSynchronize();
+  cudaEventRecord( gkmx_end, 0 );
+  cudaEventSynchronize( gkmx_end );
+  cudaEventElapsedTime( &gkrm_strided_time, gkmx_beg, gkmx_end );
+  gkrm_strided_time /= 1000.0;
+
+
+  thrust::copy( d_C.begin(), d_C.end(), h_C.begin() );
+  thrust::copy( d_O.begin(), d_O.end(), h_O.begin() );
+
 
   flops = ( 2.0 * m * n * k + 3.0 ) * (double)batchSize / ( 1000.0 * 1000.0 * 1000.0 );
   printf( "%4d, %4d, %4d, %4d, %f, %f;\n", m, n, k, batchSize, 
