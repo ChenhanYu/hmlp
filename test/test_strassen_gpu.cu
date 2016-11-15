@@ -45,8 +45,8 @@ void test_strassen( int m, int n, int k, int batchSize )
   cublasCreate( &handle );
 
   cudaEvent_t gkmx_beg, gkmx_end;
-  cublasOperation_t transa = CUBLAS_OP_N; 
-  cublasOperation_t transb = CUBLAS_OP_N;
+  // cublasOperation_t transa = CUBLAS_OP_N; 
+  // cublasOperation_t transb = CUBLAS_OP_N;
   cudaEventCreate( &gkmx_beg );
   cudaEventCreate( &gkmx_end );
 

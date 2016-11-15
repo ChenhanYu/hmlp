@@ -512,20 +512,19 @@ static __device__ void gkrm_device
  *  @brief A simple row-wise reduction, which does not exploit the parallelism
  *         of the binary tree.
  */ 
-template<
-typename T, int DIM_X, int DIM_Y, int BLK_M, int BLK_N, typename OPREDUCE>
+template<typename TC, typename OPREDUCE>
 static __device__
 void reduce_device
 ( 
   int M, int N, 
-  T* __restrict__ C, int LDC,
+  TC* __restrict__ C, int LDC,
   OPREDUCE opreduce
 )
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if ( idx < M ) 
   {
-    T ru = C[ idx ];
+    TC ru = C[ idx ];
     for ( int j = 1; j < N; j ++ ) 
     {
       ru = opreduce( ru, C[ j * LDC + idx ], idx, j, blockIdx.z );    
@@ -535,19 +534,16 @@ void reduce_device
 }
 
 
-template<
-typename T, int DIM_X, int DIM_Y, int BLK_M,
-int BLK_N, typename OPREDUCE>
+template<typename TC, typename OPREDUCE>
 static __global__
 void reduce_kernel
 ( 
   int M, int N, 
-  T** Carray, int LDC,
+  TC** Carray, int LDC,
   OPREDUCE opreduce 
 )
 {
-  reduce_device
-  <T, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
+  reduce_device<TC, OPREDUCE>
   ( 
     M, N, 
     Carray[ blockIdx.z ], LDC, 
@@ -559,25 +555,49 @@ void reduce_kernel
 /*
  *
  */ 
-template<
-typename T, int DIM_X, int DIM_Y, int BLK_M,
-int BLK_N, typename OPREDUCE>
+template<typename TC, typename OPREDUCE>
 static __global__
-void reduce__kernel
+void reduce_kernel
 ( 
   int M, int N, 
-  T* Carray, int LDC, int LOC,
+  TC* Carray, int LDC, int LOC,
   OPREDUCE opreduce 
 )
 {
-  reduce_device 
-  <T, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
+  reduce_device<TC, OPREDUCE>
   ( 
     M, N, 
     Carray + blockIdx.z * LOC, LDC, 
     opreduce 
   );
 };
+
+
+template <typename TC, bool STRIDED, typename OPREDUCE>
+void reduce
+(
+  cudaStream_t stream,
+  int m, int n, 
+  TC* Carray[], TC* C, int ldc, int loc,
+  int batchSize, 
+  OPREDUCE opreduce 
+)
+{
+  dim3 dimBlock( 256, 1 );
+  dim3 dimGrid( ( m - 1 ) / 256 + 1, 1, batchSize );
+  reduce_kernel<TC, OPREDUCE>
+  <<<dimGrid, dimBlock, 0, stream>>>
+  ( 
+    m, n, 
+    Carray, ldc,
+    opreduce 
+  );
+};
+
+
+
+
+
 
 
 
@@ -681,8 +701,7 @@ void gkrm_internal
   dim3 dimBlockReduce( 256, 1 );
   dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
 
-  reduce_kernel
-  <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
+  reduce_kernel<TC, OPREDUCE>
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
   ( 
     m, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y, 
@@ -732,7 +751,7 @@ void gkrm_internal
   dim3 dimBlockReduce( 256, 1 );
   dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
 
-  reduce__kernel
+  reduce_kernel
   <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
   ( 
@@ -886,6 +905,89 @@ void sq2nrm
     X2array, Xarray, X, ldx, lox 
   );
 };
+
+
+
+/**
+ *  @brief  Compute kernel value element-wise.
+ *
+ */ 
+template <typename TV, typename TC, bool SQ2NRM, typename OPKERNEL>
+static __device__ void transform_device
+(
+  int m, int n, 
+  TV* __restrict__ V, 
+  TC* __restrict__ C, int ldc, 
+  OPKERNEL opkernel 
+)
+{
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+  __shared__ TV sA2[ 16 ];
+  __shared__ TV sB2[ 16 ];
+
+  if ( idx < m && idy < n ) 
+  {
+    if ( SQ2NRM ) 
+    {
+      sA2[ threadIdx.x ] = opkernel.A2[ blockIdx.z ][ idx ];
+      sB2[ threadIdx.y ] = opkernel.B2[ blockIdx.z ][ idy ];
+      __syncthreads();
+      V[ idy * ldc + idx ] *= -2.0;
+      V[ idy * ldc + idx ] += sA2[ threadIdx.x ] + sB2[ threadIdx.y ];
+    }
+    //C[ idy * ldc + idx ] = opkernel( C[ idy * ldc + idx ], idx, idy, blockIdx.z );
+    C[ idy * ldc + idx ] = opkernel( V[ idy * ldc + idx ], idx, idy, blockIdx.z );
+  }
+};
+
+template <typename TV, typename TC, bool STRIDED, bool SQ2NRM, typename OPKERNEL>
+static __global__ void transform_kernel
+(
+  int m, int n, 
+  TV* Varray[], TV* V, 
+  TC* Carray[], TC* C, int ldc, int loc,
+  OPKERNEL opkernel 
+)
+{
+  int batchid = blockIdx.z;
+  transform_device<TV, TC, SQ2NRM, OPKERNEL>
+  ( 
+    m, n, 
+    Varray[ batchid ], 
+    Carray[ batchid ], ldc, 
+    opkernel 
+  );
+};
+
+template <typename TV, typename TC, bool STRIDED, bool SQ2NRM, typename OPKERNEL>
+void transform
+(
+  cudaStream_t stream,
+  int m, int n, 
+  TV* Varray[], TV* V, 
+  TC* Carray[], TC* C, int ldc, int loc,
+  int batchSize, 
+  OPKERNEL opkernel 
+)
+{
+  dim3 dimBlock( 16, 16 );
+  dim3 dimGrid( ( m - 1 ) / 16 + 1, ( n - 1 ) / 16 + 1, batchSize );
+  transform_kernel<TV, TC, STRIDED, SQ2NRM, OPKERNEL>
+  <<<dimGrid, dimBlock, 0, 0>>>
+  ( 
+    m, n, 
+    Varray, V, 
+    Carray, C, ldc, loc, 
+    opkernel 
+  );
+};
+
+
+
+
+
 
 
 

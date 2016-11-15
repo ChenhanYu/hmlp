@@ -164,10 +164,20 @@ void gkmm_dfma
   int batchSize
 );
 
-void gkrm_dkmean
+void gkrm_dkmeans
 (
   cudaStream_t stream, 
   hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  double *Aarray[], double *A2array[], int lda,
+  double *Barray[], double *B2array[], int ldb,
+  thrust::pair<double,int>  *Carray[], int ldc, 
+  int batchSize
+);
+
+void dkmeans
+(
+  cudaStream_t stream, 
   int m, int n, int k,
   double *Aarray[], double *A2array[], int lda,
   double *Barray[], double *B2array[], int ldb,
