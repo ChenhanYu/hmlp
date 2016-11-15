@@ -130,6 +130,7 @@ void fused_macro_kernel
   TB *packB,
   TC *C, int ldc,
   TV *V, int ldv,
+  int batchId,
   FUSEDKERNEL fusedkernel
 )
 {
@@ -154,6 +155,12 @@ void fused_macro_kernel
               i  < loop2nd.end(); 
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
+      // These auxiluary infos are used to access data in the closure of
+      // opkernel and opreduce.
+      aux.i = ic + i;
+      aux.j = jc + j;
+      aux.b = batchId;
+
       aux.ib = std::min( m - i, MR );
       if ( i + MR >= m ) 
       {
@@ -224,6 +231,7 @@ void gkmx_internal
   TB *B, int ldb,
   TC *C, int ldc,
   TV *V, int ldv,
+  int batchId,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel,
   int nc, int pack_nc,
@@ -323,6 +331,7 @@ void gkmx_internal
             packB, 
             C + jc * ldc + ic, ldc,
             V + jc * ldv + ic, ldv,
+            batchId,
             microkernel
           );
         }
@@ -369,6 +378,7 @@ void gkmx
   TA *A, int lda,
   TB *B, int ldb,
   TC *C, int ldc,
+  int batchId,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel
 )
@@ -483,6 +493,7 @@ void gkmx
       B, ldb,
       C, ldc,
       V, ldv,
+      batchId,
       semiringkernel, microkernel,
       nc, pack_nc,
       packA_buff,
@@ -520,6 +531,7 @@ void gkmm
   TA *A, int lda,
   TB *B, int ldb,
   TC *C, int ldc,
+  int batchId,
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
 )
 {
@@ -547,13 +559,14 @@ void gkmm
     A, lda,
     B, ldb,
     C, ldc,
+    batchId,
     semiringkernel, gkmmkernel
   );
 };
 
 
 /**
- *  batched interface
+ *  batched interface with array of arrays
  *
  *  TODO: the problem is how to manage thread here? Do I want to use omp
  *  nested? or there is a better way to deal with this.
@@ -590,10 +603,58 @@ void gkmm
       Aarray[ b ], lda,
       Barray[ b ], ldb,
       Carray[ b ], ldc,
+      b,
       opkernel, op1, op2, initV
     );
   }
 };
+
+
+/**
+ *  batched interface with strides
+ *
+ *  TODO: the problem is how to manage thread here? Do I want to use omp
+ *  nested? or there is a better way to deal with this.
+ *
+ */ 
+template<
+  int MC, int NC, int KC, int MR, int NR, 
+  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
+  bool USE_STRASSEN,
+  typename OPKERNEL, typename OP1, typename OP2,
+  typename TA, typename TB, typename TC, typename TV>
+void gkmm
+(
+  hmlpOperation_t transA, hmlpOperation_t transB,
+  int m, int n, int k,
+  TA *Aarray, int lda, int loa, 
+  TB *Barray, int ldb, int lob,
+  TC *Carray, int ldc, int loc,
+  int batchSize,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
+)
+{
+  #pragma omp parallel for
+  for ( auto b = 0; b < batchSize; b ++ )
+  {
+    gkmm
+    <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+    USE_STRASSEN,
+    OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+    (
+      transA, transB,
+      m, n, k, 
+      Aarray + b * loa, lda,
+      Barray + b * lob, ldb,
+      Carray + b * loc, ldc,
+      b,
+      opkernel, op1, op2, initV
+    );
+  }
+};
+
+
 
 
 
@@ -639,6 +700,7 @@ void gkrm
   TA *A, int lda,
   TB *B, int ldb,
   TC *C, int ldc,
+  int batchId,
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, 
   OPREDUCE opreduce, TC initC
 )
@@ -669,6 +731,7 @@ void gkrm
     A, lda,
     B, ldb,
     C, 0, // TODO: is there a better way to do this?
+    batchId,
     semiringkernel, gkrmkernel
   );
 };

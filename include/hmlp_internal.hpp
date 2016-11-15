@@ -23,23 +23,29 @@ struct aux_s
 
   TC *c_buff;
 
+  // For gsknn
   TV *D;
 
   int *I;
 
+  int ldr;
+
+  // index for gkmx to access data in the closure of opkernel and opreduce.
+  int i;
+
+  int j;
+
+  int b;
+
+  // edge case problem size
   int ib;
 
   int jb;
 
-  int icir;
-
-  int jcjr;
-
+  // whether this is the first rank-k update.
   int pc;
 
   int do_packC;
-
-  int ldr;
 
   int ldc;
 };

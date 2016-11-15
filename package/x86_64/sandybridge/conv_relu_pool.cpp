@@ -30,6 +30,7 @@ void gkmx_dconv_relu_pool(
 	  A, lda,
 	  B, ldb,
 	  C, ldc,
+    0, // batchId
 	  semiringkernel,
 	  microkernel
 	);

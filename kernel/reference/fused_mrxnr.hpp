@@ -60,7 +60,7 @@ struct gkmm_mrxnr
     for ( int j = 0; j < NR; j ++ )
       #pragma simd
       for ( int i = 0; i < MR; i ++ )
-        c[ j * ldc + i ] = opkernel( regV[ j * MR + i ] );
+        c[ j * ldc + i ] = opkernel( regV[ j * MR + i ], aux->i, aux->j, aux->b );
   };
 
 
@@ -108,7 +108,7 @@ struct gkmm_mrxnr
     for ( int j = 0; j < NR; j ++ )
       #pragma simd
       for ( int i = 0; i < MR; i ++ )
-        v[ j * ldv + i ] = opkernel( regV[ j * MR + i ] );
+        v[ j * ldv + i ] = opkernel( regV[ j * MR + i ], aux->i, aux->j, aux->b );
   };
 };
 
@@ -177,7 +177,7 @@ struct gkrm_mrxnr
     for ( int j = 0; j < NR; j ++ )
       #pragma simd
       for ( int i = 0; i < MR; i ++ )
-        regC[ i ] = opreduce( regC[ i ], opkernel( regV[ j * MR + i ] ) );
+        regC[ i ] = opreduce( regC[ i ], opkernel( regV[ j * MR + i ], aux->i, aux->j, aux->b ), aux->i, aux->j, aux->b );
 
     #pragma simd
     for ( int i = 0; i < MR; i ++ )
