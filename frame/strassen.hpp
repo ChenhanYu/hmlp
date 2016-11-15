@@ -45,8 +45,7 @@
 #include <hmlp_internal.hpp>
 #include <hmlp_packing.hpp>
 #include <hmlp_util.hpp>
-#include <hmlp_thread_communicator.hpp>
-//#include <hmlp_thread_info.hpp>
+#include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
 

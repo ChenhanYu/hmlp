@@ -10,13 +10,13 @@
 
 extern "C"
 {
-  void dgemm_( char *transA, char *transB, 
+  void dgemm_( const char *transA, const char *transB, 
       int *m, int *n, int *k, 
       double *alpha,
       double *A, int *lda, 
       double *B, int *ldb, double *beta, 
       double *C, int *ldc );
-  void sgemm_( char *transA, char *transB, 
+  void sgemm_( const char *transA, const char *transB, 
       int *m, int *n, int *k, 
       float *alpha,
       float *A, int *lda, 
@@ -38,7 +38,7 @@ void xgemm
   double *C, int ldc
 )
 {
-#ifdef HMLP_USE_BLAS
+#ifdef USE_BLAS
   dgemm_
   (
     transA, transB, 
@@ -95,7 +95,7 @@ void xgemm
   float *C, int ldc
 )
 {
-#ifdef HMLP_USE_BLAS
+#ifdef USE_BLAS
   sgemm_
   (
    transA, transB, 

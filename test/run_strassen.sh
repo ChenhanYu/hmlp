@@ -7,7 +7,7 @@ kinc=31
 echo 'gemm = ['
 for (( k=kmin; k<kmax; k+=kinc ))
 do
-  ./test_gkmx.x $m $n $k
+  ./test_strassen.x $m $n $k
 done
 echo '];'
 
@@ -19,6 +19,6 @@ ninc=31
 echo 'gemm = ['
 for (( n=nmin; n<nmax; n+=ninc ))
 do
-  ./test_gkmx.x $n $n $k
+  ./test_strassen.x $n $n $k
 done
 echo '];'

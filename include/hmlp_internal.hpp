@@ -30,6 +30,10 @@ struct aux_s
 
   int jb;
 
+  int icir;
+
+  int jcjr;
+
   int pc;
 
   int do_packC;

@@ -9,8 +9,7 @@
 #include <hmlp_internal.hpp>
 #include <hmlp_packing.hpp>
 #include <hmlp_util.hpp>
-#include <hmlp_thread_communicator.hpp>
-//#include <hmlp_thread_info.hpp>
+#include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
 // For USE_STRASSEN
@@ -613,7 +612,11 @@ void gkmm
 
 
 /**
- *  @beief  
+ *  @beief Implement GKRM with GKMX template. Notice that OPREDUCE 
+ *         is handled inside fusedkernel. Updating microkernel has 
+ *         to be atomic if jc_nt or jr_nt is not 1. We may be atomic
+ *         update.
+ *         
  */ 
 template<
   int MC            = 104, 

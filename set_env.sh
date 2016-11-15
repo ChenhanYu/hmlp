@@ -50,7 +50,7 @@ echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 ## Parallel options
 # export KMP_AFFINITY=compact
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=4
 export KS_JC_NT=1
-export KS_IC_NT=1
+export KS_IC_NT=4
 export KS_JR_NT=1

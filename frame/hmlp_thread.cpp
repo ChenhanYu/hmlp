@@ -1,4 +1,4 @@
-#include <hmlp_thread_communicator.hpp>
+#include <hmlp_thread.hpp>
 
 namespace hmlp
 {
