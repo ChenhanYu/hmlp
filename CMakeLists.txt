@@ -50,6 +50,13 @@ set (HMLP_VERSION_PATCH 0)
 set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
 
 
+
+# Remove -rdynamic
+# ---------------------------
+set (CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
+set (CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
+
+
 # Cross compilation for Android OS
 # ---------------------------
 if ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm")
@@ -104,7 +111,7 @@ endif ()
 
 if ($ENV{HMLP_USE_BLAS} MATCHES "true")
   set(BLA_STATIC on)
-  find_package (BLAS REQUIRED)
+  #find_package (BLAS REQUIRED)
   set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
 endif ()
 
@@ -160,10 +167,10 @@ file (GLOB PACKAGE_CU_SRC ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 # Build the static library.
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  cuda_add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+  cuda_add_library (hmlp STATIC ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${FRAME_CU_SRC} ${PACKAGE_CU_SRC})
 else ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  add_library (hmlp ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+  add_library (hmlp STATIC ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
   if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND NOT ($ENV{HMLP_USE_INTEL} MATCHES "true"))
     target_link_libraries (hmlp ${BLAS_LIBRARIES})
@@ -176,6 +183,9 @@ endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 # Build the executable files.
 # ---------------------------
+
+add_executable (hello_world.x ${CMAKE_SOURCE_DIR}/test/hello_world.cpp)
+#target_link_libraries(hello_world.x hmlp)
 
 
 # Build GSKS test suit
