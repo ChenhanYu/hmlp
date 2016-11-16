@@ -378,9 +378,23 @@ void test_gkrm( int m, int n, int k, int batchSize )
   cudaEventElapsedTime( &gkrm_strided_time, gkmx_beg, gkmx_end );
   gkrm_strided_time /= 1000.0;
 
-
   thrust::copy( d_C.begin(), d_C.end(), h_C.begin() );
   thrust::copy( d_O.begin(), d_O.end(), h_O.begin() );
+
+  // Compute error
+  for ( int b = 0; b < batchSize; b++ )
+  {
+    for ( int i = 0; i < m; i ++ )
+    {
+      if ( h_C[ i ].second != h_O[ i ].second )
+      {
+        printf( "C[%4d] = (%5.2lf,%4d) != (%5.2lf,%4d) = O[%4d]\n",
+            i, h_C[ i + b * m * n ].first, h_C[ i + b * m * n ].second, 
+            h_O[ i + b * m * n ].first, h_C[ i + b * m * n ].second, i );
+        break;
+      }
+    }
+  }
 
 
   flops = ( 2.0 * m * n * k + 3.0 ) * (double)batchSize / ( 1000.0 * 1000.0 * 1000.0 );

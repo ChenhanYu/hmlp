@@ -937,7 +937,6 @@ static __device__ void transform_device
       V[ idy * ldc + idx ] *= -2.0;
       V[ idy * ldc + idx ] += sA2[ threadIdx.x ] + sB2[ threadIdx.y ];
     }
-    //C[ idy * ldc + idx ] = opkernel( C[ idy * ldc + idx ], idx, idy, blockIdx.z );
     C[ idy * ldc + idx ] = opkernel( V[ idy * ldc + idx ], idx, idy, blockIdx.z );
   }
 };
@@ -975,7 +974,7 @@ void transform
   dim3 dimBlock( 16, 16 );
   dim3 dimGrid( ( m - 1 ) / 16 + 1, ( n - 1 ) / 16 + 1, batchSize );
   transform_kernel<TV, TC, STRIDED, SQ2NRM, OPKERNEL>
-  <<<dimGrid, dimBlock, 0, 0>>>
+  <<<dimGrid, dimBlock, 0, stream>>>
   ( 
     m, n, 
     Varray, V, 

@@ -62,6 +62,10 @@ void kmeans_ref
   kmeans<T, thrust::pair<T, int> > opkernel;
   argmin<thrust::pair<T, int> > opreduce;
 
+  opkernel.A2 = A2array;
+  opkernel.B2 = B2array;
+
+
   for ( int i = 0; i < batchSize; ++ i ) 
   {
     Varrayp[ i ] = Varray.data().get() + i * ldc * n;
@@ -85,8 +89,8 @@ void kmeans_ref
   (
     0,
     m, n, 
-    Varrayp.data().get(), Varray.data().get(), 
-    Carray, Carray[ 0 ], ldc, ldc * n,
+    Varrayp.data().get(), (T*)NULL, 
+    Carray, (thrust::pair<T, int>*)NULL, ldc, ldc * n,
     batchSize, 
     opkernel 
   );
