@@ -119,6 +119,7 @@ void rank_k_macro_kernel
  */ 
 template<
 int KC, int MR, int NR, int PACK_MR, int PACK_NR,
+bool REUSE_C,
 typename FUSEDKERNEL,
 typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
@@ -149,7 +150,6 @@ void fused_macro_kernel
     aux.pc       = pc;
     aux.b_next   = packB;
     aux.do_packC = 0;
-    aux.jb       = std::min( n - j, NR );
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
               i  < loop2nd.end(); 
@@ -162,6 +162,11 @@ void fused_macro_kernel
       aux.b = batchId;
 
       aux.ib = std::min( m - i, MR );
+      aux.jb = std::min( n - j, NR );
+
+      aux.V = V + j * ldv + i;
+      aux.ldv = ldv;
+
       if ( i + MR >= m ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
@@ -175,7 +180,6 @@ void fused_macro_kernel
           &packA[ ip * k ],
           &packB[ jp * k ],
           &C[ j * ldc + i ], ldc,
-          //&V[ j * ldc + i ], ldv,
           //&C[ ( j / NR ) * ldc + i ], ldc, // for conv_relu_pool
           &aux
         );
@@ -183,13 +187,24 @@ void fused_macro_kernel
       else                                                 // corner case
       {
         TC ctmp[ MR * NR ];
-        //TV vtmp[ MR * NR ];
+        TV vtmp[ MR * NR ];
 
         if ( pc ) // initilize ctmp
         {
-          for ( auto jj = 0; jj < aux.jb; jj ++ )
-            for ( auto ii = 0; ii < aux.ib; ii ++ )
-              ctmp[ jj * MR + ii ] = C[ ( j + jj ) * ldc + i + ii ];
+          if ( REUSE_C )
+          {
+            for ( auto jj = 0; jj < aux.jb; jj ++ )
+              for ( auto ii = 0; ii < aux.ib; ii ++ )
+                ctmp[ jj * MR + ii ] = C[ ( j + jj ) * ldc + i + ii ];
+          }
+          else
+          {
+            for ( auto jj = 0; jj < aux.jb; jj ++ )
+              for ( auto ii = 0; ii < aux.ib; ii ++ )
+                vtmp[ jj * MR + ii ] = V[ ( j + jj ) * ldv + i + ii ];
+            aux.V = vtmp;
+            aux.ldv = MR;
+          }
         }
 
         fusedkernel
@@ -198,7 +213,6 @@ void fused_macro_kernel
           &packA[ ip * k ],
           &packB[ jp * k ],
           ctmp, MR,
-          //vtmp, MR,
           &aux
         );
 
@@ -209,7 +223,9 @@ void fused_macro_kernel
       }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
-}                                                          // end fused_macro_kernel
+};                                                         // end fused_macro_kernel
+
+
 
 
 
@@ -219,7 +235,7 @@ void fused_macro_kernel
 template<
   int MC, int NC, int KC, int MR, int NR, 
   int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
-  bool USE_STRASSEN,
+  bool USE_STRASSEN, bool REUSE_C,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
 void gkmx_internal
@@ -322,7 +338,7 @@ void gkmx_internal
         if ( is_the_last_pc_iteration )                    // fused_macro_kernel
         {
           fused_macro_kernel
-          <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
+          <KC, MR, NR, PACK_MR, PACK_NR, REUSE_C, MICROKERNEL, TA, TB, TC, TV>
           (
             thread, 
             ic, jc, pc,
@@ -330,7 +346,7 @@ void gkmx_internal
             packA, 
             packB, 
             C + jc * ldc + ic, ldc,
-            V + jc * ldv + ic, ldv,
+            V + jc * ldv + ic, ldv, // if REUSE_C, then V = C.
             batchId,
             microkernel
           );
@@ -368,7 +384,7 @@ void gkmx_internal
 template<
   int MC, int NC, int KC, int MR, int NR, 
   int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
-  bool USE_STRASSEN = false,
+  bool USE_STRASSEN = false, bool REUSE_C,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV = TC>
 void gkmx
@@ -422,7 +438,7 @@ void gkmx
 
 
   // allocate V if k > KC
-  if ( k > KC && typeid(TC) != typeid(TV) )
+  if ( k > KC && !std::is_same<TC, TV>::value && !REUSE_C )
   {
     V = hmlp_malloc<ALIGN_SIZE, TV>( m * n );
     ldv = m;
@@ -482,7 +498,7 @@ void gkmx
     gkmx_internal
     <MC, NC, KC, MR, NR, 
     PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
-    USE_STRASSEN,
+    USE_STRASSEN, REUSE_C,
     SEMIRINGKERNEL, MICROKERNEL,
     TA, TB, TC, TV>
     (
@@ -507,6 +523,9 @@ void gkmx
 };                                                         // end gkmx
 
 
+
+
+
 /**
  *  @beief  
  */ 
@@ -522,6 +541,7 @@ template<
   int PACK_NR       = 4, 
   int ALIGN_SIZE    = 32,
   bool USE_STRASSEN = false,
+  bool REUSE_C = false,
   typename OPKERNEL, typename OP1, typename OP2,
   typename TA, typename TB, typename TC, typename TV>
 void gkmm
@@ -549,7 +569,7 @@ void gkmm
 
   gkmx
   <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
-  USE_STRASSEN,
+  USE_STRASSEN, REUSE_C,
   semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
   gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
   TA, TB, TC, TV>
@@ -575,7 +595,7 @@ void gkmm
 template<
   int MC, int NC, int KC, int MR, int NR, 
   int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
-  bool USE_STRASSEN,
+  bool USE_STRASSEN, bool REUSE_C,
   typename OPKERNEL, typename OP1, typename OP2,
   typename TA, typename TB, typename TC, typename TV>
 void gkmm
@@ -620,7 +640,7 @@ void gkmm
 template<
   int MC, int NC, int KC, int MR, int NR, 
   int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
-  bool USE_STRASSEN,
+  bool USE_STRASSEN, bool REUSE_C,
   typename OPKERNEL, typename OP1, typename OP2,
   typename TA, typename TB, typename TC, typename TV>
 void gkmm
@@ -639,7 +659,7 @@ void gkmm
   {
     gkmm
     <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
-    USE_STRASSEN,
+    USE_STRASSEN, REUSE_C,
     OPKERNEL, OP1, OP2,
     TA, TB, TC, TV>
     (

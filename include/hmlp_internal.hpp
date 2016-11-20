@@ -22,6 +22,10 @@ struct aux_s
   TB *b_next;
 
   TC *c_buff;
+   
+  TV *V;
+
+  int ldv;
 
   // For gsknn
   TV *D;

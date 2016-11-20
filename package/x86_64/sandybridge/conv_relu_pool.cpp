@@ -21,7 +21,7 @@ void gkmx_dconv_relu_pool(
   conv_relu_pool2x2_asm_d8x4 microkernel;
   gkmx
   <104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
-  false,
+  false, false,
 	rank_k_asm_d8x4, conv_relu_pool2x2_asm_d8x4,
 	double, double, double, double>
 	(
