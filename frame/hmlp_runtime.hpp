@@ -3,6 +3,8 @@
 
 #include <tuple>
 #include <deque>
+#include <cstdint>
+#include <cassert>
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -95,47 +97,46 @@ class Lock
 
 class Task
 {
-  Worker *worker;
+  public:
 
-  std::string name;
+    Task();
 
-  std::string label;
+    ~Task();
 
-  int taskid;
+    Worker *worker;
 
-  Lock task_lock;
-  
-  float cost;
+    std::string name;
 
-  // priority
+    std::string label;
 
-  /* function ptr */
-  void (*function)(void*);
+    int taskid;
 
-  volatile TaskStatus status;
+    Lock task_lock;
 
-  volatile int n_dependencies_remaining;
+    float cost;
 
-  /* dependency */
-  std::deque<Task*> in;
+    // priority
 
-  std::deque<Task*> out;
+    void Enqueue();
 
-  // argument list
-  // arg
+    /* function ptr */
+    void (*function)(void*);
+
+    volatile TaskStatus status;
+
+    volatile int n_dependencies_remaining;
+
+    /* dependency */
+    void DependenciesUpdate();
+
+    std::deque<Task*> in;
+
+    std::deque<Task*> out;
+
+    // argument list
+    // arg
 
 };
-
-
-
-
-
-
-
-
-
-
-
 
 
 class Scheduler
@@ -148,22 +149,24 @@ class Scheduler
 
     void Init( int n_worker );
 
-  private:
+    void Finalize();
 
-    void EntryPoint();
+    int n_task;
 
     std::deque<Task*> ready_queue[ MAX_WORKER ];
 
     float time_remaining[ MAX_WORKER ];
 
-    int ntask;
+    Lock ready_queue_lock[ MAX_WORKER ];
+
+    Lock n_task_lock;
+
+  private:
+
+    static void* EntryPoint( void* );
 
     // lock
     Lock run_lock[ MAX_WORKER ];
-
-    Lock ready_queue_lock[ MAX_WORKER ];
-
-    Lock ntask_lock;
 
     Lock pci_lock;
 
@@ -177,7 +180,7 @@ class RunTime
 
     RunTime();
 
-    //~RunTime();
+    ~RunTime();
 
     void Init();
 
@@ -189,6 +192,12 @@ class RunTime
 
     //void release_memory( void* ptr );
 
+    int n_worker;
+
+    Worker workers[ MAX_WORKER ];
+
+    Scheduler scheduler;
+
   private:
     
     bool is_init = false;
@@ -196,20 +205,9 @@ class RunTime
     //std::size_t pool_size_in_bytes;
 
     //void *pool;
-
-    int n_worker;
-
-    Worker workers[ MAX_WORKER ];
-
-    static Scheduler scheduler;
-
 };
 
-// Create the global runtime object.
-static RunTime rt;
-
 }; // end namespace hmlp
-
 
 
 #endif // define HMLP_RUNTIME_HPP

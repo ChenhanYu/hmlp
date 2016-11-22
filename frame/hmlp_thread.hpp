@@ -64,6 +64,12 @@ class Worker
    
     Worker( thread_communicator *my_comm );
 
+    bool Execute( class Task *task );
+
+    float EstimateCost( class Task* task );
+
+    class Scheduler *scheduler;
+
 #ifdef USE_PTHREAD_RUNTIME
     pthread_t pthreadid;
 #endif

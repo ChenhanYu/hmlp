@@ -116,6 +116,11 @@ if ($ENV{HMLP_USE_BLAS} MATCHES "true")
 endif ()
 
 
+# Pthread runtime
+# ---------------------------
+set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_PTHREAD_RUNTIME")
+
+
 # Setup all flags
 # ---------------------------
 set (CMAKE_C_FLAGS        "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")

@@ -141,8 +141,15 @@ Worker::Worker( thread_communicator *comm ) :
   //    tid, jc_id, pc_id, ic_id, jr_id, ic_jr );
 };
 
+bool Worker::Execute( class Task *task )
+{
+  return true;
+}
 
-
+float Worker::EstimateCost( class Task * task )
+{
+  return 0.0;
+}
 
 
 
