@@ -69,7 +69,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void rank_k_macro_kernel
 (
-  worker &thread,
+  Worker &thread,
   int ic, int jc, int pc,
   int  m, int n,  int  k,
   TA *packA,
@@ -223,7 +223,7 @@ void rank_k_macro_kernel
 //    typename TA, typename TB, typename TC, typename TV>
 //void fused_macro_kernel
 //(
-//  worker &thread,
+//  Worker &thread,
 //  int ic, int jc, int pc,
 //  int  m,  int n,  int k,
 //  TA *packA,
@@ -380,7 +380,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void straprim
 (
-  worker &thread,
+  Worker &thread,
   hmlpOperation_t transA, hmlpOperation_t transB,
   int m, int n, int k,
   TA *A0, TA *A1, int lda, TA gamma,
@@ -658,7 +658,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void straprim
 (
-  worker &thread,
+  Worker &thread,
   hmlpOperation_t transA, hmlpOperation_t transB,
   int m, int n, int k,
   TA *A0, TA *A1, int lda, TA gamma, int *amap,
@@ -1058,7 +1058,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void strassen_internal
 (
-  worker &thread,
+  Worker &thread,
   hmlpOperation_t transA, hmlpOperation_t transB,
   int m, int n, int k,
   TA *A, int lda, int *amap,
@@ -1130,7 +1130,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void strassen_internal
 (
-  worker &thread,
+  Worker &thread,
   hmlpOperation_t transA, hmlpOperation_t transB,
   int m, int n, int k,
   TA *A, int lda,
@@ -1267,7 +1267,7 @@ void strassen
 
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
-    worker thread( &my_comm );
+    Worker thread( &my_comm );
 
     strassen_internal
     <MC, NC, KC, MR, NR,

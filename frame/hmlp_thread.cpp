@@ -104,9 +104,10 @@ void thread_communicator::Print()
   Barrier();
 };
 
+Worker::Worker()
+{};
 
-
-worker::worker( thread_communicator *comm ) :
+Worker::Worker( thread_communicator *comm ) :
   tid( 0 ), jc_id( 0 ), pc_id( 0 ), ic_id( 0 ), jr_id( 0 )
 {
   int tmp;

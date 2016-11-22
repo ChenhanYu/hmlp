@@ -8,29 +8,12 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
+#define DEBUG_CONV2D 1
+
 namespace hmlp
 {
 namespace cnn
 {
-
-#define min( i, j ) ( (i)<(j) ? (i): (j) )
-
-/**
- *  @CHENHAN: write your packing routines here instead of using those in
- *  hmlp_packing.hpp.
- */ 
-
-template<int FOLD, bool ZEROPAD = false, typename T>
-void my_packA( /* Define what parameters you need. */ )
-{
-};
-
-template<int FOLD, bool ZEROPAD = false, typename T>
-void my_packB( /* Define what parameters you need. */ )
-{
-};
-
-
 
 /**
  *
@@ -65,13 +48,13 @@ void rank_k_macro_kernel
     aux.pc       = pc;
     aux.b_next   = packB;
     aux.do_packC = 0;
-    aux.jb       = min( n - j, NR );
+    aux.jb       = std::min( n - j, NR );
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
               i  < loop2nd.end(); 
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
-      aux.ib = min( m - i, MR );
+      aux.ib = std::min( m - i, MR );
       if ( aux.ib != MR ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
@@ -157,13 +140,13 @@ void fused_macro_kernel
     aux.pc       = pc;
     aux.b_next   = packB;
     aux.do_packC = 0;
-    aux.jb       = min( n - j, NR );
+    aux.jb       = std::min( n - j, NR );
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
               i  < loop2nd.end(); 
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
-      aux.ib = min( m - i, MR );
+      aux.ib = std::min( m - i, MR );
       if ( aux.ib != MR ) 
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
@@ -229,14 +212,14 @@ template<
   bool USE_STRASSEN,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
-void cnn_internal
+void conv2d_internal
 (
   Worker &thread,
-  hmlpOperation_t transA, hmlpOperation_t transB,
-  int m, int n, int k,
-  TA *A, int lda,
-  TB *B, int ldb,
-  TC *C, int ldc,
+  int w0, int h0, int d0, int s, int p,
+  TB *B, 
+  int w1, int h1, int d1,
+  TA *A,
+  TC *C,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel,
   int nc, int pack_nc,
@@ -248,10 +231,17 @@ void cnn_internal
           + ( thread.ic_id                               ) * PACK_MC * KC;
   packB  += ( thread.jc_id                               ) * pack_nc * KC;
 
+
+  // Now compute parameters such that I can transform the problem into GEMM.
+  int m = d1;
+  int nx = ( w0 - w1 + 2 * p ) / s + 1;
+  int ny = ( h0 - h1 + 2 * p ) / s + 1;
+  int n = nx * ny;
+  int k = w1 * h1 * d0;
+
   auto loop6th = GetRange( 0, n, nc, thread.jc_id, thread.jc_nt );
   auto loop5th = GetRange( 0, k, KC );
   auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );
-
 
   /*
    *  @CHENHAN: loop over your filters.
@@ -261,21 +251,21 @@ void cnn_internal
             jc += loop6th.inc() )                          // beg 6th loop 
   {
     auto &jc_comm = *thread.jc_comm;
-    auto jb = min( n - jc, nc );
+    auto jb = std::min( n - jc, nc );
 
     /*
-     *  @CHENHAN: loop over your window size (width*length).
+     *  @CHENHAN: loop over your window size ( w1 * h1 * d0 ).
      */ 
     for ( int pc  = loop5th.beg();
               pc  < loop5th.end();
               pc += loop5th.inc() )
     {
       auto &pc_comm = *thread.pc_comm;
-      auto pb = min( k - pc, KC );
+      auto pb = std::min( k - pc, KC );
       auto is_the_last_pc_iteration = ( pc + KC >= k );
 
       /*
-       *  @CHENHAN: pack your filters into packB.
+       *  @CHENHAN: pack image into packB.
        */ 
       auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
       auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
@@ -284,63 +274,53 @@ void cnn_internal
                 j   < looppkB.end(); 
                 j  += looppkB.inc(), jp += packpkB.inc() ) 
       {
-        if ( transB == HMLP_OP_N )
-        {
-          pack2D<true, PACK_NR>                            // packB
-          (
-            min( jb - j, NR ), pb, 
-            &B[ ( jc + j ) * ldb + pc ], ldb, &packB[ jp * pb ] 
-          );
-        }
-        else
-        {
-          pack2D<false, PACK_NR>                           // packB (transB)
-          (
-            min( jb - j, NR ), pb, 
-            &B[ pc * ldb + ( jc + j ) ], ldb, &packB[ jp * pb ] 
-          );
-        }
+        auto x0 = ( ( jc + j ) % nx ) * s - p; // top-left
+        auto y0 = ( ( jc + j ) / nx ) * s - p; // top-left
+
+#ifdef DEBUG_CONV2D
+        printf( "x0 %4d y0 %4d\n", x0, y0 );
+#endif
+
+        pack2Dimg<PACK_NR>                            // packB
+        (
+          std::min( jb - j, NR ), pb, 
+          &packB[ jp  * pb ], 
+          x0, y0, pc,
+          B,
+          w0, h0, d0, s, p,
+          w1, h1 
+        );
       }
       pc_comm.Barrier();
 
-      /*
-       *  @CHENHAN: loop over windows of your image.
-       */ 
+
+#ifdef DEBUG_CONV2D
+      for ( int i = 0; i < pb; i ++ )
+      {
+        for ( int jj = 0; jj < jb; jj += NR )
+        {
+          for ( int j = 0; j < NR; j ++ )
+          {
+            printf( "%5.2lf ", packB[ jj * pb + i * NR + j ] );
+          }
+          printf( "   " );
+        }
+        printf( "\n" );
+      }
+      printf( "\n" );
+#endif
+
+
       for ( int ic  = loop4th.beg(); 
                 ic  < loop4th.end(); 
                 ic += loop4th.inc() )                      // beg 4th loop
       {
         auto &ic_comm = *thread.ic_comm;
-        auto ib = min( m - ic, MC );
+        auto ib = std::min( m - ic, MC );
 
         /*
-         *  @CHENHAN: pack your windows into packA.
+         *  @CHENHAN: assume filters were already packed format.
          */  
-        auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt ); 
-        auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt ); 
-
-        for ( int i   = looppkA.beg(), ip  = packpkA.beg();  
-                  i   < looppkA.end(); 
-                  i  += looppkA.inc(), ip += packpkA.inc() )     
-        {
-          if ( transA == HMLP_OP_N )
-          {
-            pack2D<false, PACK_MR>                         // packA 
-            ( 
-              min( ib - i, MR ), pb,
-              &A[ pc * lda + ( ic + i ) ], lda, &packA[ ip * pb ] 
-            );
-          }
-          else
-          {
-            pack2D<true, PACK_MR>                          // packA (transA)
-            ( 
-              min( ib - i, MR ), pb,
-              &A[ ( ic + i ) * lda + pc ], lda, &packA[ ip * pb ] 
-            );
-          }
-        }
-        ic_comm.Barrier();
 
         if ( is_the_last_pc_iteration )                    // fused_macro_kernel
         {
@@ -352,7 +332,7 @@ void cnn_internal
             ib, jb, pb,
             packA, 
             packB, 
-            C + jc * ldc + ic, ldc, 
+            C + jc * m + ic, m, 
             microkernel
           );
         }
@@ -366,7 +346,7 @@ void cnn_internal
             ib, jb, pb,
             packA,
             packB,
-            C + jc * ldc + ic, ldc, 
+            C + jc * m + ic, m, 
             semiringkernel
           );
         }
@@ -424,16 +404,13 @@ template<
   bool USE_STRASSEN,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
-void cnn
+void conv2d
 (
-  /*
-   * @CHENHAN: define what parameters you need.
-   */ 
-  hmlpOperation_t transA, hmlpOperation_t transB,
-  int m, int n, int k,
-  TA *A, int lda,
-  TB *B, int ldb,
-  TC *C, int ldc,
+  int w0, int h0, int d0, int s, int p,
+  TA *B,
+  int w1, int h1, int d1,
+  TB *A,
+  TC *C,
   SEMIRINGKERNEL semiringkernel, 
   MICROKERNEL microkernel         
 )
@@ -442,11 +419,18 @@ void cnn
   int nc = NC, pack_nc = PACK_NC;
   char *str;
 
+  int m = d1;
+  int nx = ( w0 - w1 + 2 * p ) / s + 1;
+  int ny = ( h0 - h1 + 2 * p ) / s + 1;
+  int n = nx * ny;
+  int k = w1 * h1 * d0;
+
+  //printf( "m %4d n %4d k %4d\n", m, n, k );
+
   TA *packA_buff = NULL;
   TB *packB_buff = NULL;
 
   // Early return if possible
-  if ( m == 0 || n == 0 || k == 0 ) return;
 
   // Check the environment variable.
   jc_nt = hmlp_read_nway_from_env( "KS_JC_NT" );
@@ -478,22 +462,19 @@ void cnn
       exit( 1 );
     }
 
-    cnn_internal
+    conv2d_internal
     <MC, NC, KC, MR, NR, 
     PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
     USE_STRASSEN,
     SEMIRINGKERNEL, MICROKERNEL,
     TA, TB, TC, TB>
     (
-      /*
-       *  @CHENHAN: change these parameters according to your interface.
-       */ 
       thread,
-      transA, transB,
-      m, n, k,
-      A, lda,
-      B, ldb,
-      C, ldc,
+      w0, h0, d0, s, p,
+      B,
+      w1, h1, d1,
+      A,
+      C,
       semiringkernel, microkernel,
       nc, pack_nc,
       packA_buff,
@@ -513,7 +494,7 @@ void cnn
  *  be found in hmlp_blas_lapack.h.
  */ 
 template<typename T>
-void cnn_ref( /* Use the same interface as cnn(). */ )
+void conv2d_ref( /* Use the same interface as cnn(). */ )
 {
 }
 

@@ -188,6 +188,13 @@ add_executable (hello_world.x ${CMAKE_SOURCE_DIR}/test/hello_world.cpp)
 #target_link_libraries(hello_world.x hmlp)
 
 
+# Build CNN test suit
+if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/conv2d.cpp)
+  add_executable (test_conv2d.x ${CMAKE_SOURCE_DIR}/test/test_conv2d.cpp)
+  target_link_libraries(test_conv2d.x hmlp)
+endif ()
+
+
 # Build GSKS test suit
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsks.cpp)
   add_executable (test_hmlp.x ${CMAKE_SOURCE_DIR}/test/test_hmlp.cpp)

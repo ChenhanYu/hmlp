@@ -35,7 +35,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void rank_k_macro_kernel
 (
-  worker &thread,
+  Worker &thread,
   int ic, int jc, int pc,
   int  m, int n,  int  k,
   TA *packA,
@@ -116,7 +116,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
 (
-  worker &thread,
+  Worker &thread,
   int pc,
   int  m,  int n,  int k,  int r,
   TA *packA, TA *packA2,
@@ -195,7 +195,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void gsknn_internal
 (
-  worker &thread,
+  Worker &thread,
   int m, int n, int k, int k_stra, int r,
   TA *A, TA *A2, int *amap,
   TB *B, TB *B2, int *bmap,
@@ -402,7 +402,7 @@ void gsknn(
 
   #pragma omp parallel num_threads( my_comm.GetNumThreads() )
   {
-    worker thread( &my_comm );
+    Worker thread( &my_comm );
 
     if ( USE_STRASSEN && k > KC )
     {

@@ -6,6 +6,69 @@
 namespace hmlp
 {
 
+/**
+ *  @brief pack image into 2D packed buffer. Notice that here X is d leading.
+ */ 
+template<int FOLD, bool ZEROPAD=true, typename T>
+inline void pack2Dimg
+(
+  int m, int n,                           // packing buffer size
+  T* packX,
+  int x0, int y0, int offset,             // Image pointers
+  T *X,                                   // Image
+  int w0, int h0, int d0, int s, int p,   // Image size 
+  int w1, int h1
+  )
+{
+  int x, x1, y, y1, z;
+
+  for ( auto i = 0; i < m; i ++ )
+  {
+    // Compute the current x, y, z.
+    for ( auto j =  0,
+               z = ( offset % d0 ),
+               x = ( offset / d0 ) % w1,
+               y = ( offset / d0 ) / w1;
+               j < n; j ++ )
+    {
+      x1 = x0 + x;
+      y1 = y0 + y;
+
+      if ( 0 <= x1 && x1 < w0 && 0 <= y1 && y1 < h0 ) 
+      {
+        packX[ j * FOLD + i ] = X[ y1 * w0 * d0 + x1 * d0 + z ];
+      }
+      else // zero-paging
+      {
+        packX[ j * FOLD + i ] = 0.0;
+      }
+
+      //printf( "( y, x, z ) = ( %2d, %2d, %2d ) %5.2lf\n", y1, x1, z, packX[ j * FOLD + i ] );
+
+               z ++;
+      if ( z >= d0 ) 
+      {
+        z = 0; x ++;
+      }
+      if ( x >= w1 ) 
+      {
+        x = 0; y ++;
+      }
+    }
+
+    // move to the next window
+                   x0 += s;
+    if ( x0 >= w0 ) 
+    {
+      x0 = -1 * p; y0 += s;
+    }
+  }
+}
+
+
+
+
+
 template<bool TRANS, int FOLD, bool ZEROPAD=false, typename T>
 inline void pack2D
 (

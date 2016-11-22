@@ -2,12 +2,12 @@
 
 void hmlp_init()
 {
-  hmlp::rt.init();
+  hmlp::rt.Init();
 };
 
 void hmlp_finalize()
 {
-  hmlp::rt.finalize();
+  hmlp::rt.Finalize();
 };
 
 
@@ -36,7 +36,7 @@ int range::inc()
 
 range GetRange
 ( 
-  hmlpSchedule_t strategy, 
+  SchedulePolicy strategy, 
   int beg, int end, int nb, int tid, int nparts 
 )
 {
@@ -76,44 +76,137 @@ range GetRange( int beg, int end, int nb )
   return GetRange( HMLP_SCHEDULE_DEFAULT, beg, end, nb, 0, 1 );
 };
 
+/**
+ *  @brief Lock
+ */ 
+Lock::Lock()
+{
+#ifdef USE_PTHREAD_RUNTIME
+  if ( pthread_mutex_init( &lock, NULL ) )
+  {
+    printf( "pthread_mutex_init(): cannot initialize locks properly\n" );
+  }
+#else
+  omp_init_lock( &lock );
+#endif
+};
 
-hmlp_runtime::hmlp_runtime()
+Lock::~Lock()
+{
+#ifdef USE_PTHREAD_RUNTIME
+  if ( pthread_mutex_destroy( &lock ) )
+  {
+    printf( "pthread_mutex_destroy(): cannot destroy locks properly\n" );
+  }
+#else
+  omp_destroy_lock( &lock );
+#endif
+};
+
+void Lock::Acquire()
+{
+#ifdef USE_PTHREAD_RUNTIME
+  if ( pthread_mutex_lock( &lock ) )
+  {
+    printf( "pthread_mutex_lock(): cannot acquire locks properly\n" );
+  }
+#else
+  omp_set_lock( &lock );
+#endif
+};
+
+void Lock::Release()
+{
+#ifdef USE_PTHREAD_RUNTIME
+  if ( pthread_mutex_unlock( &lock ) )
+  {
+    printf( "pthread_mutex_lock(): cannot release locks properly\n" );
+  }
+#else
+  omp_unset_lock( &lock );
+#endif
+};
+
+
+
+
+/**
+ *  @brief Scheduler
+ */ 
+Scheduler::Scheduler()
+{
+  printf( "Scheduler()\n" );
+};
+
+Scheduler::~Scheduler()
+{
+  printf( "~Scheduler()\n" );
+};
+
+
+void Scheduler::Init( int n_worker )
+{
+#ifdef USE_PTHREAD_RUNTIME
+  for ( int i = 0; i < n_worker; i ++ )
+  {
+    pthread_create
+    ( 
+      &(rt.worker[ i ].pthreadid), NULL,
+      EntryPoint, (void*)&(rt.worker[i])
+    );
+  }
+#else
+  #pragma omp parallel num_threads( n_worker )
+  {
+    EntryPoint();
+  }
+#endif
+};
+
+void Scheduler::EntryPoint()
+{
+  printf( "EntryPoint()\n" );
+};
+
+
+RunTime::RunTime()
 {};
 
-void hmlp_runtime::init()
+//RunTime::~RunTime()
+//{};
+
+void RunTime::Init()
 {
   #pragma omp critical (init)
   {
     if ( !is_init )
     {
-      printf( "hmlp_init()\n" );
-
-      pool_init();
+      //pool_init();
     }
   }
 };
 
-void hmlp_runtime::finalize()
+void RunTime::Finalize()
 {
   #pragma omp critical (init)
   {
-    printf( "hmlp_finalize()\n" );
+    //printf( "hmlp_finalize()\n" );
   }
 };
 
-void hmlp_runtime::pool_init()
-{
-
-};
-
-void hmlp_runtime::acquire_memory()
-{
-
-};
-
-void hmlp_runtime::release_memory( void *ptr )
-{
-
-};
+//void hmlp_runtime::pool_init()
+//{
+//
+//};
+//
+//void hmlp_runtime::acquire_memory()
+//{
+//
+//};
+//
+//void hmlp_runtime::release_memory( void *ptr )
+//{
+//
+//};
 
 }; // end namespace hmlp

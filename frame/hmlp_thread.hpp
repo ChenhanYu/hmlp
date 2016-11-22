@@ -10,6 +10,10 @@
 namespace hmlp
 {
 
+
+
+
+
 class thread_communicator 
 {
 	public:
@@ -50,15 +54,19 @@ class thread_communicator
 };
 
 
-class worker 
+class Worker 
 {
   public:
 
-    //worker();
+    Worker();
 
 	  //worker( int jc_nt, int pc_nt, int ic_nt, int jr_nt );
    
-    worker( thread_communicator *my_comm );
+    Worker( thread_communicator *my_comm );
+
+#ifdef USE_PTHREAD_RUNTIME
+    pthread_t pthreadid;
+#endif
 
     int tid;
 
@@ -87,6 +95,10 @@ class worker
     thread_communicator *pc_comm;
 
     thread_communicator *ic_comm;
+
+  private:
+
+    class Task *current_task;
 };
 
 

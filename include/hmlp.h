@@ -60,6 +60,14 @@ void dstrassen(
   double *C, int ldc
 );
 
+void dconv2d
+(
+  int w0, int h0, int d0, int s, int p,
+  double *B,
+  int w1, int h1, int d1,
+	double *A,
+	double *C
+);
 
 
 

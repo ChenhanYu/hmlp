@@ -36,7 +36,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void rank_k_macro_kernel
 (
-  worker &thread,
+  Worker &thread,
   int ic, int jc, int pc,
   int  m, int n,  int  k,
   TA *packA,
@@ -124,7 +124,7 @@ typename FUSEDKERNEL,
 typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
 (
-  worker &thread,
+  Worker &thread,
   int ic, int jc, int pc,
   int  m,  int n,  int k,
   TA *packA,
@@ -240,7 +240,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void gkmx_internal
 (
-  worker &thread,
+  Worker &thread,
   hmlpOperation_t transA, hmlpOperation_t transB,
   int m, int n, int k, int k_stra,
   TA *A, int lda,
@@ -471,7 +471,7 @@ void gkmx
 
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
-    worker thread( &my_comm );
+    Worker thread( &my_comm );
 
     if ( USE_STRASSEN )
     {
