@@ -230,6 +230,13 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsknn.cpp)
   target_link_libraries(test_gsknn.x hmlp)
 endif ()
 
+# Build TREE test suit
+if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/tree.cpp)
+  add_executable (test_tree.x ${CMAKE_SOURCE_DIR}/test/test_tree.cpp)
+  target_link_libraries(test_tree.x hmlp)
+endif ()
+
+
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)
 # target_link_libraries(test_dgsks_list.x gsks)
 
