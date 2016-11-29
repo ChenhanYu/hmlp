@@ -8,7 +8,7 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
-#define DEBUG_CONV2D 1
+// #define DEBUG_CONV2D 1
 
 namespace hmlp
 {
@@ -425,6 +425,7 @@ void conv2d
   int n = nx * ny;
   int k = w1 * h1 * d0;
 
+
   //printf( "m %4d n %4d k %4d\n", m, n, k );
 
   TA *packA_buff = NULL;
@@ -482,6 +483,51 @@ void conv2d
     );
   }                                                        // end omp  
 }                                                          // end cnn
+
+
+template<
+  int MC, int NC, int KC, int MR, int NR, 
+  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
+  bool USE_STRASSEN,
+  typename SEMIRINGKERNEL, typename MICROKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
+void conv2d
+(
+  int w0, int h0, int d0,
+  TA *B,
+  int w1, int h1, int d1,
+  TB *A,
+  TC *C,
+  SEMIRINGKERNEL semiringkernel, 
+  MICROKERNEL microkernel         
+)
+{
+  // Deciding s and p given the output size is also (w0, h0).
+  // w0 = ( w0 - w1 + 2 * p ) / s + 1
+  // h0 = ( h0 - h1 + 2 * p ) / s + 1
+  // if s = 1, then p = ( w1 - 1 ) / 2
+  //                p = ( h1 - 1 ) / 2
+  // that is w1 and h1 must be odd.
+
+  assert( w1 == h1 );
+
+  conv2d
+  <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+  USE_STRASSEN,
+  SEMIRINGKERNEL, MICROKERNEL,
+  TA, TB, TC, TV>
+  (
+    w0, h0, d0, 1, ( w1 - 1 ) / 2,
+    B,
+    w1, h1, d1,
+    A,
+    C,
+    semiringkernel,
+    microkernel
+  );
+}
+
+
 
 
 }; // end namespace cnn

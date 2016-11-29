@@ -8,6 +8,10 @@ cmake_minimum_required (VERSION 2.8)
 # set (HMLP_VERSION_PATCH 0)
 # set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
 
+if ( APPLE )
+  set (CMAKE_MACOSX_RPATH TRUE)
+endif ()
+
 
 # Configure the path structure.
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -111,7 +115,7 @@ endif ()
 
 if ($ENV{HMLP_USE_BLAS} MATCHES "true")
   set(BLA_STATIC on)
-  #find_package (BLAS REQUIRED)
+  find_package (BLAS REQUIRED)
   set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
 endif ()
 
@@ -183,6 +187,11 @@ else ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
+add_library (dyhmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+    ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
+if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_USE_INTEL} MATCHES "true"))
+  target_link_libraries (dyhmlp -mkl=parallel)
+endif()
 
 
 
@@ -282,5 +291,6 @@ message ("RANLIB       =${CMAKE_RANLIB}")
 message ("HMLP_ARCH    =${HMLP_GPU_ARCH}")
 message ("HOST_COMPILER=${CUDA_HOST_COMPILER}")
 message ("NVCCFLAGS    =${CUDA_NVCC_FLAGS}")
+message ("MKLDIR       =${MKL_DIR}")
 message ("MKLDIR       =${MKL_DIR}")
 message ("===================================================")
