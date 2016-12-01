@@ -187,11 +187,11 @@ else ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
-add_library (dyhmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
-    ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
-if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_USE_INTEL} MATCHES "true"))
-  target_link_libraries (dyhmlp -mkl=parallel)
-endif()
+# add_library (dyhmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+#     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
+# if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_USE_INTEL} MATCHES "true"))
+#   target_link_libraries (dyhmlp -mkl=parallel)
+# endif()
 
 
 

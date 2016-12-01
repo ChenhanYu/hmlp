@@ -57,8 +57,8 @@ inline void pack2Dimg
     }
 
     // move to the next window
-                   x0 += s;
-    if ( x0 >= w0 ) 
+                   x0 += s;               
+    if ( x0 + p >= w0 ) 
     {
       x0 = -1 * p; y0 += s;
     }

@@ -8,7 +8,7 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
-// #define DEBUG_CONV2D 1
+#define DEBUG_CONV2D 1
 
 namespace hmlp
 {
@@ -449,6 +449,11 @@ void conv2d
   packA_buff  = hmlp_malloc<ALIGN_SIZE, TA>( KC, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );
   packB_buff  = hmlp_malloc<ALIGN_SIZE, TB>( KC, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) ); 
 
+  for ( int i = 0; i < KC * ( pack_nc + 1 ) * jc_nt; i ++ ) packA_buff[ i ] = 1.0;
+
+
+
+
   // allocate tree communicator
   thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
 
@@ -481,7 +486,19 @@ void conv2d
       packA_buff,
       packB_buff
     );
-  }                                                        // end omp  
+  }                                                        // end omp 
+
+#ifdef DEBUG_CONV2D
+  for ( int j = 0; j < ny; j ++ )
+  {
+    for ( int i = 0; i < nx; i ++ )
+    {
+      printf( "%5.2lf ", C[ j * nx + i ] );
+    }
+    printf( "\n" );
+  }
+#endif
+
 }                                                          // end cnn
 
 

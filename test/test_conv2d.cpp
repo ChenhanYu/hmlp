@@ -133,7 +133,8 @@ void test_conv2d
   {
     for ( auto p = 0; p < k; p ++ ) 
     {
-      A[ i * k + p ] = (T)( rand() % 100 ) / 1000.0;	
+      //A[ i * k + p ] = (T)( rand() % 100 ) / 1000.0;	
+      A[ i * k + p ] = (T)1.0;	
     }
   }
 
