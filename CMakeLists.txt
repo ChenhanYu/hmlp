@@ -64,12 +64,13 @@ set (CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
 # Cross compilation for Android OS
 # ---------------------------
 if ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm")
-  set (CMAKE_C_COMPILER   arm-linux-androideabi-gcc   )
-  set (CMAKE_CXX_COMPILER arm-linux-androideabi-g++   )
-  set (CMAKE_AR           arm-linux-androideabi-ar    )
-  set (CMAKE_RANLIB       arm-linux-androideabi-ranlib)
-  set (HMLP_CFLAGS "-std=c++11 -O3 -fopenmp -mfpu=neon -mfloat-abi=softfp -march=armv8-a -fPIC -fPIE")
-  set (CMAKE_EXE_LINKER_FLAGS "-fopenmp -lm -pie")
+  set (CMAKE_C_COMPILER   aarch64-linux-android-gcc   )
+  set (CMAKE_CXX_COMPILER aarch64-linux-android-g++   )
+  set (CMAKE_AR           aarch64-linux-android-ar    )
+  set (CMAKE_RANLIB       aarch64-linux-android-ranlib)
+  #set (HMLP_CFLAGS "-std=c++11 -O3 -fopenmp -mfpu=neon -mfloat-abi=softfp -march=armv8-a -fPIC -fPIE")
+  set (HMLP_CFLAGS "-std=c++11 -O3 -fopenmp -ftree-vectorize -mtune=cortex-a57.cortex-a53 -march=armv8-a+fp+simd -mcpu=cortex-a57.cortex-a53 -fPIC -fPIE")
+  set (CMAKE_EXE_LINKER_FLAGS "-fopenmp -lm -pie -llog")
   set (CMAKE_OSX_SYSROOT    "")
   set (CMAKE_C_LINK_FLAGS   "")
   set (CMAKE_CXX_LINK_FLAGS "")
@@ -134,6 +135,8 @@ set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS}")
 # Software dependencies.
 # ---------------------------
 set (MKL_DIR $ENV{HMLP_MKL_DIR})
+set (QSML_DIR $ENV{HMLP_QSML_DIR})
+
 
 # Linking infos.
 # ---------------------------
@@ -145,6 +148,12 @@ if (($ENV{HMLP_USE_BLAS} MATCHES "true") OR ($ENV{HMLP_USE_VML} MATCHES "true"))
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
   endif ()
 endif ()
+
+if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND (DEFINED QSML_DIR))
+  #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
+  set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
+  include_directories ("${QSML_DIR}/include")
+endif()
 
 
 
@@ -181,9 +190,9 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
 else ($ENV{HMLP_USE_CUDA} MATCHES "true")
   add_library (hmlp STATIC ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
-  if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND NOT ($ENV{HMLP_USE_INTEL} MATCHES "true"))
-    target_link_libraries (hmlp ${BLAS_LIBRARIES})
-  endif ()
+  #if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND NOT ($ENV{HMLP_USE_INTEL} MATCHES "true"))
+  #  target_link_libraries (hmlp ${BLAS_LIBRARIES})
+  #endif ()
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
@@ -198,7 +207,7 @@ endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 # Build the executable files.
 # ---------------------------
 
-add_executable (hello_world.x ${CMAKE_SOURCE_DIR}/test/hello_world.cpp)
+#add_executable (hello_world.x ${CMAKE_SOURCE_DIR}/test/hello_world.cpp)
 #target_link_libraries(hello_world.x hmlp)
 
 
@@ -292,5 +301,7 @@ message ("HMLP_ARCH    =${HMLP_GPU_ARCH}")
 message ("HOST_COMPILER=${CUDA_HOST_COMPILER}")
 message ("NVCCFLAGS    =${CUDA_NVCC_FLAGS}")
 message ("MKLDIR       =${MKL_DIR}")
-message ("MKLDIR       =${MKL_DIR}")
+message ("QSMLDIR      =${QSML_DIR}")
+message ("BLAS_LIBRARY =${BLAS_LIBRARIES}")
+message ("BLAS_LINKER  =${BLAS_LINKER_FLAGS}")
 message ("===================================================")

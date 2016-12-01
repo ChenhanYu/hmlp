@@ -6,12 +6,11 @@
 
 using namespace hmlp::gkmx;
 
-
 template<typename T>
 struct identity 
 {
-  //inline T operator()( const T& x, int i, int j, int b ) const 
-  inline T operator()( const T& x ) const 
+  inline T operator()( const T& x, int i, int j, int b ) const 
+  //inline T operator()( const T& x ) const 
   {
     return x; 
   }
@@ -22,7 +21,8 @@ struct identity
 template<typename TC, typename TV>
 struct downcast
 {
-  inline TC operator()( const TV& x ) const 
+  //inline TC operator()( const TV& x ) const 
+  inline TC operator()( const TV& x, int i, int j, int b ) const 
   {
     return (TC)x;
   }
@@ -45,7 +45,7 @@ void gkmx_dfma
 
   gkmx
   <120, 3072, 240, 6, 8, 120, 3072, 6, 8, 16,
-  false,
+  false, true,
   rank_k_asm_d6x8, rank_k_asm_d6x8,
   double, double, double, double>
   (
@@ -54,6 +54,7 @@ void gkmx_dfma
     A, lda,
     B, ldb,
     C, ldc,
+    0, // batchId
     semiringkernel,
     microkernel
   );
@@ -78,13 +79,14 @@ void gkmx_dfma_simple
 
   gkmm
   <104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
-  false>
+  false, true>
   (
     transA, transB,
     m, n, k,
     A, lda,
     B, ldb,
     C, ldc,
+    0, // batchId
     opkernel, op1, op2, initV
   );
 };

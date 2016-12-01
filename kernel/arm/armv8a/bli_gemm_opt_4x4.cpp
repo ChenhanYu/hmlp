@@ -1111,7 +1111,7 @@ void bli_dgemm_opt_6x8(
                         double*   restrict beta,
                         double*   restrict c, inc_t rs_c, inc_t cs_c,
                         //auxinfo_t*         data
-                        aux_s<float, float, float, float> *aux
+                        aux_s<double, double, double, double> *aux
                       )
 {
 	//void* a_next = bli_auxinfo_next_a( data );

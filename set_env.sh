@@ -7,7 +7,7 @@ export HMLP_GPU_ARCH_MAJOR=gpu
 export HMLP_GPU_ARCH_MINOR=kepler
 
 # export HMLP_ARCH_MAJOR=arm
-# export HMLP_ARCH_MINOR=armv7a
+# export HMLP_ARCH_MINOR=armv8a
 
 export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=sandybridge
@@ -46,6 +46,12 @@ export HMLP_MIC_AVX512=false
 # export HMLP_MKL_DIR=$TACC_MKL_DIR
 export HMLP_MKL_DIR=/opt/intel/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
+
+
+## Manually set the mkl path
+export HMLP_QSML_DIR=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
+echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
+
 
 ## Parallel options
 # export KMP_AFFINITY=compact
