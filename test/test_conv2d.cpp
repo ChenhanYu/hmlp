@@ -88,40 +88,37 @@ void compute_error
 template<typename T>
 void test_conv2d
 ( 
-  int w0, int h0, int d0,
+  int w0, int h0, int d0, int s, int p, int batchSize,
   int w1, int h1, int d1
 ) 
 {
   T *A, *B, *C, *C_ref;
   double ref_beg, ref_time, gkmx_beg, gkmx_time;
 
-  int n_iter = 1;
-
-  int p = 1;
-  int s = 1;
+  int n_iter = 3;
   int m = d1;
   int nx = ( w0 - w1 + 2 * p ) / s + 1;
   int ny = ( h0 - h1 + 2 * p ) / s + 1;
   int n = nx * ny;
   int k = w1 * h1 * d0;
 
-  printf( "m %4d n %4d k %4d\n", m, n, k );
+  //printf( "m %4d n %4d k %4d\n", m, n, k );
 
-  double flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 0.0 );
+  double flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 0.0 ) * batchSize;
 
   // ------------------------------------------------------------------------
   // Memory allocation for all common buffers
   // ------------------------------------------------------------------------
 #ifdef HMLP_MIC_AVX512
   A     = (T*)hbw_malloc( sizeof(T) * m * k );
-  B     = (T*)hbw_malloc( sizeof(T) * w0 * h0 * d0 );
-  C     = (T*)hbw_malloc( sizeof(T) * m * n );
-  C_ref = (T*)hbw_malloc( sizeof(T) * m * n );
+  B     = (T*)hbw_malloc( sizeof(T) * w0 * h0 * d0 * batchSize );
+  C     = (T*)hbw_malloc( sizeof(T) * m * n * batchSize );
+  C_ref = (T*)hbw_malloc( sizeof(T) * m * n * batchSize );
 #else
   A     = (T*)malloc( sizeof(T) * m * k );
-  B     = (T*)malloc( sizeof(T) * w0 * h0 * d0 );
-  posix_memalign( (void**)&C,     32, sizeof(T) * m * n );
-  posix_memalign( (void**)&C_ref, 32, sizeof(T) * m * n );
+  B     = (T*)malloc( sizeof(T) * w0 * h0 * d0 * batchSize );
+  posix_memalign( (void**)&C,     32, sizeof(T) * m * n * batchSize );
+  posix_memalign( (void**)&C_ref, 32, sizeof(T) * m * n * batchSize );
 #endif
   // ------------------------------------------------------------------------
 
@@ -138,7 +135,7 @@ void test_conv2d
     }
   }
 
-  for ( auto j = 0; j < w0 * h0; j ++ ) 
+  for ( auto j = 0; j < w0 * h0 * batchSize; j ++ ) 
   {
     for ( auto p = 0; p < d0; p ++ ) 
     {
@@ -148,19 +145,16 @@ void test_conv2d
   }
   // ------------------------------------------------------------------------
 
-
-  printf( "After initilize A and B\n" );
-
-
   // ------------------------------------------------------------------------
   // Call my implementation (NN)
   // ------------------------------------------------------------------------
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
+    //sconv2d
     dconv2d
     (
-      w0, h0, d0, s, p,
+      w0, h0, d0, s, p, batchSize,
       B,
       w1, h1, d1,
       A,
@@ -176,23 +170,15 @@ void test_conv2d
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) ref_beg = omp_get_wtime();
-    //hmlp::xgemm
-    //( 
-    //  "N", "N", 
-    //  m, n, k, 
-    //  1.0, A,     m, 
-    //       B,     k, 
-    //  0.0, C_ref, m 
-    //);
-
-    //for ( auto j = 0; j < n; j ++ )
-    //{
-    //  #pragma omp parallel for
-    //  for ( auto i = 0; i < m; i ++ )
-    //  {
-    //     C_ref[ ( j / 4 ) * m + i ] = std::max( C_ref[ ( j / 4 ) * m + i  ], C_ref[ j * m + i ] );
-    //  }
-    //}
+    //sconv2d_ref
+    dconv2d_ref
+    (
+      w0, h0, d0, s, p, batchSize,
+      B,
+      w1, h1, d1,
+      A,
+      C_ref
+    );
   }
   ref_time = omp_get_wtime() - ref_beg;
   // ------------------------------------------------------------------------
@@ -200,10 +186,10 @@ void test_conv2d
   ref_time  /= n_iter;
   gkmx_time /= n_iter;
 
-  //compute_error( m, n, C, m, C_ref, m );
+  compute_error( m, n, C, m, C_ref, m );
 
-  printf( "NN %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
-      m, n, k, flops / gkmx_time, flops / ref_time );
+  printf( "NN %5d, %5d, %5d, %5.2lf (%5.2lfms), %5.2lf (%5.2lfms);\n", 
+      m, n, k, flops / gkmx_time, gkmx_time, flops / ref_time, ref_time );
 
 
 
@@ -224,19 +210,23 @@ void test_conv2d
 
 int main( int argc, char *argv[] )
 {
-  int w0, h0, d0;
+  int w0, h0, d0, s, p, batchSize;
   int w1, h1, d1;
 
   sscanf( argv[ 1 ], "%d", &w0 );
   sscanf( argv[ 2 ], "%d", &h0 );
   sscanf( argv[ 3 ], "%d", &d0 );
-  sscanf( argv[ 4 ], "%d", &w1 );
-  sscanf( argv[ 5 ], "%d", &h1 );
-  sscanf( argv[ 6 ], "%d", &d1 );
+  sscanf( argv[ 4 ], "%d", &s  );
+  sscanf( argv[ 5 ], "%d", &p  );
+  sscanf( argv[ 6 ], "%d", &batchSize );
+  sscanf( argv[ 7 ], "%d", &w1 );
+  sscanf( argv[ 8 ], "%d", &h1 );
+  sscanf( argv[ 9 ], "%d", &d1 );
 
   test_conv2d<double>
+  //test_conv2d<float>
   ( 
-    w0, h0, d0,
+    w0, h0, d0, s, p, batchSize,
     w1, h1, d1
   );
 

@@ -60,9 +60,36 @@ void dstrassen(
   double *C, int ldc
 );
 
+void sconv2d
+(
+  int w0, int h0, int d0, int s, int p, int batchSize,
+  float *B,
+  int w1, int h1, int d1,
+	float *A,
+	float *C
+);
+
 void dconv2d
 (
-  int w0, int h0, int d0, int s, int p,
+  int w0, int h0, int d0, int s, int p, int batchSize,
+  double *B,
+  int w1, int h1, int d1,
+	double *A,
+	double *C
+);
+
+void sconv2d_ref
+(
+  int w0, int h0, int d0, int s, int p, int batchSize,
+  float *B,
+  int w1, int h1, int d1,
+	float *A,
+	float *C
+);
+
+void dconv2d_ref
+(
+  int w0, int h0, int d0, int s, int p, int batchSize,
   double *B,
   int w1, int h1, int d1,
 	double *A,

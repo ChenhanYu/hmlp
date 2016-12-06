@@ -29,6 +29,17 @@ set (HMLP_GPU_ARCH_MAJOR $ENV{HMLP_GPU_ARCH_MAJOR})
 set (HMLP_GPU_ARCH_MINOR $ENV{HMLP_GPU_ARCH_MINOR})
 set (HMLP_GPU_ARCH ${HMLP_GPU_ARCH_MAJOR}/${HMLP_GPU_ARCH_MINOR})
 
+
+# Project specification.
+project (HMLP)
+set (HMLP_VERSION_MAJOR 1)
+set (HMLP_VERSION_MINOR 1)
+set (HMLP_VERSION_PATCH 0)
+set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
+
+
+
+
 # Compiler Options (HMLP can use Intel or GNU compilers.)
 # ---------------------------
 if ($ENV{HMLP_USE_INTEL} MATCHES "true")
@@ -47,11 +58,11 @@ endif ()
 
 
 # Project specification.
-project (HMLP)
-set (HMLP_VERSION_MAJOR 1)
-set (HMLP_VERSION_MINOR 1)
-set (HMLP_VERSION_PATCH 0)
-set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
+# project (HMLP)
+# set (HMLP_VERSION_MAJOR 1)
+# set (HMLP_VERSION_MINOR 1)
+# set (HMLP_VERSION_PATCH 0)
+# set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
 
 
 
@@ -149,10 +160,12 @@ if (($ENV{HMLP_USE_BLAS} MATCHES "true") OR ($ENV{HMLP_USE_VML} MATCHES "true"))
   endif ()
 endif ()
 
-if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND (DEFINED QSML_DIR))
-  #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
-  set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
-  include_directories ("${QSML_DIR}/include")
+if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm"))
+  if (DEFINED QSML_DIR)
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
+    #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
+    include_directories ("${QSML_DIR}/include")
+  endif()
 endif()
 
 

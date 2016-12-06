@@ -3,12 +3,13 @@
 
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
+#include <hmlp_blas_lapack.h>
 #include <hmlp_packing.hpp>
 #include <hmlp_util.hpp>
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
-#define DEBUG_CONV2D 1
+// #define DEBUG_CONV2D 1
 
 namespace hmlp
 {
@@ -165,7 +166,6 @@ void fused_macro_kernel
       }
       else                                                 // corner case
       {
-        // TODO: this should be initC.
         TV ctmp[ MR * NR ] = { (TV)0.0 };
         microkernel
         (
@@ -239,10 +239,14 @@ void conv2d_internal
   int n = nx * ny;
   int k = w1 * h1 * d0;
 
+  //auto loop6th = GetRange( HMLP_SCHEDULE_HEFT, 0, n, nc, thread.jc_id, thread.jc_nt );
   auto loop6th = GetRange( 0, n, nc, thread.jc_id, thread.jc_nt );
   auto loop5th = GetRange( 0, k, KC );
   auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );
 
+  //printf( "tid %d beg %d end %d inc %d\n", thread.jc_id, loop6th.beg(), loop6th.end(), loop6th.inc() );
+
+  //double my_beg = omp_get_wtime();
   /*
    *  @CHENHAN: loop over your filters.
    */ 
@@ -278,7 +282,7 @@ void conv2d_internal
         auto y0 = ( ( jc + j ) / nx ) * s - p; // top-left
 
 #ifdef DEBUG_CONV2D
-        printf( "x0 %4d y0 %4d\n", x0, y0 );
+     printf( "x0 %4d y0 %4d\n", x0, y0 );
 #endif
 
         pack2Dimg<PACK_NR>                            // packB
@@ -318,9 +322,22 @@ void conv2d_internal
         auto &ic_comm = *thread.ic_comm;
         auto ib = std::min( m - ic, MC );
 
+        auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt ); 
+        auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt ); 
+
         /*
          *  @CHENHAN: assume filters were already packed format.
          */  
+        for ( int i   = looppkA.beg(), ip  = packpkA.beg();  
+                  i   < looppkA.end(); 
+                  i  += looppkA.inc(), ip += packpkA.inc() )     
+        {
+          pack2D<true, PACK_MR>                          // packA (transA)
+          ( 
+            std::min( ib - i, MR ), pb,
+            &A[ ( ic + i ) * k + pc ], k, &packA[ ip * pb ] 
+          );
+        }
 
         if ( is_the_last_pc_iteration )                    // fused_macro_kernel
         {
@@ -355,6 +372,10 @@ void conv2d_internal
       pc_comm.Barrier();
     }                                                      // end 5th loop
   }                                                        // end 6th loop
+  //double my_time = omp_get_wtime() - my_beg;
+  //double my_flop = ( ( loop6th.end() - loop6th.beg() ) / 1e+9 ) * 2 * m * k;
+  ////printf( "tid %d GFLOPS %5.2lf\n", thread.jc_id, my_flop / my_time );
+  //printf( "tid %d GFLOPS %5.2lf\n", thread.jc_id, my_time );
 }                                                          // end cnn_internal
 
 
@@ -434,14 +455,18 @@ void conv2d
   // Early return if possible
 
   // Check the environment variable.
-  jc_nt = hmlp_read_nway_from_env( "KS_JC_NT" );
-  ic_nt = hmlp_read_nway_from_env( "KS_IC_NT" );
-  jr_nt = hmlp_read_nway_from_env( "KS_JR_NT" );
+  if ( omp_get_num_threads() == 1 && omp_get_max_threads() > 1 )
+  {
+    jc_nt = hmlp_read_nway_from_env( "KS_JC_NT" );
+    ic_nt = hmlp_read_nway_from_env( "KS_IC_NT" );
+    jr_nt = hmlp_read_nway_from_env( "KS_JR_NT" );
+  }
 
 
   if ( jc_nt > 1 )
   {
     nc = ( ( n - 1 ) / ( NR * jc_nt ) + 1 ) * NR;
+    //if ( nc > NC ) nc = NC;
     pack_nc = ( nc / NR ) * PACK_NR;
   }
 
@@ -449,9 +474,8 @@ void conv2d
   packA_buff  = hmlp_malloc<ALIGN_SIZE, TA>( KC, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );
   packB_buff  = hmlp_malloc<ALIGN_SIZE, TB>( KC, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) ); 
 
-  for ( int i = 0; i < KC * ( pack_nc + 1 ) * jc_nt; i ++ ) packA_buff[ i ] = 1.0;
-
-
+  //#pragma omp parallel for
+  //for ( int i = 0; i < KC * ( PACK_MC + 1 ) * jc_nt * ic_nt; i ++ ) packA_buff[ i ] = 1.0;
 
 
   // allocate tree communicator
@@ -499,8 +523,50 @@ void conv2d
   }
 #endif
 
-}                                                          // end cnn
+};                                                         // end cnn
 
+
+//template<
+//  int MC, int NC, int KC, int MR, int NR, 
+//  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
+//  bool USE_STRASSEN,
+//  typename SEMIRINGKERNEL, typename MICROKERNEL,
+//  typename TA, typename TB, typename TC, typename TV>
+//void conv2d
+//(
+//  int w0, int h0, int d0,
+//  TA *B,
+//  int w1, int h1, int d1,
+//  TB *A,
+//  TC *C,
+//  SEMIRINGKERNEL semiringkernel, 
+//  MICROKERNEL microkernel         
+//)
+//{
+//  // Deciding s and p given the output size is also (w0, h0).
+//  // w0 = ( w0 - w1 + 2 * p ) / s + 1
+//  // h0 = ( h0 - h1 + 2 * p ) / s + 1
+//  // if s = 1, then p = ( w1 - 1 ) / 2
+//  //                p = ( h1 - 1 ) / 2
+//  // that is w1 and h1 must be odd.
+//
+//  assert( w1 == h1 );
+//
+//  conv2d
+//  <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+//  USE_STRASSEN,
+//  SEMIRINGKERNEL, MICROKERNEL,
+//  TA, TB, TC, TV>
+//  (
+//    w0, h0, d0, 1, ( w1 - 1 ) / 2,
+//    B,
+//    w1, h1, d1,
+//    A,
+//    C,
+//    semiringkernel,
+//    microkernel
+//  );
+//};
 
 template<
   int MC, int NC, int KC, int MR, int NR, 
@@ -510,7 +576,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void conv2d
 (
-  int w0, int h0, int d0,
+  int w0, int h0, int d0, int s, int p, int batchSize,
   TA *B,
   int w1, int h1, int d1,
   TB *A,
@@ -526,30 +592,31 @@ void conv2d
   //                p = ( h1 - 1 ) / 2
   // that is w1 and h1 must be odd.
 
+  int nx = ( w0 - w1 + 2 * p ) / s + 1;
+  int ny = ( h0 - h1 + 2 * p ) / s + 1;
+
+
   assert( w1 == h1 );
 
-  conv2d
-  <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
-  USE_STRASSEN,
-  SEMIRINGKERNEL, MICROKERNEL,
-  TA, TB, TC, TV>
-  (
-    w0, h0, d0, 1, ( w1 - 1 ) / 2,
-    B,
-    w1, h1, d1,
-    A,
-    C,
-    semiringkernel,
-    microkernel
-  );
-}
-
-
-
-
-}; // end namespace cnn
-}; // end namespace hmlp
-
+  #pragma omp parallel for 
+  for ( int b = 0; b < batchSize; b ++ )
+  {
+    conv2d
+    <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+    USE_STRASSEN,
+    SEMIRINGKERNEL, MICROKERNEL,
+    TA, TB, TC, TV>
+    (
+      w0, h0, d0, s, p,
+      B + b * w0 * h0 * d0,
+      w1, h1, d1,
+      A,
+      C + b * nx * ny * d1,
+      semiringkernel,
+      microkernel
+    );
+  }
+};
 
 
 /**
@@ -557,8 +624,98 @@ void conv2d
  *  be found in hmlp_blas_lapack.h.
  */ 
 template<typename T>
-void conv2d_ref( /* Use the same interface as cnn(). */ )
+void conv2d_ref
+(
+  int w0, int h0, int d0, int s, int p,
+  T *B,
+  int w1, int h1, int d1,
+  T *A,
+  T *C
+)
 {
-}
+  int m = d1;
+  int nx = ( w0 - w1 + 2 * p ) / s + 1;
+  int ny = ( h0 - h1 + 2 * p ) / s + 1;
+  int n = nx * ny;
+  int k = w1 * h1 * d0;
+
+  T *packA = A;
+  T *packB = hmlp_malloc<16, T>( k, n, sizeof(T) ); 
+
+  im2col<T>
+  (
+    n, k,
+    packB, B,
+    w0, h0, d0, s, p,
+    w1, h1
+  );
+
+#ifdef DEBUG_CONV2D
+  printf( "packB\n" );
+  for ( int p = 0; p < k; p ++ )
+  {
+    for ( int j = 0; j < n; j ++ )
+    {
+      printf( "%5.2lf ", packB[ j * k + p ] );
+    }
+    printf( "\n" );
+  }
+#endif
+
+
+#ifdef USE_BLAS
+  xgemm
+  ( 
+    "T", "N", 
+    m, n, k, 
+    1.0, packA, k,
+         packB, k, 
+    0.0,     C, m 
+  );
+#else
+  #pragma omp parallel for
+  for ( int j = 0; j < n; j ++ ) 
+  {
+    for ( int i = 0; i < m; i ++ ) 
+    {
+      C[ j * m + i ] = 0.0;
+      for ( int p = 0; p < k; p ++ ) 
+      {
+        C[ j * m + i ] += packA[ i * k + p ] * packB[ j * k + p ];
+      }
+    }
+  }
+#endif
+}; // end void conv2d_ref
+
+template<typename T>
+void conv2d_ref
+(
+  int w0, int h0, int d0, int s, int p, int batchSize,
+  T *B,
+  int w1, int h1, int d1,
+  T *A,
+  T *C
+)
+{
+  int nx = ( w0 - w1 + 2 * p ) / s + 1;
+  int ny = ( h0 - h1 + 2 * p ) / s + 1;
+
+  #pragma omp parallel for 
+  for ( int b = 0; b < batchSize; b ++ )
+  {
+    conv2d_ref<T>
+    (
+      w0, h0, d0, s, p, 
+      B + b * w0 * h0 * d0,
+      w1, h1, d1,
+      A,
+      C + b * nx * ny * d1
+    );
+  }
+};
+
+}; // end namespace conv2d
+}; // end namespace hmlp
 
 #endif // define GKMX_HPP

@@ -5,6 +5,58 @@
 
 namespace hmlp
 {
+template<typename T>
+inline void im2col
+(
+  int m, int n,                           // packing buffer size
+  T* packX,
+  T* X,
+  int w0, int h0, int d0, int s, int p,   // Image size 
+  int w1, int h1
+)
+{
+  int nx = ( w0 - w1 + 2 * p ) / s + 1;
+
+  #pragma omp parallel for
+  for ( auto y0 = -1 * p; y0 <= h0 - h1 + p; y0 += s )
+  {
+    for ( auto x0 = -1 * p; x0 <= w0 - w1 + p; x0 += s )
+    {
+      auto i = ( ( y0 + p ) / s ) * nx + ( x0 + p ) / s;
+
+      //printf( "x0 %d y0 %d i %d\n", x0, y0, i );
+
+      for ( auto j = 0, z = 0, x = 0, y = 0; j < n; j ++ )
+      {
+        auto x1 = x0 + x;
+        auto y1 = y0 + y;
+
+        if ( 0 <= x1 && x1 < w0 && 0 <= y1 && y1 < h0 ) 
+        {
+          packX[ i * n + j ] = X[ y1 * w0 * d0 + x1 * d0 + z ];
+        }
+        else // zero-paging
+        {
+          packX[ i * n + j ] = 0.0;
+        }
+
+        z ++;
+        if ( z >= d0 ) 
+        {
+          z = 0; x ++;
+        }
+        if ( x >= w1 ) 
+        {
+          x = 0; y ++;
+        }
+      }
+
+    }
+  }
+};
+
+
+
 
 /**
  *  @brief pack image into 2D packed buffer. Notice that here X is d leading.
@@ -20,7 +72,7 @@ inline void pack2Dimg
   int w1, int h1
   )
 {
-  int x, x1, y, y1, z;
+  //int x, x1, y, y1, z;
 
   for ( auto i = 0; i < m; i ++ )
   {
@@ -31,8 +83,8 @@ inline void pack2Dimg
                y = ( offset / d0 ) / w1;
                j < n; j ++ )
     {
-      x1 = x0 + x;
-      y1 = y0 + y;
+      auto x1 = x0 + x;
+      auto y1 = y0 + y;
 
       if ( 0 <= x1 && x1 < w0 && 0 <= y1 && y1 < h0 ) 
       {
@@ -58,7 +110,7 @@ inline void pack2Dimg
 
     // move to the next window
                    x0 += s;               
-    if ( x0 + p >= w0 ) 
+    if ( ( x0 + w1 ) > ( w0 + p ) ) 
     {
       x0 = -1 * p; y0 += s;
     }

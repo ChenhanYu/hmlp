@@ -53,8 +53,45 @@ range GetRange
       printf( "GetRange(): HMLP_SCHEDULE_UNIFORM not yet implemented yet.\n" );
       exit( 1 );
     case HMLP_SCHEDULE_HEFT:
-      printf( "GetRange(): HMLP_SCHEDULE_HEFT not yet implemented yet.\n" );
-      exit( 1 );
+      {
+        assert( nparts == 4 );
+        int len = end - beg - 1;
+        int big = ( len * 30 ) / 100 + 1;
+        int sma = ( len * 20 ) / 100 + 1;
+
+        int tid_beg, tid_end;
+
+        if ( tid == 0 )
+        {
+          tid_beg = beg;
+          tid_end = beg + big;
+        }
+        beg += big;
+
+        if ( tid == 1 )
+        {
+          tid_beg = beg;
+          tid_end = beg + sma;
+        }
+        beg += sma;
+
+        if ( tid == 2 )
+        {
+          tid_beg = beg;
+          tid_end = beg + sma;
+        }
+        beg += sma;
+
+        if ( tid == 3 )
+        {
+          tid_beg = beg;
+          tid_end = beg + big;
+        }
+        beg += big;
+
+        if ( tid_end > end ) tid_end = end;
+        return range( tid_beg, tid_end, nb );
+      }
     default:
       printf( "GetRange(): not a legal scheduling strategy.\n" );
       exit( 1 );

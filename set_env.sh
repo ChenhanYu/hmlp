@@ -36,7 +36,7 @@ export HMLP_USE_BLAS=true
 echo "HMLP_USE_BLAS = $HMLP_USE_BLAS"
 
 ## Whether use VML or not? (only if you have MKL)
-export HMLP_USE_VML=true
+export HMLP_USE_VML=false
 echo "HMLP_USE_VML = $HMLP_USE_VML"
 
 ## Compile with KNL -xMIC-AVX512
