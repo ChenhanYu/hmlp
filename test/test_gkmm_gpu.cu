@@ -546,7 +546,7 @@ int main (int argc, char *argv[])
   sscanf( argv[ 4 ], "%d", &batchSize );
 
   test_gkmm<double>( m, n, k, batchSize );
-  test_gkrm<double, thrust::pair<double, int> >( m, n, k, batchSize );
+  //test_gkrm<double, thrust::pair<double, int> >( m, n, k, batchSize );
   //test_gkmmv<double>( m, n, k, batchSize );
 
   return 0;

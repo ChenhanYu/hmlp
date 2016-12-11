@@ -26,6 +26,8 @@
 #endif
 #define fetch(A, m, n, bound) offs_d##A[mymin(n*LD##A+m, bound)]
 
+#define strfetch(A, i, m, n, bound) offs_d##A##i[mymin(n*LD##A, bound)]
+
 namespace hmlp
 {
 namespace strassen
@@ -61,10 +63,11 @@ namespace strassen
 
 template<
 bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y,
-const int BLK_M, const int BLK_N, const int BLK_K, 
-const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB, 
-const int THR_M, const int THR_N, 
+int DIM_X, int DIM_Y,
+int BLK_M, int BLK_N, int BLK_K, 
+int DIM_XA, int DIM_YA, int DIM_XB, int DIM_YB, 
+int THR_M, int THR_N, 
+int GAMMA, int DELTA, int ALPHA0, int ALPHA1,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 static __device__ void strassen_device
@@ -94,12 +97,22 @@ static __device__ void strassen_device
       {
         int offsC = coord_dCn * LDC + coord_dCm;
         TV &regC = rC[ n ][ m ];
-        TC &memC0 = C0[ offsC ];
-        TC &memC1 = C1[ offsC ];
+
+        if ( ALPHA0 )
+        {
+          TC &memC0 = C0[ offsC ];
+          memC0 += ALPHA0 * regC;
+        }
+
+        if ( ALPHA1 )
+        {
+          TC &memC1 = C1[ offsC ];
+          memC1 += ALPHA1 * regC;
+        }
 
         // Not sure what's the operation for C0 and C1
-        memC0 = opkernel( regC, coord_dCm, coord_dCn, blockIdx.z );
-        memC1 = opkernel( regC, coord_dCm, coord_dCn, blockIdx.z );
+        //memC0 = opkernel( regC, coord_dCm, coord_dCn, blockIdx.z );
+        //memC1 = opkernel( regC, coord_dCm, coord_dCn, blockIdx.z );
       }
     }
   }
@@ -111,10 +124,11 @@ static __device__ void strassen_device
 
 template<
 bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y, 
-const int BLK_M, const int BLK_N, const int BLK_K,
-const int DIM_XA, const int DIM_YA, 
-const int DIM_XB, const int DIM_YB,
+int DIM_X, int DIM_Y, 
+int BLK_M, int BLK_N, int BLK_K,
+int DIM_XA, int DIM_YA, 
+int DIM_XB, int DIM_YB,
+int CASE,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 static __global__ void strassen_kernel
@@ -126,37 +140,200 @@ static __global__ void strassen_kernel
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
 )
 {
-  // adjust the first kernel
-  strassen_device<
-    TRANSA, TRANSB,
-    DIM_X, DIM_Y, 
-    BLK_M, BLK_N, BLK_K,
-    DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
-    (BLK_M/DIM_X), (BLK_N/DIM_Y), 
-    SQ2NRM, OPKERNEL, OP1, OP2,
-    TA, TB, TC, TV>
-  (
-    M / 2, N / 2, K / 2, 
-    Aarray[ blockIdx.z ], Aarray[ blockIdx.z ], LDA,
-    Barray[ blockIdx.z ], Barray[ blockIdx.z ], LDB,
-    Carray[ blockIdx.z ], Carray[ blockIdx.z ], LDC,
-    opkernel, op1, op2, initV 
-  );
+  // acquire all partitions
+  const TA *A00, *A01, *A10, *A11;
+  const TB *B00, *B01, *B10, *B11;
+        TC *C00, *C01, *C10, *C11;
 
-  // add the rest six kernels 
-  // ...
+  if ( TRANSA )
+  {
+    A00 = Aarray[ blockIdx.z ];
+    A01 = A00 + K / 2;
+    A10 = A00 + ( M / 2 ) * LDA;
+    A11 = A10 + K / 2;
+  }
+  else
+  {
+    A00 = Aarray[ blockIdx.z ];
+    A01 = A00 + ( K / 2 ) * LDA;
+    A10 = A00 + M / 2;
+    A11 = A01 + M / 2;
+  }
+
+  if ( TRANSB )
+  {
+    B00 = Barray[ blockIdx.z ];
+    B01 = B00 + N / 2;
+    B10 = B00 + ( K / 2 ) * LDB;
+    B11 = B10 + N / 2;
+  }
+  else
+  {
+    B00 = Barray[ blockIdx.z ];
+    B01 = B00 + ( N / 2 ) * LDA;
+    B10 = B00 + K / 2;
+    B11 = B01 + K / 2;
+  }
+
+  C00 = Carray[ blockIdx.z ];
+  C01 = C00 + ( N / 2 ) * LDC;
+  C10 = C00 + M / 2;
+  C11 = C01 + M / 2;
 
 
+  switch ( CASE )
+  {
+    case 1:
+      // M1
+      strassen_device<
+        TRANSA, TRANSB,
+        DIM_X, DIM_Y, 
+        BLK_M, BLK_N, BLK_K,
+        DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+        (BLK_M/DIM_X), (BLK_N/DIM_Y),
+        1, 1, 1, 1,
+        SQ2NRM, OPKERNEL, OP1, OP2,
+        TA, TB, TC, TV>
+      (
+        M / 2, N / 2, K / 2, 
+        A00, A11, LDA, 
+        B00, B11, LDB, 
+        C00, C11, LDC,
+        opkernel, op1, op2, initV 
+      );
+      break;
 
+    case 2:
+      // M2
+      strassen_device<
+        TRANSA, TRANSB,
+        DIM_X, DIM_Y, 
+        BLK_M, BLK_N, BLK_K,
+        DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+        (BLK_M/DIM_X), (BLK_N/DIM_Y),
+        1, 0, 1, -1,
+        SQ2NRM, OPKERNEL, OP1, OP2,
+        TA, TB, TC, TV>
+      (
+        M / 2, N / 2, K / 2, 
+        A10,  A11, LDA, 
+        B00, NULL, LDB, 
+        C10,  C11, LDC,
+        opkernel, op1, op2, initV 
+      );
+      break;
+
+    case 3:
+      // M3
+      strassen_device<
+        TRANSA, TRANSB,
+        DIM_X, DIM_Y, 
+        BLK_M, BLK_N, BLK_K,
+        DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+        (BLK_M/DIM_X), (BLK_N/DIM_Y),
+        0, -1, 1, 1,
+        SQ2NRM, OPKERNEL, OP1, OP2,
+        TA, TB, TC, TV>
+      (
+        M / 2, N / 2, K / 2, 
+        A00, NULL, LDA, 
+        B01,  B11, LDB, 
+        C01,  C11, LDC,
+        opkernel, op1, op2, initV 
+      );
+      break;
+
+    case 4:
+      // M4
+      strassen_device<
+        TRANSA, TRANSB,
+        DIM_X, DIM_Y, 
+        BLK_M, BLK_N, BLK_K,
+        DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+        (BLK_M/DIM_X), (BLK_N/DIM_Y),
+        0, -1, 1, 1,
+        SQ2NRM, OPKERNEL, OP1, OP2,
+        TA, TB, TC, TV>
+      (
+        M / 2, N / 2, K / 2, 
+        A11, NULL, LDA, 
+        B10,  B00, LDB, 
+        C00,  C10, LDC,
+        opkernel, op1, op2, initV 
+      );
+      break;
+
+    case 5:
+      // M5
+      strassen_device<
+        TRANSA, TRANSB,
+        DIM_X, DIM_Y, 
+        BLK_M, BLK_N, BLK_K,
+        DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+        (BLK_M/DIM_X), (BLK_N/DIM_Y),
+        1, 0, -1, 1,
+        SQ2NRM, OPKERNEL, OP1, OP2,
+        TA, TB, TC, TV>
+      (
+        M / 2, N / 2, K / 2, 
+        A00,  A01, LDA,
+        B11, NULL, LDB,
+        C00,  C01, LDC,
+        opkernel, op1, op2, initV 
+      );
+      break;
+
+    case 6:
+      // M6
+      strassen_device<
+        TRANSA, TRANSB,
+        DIM_X, DIM_Y, 
+        BLK_M, BLK_N, BLK_K,
+        DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+        (BLK_M/DIM_X), (BLK_N/DIM_Y),
+        -1, 1, 1, 0,
+        SQ2NRM, OPKERNEL, OP1, OP2,
+        TA, TB, TC, TV>
+      (
+        M / 2, N / 2, K / 2, 
+        A10,  A00, LDA,
+        B00,  B01, LDB,
+        C11, NULL, LDC,
+        opkernel, op1, op2, initV 
+      );
+      break;
+
+    case 7:
+      // M7
+      strassen_device<
+        TRANSA, TRANSB,
+        DIM_X, DIM_Y, 
+        BLK_M, BLK_N, BLK_K,
+        DIM_XA, DIM_YA, DIM_XB, DIM_YB, 
+        (BLK_M/DIM_X), (BLK_N/DIM_Y),
+        -1, 1, 1, 0,
+        SQ2NRM, OPKERNEL, OP1, OP2,
+        TA, TB, TC, TV>
+      (
+        M / 2, N / 2, K / 2, 
+        A01,  A11, LDA,
+        B10,  B11, LDB,
+        C00, NULL, LDC,
+        opkernel, op1, op2, initV 
+      );
+      break;
+    default:
+      break;
+  }
 
 };
 
 
 template<bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y, 
-const int BLK_M, const int BLK_N, const int BLK_K,
-const int DIM_XA, const int DIM_YA, 
-const int DIM_XB, const int DIM_YB,
+int DIM_X, int DIM_Y, 
+int BLK_M, int BLK_N, int BLK_K,
+int DIM_XA, int DIM_YA, 
+int DIM_XB, int DIM_YB,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 static __global__ void strassen_kernel
@@ -174,10 +351,10 @@ static __global__ void strassen_kernel
 
 template<
 bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y, 
-const int BLK_M, const int BLK_N, const int BLK_K,
-const int dim_vec,
-const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
+int DIM_X, int DIM_Y, 
+int BLK_M, int BLK_N, int BLK_K,
+int dim_vec,
+int DIM_XA, int DIM_YA, int DIM_XB, int DIM_YB,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 void strassen_internal
@@ -199,6 +376,103 @@ void strassen_internal
     DIM_X, DIM_Y, 
     BLK_M, BLK_N, BLK_K, 
     DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    1,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    opkernel, op1, op2, initV
+  );
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    2,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    opkernel, op1, op2, initV
+  );
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    3,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    opkernel, op1, op2, initV
+  );
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    4,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    opkernel, op1, op2, initV
+  );
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    5,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    opkernel, op1, op2, initV
+  );
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    6,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, stream >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    opkernel, op1, op2, initV
+  );
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    7,
     SQ2NRM, OPKERNEL, OP1, OP2,
     TA, TB, TC, TV>
   <<< dimGrid, dimBlock, 0, stream >>>
@@ -217,10 +491,10 @@ void strassen_internal
  */ 
 template<
 bool TRANSA, bool TRANSB,
-const int DIM_X, const int DIM_Y, 
-const int BLK_M, const int BLK_N, const int BLK_K,
-const int dim_vec,
-const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
+int DIM_X, int DIM_Y, 
+int BLK_M, int BLK_N, int BLK_K,
+int dim_vec,
+int DIM_XA, int DIM_YA, int DIM_XB, int DIM_YB,
 bool SQ2NRM, typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 void strassen_internal
@@ -320,7 +594,7 @@ void strassen
  
   // NN case for testing
   strassen_internal
-  <false,false, 16, 16, 80, 64, 16, 1, 16, 16, 16, 16,
+  <false,false, 16, 16, 96, 80, 16, 1, 16, 16, 16, 16,
   SQ2NRM, OPKERNEL, OP1, OP2>
   (
     stream,
@@ -404,7 +678,7 @@ void strassen
 
   // NN case for testing
   strassen_internal
-  <false,false, 16, 16, 80, 64, 16, 1, 16, 16, 16, 16,
+  <false,false, 16, 16, 64, 80, 16, 1, 16, 16, 16, 16,
   SQ2NRM, OPKERNEL, OP1, OP2>
   (
     stream,

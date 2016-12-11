@@ -19,12 +19,12 @@
  * 
  */
 
-  int LDA0, LDA1, LDB0, LDB1;
+  //int LDA0, LDA1, LDB0, LDB1;
 
-  LDA0 = LDA;
-  LDA1 = LDA;
-  LDB0 = LDB;
-  LDB1 = LDB;
+  //LDA0 = LDA;
+  //LDA1 = LDA;
+  //LDB0 = LDB;
+  //LDB1 = LDB;
 
   int idx = threadIdx.x;  // thread's m dimension
   int idy = threadIdx.y;  // thread's n dimension
@@ -96,47 +96,76 @@
   if ( TRANSA ) 
   {
     #pragma unroll
-    for (n = 0; n < BLK_M; n += DIM_YA)
+    for ( n = 0; n < BLK_M; n += DIM_YA )
       #pragma unroll
-      for (m = 0; m < BLK_K; m += DIM_XA)
+      for ( m = 0; m < BLK_K; m += DIM_XA )
       {
-        sA[m+idxA][n+idyA] = fetch(A0, m, n, boundA) + fetch(A1, m, n, boundA);
+        if ( GAMMA )
+          //sA[m+idxA][n+idyA] =   1.0 * fetch(A0, m, n, boundA) 
+          //                   + GAMMA * fetch(A1, m, n, boundA);
+          sA[m+idxA][n+idyA] =   1.0 * strfetch(A, 0, m, n, boundA) 
+                             + GAMMA * strfetch(A, 1, m, n, boundA);
+        else
+          //sA[m+idxA][n+idyA] =   1.0 * fetch(A0, m, n, boundA);
+          sA[m+idxA][n+idyA] =   1.0 * strfetch(A, 0, m, n, boundA);
       }
   }
   else 
   {
     #pragma unroll
-    for (n = 0; n < BLK_K; n += DIM_YA)
+    for ( n = 0; n < BLK_K; n += DIM_YA )
       #pragma unroll
-      for (m = 0; m < BLK_M; m += DIM_XA)
+      for ( m = 0; m < BLK_M; m += DIM_XA )
       {
-        sA[n+idyA][m+idxA] = fetch(A0, m, n, boundA) + fetch(A1, m, n, boundA);
+        if ( GAMMA )
+          //sA[n+idyA][m+idxA] =   1.0 * fetch(A0, m, n, boundA) 
+          //                   + GAMMA * fetch(A1, m, n, boundA);
+          sA[n+idyA][m+idxA] =   1.0 * strfetch(A, 0, m, n, boundA) 
+                             + GAMMA * strfetch(A, 1, m, n, boundA);
+        else
+          //sA[n+idyA][m+idxA] =   1.0 * fetch(A0, m, n, boundA);
+          sA[n+idyA][m+idxA] =   1.0 * strfetch(A, 0, m, n, boundA);
       }
   }
 
   if ( TRANSB ) 
   {
     #pragma unroll
-    for (n = 0; n < BLK_K; n += DIM_YB)
+    for ( n = 0; n < BLK_K; n += DIM_YB )
       #pragma unroll
-      for (m = 0; m < BLK_N; m += DIM_XB)
+      for ( m = 0; m < BLK_N; m += DIM_XB )
       {
-        sB[m+idxB][n+idyB] = fetch(B0, m, n, boundB) + fetch(B1, m, n, boundB);
+        if ( DELTA )
+          //sB[m+idxB][n+idyB] =   1.0 * fetch(B0, m, n, boundB) 
+          //                   + DELTA * fetch(B1, m, n, boundB);
+          sB[m+idxB][n+idyB] =   1.0 * strfetch(B, 0, m, n, boundB) 
+                             + DELTA * strfetch(B, 1, m, n, boundB);
+        else
+          //sB[m+idxB][n+idyB] =   1.0 * fetch(B0, m, n, boundB);
+          sB[m+idxB][n+idyB] =   1.0 * strfetch(B, 0, m, n, boundB);
       }
   }
-  else { 
+  else 
+  { 
     #pragma unroll
-    for (n = 0; n < BLK_N; n += DIM_YB)
+    for ( n = 0; n < BLK_N; n += DIM_YB )
       #pragma unroll
-      for (m = 0; m < BLK_K; m += DIM_XB)
+      for ( m = 0; m < BLK_K; m += DIM_XB )
       {
-        sB[n+idyB][m+idxB] = fetch(B0, m, n, boundB) + fetch(B1, m, n, boundB);
+        if ( DELTA )
+          //sB[n+idyB][m+idxB] =   1.0 * fetch(B0, m, n, boundB) 
+          //                   + DELTA * fetch(B1, m, n, boundB);
+          sB[n+idyB][m+idxB] =   1.0 * strfetch(B, 0, m, n, boundB) 
+                             + DELTA * strfetch(B, 1, m, n, boundB);
+        else
+          //sB[n+idyB][m+idxB] =   1.0 * fetch(B0, m, n, boundB); 
+          sB[n+idyB][m+idxB] =   1.0 * strfetch(B, 0, m, n, boundB); 
       }
   }
 
   __syncthreads();
 
-  for (kk = 0; kk < K-BLK_K; kk += BLK_K) {
+  for ( kk = 0; kk < K-BLK_K; kk += BLK_K ) {
 
     if ( TRANSA ) 
     {
@@ -144,61 +173,89 @@
       offs_dA1 += BLK_K;
       boundA   -= BLK_K;
     }
-    else {
+    else 
+    {
       offs_dA0 += BLK_K*LDA;
       offs_dA1 += BLK_K*LDA;
       boundA   -= BLK_K*LDA;
     }
 
-    if ( TRANSB ) {
+    if ( TRANSB ) 
+    {
       offs_dB0 += BLK_K*LDB;
       offs_dB1 += BLK_K*LDB;
       boundB   -= BLK_K*LDB;
     }
-    else {
+    else 
+    {
       offs_dB0 += BLK_K;
       offs_dB1 += BLK_K;
       boundB   -= BLK_K;
     }
 
-    //#pragma unroll
-    for (n = 0; n < ( TRANSA?BLK_M/DIM_YA:BLK_K/DIM_YA ); n++)
-      #pragma unroll
-      for (m = 0; m < ( TRANSA?BLK_K/DIM_XA:BLK_M/DIM_XA ); m++)
-      {
-        ra[n][m] = fetch(A0, m*DIM_XA, n*DIM_YA, boundA)
-                 + fetch(A1, m*DIM_XA, n*DIM_YA, boundA);
-      }
 
-    //#pragma unroll
-    for (n = 0; n < ( TRANSB?BLK_K/DIM_YB:BLK_N/DIM_YB ); n++)
+    if ( GAMMA )
+    {
+      //#pragma unroll 2
+      for ( n = 0; n < ( TRANSA?BLK_M/DIM_YA:BLK_K/DIM_YA ); n++ )
+        #pragma unroll
+        for ( m = 0; m < ( TRANSA?BLK_K/DIM_XA:BLK_M/DIM_XA ); m++ )
+          //ra[n][m] =   1.0 * fetch(A0, m*DIM_XA, n*DIM_YA, boundA)
+          //         + GAMMA * fetch(A1, m*DIM_XA, n*DIM_YA, boundA);
+          ra[n][m] =   1.0 * strfetch(A, 0, m*DIM_XA, n*DIM_YA, boundA)
+                   + GAMMA * strfetch(A, 1, m*DIM_XA, n*DIM_YA, boundA);
+    }
+    else
+    {
       #pragma unroll
-      for (m = 0; m < ( TRANSB?BLK_N/DIM_XB:BLK_K/DIM_XB ); m++)
-      {
-        rb[n][m] = fetch(B0, m*DIM_XB, n*DIM_YB, boundB)
-                 + fetch(B1, m*DIM_XB, n*DIM_YB, boundB);
-      }
+      for ( n = 0; n < ( TRANSA?BLK_M/DIM_YA:BLK_K/DIM_YA ); n++ )
+        #pragma unroll
+        for ( m = 0; m < ( TRANSA?BLK_K/DIM_XA:BLK_M/DIM_XA ); m++ )
+          //ra[n][m] =   1.0 * fetch(A0, m*DIM_XA, n*DIM_YA, boundA);
+          ra[n][m] =   1.0 * strfetch(A, 0, m*DIM_XA, n*DIM_YA, boundA);
+    }
+
+    if ( DELTA )
+    {
+      //#pragma unroll 2
+      for ( n = 0; n < ( TRANSB?BLK_K/DIM_YB:BLK_N/DIM_YB ); n++ )
+        #pragma unroll
+        for ( m = 0; m < ( TRANSB?BLK_N/DIM_XB:BLK_K/DIM_XB ); m++ )
+          rb[n][m] =   1.0 * strfetch(B, 0, m*DIM_XB, n*DIM_YB, boundB)
+                   + DELTA * strfetch(B, 1, m*DIM_XB, n*DIM_YB, boundB);
+    }
+    else
+    {
+      #pragma unroll
+      for ( n = 0; n < ( TRANSB?BLK_K/DIM_YB:BLK_N/DIM_YB ); n++ )
+        #pragma unroll
+        for ( m = 0; m < ( TRANSB?BLK_N/DIM_XB:BLK_K/DIM_XB ); m++ )
+          rb[n][m] =   1.0 * strfetch(B, 0, m*DIM_XB, n*DIM_YB, boundB);
+    }
+
+
+
 
     // Multiply
     #pragma unroll
-    for (k = 0; k < BLK_K; k++) 
+    for ( k = 0; k < BLK_K; k++ ) 
     {
       // Load A shmem->regs
       #pragma unroll
-      for (m = 0; m < THR_M; m++)
+      for ( m = 0; m < THR_M; m++ )
         rA[m] = sA[k][m*DIM_X+idx];
 
       // Load B shmem->regs
       #pragma unroll
-      for (n = 0; n < THR_N; n++)
+      for ( n = 0; n < THR_N; n++ )
         rB[n] = sB[n*DIM_Y+idy][k];
 
       // Compute
       #pragma unroll
-      for (n = 0; n < THR_N; n++) 
+      for ( n = 0; n < THR_N; n++ ) 
       {
         #pragma unroll
-        for (m = 0; m < THR_M; m++) 
+        for ( m = 0; m < THR_M; m++ ) 
         {
           rC[ n ][ m ] = op1( rC[ n ][ m ], op2( rA[ m ], rB[ n ] ) );
         }
@@ -211,7 +268,7 @@
     if ( TRANSA ) 
     {
       #pragma unroll
-      for (n = 0; n < BLK_M/DIM_YA; n++)
+      for ( n = 0; n < BLK_M/DIM_YA; n++ )
         #pragma unroll
         for (m = 0; m < BLK_K/DIM_XA; m++)
           sA[m*DIM_XA+idxA][n*DIM_YA+idyA] = ra[n][m];
@@ -219,9 +276,9 @@
     else 
     {
       #pragma unroll
-      for (n = 0; n < BLK_K/DIM_YA; n++)
+      for ( n = 0; n < BLK_K/DIM_YA; n++ )
         #pragma unroll
-        for (m = 0; m < BLK_M/DIM_XA; m++)
+        for ( m = 0; m < BLK_M/DIM_XA; m++ )
           sA[n*DIM_YA+idyA][m*DIM_XA+idxA] = ra[n][m];
     }
 
@@ -229,17 +286,17 @@
     if ( TRANSB ) 
     {
       #pragma unroll
-      for (n = 0; n < BLK_K/DIM_YB; n++)
+      for ( n = 0; n < BLK_K/DIM_YB; n++ )
         #pragma unroll
-        for (m = 0; m < BLK_N/DIM_XB; m++)
+        for ( m = 0; m < BLK_N/DIM_XB; m++)
           sB[m*DIM_XB+idxB][n*DIM_YB+idyB] = rb[n][m];
     }
     else 
     {
       #pragma unroll
-      for (n = 0; n < BLK_N/DIM_YB; n++)
+      for ( n = 0; n < BLK_N/DIM_YB; n++ )
         #pragma unroll
-        for (m = 0; m < BLK_K/DIM_XB; m++)
+        for ( m = 0; m < BLK_K/DIM_XB; m++ )
           sB[n*DIM_YB+idyB][m*DIM_XB+idxB] = rb[n][m];
     }
 
@@ -248,22 +305,23 @@
 
   kk = K - kk;
   #pragma unroll
-  for (k = 0; k < kk; k++) {
+  for ( k = 0; k < kk; k++ ) {
     // Load A shmem->regs
     #pragma unroll
-    for (m = 0; m < THR_M; m++)
+    for ( m = 0; m < THR_M; m++ )
       rA[m] = sA[k][m*DIM_X+idx];
 
     // Load B shmem->regs
     #pragma unroll
-    for (n = 0; n < THR_N; n++)
+    for ( n = 0; n < THR_N; n++ )
       rB[n] = sB[n*DIM_Y+idy][k];
 
     // Compute
     #pragma unroll
-    for (n = 0; n < THR_N; n++) {
+    for ( n = 0; n < THR_N; n++ ) 
+    {
       #pragma unroll
-      for (m = 0; m < THR_M; m++) {
+      for ( m = 0; m < THR_M; m++ ) {
         rC[ n ][ m ] = op1( rC[ n ][ m ], op2( rA[ m ], rB[ n ] ) );
       }
     }

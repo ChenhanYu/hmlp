@@ -127,7 +127,7 @@ endif ()
 
 if ($ENV{HMLP_USE_BLAS} MATCHES "true")
   set(BLA_STATIC on)
-  find_package (BLAS REQUIRED)
+  # find_package (BLAS REQUIRED)
   set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
 endif ()
 
