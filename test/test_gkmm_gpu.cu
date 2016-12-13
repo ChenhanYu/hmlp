@@ -106,8 +106,20 @@ void test_gkmm( int m, int n, int k, int batchSize )
   float gkmm_time = 0.0, gkmm_strided_time = 0.0, ref_time = 0.0;
   double flops = 0.0;
 
-  cublasHandle_t handle;
-  cublasCreate( &handle );
+  //cublasHandle_t handle;
+  //cublasCreate( &handle );
+
+  cublasHandle_t handle[ 32 ];
+  cudaStream_t stream[ 32 ];
+  for ( int i = 0; i < 32; i ++ ) 
+  {
+    cublasCreate( &handle[ i ] );
+    cudaStreamCreate( &stream[ i ] ) ;
+    cublasSetStream( handle[ i ], stream[ i ] );
+  }
+
+
+
 
   cudaEvent_t gkmx_beg, gkmx_end;
   // cublasOperation_t transa = CUBLAS_OP_N; 
@@ -188,17 +200,33 @@ void test_gkmm( int m, int n, int k, int batchSize )
 
   // Reference 
   cudaEventRecord( gkmx_beg, 0 );
-  xgemm_batched 
-  (
-    handle, 
-    CUBLAS_OP_N, CUBLAS_OP_N,
-    m, n, k,
-    1.0,
-    d_Ap.data().get(), m,
-    d_Bp.data().get(), k, 0.0,
-    d_Crefp.data().get(), m,
-    batchSize 
-  );
+
+  //xgemm_batched 
+  //(
+  //  handle, 
+  //  CUBLAS_OP_N, CUBLAS_OP_N,
+  //  m, n, k,
+  //  1.0,
+  //  d_Ap.data().get(), m,
+  //  d_Bp.data().get(), k, 0.0,
+  //  d_Crefp.data().get(), m,
+  //  batchSize 
+  //);
+
+  for ( int i = 0; i < batchSize; ++ i )
+  {
+    xgemm
+    (
+      handle[ i % 32 ], 
+      CUBLAS_OP_N, CUBLAS_OP_N,
+      m, n, k,
+      1.0,
+      d_A.data().get() + i * m * k, m,
+      d_B.data().get() + i * k * n, k, 0.0,
+      d_Cref.data().get() + i * m * n, m
+    );
+  }
+
   cudaThreadSynchronize();
   cudaEventRecord( gkmx_end, 0 );
   cudaEventSynchronize( gkmx_end );

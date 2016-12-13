@@ -56,7 +56,28 @@ namespace strassen
 //  Barray, ldb, lob, \
 //  Carray, ldc, loc, \
 //  batchSize, \
-//  opkernel, op1, op2, initV ) 
+//  opkernel, op1, o2, initV ) 
+
+
+#if __CUDA_ARCH__ < 600
+  __device__ double atomicAdd(double* address, double val)
+  {
+    unsigned long long int* address_as_ull = (unsigned long long int*)address;
+    unsigned long long int old = *address_as_ull, assumed;
+
+    do 
+    {
+      assumed = old;
+      old = atomicCAS(address_as_ull, assumed,
+          __double_as_longlong(val + __longlong_as_double(assumed)));
+
+      // Note: uses integer comparison to avoid hang in case of NaN (since NaN != NaN)
+    } while (assumed != old);
+
+    return
+      __longlong_as_double(old);
+  }
+#endif
 
 
 
@@ -102,12 +123,14 @@ static __device__ void strassen_device
         {
           TC &memC0 = C0[ offsC ];
           memC0 += ALPHA0 * regC;
+          //atomicAdd( C0 + offsC, ALPHA0 * regC );
         }
 
         if ( ALPHA1 )
         {
           TC &memC1 = C1[ offsC ];
           memC1 += ALPHA1 * regC;
+          //atomicAdd( C1 + offsC, ALPHA1 * regC );
         }
 
         // Not sure what's the operation for C0 and C1
@@ -368,6 +391,10 @@ void strassen_internal
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
 )
 {
+  cudaStream_t str_stream[ 2 ];
+  cudaStreamCreate( &str_stream[ 0 ] ) ;
+  cudaStreamCreate( &str_stream[ 1 ] ) ;
+
   dim3 dimBlock( DIM_X, DIM_Y );
   dim3 dimGrid( hmlp_ceildiv( m / 2, BLK_M ), hmlp_ceildiv( n / 2, BLK_N ), batchSize );
 
@@ -376,42 +403,10 @@ void strassen_internal
     DIM_X, DIM_Y, 
     BLK_M, BLK_N, BLK_K, 
     DIM_XA, DIM_YA, DIM_XB, DIM_YB,
-    1,
+    7,
     SQ2NRM, OPKERNEL, OP1, OP2,
     TA, TB, TC, TV>
-  <<< dimGrid, dimBlock, 0, stream >>>
-  ( 
-    m, n, k, 
-    Aarray, lda,
-    Barray, ldb,
-    Carray, ldc,
-    opkernel, op1, op2, initV
-  );
-  strassen_kernel<
-    TRANSA, TRANSB,
-    DIM_X, DIM_Y, 
-    BLK_M, BLK_N, BLK_K, 
-    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
-    2,
-    SQ2NRM, OPKERNEL, OP1, OP2,
-    TA, TB, TC, TV>
-  <<< dimGrid, dimBlock, 0, stream >>>
-  ( 
-    m, n, k, 
-    Aarray, lda,
-    Barray, ldb,
-    Carray, ldc,
-    opkernel, op1, op2, initV
-  );
-  strassen_kernel<
-    TRANSA, TRANSB,
-    DIM_X, DIM_Y, 
-    BLK_M, BLK_N, BLK_K, 
-    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
-    3,
-    SQ2NRM, OPKERNEL, OP1, OP2,
-    TA, TB, TC, TV>
-  <<< dimGrid, dimBlock, 0, stream >>>
+  <<< dimGrid, dimBlock, 0, str_stream[ 0 ] >>>
   ( 
     m, n, k, 
     Aarray, lda,
@@ -427,7 +422,7 @@ void strassen_internal
     4,
     SQ2NRM, OPKERNEL, OP1, OP2,
     TA, TB, TC, TV>
-  <<< dimGrid, dimBlock, 0, stream >>>
+  <<< dimGrid, dimBlock, 0, str_stream[ 0 ] >>>
   ( 
     m, n, k, 
     Aarray, lda,
@@ -440,10 +435,10 @@ void strassen_internal
     DIM_X, DIM_Y, 
     BLK_M, BLK_N, BLK_K, 
     DIM_XA, DIM_YA, DIM_XB, DIM_YB,
-    5,
+    3,
     SQ2NRM, OPKERNEL, OP1, OP2,
     TA, TB, TC, TV>
-  <<< dimGrid, dimBlock, 0, stream >>>
+  <<< dimGrid, dimBlock, 0, str_stream[ 1 ] >>>
   ( 
     m, n, k, 
     Aarray, lda,
@@ -459,7 +454,27 @@ void strassen_internal
     6,
     SQ2NRM, OPKERNEL, OP1, OP2,
     TA, TB, TC, TV>
-  <<< dimGrid, dimBlock, 0, stream >>>
+  <<< dimGrid, dimBlock, 0, str_stream[ 1 ] >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    opkernel, op1, op2, initV
+  );
+
+  cudaStreamSynchronize( str_stream[ 0 ] );
+  cudaStreamSynchronize( str_stream[ 1 ] );
+
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    5,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, str_stream[ 0 ] >>>
   ( 
     m, n, k, 
     Aarray, lda,
@@ -472,10 +487,10 @@ void strassen_internal
     DIM_X, DIM_Y, 
     BLK_M, BLK_N, BLK_K, 
     DIM_XA, DIM_YA, DIM_XB, DIM_YB,
-    7,
+    2,
     SQ2NRM, OPKERNEL, OP1, OP2,
     TA, TB, TC, TV>
-  <<< dimGrid, dimBlock, 0, stream >>>
+  <<< dimGrid, dimBlock, 0, str_stream[ 1 ] >>>
   ( 
     m, n, k, 
     Aarray, lda,
@@ -483,6 +498,29 @@ void strassen_internal
     Carray, ldc,
     opkernel, op1, op2, initV
   );
+
+  cudaStreamSynchronize( str_stream[ 0 ] );
+  cudaStreamSynchronize( str_stream[ 1 ] );
+
+  strassen_kernel<
+    TRANSA, TRANSB,
+    DIM_X, DIM_Y, 
+    BLK_M, BLK_N, BLK_K, 
+    DIM_XA, DIM_YA, DIM_XB, DIM_YB,
+    1,
+    SQ2NRM, OPKERNEL, OP1, OP2,
+    TA, TB, TC, TV>
+  <<< dimGrid, dimBlock, 0, str_stream[ 0 ] >>>
+  ( 
+    m, n, k, 
+    Aarray, lda,
+    Barray, ldb,
+    Carray, ldc,
+    opkernel, op1, op2, initV
+  );
+
+  cudaStreamSynchronize( str_stream[ 0 ] );
+  cudaStreamSynchronize( str_stream[ 1 ] );
 };
 
 

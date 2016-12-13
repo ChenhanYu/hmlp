@@ -8,7 +8,56 @@
 namespace hmlp
 {
 
-  
+// cublasDgemm wrapper
+void xgemm
+(
+  cublasHandle_t handle,
+  cublasOperation_t transA, cublasOperation_t transB,
+  int m, int n, int k, 
+  double alpha,
+  double *A, int lda,
+  double *B, int ldb, double beta,
+  double *C, int ldc
+)
+{
+  cublasDgemm
+  (
+    handle,
+    transA, transB,
+    m, n, k,
+    &alpha,
+    (const double*)A, lda,
+    (const double*)B, ldb, &beta,
+                   C, ldc
+  );
+};
+
+// cublasSgemm wrapper
+void xgemm
+(
+  cublasHandle_t handle,
+  cublasOperation_t transA, cublasOperation_t transB,
+  int m, int n, int k, 
+  float alpha,
+  float *A, int lda,
+  float *B, int ldb, float beta,
+  float *C, int ldc
+)
+{
+  cublasSgemm
+  (
+    handle,
+    transA, transB,
+    m, n, k,
+    &alpha,
+    (const float*)A, lda,
+    (const float*)B, ldb, &beta,
+                   C, ldc
+  );
+};
+
+
+// cublasDgemmBatched wrapper
 void xgemm_batched
 (
   cublasHandle_t handle,
@@ -35,6 +84,7 @@ void xgemm_batched
 };
 
 
+// cublasSgemmBatched wrapper
 void xgemm_batched
 (
   cublasHandle_t handle,
