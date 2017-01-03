@@ -9,6 +9,9 @@
 #include <iostream>
 #include <hmlp.h>
 
+#define DEBUG_TREE 1
+
+
 namespace hmlp
 {
 namespace tree
@@ -80,10 +83,14 @@ T Select( int n, int k, std::vector<T> &x )
     else                      lhs.push_back( x[ i ] );
   }
 
-  //printf( "n %d k %d lhs %d rhs %d mean %lf\n", n, k, (int)lhs.size(), (int)rhs.size(), mean[ 0 ] );
+#ifdef DEBUG_TREE
+  printf( "n %d k %d lhs %d rhs %d mean %lf\n", 
+      n, k, (int)lhs.size(), (int)rhs.size(), mean[ 0 ] );
+#endif
+
 
   // TODO: Here lhs.size() == k seems to be buggy.
-  if ( lhs.size() == k || n == 1 ) 
+  if ( lhs.size() == n || lhs.size() == k || n == 1 ) 
   {
     //printf( "lrh[ %d - 1 ] %lf n %d\n", k, lhs[ k - 1 ], n );
     //return lhs[ k - 1 ];
@@ -233,6 +240,40 @@ struct centersplit
   };
 };
 
+template<typename T>
+class Data
+{
+  public:
+
+    Data();
+    ~Data();
+
+  private:
+};
+
+template<typename T>
+class Approximation
+{
+  public:
+    
+    Approximation();
+    ~Approximation();
+
+    // Off-diagonal low-rank approximation
+    int n1;
+    int n2;
+    int r12;
+    int r21;
+
+    std::vector<T> U1;
+    std::vector<T> U2;
+    std::vector<T> V1;
+    std::vector<T> V2;
+
+    // Off-diagonal sparse approximation
+
+  private:
+};
 
 
 
@@ -348,50 +389,83 @@ class Node
 
 };
 
+
 template<typename SPLITTER, int N_CHILDREN, typename T>
-std::vector<Node<SPLITTER, N_CHILDREN, T>*> TreePartition
-(
-  int d, int n, int m, int lmax,
-  std::vector<T> &X,
-  std::vector<std::size_t> &gids,
-  std::vector<std::size_t> &lids
-)
+class Tree
 {
-  std::deque<Node<SPLITTER, N_CHILDREN, T>*> treequeue;
-  std::vector<Node<SPLITTER, N_CHILDREN, T>*> treelist;
-  treelist.reserve( ( n / m ) * N_CHILDREN );
+  public:
 
-  auto *root = new Node<SPLITTER, N_CHILDREN, T>( d, n, 0, X, gids, lids, NULL );
-  treequeue.push_back( root );
+    int maxl;
 
-  //printf( "root\n" );
+    Tree()
+    { };
 
+    std::vector<Node<SPLITTER, N_CHILDREN, T>*> treelist;
 
-  //for ( int i = 0; i < n; i ++ )
-  //{
-  //  printf( "%d ", (int)lids[ i ] );
-  //}
-
-
-
-  while ( treequeue.size() )
-  {
-    auto *node = treequeue.front();
-    if ( node )
+    //std::vector<Node<SPLITTER, N_CHILDREN, T>*> TreePartition
+    void TreePartition
+    (
+      int d, int n, int m, int lmax,
+      std::vector<T> &X,
+      std::vector<std::size_t> &gids,
+      std::vector<std::size_t> &lids
+    )
     {
-      node->Split( m, lmax );
-      //printf( "Split()\n" );
-
-      for ( int i = 0; i < N_CHILDREN; i ++ )
+      std::deque<Node<SPLITTER, N_CHILDREN, T>*> treequeue;
+      //std::vector<Node<SPLITTER, N_CHILDREN, T>*> treelist;
+      treelist.reserve( ( n / m ) * N_CHILDREN );
+    
+      auto *root = new Node<SPLITTER, N_CHILDREN, T>( d, n, 0, X, gids, lids, NULL );
+      treequeue.push_back( root );
+    
+      //printf( "root\n" );
+    
+      //for ( int i = 0; i < n; i ++ )
+      //{
+      //  printf( "%d ", (int)lids[ i ] );
+      //}
+    
+      while ( treequeue.size() )
       {
-        treequeue.push_back( node->kids[ i ] );
+        auto *node = treequeue.front();
+        if ( node )
+        {
+          node->Split( m, lmax );
+          //printf( "Split()\n" );
+    
+          for ( int i = 0; i < N_CHILDREN; i ++ )
+          {
+            treequeue.push_back( node->kids[ i ] );
+          }
+        }
+        treequeue.pop_front();
+        treelist.push_back( node );
       }
-    }
-    treequeue.pop_front();
-    treelist.push_back( node );
-  }
+   
+      //return treelist;
+    };
 
-  return treelist;
+    template<bool LEVELBYLEVEL>
+    void TraverseUp();
+
+    template<bool LEVELBYLEVEL>
+    void TraverseDown()
+    {
+      if ( LEVELBYLEVEL )
+      {
+        for ( int l = 0; l < maxl; l ++ )
+        {
+        }
+      }
+      else
+      {
+      }
+    };
+
+    void Summary()
+    {
+
+    };
 };
 
 

@@ -75,10 +75,20 @@ void test_tree( int d, int n )
   }
   // ------------------------------------------------------------------------
   
+  Tree<centersplit<2, double>, 2, double> tree;
 
-  auto treelist = TreePartition<centersplit<2, double>, 2, double>
-  ( d, n, 128, 10, X, gids, lids );
+  //tree.TreePartition( d, n, 128, 10, X, gids, lids );
 
+  //auto treelist = tree
+  //<centersplit<2, double>, 2, double>.TreePartition
+  //( d, n, 128, 10, X, gids, lids );
+
+  //printf( "here\n" );
+
+
+  //auto treelist = 
+    
+  tree.TreePartition( d, n, 128, 10, X, gids, lids );
 
 };
 

@@ -28,7 +28,7 @@ export HMLP_USE_INTEL=true
 echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 
 ## GPU compiler options (if true, compile the gpu library as well)
-export HMLP_USE_CUDA=true
+export HMLP_USE_CUDA=false
 echo "HMLP_USE_CUDA = $HMLP_USE_CUDA"
 
 ## Whether use BLAS or not?
