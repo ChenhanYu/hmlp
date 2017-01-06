@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <omp.h>
 
+
 namespace hmlp
 {
 
@@ -65,6 +66,8 @@ class Worker
     Worker( thread_communicator *my_comm );
 
     bool Execute( class Task *task );
+
+    void WaitExecute();
 
     float EstimateCost( class Task* task );
 

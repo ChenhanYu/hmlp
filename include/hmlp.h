@@ -2,6 +2,7 @@
 #define HMLP_H
 
 void hmlp_init();
+void hmlp_run();
 void hmlp_finalize();
 
 

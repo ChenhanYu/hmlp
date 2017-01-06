@@ -94,7 +94,6 @@ class Lock
 #endif
 };
 
-
 class Task
 {
   public:
@@ -111,18 +110,25 @@ class Task
 
     int taskid;
 
-    Lock task_lock;
-
     float cost;
 
     // priority
 
+    TaskStatus GetStatus();
+
+    void SetStatus( TaskStatus status );
+
+    void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
+
     void Enqueue();
 
-    /* function ptr */
-    void (*function)(void*);
+    virtual void Execute( Worker* );
 
-    volatile TaskStatus status;
+    /* function ptr */
+    void (*function)(Task*);
+
+    /* function context */
+    void *arg;
 
     volatile int n_dependencies_remaining;
 
@@ -135,6 +141,13 @@ class Task
 
     // argument list
     // arg
+
+    // Task lock
+    Lock task_lock;
+
+  private:
+
+    volatile TaskStatus status;
 
 };
 
@@ -155,11 +168,18 @@ class Scheduler
 
     std::deque<Task*> ready_queue[ MAX_WORKER ];
 
+    std::deque<Task*> tasklist;
+
     float time_remaining[ MAX_WORKER ];
 
     Lock ready_queue_lock[ MAX_WORKER ];
 
     Lock n_task_lock;
+
+    // Manually describe the dependencies.
+    static void DependencyAdd( Task *source, Task *target );
+
+    void NewTask( Task* );
 
   private:
 
@@ -171,6 +191,8 @@ class Scheduler
     Lock pci_lock;
 
     Lock gpu_lock;
+
+    Lock tasklist_lock;
 };
 
 
@@ -183,6 +205,8 @@ class RunTime
     ~RunTime();
 
     void Init();
+
+    void Run();
 
     void Finalize();
 

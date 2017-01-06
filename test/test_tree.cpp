@@ -90,6 +90,10 @@ void test_tree( int d, int n )
     
   tree.TreePartition( d, n, 128, 10, X, gids, lids );
 
+  tree.TraverseUp<false>();
+
+  //hmlp::Scheduler::Init( 4 );
+  hmlp_run();
 };
 
 int main( int argc, char *argv[] )
@@ -99,7 +103,13 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 1 ], "%d", &d );
   sscanf( argv[ 2 ], "%d", &n );
 
+  hmlp_init();
+  
   test_tree<double>( d, n );
+
+  printf( "here\n" );
+
+  hmlp_finalize();
 
   return 0;
 };

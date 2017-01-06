@@ -1,4 +1,5 @@
 #include <hmlp_thread.hpp>
+#include <hmlp_runtime.hpp>
 
 namespace hmlp
 {
@@ -141,15 +142,41 @@ Worker::Worker( thread_communicator *comm ) :
   //    tid, jc_id, pc_id, ic_id, jr_id, ic_jr );
 };
 
-bool Worker::Execute( class Task *task )
+/**
+ *
+ */ 
+bool Worker::Execute( Task *task )
 {
+  //task->status = RUNNING;
+  //task->worker = this;
+  current_task = task;
+
+  // Fetching data from GPU memory or from other processes.
+  // Fetch( task );
+
+  // Prefetch( task );
+
+  //(*task->function)( task );
+
+  task->Execute( this );
+  WaitExecute();
+
+  // WaitPrefetch
+
+  current_task = NULL;
+
   return true;
-}
+};
+
+void Worker::WaitExecute()
+{
+  // Synchroize device
+};
 
 float Worker::EstimateCost( class Task * task )
 {
   return 0.0;
-}
+};
 
 
 

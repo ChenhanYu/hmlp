@@ -9,13 +9,63 @@
 #include <iostream>
 #include <hmlp.h>
 
+#include <hmlp_runtime.hpp>
+
 #define DEBUG_TREE 1
 
 
 namespace hmlp
 {
+
 namespace tree
 {
+
+namespace skeleton
+{ 
+  template<typename CONTEXT>
+  class Task : public hmlp::Task
+  {
+    public:
+      
+      /* function ptr */
+      void (*function)(Task<CONTEXT>*);
+
+      /* argument ptr */
+      CONTEXT *arg;
+
+      void Set( std::string user_name, void (*user_function)(Task<CONTEXT>*), CONTEXT *user_arg )
+      {
+        name = user_name;
+        function = user_function;
+        arg = user_arg;
+      };
+
+      void Execute( Worker* user_worker )
+      {
+        //status = RUNNING;
+        //worker = user_worker;
+        function( this );
+      }
+
+    private:
+  };
+
+  //void SkeletonizeTaskFunction( Task *task )
+  //{
+  //  //auto *node = reinterpret_cast<tree::Node*>( task->arg );
+  //  printf( "SkeletonizeTask\n" );
+  //};
+
+  template<typename CONTEXT>
+  void SkeletonizeTaskFunction( Task<CONTEXT> *task )
+  {
+    //auto *node = reinterpret_cast<CONT>( task->arg );
+    printf( "SkeletonizeTask 2\n" );
+  };
+  
+}; // end namespace skeleton
+
+
 
 template<typename T>
 std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &lids )
@@ -293,6 +343,7 @@ class Node
       this->d = d;
       this->n = n;
       this->l = l;
+      this->treelist_id = -1;
       this->X = X;
       this->gids.resize( n );
       this->lids.resize( n );
@@ -314,6 +365,7 @@ class Node
       this->d = d;
       this->n = n;
       this->l = l;
+      this->treelist_id = -1;
       this->X = X;
       this->gids = gids;
       this->lids = lids;
@@ -327,9 +379,9 @@ class Node
 
     ~Node() {};
 
-    void Split( int m, int lmax )
+    void Split( int m, int max_depth )
     {
-      if ( n > m && l < lmax )
+      if ( n > m && l < max_depth )
       {
         auto split = splitter( d, n, X, gids, lids );
 
@@ -349,15 +401,15 @@ class Node
             kids[ i ]->lids[ j ] = lids[ split[ i ][ j ] ];
           }
         }
-      }
 
-      // Facilitate binary tree
-      if ( N_CHILDREN > 1  )
-      {
-        lchild = kids[ 0 ];
-        rchild = kids[ 1 ];
+        // Facilitate binary tree
+        if ( N_CHILDREN > 1  )
+        {
+          lchild = kids[ 0 ];
+          rchild = kids[ 1 ];
+        }
       }
-    }
+    };
 
     std::vector<T> X;
 
@@ -366,6 +418,8 @@ class Node
     int d;
 
     int l;
+
+    int treelist_id; // In top-down topology order.
 
     std::vector<std::size_t> gids;
 
@@ -395,65 +449,139 @@ class Tree
 {
   public:
 
-    int maxl;
-
-    Tree()
-    { };
+    int depth;
 
     std::vector<Node<SPLITTER, N_CHILDREN, T>*> treelist;
+
+    std::deque<Node<SPLITTER, N_CHILDREN, T>*> treequeue;
+
+    Tree() : depth( 0 )
+    {};
+
 
     //std::vector<Node<SPLITTER, N_CHILDREN, T>*> TreePartition
     void TreePartition
     (
-      int d, int n, int m, int lmax,
+      int d, int n, int m, int max_depth,
       std::vector<T> &X,
       std::vector<std::size_t> &gids,
       std::vector<std::size_t> &lids
     )
     {
+      assert( N_CHILDREN == 2 );
+
       std::deque<Node<SPLITTER, N_CHILDREN, T>*> treequeue;
-      //std::vector<Node<SPLITTER, N_CHILDREN, T>*> treelist;
       treelist.reserve( ( n / m ) * N_CHILDREN );
-    
       auto *root = new Node<SPLITTER, N_CHILDREN, T>( d, n, 0, X, gids, lids, NULL );
+   
       treequeue.push_back( root );
     
-      //printf( "root\n" );
-    
-      //for ( int i = 0; i < n; i ++ )
-      //{
-      //  printf( "%d ", (int)lids[ i ] );
-      //}
-    
-      while ( treequeue.size() )
+      depth = max_depth;
+
+      // TODO: there is parallelism to be exploited here.
+      while ( auto *node = treequeue.front() )
       {
-        auto *node = treequeue.front();
-        if ( node )
+        node->treelist_id = treelist.size();
+        node->Split( m, max_depth );
+        for ( int i = 0; i < N_CHILDREN; i ++ )
         {
-          node->Split( m, lmax );
-          //printf( "Split()\n" );
-    
-          for ( int i = 0; i < N_CHILDREN; i ++ )
-          {
-            treequeue.push_back( node->kids[ i ] );
-          }
+          treequeue.push_back( node->kids[ i ] );
         }
-        treequeue.pop_front();
         treelist.push_back( node );
+        treequeue.pop_front();
       }
-   
-      //return treelist;
+
+      // All tree nodes were created. Now decide tree depth.
+      if ( treelist.size() )
+      {
+        treelist.shrink_to_fit();
+        depth = treelist.back()->l;
+      }
     };
 
     template<bool LEVELBYLEVEL>
-    void TraverseUp();
+    void TraverseUp()
+    {
+      printf( "TraverseUp()\n" );
+
+      assert( N_CHILDREN == 2 );
+
+      //std::vector<Task*> tasklist;
+      std::vector<skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>*> tasklist;
+
+      if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
+
+      printf( "tasklist.size() %lu\n", tasklist.size() );
+      printf( "treelist.size() %lu\n", treelist.size() );
+      printf( "depth %d\n", depth );
+
+      for ( int l = depth; l >= 0; l -- )
+      {
+        int n_nodes = 1 << l;
+        auto level_beg = treelist.begin() + n_nodes - 1;
+
+        if ( LEVELBYLEVEL )
+        {
+          #pragma omp parallel for 
+          for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          {
+            auto *node = *(level_beg + node_ind);
+          }
+        }
+        else // using dynamic scheduling
+        {
+          for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          {
+            auto *node = *(level_beg + node_ind);
+            // Create tasks
+            tasklist[ n_nodes - 1 + node_ind ] = new skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>();
+
+            printf( "treelist_id %d, %d\n", node->treelist_id, n_nodes - 1 + node_ind );
+
+
+            auto *task = tasklist[ node->treelist_id ];
+
+            //task->Set
+            //( 
+            //  std::string( "fake skeletonization" ), 
+            //  &skeleton::SkeletonizeTaskFunction,
+            //  (void*)node
+            //);
+
+            task->Set
+            ( 
+              std::string( "fake skeletonization" ), 
+              &skeleton::SkeletonizeTaskFunction<Node<SPLITTER, N_CHILDREN, T>>,
+              node
+            );
+
+
+
+            //task->function = &skeleton::SkeletonizeTaskFunction;
+
+            // Setup dependencies
+            if ( node->kids[ 0 ] )
+            {
+              printf( "DependencyAdd %d -> %d\n", node->kids[ 0 ]->treelist_id, node->treelist_id );
+              printf( "DependencyAdd %d -> %d\n", node->kids[ 1 ]->treelist_id, node->treelist_id );
+              Scheduler::DependencyAdd( tasklist[ node->kids[ 0 ]->treelist_id ], task );
+              Scheduler::DependencyAdd( tasklist[ node->kids[ 1 ]->treelist_id ], task );
+            }
+            else // leafnodes, directly enqueue
+            {
+              task->Enqueue();
+            }
+          }
+        }
+      }
+    };
 
     template<bool LEVELBYLEVEL>
     void TraverseDown()
     {
       if ( LEVELBYLEVEL )
       {
-        for ( int l = 0; l < maxl; l ++ )
+        for ( int l = 0; l < depth; l ++ )
         {
         }
       }
@@ -468,8 +596,11 @@ class Tree
     };
 };
 
-
 }; // end namespace tree 
+
+
+
+
 }; // end namespace hmlp
 
 #endif // define TREE_HPP

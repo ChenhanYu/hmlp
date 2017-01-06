@@ -1,7 +1,7 @@
 #include <hmlp_runtime.hpp>
 
 // #define DEBUG_RUNTIME 1
-// #define DEBUG_SCHEDULER 1
+#define DEBUG_SCHEDULER 1
 
 
 namespace hmlp
@@ -164,10 +164,32 @@ void Lock::Release()
  *  @brief Task
  */ 
 Task::Task()
-{};
+{
+  status = ALLOCATED;
+  rt.scheduler.NewTask( this );
+  status = NOTREADY;
+};
 
 Task::~Task()
 {};
+
+TaskStatus Task::GetStatus()
+{
+  return status;
+};
+
+void Task::SetStatus( TaskStatus next_status )
+{
+  status = next_status;
+};
+
+void Task::Set( std::string user_name, void (*user_function)(Task*), void *user_arg )
+{
+  name = user_name;
+  function = user_function;
+  arg = user_arg;
+  status = NOTREADY;
+};
 
 void Task::DependenciesUpdate()
 {
@@ -178,6 +200,9 @@ void Task::DependenciesUpdate()
     child->task_lock.Acquire();
     {
       child->n_dependencies_remaining --;
+
+      std::cout << child->n_dependencies_remaining << std::endl;
+
       if ( !child->n_dependencies_remaining && child->status == NOTREADY )
       {
         child->Enqueue();
@@ -188,6 +213,13 @@ void Task::DependenciesUpdate()
   }
   status = DONE;
 };
+
+void Task::Execute( Worker *user_worker )
+{
+  // status = RUNNING;
+  // worker = user_worker;
+  function( this );
+}
 
 void Task::Enqueue()
 {
@@ -241,6 +273,7 @@ void Scheduler::Init( int n_worker )
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler::Init()\n" );
 #endif
+  // Reset task counter.
   n_task = 0;
 #ifdef USE_PTHREAD_RUNTIME
   for ( int i = 0; i < rt.n_worker; i ++ )
@@ -251,15 +284,32 @@ void Scheduler::Init( int n_worker )
     pthread_create
     ( 
       &(rt.workers[ i ].pthreadid), NULL,
-      EntryPoint, (void*)&(rt.workers[i])
+      EntryPoint, (void*)&(rt.workers[ i ])
     );
   }
+  // Now the master thread
+  EntryPoint( (void*)&(rt.workers[ 0 ]) );
 #else
   #pragma omp parallel num_threads( n_worker )
   {
-    EntryPoint( NULL );
+    EntryPoint( (void*)&(rt.workers[ 0 ]) );
   }
 #endif
+  // Reset tasklist
+  for ( auto it = tasklist.begin(); it != tasklist.end(); it ++ )
+  {
+    delete *it; 
+  }
+  tasklist.clear();
+};
+
+void Scheduler::NewTask( Task *task )
+{
+  tasklist_lock.Acquire();
+  {
+    tasklist.push_back( task );
+  }
+  tasklist_lock.Release();
 };
 
 void Scheduler::Finalize()
@@ -275,6 +325,34 @@ void Scheduler::Finalize()
 #else
 #endif
 };
+
+
+/**
+ *  @brief Add an direct edge (dependency) from source to target. 
+ *         That is to say, target depends on source.
+ *
+ */ 
+void Scheduler::DependencyAdd( Task *source, Task *target )
+{
+  // Update the source list.
+  source->task_lock.Acquire();
+  {
+    source->out.push_back( target );
+  }
+  source->task_lock.Release();
+
+  // Update the target list.
+  target->task_lock.Acquire();
+  {
+    target->in.push_back( source );
+    if ( source->GetStatus() != DONE )
+    {
+      target->n_dependencies_remaining ++;
+    }
+  }
+  target->task_lock.Release();
+}; // end DependencyAdd()
+
 
 void* Scheduler::EntryPoint( void* arg )
 {
@@ -302,6 +380,9 @@ void* Scheduler::EntryPoint( void* arg )
 
     if ( task )
     {
+      printf( "\n\nGet a task\n\n" );
+
+      task->SetStatus( RUNNING );
       bool committed = me->Execute( task );
       
       if ( committed )
@@ -315,7 +396,7 @@ void* Scheduler::EntryPoint( void* arg )
       }
     }
 
-    if ( 1 )
+    if ( scheduler->n_task >= scheduler->tasklist.size() ) 
     {
       break;
     }
@@ -350,6 +431,15 @@ void RunTime::Init()
     }
   }
   n_worker = 4;
+  is_init = true;
+};
+
+void RunTime::Run()
+{
+  if ( !is_init ) 
+  {
+    Init();
+  }
   scheduler.Init( n_worker );
 };
 
@@ -382,6 +472,11 @@ void RunTime::Finalize()
 void hmlp_init()
 {
   hmlp::rt.Init();
+};
+
+void hmlp_run()
+{
+  hmlp::rt.Run();
 };
 
 void hmlp_finalize()
