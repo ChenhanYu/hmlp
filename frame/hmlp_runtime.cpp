@@ -382,12 +382,8 @@ void* Scheduler::EntryPoint( void* arg )
 
     if ( task )
     {
-      printf( "\n\nGet a task\n\n" );
-
       task->SetStatus( RUNNING );
-      bool committed = me->Execute( task );
-      
-      if ( committed )
+      if ( me->Execute( task ) )
       {
         task->DependenciesUpdate();
         scheduler->n_task_lock.Acquire();

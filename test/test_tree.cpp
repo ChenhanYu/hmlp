@@ -35,6 +35,9 @@
 
 using namespace hmlp::tree;
 
+#define N_CHILDREN 2
+#define SPLITTER centersplit<N_CHILDREN,double>
+
 /* 
  * --------------------------------------------------------------------------
  * @brief  This is the test routine to exam the correctness of GSKS. XA and
@@ -75,7 +78,7 @@ void test_tree( int d, int n )
   }
   // ------------------------------------------------------------------------
   
-  Tree<centersplit<2, double>, 2, double> tree;
+  Tree<centersplit<2, double>, N_CHILDREN, double> tree;
 
   //tree.TreePartition( d, n, 128, 10, X, gids, lids );
 
@@ -90,10 +93,9 @@ void test_tree( int d, int n )
     
   tree.TreePartition( d, n, 128, 10, X, gids, lids );
 
-  tree.TraverseUp<false>();
-
-  //hmlp::Scheduler::Init( 4 );
+  tree.TraverseUp<false, hmlp::skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>>();
   hmlp_run();
+  tree.TraverseUp<true,  hmlp::skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>>();
 };
 
 int main( int argc, char *argv[] )

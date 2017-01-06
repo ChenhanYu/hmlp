@@ -17,9 +17,6 @@
 namespace hmlp
 {
 
-namespace tree
-{
-
 namespace skeleton
 { 
   template<typename CONTEXT>
@@ -33,26 +30,27 @@ namespace skeleton
       /* argument ptr */
       CONTEXT *arg;
 
-      void Set( std::string user_name, void (*user_function)(Task<CONTEXT>*), CONTEXT *user_arg )
+      //void Set( std::string user_name, void (*user_function)(Task<CONTEXT>*), CONTEXT *user_arg )
+      //{
+      //  name = user_name;
+      //  function = user_function;
+      //  arg = user_arg;
+      //};
+
+      void Set( CONTEXT *user_arg )
       {
-        name = user_name;
-        function = user_function;
+        name = std::string( "fake skeletonization" );
         arg = user_arg;
-      };
+      }
 
       void Execute( Worker* user_worker )
       {
-        function( this );
+        //function( this );
+        printf( "SkeletonizeTask Execute 2\n" );
       }
 
     private:
   };
-
-  //void SkeletonizeTaskFunction( Task *task )
-  //{
-  //  //auto *node = reinterpret_cast<tree::Node*>( task->arg );
-  //  printf( "SkeletonizeTask\n" );
-  //};
 
   template<typename CONTEXT>
   void SkeletonizeTaskFunction( Task<CONTEXT> *task )
@@ -64,6 +62,8 @@ namespace skeleton
 }; // end namespace skeleton
 
 
+namespace tree
+{
 
 template<typename T>
 std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &lids )
@@ -497,21 +497,14 @@ class Tree
       }
     };
 
-    template<bool LEVELBYLEVEL>
+    template<bool LEVELBYLEVEL, class TASK>
     void TraverseUp()
     {
+      assert( N_CHILDREN == 2 );
       printf( "TraverseUp()\n" );
 
-      assert( N_CHILDREN == 2 );
-
-      //std::vector<Task*> tasklist;
-      std::vector<skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>*> tasklist;
-
+      std::vector<TASK*> tasklist;
       if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
-
-      printf( "tasklist.size() %lu\n", tasklist.size() );
-      printf( "treelist.size() %lu\n", treelist.size() );
-      printf( "depth %d\n", depth );
 
       for ( int l = depth; l >= 0; l -- )
       {
@@ -524,6 +517,10 @@ class Tree
           for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
           {
             auto *node = *(level_beg + node_ind);
+            auto *task = new TASK();
+            task->Set( node );
+            task->Execute( NULL );
+            delete task;
           }
         }
         else // using dynamic scheduling
@@ -532,36 +529,17 @@ class Tree
           {
             auto *node = *(level_beg + node_ind);
             // Create tasks
-            tasklist[ n_nodes - 1 + node_ind ] = new skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>();
-
-            printf( "treelist_id %d, %d\n", node->treelist_id, n_nodes - 1 + node_ind );
-
-
+            tasklist[ node->treelist_id ] = new TASK();
             auto *task = tasklist[ node->treelist_id ];
-
-            //task->Set
-            //( 
-            //  std::string( "fake skeletonization" ), 
-            //  &skeleton::SkeletonizeTaskFunction,
-            //  (void*)node
-            //);
-
-            task->Set
-            ( 
-              std::string( "fake skeletonization" ), 
-              &skeleton::SkeletonizeTaskFunction<Node<SPLITTER, N_CHILDREN, T>>,
-              node
-            );
-
-
-
-            //task->function = &skeleton::SkeletonizeTaskFunction;
+            task->Set( node );
 
             // Setup dependencies
             if ( node->kids[ 0 ] )
             {
+#ifdef DEBUG_TREE
               printf( "DependencyAdd %d -> %d\n", node->kids[ 0 ]->treelist_id, node->treelist_id );
               printf( "DependencyAdd %d -> %d\n", node->kids[ 1 ]->treelist_id, node->treelist_id );
+#endif
               Scheduler::DependencyAdd( tasklist[ node->kids[ 0 ]->treelist_id ], task );
               Scheduler::DependencyAdd( tasklist[ node->kids[ 1 ]->treelist_id ], task );
             }
