@@ -1,7 +1,7 @@
 #include <hmlp_runtime.hpp>
 
 // #define DEBUG_RUNTIME 1
-#define DEBUG_SCHEDULER 1
+// #define DEBUG_SCHEDULER 1
 
 
 namespace hmlp
@@ -166,7 +166,7 @@ void Lock::Release()
 Task::Task()
 {
   status = ALLOCATED;
-  rt.scheduler.NewTask( this );
+  rt.scheduler->NewTask( this );
   status = NOTREADY;
 };
 
@@ -216,10 +216,8 @@ void Task::DependenciesUpdate()
 
 void Task::Execute( Worker *user_worker )
 {
-  // status = RUNNING;
-  // worker = user_worker;
   function( this );
-}
+};
 
 void Task::Enqueue()
 {
@@ -229,7 +227,7 @@ void Task::Enqueue()
 
   for ( int i = 0; i < rt.n_worker; i ++ )
   {
-    float terminate_t = rt.scheduler.time_remaining[ i ];
+    float terminate_t = rt.scheduler->time_remaining[ i ];
     float cost = rt.workers[ i ].EstimateCost( this );
     if ( earliest_t == -1.0 || terminate_t + cost < earliest_t )
     {
@@ -238,13 +236,13 @@ void Task::Enqueue()
     }
   }
 
-  rt.scheduler.ready_queue_lock[ assignment ].Acquire();
+  rt.scheduler->ready_queue_lock[ assignment ].Acquire();
   {
     status = QUEUED;
-    rt.scheduler.time_remaining[ assignment ] = earliest_t;
-    rt.scheduler.ready_queue[ assignment ].push_back( this );
+    rt.scheduler->time_remaining[ assignment ] = earliest_t;
+    rt.scheduler->ready_queue[ assignment ].push_back( this );
   }
-  rt.scheduler.ready_queue_lock[ assignment ].Release();
+  rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
 
 
@@ -276,7 +274,7 @@ void Scheduler::Init( int n_worker )
   // Reset task counter.
   n_task = 0;
 #ifdef USE_PTHREAD_RUNTIME
-  for ( int i = 0; i < rt.n_worker; i ++ )
+  for ( int i = 0; i < n_worker; i ++ )
   {
     time_remaining[ i ] = 0.0;
     rt.workers[ i ].tid = i;
@@ -290,9 +288,13 @@ void Scheduler::Init( int n_worker )
   // Now the master thread
   EntryPoint( (void*)&(rt.workers[ 0 ]) );
 #else
-  #pragma omp parallel num_threads( n_worker )
+  #pragma omp parallel for num_threads( n_worker )
+  for ( int i = 0; i < n_worker; i ++ )
   {
-    EntryPoint( (void*)&(rt.workers[ 0 ]) );
+    time_remaining[ i ] = 0.0;
+    rt.workers[ i ].tid = i;
+    rt.workers[ i ].scheduler = this;
+    EntryPoint( (void*)&(rt.workers[ i ]) );
   }
 #endif
   // Reset tasklist
@@ -427,11 +429,11 @@ void RunTime::Init()
   {
     if ( !is_init )
     {
-      //pool_init();
+      n_worker = 4;
+      scheduler = new Scheduler();
+      is_init = true;
     }
   }
-  n_worker = 4;
-  is_init = true;
 };
 
 void RunTime::Run()
@@ -440,16 +442,20 @@ void RunTime::Run()
   {
     Init();
   }
-  scheduler.Init( n_worker );
+  scheduler->Init( n_worker );
 };
 
 void RunTime::Finalize()
 {
   #pragma omp critical (init)
   {
-    //printf( "hmlp_finalize()\n" );
+    if ( is_init )
+    {
+      scheduler->Finalize();
+      delete scheduler;
+      is_init = false;
+    }
   }
-  scheduler.Finalize();
 };
 
 //void hmlp_runtime::pool_init()

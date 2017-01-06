@@ -42,8 +42,6 @@ namespace skeleton
 
       void Execute( Worker* user_worker )
       {
-        //status = RUNNING;
-        //worker = user_worker;
         function( this );
       }
 
@@ -59,7 +57,7 @@ namespace skeleton
   template<typename CONTEXT>
   void SkeletonizeTaskFunction( Task<CONTEXT> *task )
   {
-    //auto *node = reinterpret_cast<CONT>( task->arg );
+    auto *node = task->arg;
     printf( "SkeletonizeTask 2\n" );
   };
   

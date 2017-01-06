@@ -172,20 +172,19 @@ class Scheduler
 
     float time_remaining[ MAX_WORKER ];
 
-    Lock ready_queue_lock[ MAX_WORKER ];
-
-    Lock n_task_lock;
-
     // Manually describe the dependencies.
     static void DependencyAdd( Task *source, Task *target );
 
     void NewTask( Task* );
 
+    Lock ready_queue_lock[ MAX_WORKER ];
+
+    Lock n_task_lock;
+
   private:
 
     static void* EntryPoint( void* );
 
-    // lock
     Lock run_lock[ MAX_WORKER ];
 
     Lock pci_lock;
@@ -193,6 +192,7 @@ class Scheduler
     Lock gpu_lock;
 
     Lock tasklist_lock;
+
 };
 
 
@@ -220,7 +220,7 @@ class RunTime
 
     Worker workers[ MAX_WORKER ];
 
-    Scheduler scheduler;
+    Scheduler *scheduler;
 
   private:
     

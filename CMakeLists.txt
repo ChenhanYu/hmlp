@@ -134,7 +134,7 @@ endif ()
 
 # Pthread runtime
 # ---------------------------
-set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_PTHREAD_RUNTIME")
+# set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_PTHREAD_RUNTIME")
 
 
 # Setup all flags

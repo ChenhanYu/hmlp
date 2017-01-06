@@ -110,6 +110,8 @@ int main( int argc, char *argv[] )
   printf( "here\n" );
 
   hmlp_finalize();
+  
+  printf( "finalize()\n" );
 
   return 0;
 };
