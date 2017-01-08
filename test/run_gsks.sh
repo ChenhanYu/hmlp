@@ -7,6 +7,6 @@ kinc=31
 echo 'Gaussian = ['
 for (( k=kmin; k<kmax; k+=kinc ))
 do
-  ./test_hmlp.x $m $n $k
+  ./test_gsks.x $m $n $k
 done
 echo '];'

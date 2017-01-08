@@ -1,5 +1,5 @@
 /*
- * test_dgsks.c
+ * test_gsks.c
  *
  * Chenhan D. Yu
  *
@@ -55,10 +55,13 @@ void compute_error(
   nrm2    = 0.0;
   rel_err = 0.0;
 
-  for ( i = 0; i < m; i ++ ) {
-    for ( p = 0; p < rhs; p ++ ) {
+  for ( i = 0; i < m; i ++ ) 
+  {
+    for ( p = 0; p < rhs; p ++ ) 
+    {
       tmp = fabs( u_test[ i * rhs + p ] - u_gold[ i * rhs + p ] );
-      if ( tmp > max_err ) {
+      if ( tmp > max_err ) 
+      {
         max_err = tmp;
         max_idx = i;
       }
@@ -71,7 +74,8 @@ void compute_error(
   rel_err /= nrm2;
   rel_err = sqrt( rel_err );
 
-  if ( rel_err > TOLERANCE ) {
+  if ( rel_err > TOLERANCE ) 
+  {
 	  printf( "rel error = %E, abs error = %E, max error = %E, idx = %d\n", 
 		  rel_err, abs_err, max_err, max_idx );
   }
@@ -93,7 +97,7 @@ void compute_error(
  * --------------------------------------------------------------------------
  */
 template<typename T>
-void test_hmlp( int m, int n, int k ) 
+void test_gsks( int m, int n, int k ) 
 {
   int    i, j, p, nx, iter, n_iter, rhs;
   int    *amap, *bmap, *wmap, *umap;
@@ -324,7 +328,7 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 2 ], "%d", &n );
   sscanf( argv[ 3 ], "%d", &k );
 
-  test_hmlp<double>( m, n, k );
+  test_gsks<double>( m, n, k );
 
   return 0;
 }

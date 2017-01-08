@@ -4,6 +4,7 @@
 // Sandy-bridge
 #include <rank_k_d8x4.hpp>
 #include <gaussian_d8x4.hpp>
+#include <variable_bandwidth_gaussian_d8x4.hpp>
 
 // Haswell
 // #include <rank_k_asm_d8x6.hpp>
@@ -28,72 +29,117 @@ void dgsks
   switch ( kernel->type )
   {
     case KS_GAUSSIAN:
+      {
+        rank_k_asm_d8x4 semiringkernel;
+        gaussian_int_d8x4 fusedkernel;
 
-      // Sandy-bridge
-      //rank_k_int_d8x4 semiringkernel;
-      rank_k_asm_d8x4 semiringkernel;
-      //gaussian_ref_d8x4 microkernel;
-      gaussian_int_d8x4 microkernel;
-      gsks<
-        104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
-        true, false, false,
-        //rank_k_int_d8x4,
-        rank_k_asm_d8x4,
-        gaussian_int_d8x4,
-        double, double, double, double>
-      ( 
-        kernel,
-        m, n, k,
-        u,     umap,
-        A, A2, amap,
-        B, B2, bmap,
-        w,     wmap,
-        semiringkernel, microkernel 
-      );
+        gsks<
+          104, 
+          4096, 
+          256, 
+          8, 
+          4, 
+          104, 
+          4096, 
+          8, 
+          4, 
+          32,
+          true,  // USE_L2NORM
+          false, // USE_VAR_BANDWIDTH
+          false, // USE_STRASSEN
+          rank_k_asm_d8x4,
+          gaussian_int_d8x4,
+          double, double, double, double>
+            ( 
+             kernel,
+             m, n, k,
+             u,     umap,
+             A, A2, amap,
+             B, B2, bmap,
+             w,     wmap,
+             semiringkernel, fusedkernel 
+            );
 
-      // Haswell
-      // rank_k_asm_d8x6 semiringkernel;
-      // gaussian_int_d8x6 microkernel;
-      // gsks<
-      //   // MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, SIMD_SIZE
-      //   72, 960, 256, 8, 6, 72, 960, 8, 6, 32,
-      //   // USE_L2NORM, USE_VAR_BANDWIDTH, USE_STRASSEN
-      //   true, false, false,
-      //   rank_k_asm_d8x6, gaussian_int_d8x6,
-      //   double, double, double, double>
-      // ( 
-      //   kernel,
-      //   m, n, k,
-      //   u,     umap,
-      //   A, A2, amap,
-      //   B, B2, bmap,
-      //   w,     wmap,
-      //   semiringkernel, microkernel 
-      // );
+        // Haswell
+        // rank_k_asm_d8x6 semiringkernel;
+        // gaussian_int_d8x6 microkernel;
+        // gsks<
+        //   // MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, SIMD_SIZE
+        //   72, 960, 256, 8, 6, 72, 960, 8, 6, 32,
+        //   // USE_L2NORM, USE_VAR_BANDWIDTH, USE_STRASSEN
+        //   true, false, false,
+        //   rank_k_asm_d8x6, gaussian_int_d8x6,
+        //   double, double, double, double>
+        // ( 
+        //   kernel,
+        //   m, n, k,
+        //   u,     umap,
+        //   A, A2, amap,
+        //   B, B2, bmap,
+        //   w,     wmap,
+        //   semiringkernel, microkernel 
+        // );
 
-      // Knights Landing
-      // rank_k_int_d24x8 semiringkernel;
-      // gaussian_int_d24x8 microkernel;
-      // gsks<
-      //   120, 14400, 336, 24, 8, 120, 14400, 24, 8, 64,
-      //   true, false, false,
-      //   rank_k_int_d24x8, gaussian_int_d24x8,
-      //   double, double, double, double>
-      // ( 
-      //   kernel,
-      //   m, n, k,
-      //   u,     umap,
-      //   A, A2, amap,
-      //   B, B2, bmap,
-      //   w,     wmap,
-      //   semiringkernel, microkernel 
-      // );
+        // Knights Landing
+        // rank_k_int_d24x8 semiringkernel;
+        // gaussian_int_d24x8 microkernel;
+        // gsks<
+        //   120, 14400, 336, 24, 8, 120, 14400, 24, 8, 64,
+        //   true, false, false,
+        //   rank_k_int_d24x8, gaussian_int_d24x8,
+        //   double, double, double, double>
+        // ( 
+        //   kernel,
+        //   m, n, k,
+        //   u,     umap,
+        //   A, A2, amap,
+        //   B, B2, bmap,
+        //   w,     wmap,
+        //   semiringkernel, microkernel 
+        // );
 
-      break;
+        break;
+      }
     case KS_GAUSSIAN_VAR_BANDWIDTH:
-      break;
+      {
+        rank_k_asm_d8x4 semiringkernel;
+        variable_bandwidth_gaussian_int_d8x4 fusedkernel;
+
+        gsks<
+          104, 
+          4096, 
+          256, 
+          8, 
+          4, 
+          104, 
+          4096, 
+          8, 
+          4, 
+          32,
+          true,  // USE_L2NORM
+          true,  // USE_VAR_BANDWIDTH
+          false, // USE_STRASSEN
+          rank_k_asm_d8x4, variable_bandwidth_gaussian_int_d8x4,
+          double, double, double, double>
+        ( 
+          kernel,
+          m, n, k,
+          u,     umap,
+          A, A2, amap,
+          B, B2, bmap,
+          w,     wmap,
+          semiringkernel, fusedkernel 
+        );
+
+        break;
+      }
     case KS_POLYNOMIAL:
-      break;
+      {
+        rank_k_asm_d8x4 semiringkernel;
+
+
+        break;
+      }
     case KS_LAPLACE:
       break;
     case KS_TANH:

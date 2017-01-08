@@ -27,6 +27,12 @@ struct aux_s
 
   int ldv;
 
+  // For gsks
+
+  TV *hi;
+
+  TV *hj;
+
   // For gsknn
   TV *D;
 

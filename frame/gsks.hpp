@@ -128,6 +128,8 @@ void fused_macro_kernel
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
       }
+      aux.hi = packAh + ip;
+      aux.hj = packBh + jp;
       microkernel
       (
         kernel,
@@ -703,6 +705,9 @@ void gsks_ref
     case KS_GAUSSIAN:
       rank_k_scale = -2.0;
       break;
+    case KS_GAUSSIAN_VAR_BANDWIDTH:
+      rank_k_scale = -2.0;
+      break;
     default:
       exit( 1 );
   }
@@ -777,25 +782,50 @@ void gsks_ref
   switch ( kernel->type ) 
   {
     case KS_GAUSSIAN:
-      #pragma omp parallel for
-      for ( int j = 0; j < n; j ++ ) 
       {
-        for ( int i = 0; i < m; i ++ ) 
+        #pragma omp parallel for
+        for ( int j = 0; j < n; j ++ ) 
         {
-          C[ j * m + i ] += A2[ amap[ i ] ];
-          C[ j * m + i ] += B2[ bmap[ j ] ];
-          C[ j * m + i ] *= kernel->scal;
-        }
+          for ( int i = 0; i < m; i ++ ) 
+          {
+            C[ j * m + i ] += A2[ amap[ i ] ];
+            C[ j * m + i ] += B2[ bmap[ j ] ];
+            C[ j * m + i ] *= kernel->scal;
+          }
 #ifdef USE_VML
-        vdExp( m, C.data() + j * m, C.data() + j * m );
+          vdExp( m, C.data() + j * m, C.data() + j * m );
 #else
-        for ( int i = 0; i < m; i ++ ) 
-        {
-          C[ j * m + i ] = exp( C[ j * m + i ] );
-        }
+          for ( int i = 0; i < m; i ++ ) 
+          {
+            C[ j * m + i ] = exp( C[ j * m + i ] );
+          }
 #endif
+        }
+        break;
       }
-      break;
+    case KS_GAUSSIAN_VAR_BANDWIDTH:
+      {
+        #pragma omp parallel for
+        for ( int j = 0; j < n; j ++ ) 
+        {
+          for ( int i = 0; i < m; i ++ ) 
+          {
+            C[ j * m + i ] += A2[ amap[ i ] ];
+            C[ j * m + i ] += B2[ bmap[ j ] ];
+            C[ j * m + i ] *= -0.5;
+            C[ j * m + i ] *= kernel->hi[ i ];
+            C[ j * m + i ] *= kernel->hj[ j ];
+          }
+#ifdef USE_VML
+          vdExp( m, C.data() + j * m, C.data() + j * m );
+#else
+          for ( int i = 0; i < m; i ++ ) 
+          {
+            C[ j * m + i ] = exp( C[ j * m + i ] );
+          }
+#endif
+        }
+      }
     default:
       exit( 1 );
   }

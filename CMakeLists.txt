@@ -233,8 +233,8 @@ endif ()
 
 # Build GSKS test suit
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsks.cpp)
-  add_executable (test_hmlp.x ${CMAKE_SOURCE_DIR}/test/test_hmlp.cpp)
-  target_link_libraries(test_hmlp.x hmlp)
+  add_executable (test_gsks.x ${CMAKE_SOURCE_DIR}/test/test_gsks.cpp)
+  target_link_libraries(test_gsks.x hmlp)
 endif ()
 
 # Build GKMX test suit
