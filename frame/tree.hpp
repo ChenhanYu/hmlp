@@ -550,21 +550,59 @@ class Tree
           }
         }
       }
-    };
+    }; // end TraverseUp()
 
-    template<bool LEVELBYLEVEL>
+    template<bool LEVELBYLEVEL, class TASK>
     void TraverseDown()
     {
-      if ( LEVELBYLEVEL )
+      std::vector<TASK*> tasklist;
+      if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
+
+      for ( int l = 0; l < depth; l ++ )
       {
-        for ( int l = 0; l < depth; l ++ )
+        if ( LEVELBYLEVEL )
         {
+          int n_nodes = 1 << l;
+          auto level_beg = treelist.begin() + n_nodes - 1;
+
+          if ( LEVELBYLEVEL )
+          {
+            #pragma omp parallel for 
+            for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+            {
+              auto *node = *(level_beg + node_ind);
+              auto *task = new TASK();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+            }
+          }
+        }
+        else // using dynamic scheduling
+        {
+          for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          {
+            auto *node = *(level_beg + node_ind);
+            // Create tasks
+            tasklist[ node->treelist_id ] = new TASK();
+            auto *task = tasklist[ node->treelist_id ];
+            task->Set( node );
+
+            if ( node->parent )
+            {
+#ifdef DEBUG_TREE
+              printf( "DependencyAdd %d -> %d\n", node->parent->treelist_id, node->treelist_id );
+#endif
+              Scheduler::DependencyAdd( tasklist[ node->parent->treelist_id ], task );
+            }
+            else // root, directly enqueue
+            {
+              task->Enqueue();
+            }
+          }
         }
       }
-      else
-      {
-      }
-    };
+    }; // end TraverseDown()
 
     void Summary()
     {

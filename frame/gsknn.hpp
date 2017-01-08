@@ -520,8 +520,10 @@ void gsknn_ref
 
   beg = omp_get_wtime();
   #pragma omp parallel for private( i )
-  for ( j = 0; j < n; j ++ ) {
-    for ( i = 0; i < m; i ++ ) {
+  for ( j = 0; j < n; j ++ ) 
+  {
+    for ( i = 0; i < m; i ++ ) 
+    {
       C[ j * m + i ] *= -2.0;
       C[ j * m + i ] += A2[ amap[ i ] ];
       C[ j * m + i ] += B2[ bmap[ j ] ];
@@ -532,7 +534,8 @@ void gsknn_ref
   // Pure C Max Heap implementation.
   beg = omp_get_wtime();
   #pragma omp parallel for schedule( dynamic )
-  for ( j = 0; j < n; j ++ ) {
+  for ( j = 0; j < n; j ++ ) 
+  {
     heap_select<T>( m, r, &C[ j * m ], amap, &D[ j * r ], &I[ j * r ] );
   }
   time_heap = omp_get_wtime() - beg;

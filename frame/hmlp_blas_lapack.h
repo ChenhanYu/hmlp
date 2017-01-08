@@ -30,6 +30,21 @@ void xgemm
   double *C, int ldc
 );
 
+void xgeqp3
+(
+  int m, int n,
+  float *A, int lda, int *jpvt,
+  float *work, int lwork 
+);
+
+void xgeqp3
+(
+  int m, int n,
+  double *A, int lda, int *jpvt,
+  double *work, int lwork 
+);
+
+
 #ifdef HMLP_USE_CUDA
 // cublasSgemm wrapper
 void xgemm

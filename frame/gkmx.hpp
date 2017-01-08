@@ -28,7 +28,9 @@ namespace gkmx
 {
 
 /**
- *
+ *  @brief Macro kernel contains the 3rd and 2nd loops. Depending on the
+ *         configuration of the communicator, the 3rd loop may be parallelized.
+ *         b_next is the prefetch pointer.
  */ 
 template<
   int KC, int MR, int NR, int PACK_MR, int PACK_NR,
@@ -110,6 +112,7 @@ void rank_k_macro_kernel
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
 }                                                          // end rank_k_macro_kernel
+
 
 /**
  *  @brief fused_macro_kernel contains the 3rd, 2nd loops and the fused micro
@@ -229,13 +232,26 @@ void fused_macro_kernel
 
 
 
-/*
- *
+/**
+ *  @breif This function contains the loop body of the 6th to 4th loops,
+ *         including all packing and unpacking routines. Notice that this
+ *         function is executed by all threads in the root communicator.
+ *         To access each thread in different level of communicators, use
+ *         their ids.
  */ 
 template<
-  int MC, int NC, int KC, int MR, int NR, 
-  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
-  bool USE_STRASSEN, bool REUSE_C,
+  int MC, 
+  int NC, 
+  int KC, 
+  int MR, 
+  int NR, 
+  int PACK_MC, 
+  int PACK_NC, 
+  int PACK_MR, 
+  int PACK_NR, 
+  int ALIGN_SIZE,
+  bool USE_STRASSEN, 
+  bool REUSE_C,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
 void gkmx_internal
@@ -378,13 +394,24 @@ void gkmx_internal
 
 
 /**
- *
+ *  @breif This is the main routine of gkmx. All packing buffers are
+ *         managed here. The communicator and the parallel section 
+ *         start here.
  *
  */ 
 template<
-  int MC, int NC, int KC, int MR, int NR, 
-  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
-  bool USE_STRASSEN = false, bool REUSE_C,
+  int MC, 
+  int NC, 
+  int KC, 
+  int MR, 
+  int NR, 
+  int PACK_MC, 
+  int PACK_NC, 
+  int PACK_MR, 
+  int PACK_NR, 
+  int ALIGN_SIZE,
+  bool USE_STRASSEN = false, 
+  bool REUSE_C,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV = TC>
 void gkmx
@@ -400,7 +427,8 @@ void gkmx
 )
 {
   int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
-  int k_stra = 0; int ldv = 0;
+  int k_stra = 0; 
+  int ldv = 0;
   int nc = NC, pack_nc = PACK_NC;
   char *str;
 
@@ -586,7 +614,7 @@ void gkmm
 
 
 /**
- *  batched interface with array of arrays
+ *  @brief batched interface with array of arrays
  *
  *  TODO: the problem is how to manage thread here? Do I want to use omp
  *  nested? or there is a better way to deal with this.
@@ -627,18 +655,20 @@ void gkmm
       opkernel, op1, op2, initV
     );
   }
-};
+}; // end gkmm
 
 
 /**
- *  batched interface with strides
+ *  @brief batched interface with strides
  *
  *  TODO: the problem is how to manage thread here? Do I want to use omp
  *  nested? or there is a better way to deal with this.
  *
  */ 
 template<
-  int MC, int NC, int KC, int MR, int NR, 
+  int MC, 
+  int NC, 
+  int KC, int MR, int NR, 
   int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,
   bool USE_STRASSEN, bool REUSE_C,
   typename OPKERNEL, typename OP1, typename OP2,
@@ -672,7 +702,7 @@ void gkmm
       opkernel, op1, op2, initV
     );
   }
-};
+}; // end gkmm
 
 
 
@@ -754,8 +784,89 @@ void gkrm
     batchId,
     semiringkernel, gkrmkernel
   );
-};
+}; // end gkrm
 
+
+
+
+/**
+ *  @breif This is a simple triple loop reference.
+ */
+template<
+  typename OPKERNEL, typename OP1, typename OP2,
+  typename TA, typename TB, typename TC, typename TV = TC>
+void gkmm_ref
+(
+ hmlpOperation_t transA, hmlpOperation_t transB,
+ int m, int n, int k,
+ TA *A, int lda,
+ TB *B, int ldb,
+ TC *C, int ldc,
+ OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV 
+)
+{
+  for ( int i = 0; i < m; i ++ )
+  { 
+    for ( int j = 0; j < n; j ++ )
+    {
+      auto v = initV;
+      for ( int p = 0; p < k; p ++ )
+      {
+        TA a;
+        TB b;
+        if ( transA == HMLP_OP_N ) a = A[ p * lda + i ];
+        else                       a = A[ i * lda + p ];
+        if ( transB == HMLP_OP_N ) b = B[ j * ldb + p ];
+        else                       b = B[ p * ldb + j ];
+        v = op1( v, op2( a, b ) );
+      }
+      C[ j * ldc + i ] = opkernel( v ); 
+    }
+  }
+}; // end gkmm_ref
+
+
+/**
+ *  @breif This is a simple triple loop reference.
+ *
+ *  TODO: ldc is strange here, assuming that C is a vector.
+ */ 
+template<
+  typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
+  typename TA, typename TB, typename TC, typename TV = TC>
+void gkrm_ref
+(
+ hmlpOperation_t transA, hmlpOperation_t transB,
+ int m, int n, int k,
+ TA *A, int lda,
+ TB *B, int ldb,
+ TC *C, int ldc,
+ int batchId,
+ OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, 
+ OPREDUCE opreduce, TC initC
+ )
+{
+  for ( int i = 0; i < m; i ++ )
+  { 
+    auto c = initC;
+    for ( int j = 0; j < n; j ++ )
+    {
+      auto v = initV;
+      for ( int p = 0; p < k; p ++ )
+      {
+        TA a;
+        TB b;
+        if ( transA == HMLP_OP_N ) a = A[ p * lda + i ];
+        else                       a = A[ i * lda + p ];
+        if ( transB == HMLP_OP_N ) b = B[ j * ldb + p ];
+        else                       b = B[ p * ldb + j ];
+        v = op1( v, op2( a, b ) );
+      }
+      c = opreduce( c, opkernel( v ) ); 
+    }
+    C[ i ] = c;
+  }
+}; // end gkrm_ref
 
 
 }; // end namespace gkmx

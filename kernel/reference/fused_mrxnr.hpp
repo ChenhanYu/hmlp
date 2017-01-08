@@ -5,7 +5,8 @@
  *
  */ 
 template<
-int MR, int NR,
+int MR, 
+int NR,
 typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 struct gkmm_mrxnr 
@@ -179,9 +180,13 @@ struct gkrm_mrxnr
       for ( int i = 0; i < MR; i ++ )
         regC[ i ] = opreduce( regC[ i ], opkernel( regV[ j * MR + i ], aux->i, aux->j, aux->b ), aux->i, aux->j, aux->b );
 
-    #pragma simd
+    // Here we need omp atomic update
     for ( int i = 0; i < MR; i ++ )
-      c[ i ] = regC[ i ];
+    {
+      TC *cptr = c + i;
+      #pragma omp atomic update
+      *c = opreduce( *c, regC[ i ] );
+    }
 
   };
 };

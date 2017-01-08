@@ -29,7 +29,7 @@ want to use some existing primitives. Acoording to the feature you require we
 suggest that you read different part of documents. Please checkout the wiki
 pages at:
 
-https:://github.com/ChenhanYu/hmlp/wiki
+[WIKI PAGE](https:://github.com/ChenhanYu/hmlp/wiki)
 
 to see what feature better suit your need.
 
@@ -148,7 +148,7 @@ icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/lib/libhmlp.a
 The HMLP library is licensed under the following license, typically
 known as the GPL-3.0 license.
 
-Copyright (C) 2014-2016, The University of Texas at Austin
+Copyright (C) 2014-2017, The University of Texas at Austin
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
