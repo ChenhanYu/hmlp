@@ -114,22 +114,24 @@ typedef enum
   KS_EPANECHNIKOV
 } ks_type;
 
+template<typename T>
 struct kernel_s
 {
   ks_type type;
-  double powe;
-  double scal;
-  double cons;
-  double *hi;
-  double *hj;
-  double *h;
+  T powe;
+  T scal;
+  T cons;
+  T *hi;
+  T *hj;
+  T *h;
 };
 
-typedef struct kernel_s ks_t;
+//typedef struct kernel_s ks_t;
 
 void dgsks
 (
-  ks_t *kernel,
+  //ks_t *kernel,
+  kernel_s<double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
   double *A, double *A2, int *amap,
@@ -139,7 +141,8 @@ void dgsks
 
 void dgsks_ref
 (
-  ks_t *kernel,
+  //ks_t *kernel,
+  kernel_s<double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
   double *A, double *A2, int *amap,

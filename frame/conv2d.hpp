@@ -112,9 +112,14 @@ void rank_k_macro_kernel
 /**
  *
  */ 
-template<int KC, int MR, int NR, int PACK_MR, int PACK_NR,
-    typename MICROKERNEL,
-    typename TA, typename TB, typename TC, typename TV>
+template<
+  int KC, 
+  int MR, 
+  int NR, 
+  int PACK_MR, 
+  int PACK_NR,
+  typename MICROKERNEL,
+  typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
 (
   Worker &thread,
@@ -199,7 +204,7 @@ void fused_macro_kernel
       }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
-}                                                          // end fused_macro_kernel
+};                                                         // end fused_macro_kernel
 
 
 
@@ -376,7 +381,7 @@ void conv2d_internal
   //double my_flop = ( ( loop6th.end() - loop6th.beg() ) / 1e+9 ) * 2 * m * k;
   ////printf( "tid %d GFLOPS %5.2lf\n", thread.jc_id, my_flop / my_time );
   //printf( "tid %d GFLOPS %5.2lf\n", thread.jc_id, my_time );
-}                                                          // end cnn_internal
+};                                                         // end cnn_internal
 
 
 

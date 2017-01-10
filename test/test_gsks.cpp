@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <omp.h>
 #include <math.h>
 #include <hmlp.h>
@@ -97,7 +98,7 @@ void compute_error(
  * --------------------------------------------------------------------------
  */
 template<typename T>
-void test_gsks( int m, int n, int k ) 
+void test_gsks( kernel_s<T> *kernel, int m, int n, int k ) 
 {
   int    i, j, p, nx, iter, n_iter, rhs;
   int    *amap, *bmap, *wmap, *umap;
@@ -198,6 +199,30 @@ void test_gsks( int m, int n, int k )
   XB  = XA;
   XB2 = XA2;
   // ------------------------------------------------------------------------
+ 
+
+  // ------------------------------------------------------------------------
+  // Test Variable Bandwidth Gaussian Kernel
+  // ------------------------------------------------------------------------
+  if ( kernel->type == KS_GAUSSIAN_VAR_BANDWIDTH ) 
+  {
+#ifdef HMLP_MIC_AVX512
+    kernel->hi = (double*)hbw_malloc( sizeof(double) * nx );
+    kernel->hj = (double*)hbw_malloc( sizeof(double) * nx );
+#else
+    kernel->hi = (double*)malloc( sizeof(double) * nx );
+    kernel->hj = (double*)malloc( sizeof(double) * nx );
+#endif
+    for ( i = 0; i < nx; i ++ ) 
+    {
+      kernel->hi[ i ] = ( 1.0 + 0.5 / ( 1 + exp( -1.0 * XA2[ i ] ) ) );
+      kernel->hi[ i ] = -1.0 / ( 2.0 * kernel->hi[ i ] * kernel->hi[ i ] );
+      kernel->hj[ i ] = kernel->hi[ i ];
+    }
+  }
+  // ------------------------------------------------------------------------
+
+
 
 
   // ------------------------------------------------------------------------
@@ -219,24 +244,21 @@ void test_gsks( int m, int n, int k )
   // ------------------------------------------------------------------------
   // Call my implementation
   // ------------------------------------------------------------------------
-  ks_t kernel;
-  kernel.type = KS_GAUSSIAN;
-  kernel.scal = -0.5;
   for ( iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) dgsks_beg = omp_get_wtime();
-    dgsks(
-        &kernel,
-        m, n, k,
-        u,       umap,
-        XA, XA2, amap,
-        XB, XB2, bmap,
-        w,       wmap 
+    dgsks
+    (
+      kernel,
+      m, n, k,
+      u,       umap,
+      XA, XA2, amap,
+      XB, XB2, bmap,
+      w,       wmap 
     );
   }
   dgsks_time = omp_get_wtime() - dgsks_beg;
   // ------------------------------------------------------------------------
-
 
 
   // ------------------------------------------------------------------------
@@ -246,27 +268,15 @@ void test_gsks( int m, int n, int k )
   {
     if ( iter == 0 ) ref_beg = omp_get_wtime();
 
-    dgsks_ref(
-        &kernel,
-        m, n, k,
-        umkl,    umap,
-        XA, XA2, amap,
-        XB, XB2, bmap,
-        w,       wmap
-        );
-
-
-    //for ( j = 0; j < n; j ++ ) 
-    //{
-    //  for ( i = 0; i < m; i ++ ) 
-    //  {
-    //    C_ref[ j * m + i ] = 0.0;    
-    //    for ( p = 0; p < k; p ++ ) 
-    //    {
-    //      C_ref[ j * m + i ] += XA[ i * k + p ] * XB[ j * k + p ];    
-    //    }
-    //  }
-    //}
+    dgsks_ref
+    (
+      kernel,
+      m, n, k,
+      umkl,    umap,
+      XA, XA2, amap,
+      XB, XB2, bmap,
+      w,       wmap
+    );
   }
   ref_time = omp_get_wtime() - ref_beg;
   // ------------------------------------------------------------------------
@@ -301,7 +311,64 @@ void test_gsks( int m, int n, int k )
     }
   }
 
-  flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 37.0 );
+
+  switch ( kernel->type ) 
+  {
+    case KS_GAUSSIAN:
+      {
+        flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k + 35 + 2 );
+        break;
+      }
+    case KS_GAUSSIAN_VAR_BANDWIDTH:
+      {
+        flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k + 35 );
+#ifdef HMLP_MIC_AVX512
+        hbw_free( kernel->hi );
+        hbw_free( kernel->hj );
+#else
+        free( kernel->hi );
+        free( kernel->hj );
+#endif
+        break;
+      }
+    case KS_POLYNOMIAL:
+      {
+        flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k + 6 );
+        break;
+      }
+    case KS_LAPLACE:
+      {
+        flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k + 60 );
+        break;
+      }
+    case KS_TANH:
+      {
+        flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k + 89 );
+        break;
+      }
+    case KS_QUARTIC:
+      {
+        flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k + 8 );
+        break;
+      }
+    case KS_MULTIQUADRATIC:
+      {
+        flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k + 6 );
+        break;
+      }
+    case KS_EPANECHNIKOV:
+      {
+        flops = ( (double)( m * n ) / GFLOPS ) * ( 2 * k + 7 );
+        break;
+      }
+    default:
+      exit( 1 );
+  }
+
+
+
+
+
   printf( "%d, %d, %d, %5.2lf, %5.2lf;\n", 
       m, n, k, flops / dgsks_time, flops / ref_time );
 
@@ -322,13 +389,62 @@ void test_gsks( int m, int n, int k )
 
 int main( int argc, char *argv[] )
 {
-  int    m, n, k;
+  int m, n, k;
+  char type[ 30 ];
 
-  sscanf( argv[ 1 ], "%d", &m );
-  sscanf( argv[ 2 ], "%d", &n );
-  sscanf( argv[ 3 ], "%d", &k );
+  kernel_s<double> kernel;
 
-  test_gsks<double>( m, n, k );
+  sscanf( argv[ 1 ], "%s", type );
+  sscanf( argv[ 2 ], "%d", &m );
+  sscanf( argv[ 3 ], "%d", &n );
+  sscanf( argv[ 4 ], "%d", &k );
+
+  if ( !strcmp( type, "Gaussian" ) ) 
+  {
+    kernel.type = KS_GAUSSIAN;
+    kernel.scal = -0.5;
+  }
+  else if ( !strcmp( type, "Polynomial" ) ) 
+  {
+    kernel.type = KS_POLYNOMIAL;
+    kernel.powe = 4.0;
+    kernel.scal = 0.1;
+    kernel.cons = 0.1;
+  }
+  else if ( !strcmp( type, "Laplace" ) ) 
+  {
+    kernel.type = KS_LAPLACE;
+  }
+  else if ( !strcmp( type, "Var_bandwidth" ) ) 
+  {
+    kernel.type = KS_GAUSSIAN_VAR_BANDWIDTH;
+  }
+  else if ( !strcmp( type, "Tanh" ) ) 
+  {
+    kernel.type = KS_TANH;
+    kernel.scal = 0.1;
+    kernel.cons = 0.1;
+  }
+  else if ( !strcmp( type, "Quartic" ) ) 
+  {
+    kernel.type = KS_QUARTIC;
+  }
+  else if ( !strcmp( type, "Multiquadratic" ) ) 
+  {
+    kernel.type = KS_MULTIQUADRATIC;
+    kernel.cons = 1.0 ;
+  }
+  else if ( !strcmp( type, "Epanechnikov" ) ) 
+  {
+    kernel.type = KS_EPANECHNIKOV;
+  }
+  else 
+  {
+    printf( "gsksMain(): kernel type mismatch %s\n", type );
+    exit( 1 );
+  }
+
+  test_gsks<double>( &kernel, m, n, k );
 
   return 0;
 }

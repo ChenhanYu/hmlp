@@ -10,16 +10,19 @@
 
 struct variable_bandwidth_gaussian_ref_d8x4 
 {
-  inline void operator()(
-      ks_t *kernel,
-      int k,
-      int nrhs,
-      double *u,
-      double *a, double *a2, 
-      double *b, double *b2,
-      double *w,
-      double *c, int ldc,
-      aux_s<double, double, double, double> *aux ) const 
+  inline void operator()
+  (
+    //ks_t *kernel,
+    kernel_s<double> *kernel,
+    int k,
+    int nrhs,
+    double *u,
+    double *a, double *a2, 
+    double *b, double *b2,
+    double *w,
+    double *c, int ldc,
+    aux_s<double, double, double, double> *aux 
+  ) const 
   {
     double c_reg[ 8 * 4 ] = { 0.0 };
 
@@ -87,8 +90,7 @@ struct variable_bandwidth_gaussian_ref_d8x4
       }
     }    
 
-  } // end inline void operator
-
+  }; // end inline void operator
 }; // end struct variable_bandwidth_gaussian_ref_d8x4
 
 
@@ -97,15 +99,16 @@ struct variable_bandwidth_gaussian_int_d8x4
 {
   inline void operator()
   (
-   ks_t *ker,
-   int k,
-   int rhs,
-   double *u,
-   double *a, double *aa, 
-   double *b, double *bb,
-   double *w,
-   double *c, int ldc,
-   aux_s<double, double, double, double> *aux 
+    //ks_t *ker,
+    kernel_s<double> *ker,
+    int k,
+    int rhs,
+    double *u,
+    double *a, double *aa, 
+    double *b, double *bb,
+    double *w,
+    double *c, int ldc,
+    aux_s<double, double, double, double> *aux 
   ) const 
   {
     int    i, rhs_left;
@@ -273,5 +276,5 @@ struct variable_bandwidth_gaussian_int_d8x4
     // Multiple rhs kernel summation.
     #include "weighted_sum_int_d8x4.segment"
 
-  } // end inline void operator
+  }; // end inline void operator
 }; // end struct variable_bandwidth_gaussian_ref_d8x4

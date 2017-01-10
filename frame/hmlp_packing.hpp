@@ -3,8 +3,11 @@
 
 #include <stdio.h>
 
+//#define DEBUG_PACKING 1
+
 namespace hmlp
 {
+
 template<typename T>
 inline void im2col
 (
@@ -53,7 +56,7 @@ inline void im2col
 
     }
   }
-};
+}; // end im2col()
 
 
 
@@ -115,12 +118,15 @@ inline void pack2Dimg
       x0 = -1 * p; y0 += s;
     }
   }
-}
+}; // end pack2Dimg()
 
 
 
 
-
+/**
+ *  @brief This is the default packing routine for GKMX, GSKS, 
+ *         GSKNN and STRASSEN.
+ */ 
 template<bool TRANS, int FOLD, bool ZEROPAD=false, typename T>
 inline void pack2D
 (
@@ -209,10 +215,11 @@ inline void pack2D
     }
 
   }
-}
+}; // end pack2D()
+
 
 /**
- *
+ *  @brief
  */ 
 template<bool TRANS, int FOLD, bool ZEROPAD=false, typename T>
 inline void pack2D
@@ -228,7 +235,7 @@ inline void pack2D
     m, n, 
     X0, X1, ldx, gamma, xmap, packX
   );
-}
+}; // end pack2D()
 
 
 
@@ -298,7 +305,7 @@ inline void pack2D
       }
     }
   }
-}
+};
 
 /**
  *
@@ -414,9 +421,10 @@ inline void packu_rhsxmc(
       packu ++;
     }
   }
-}
-
-
-
 };
+
+
+
+}; // end namespace hmlp
+
 #endif // define HMLP_PACKING_HPP

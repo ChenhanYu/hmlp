@@ -10,6 +10,9 @@ std::ostream& operator<<( std::ostream& os, const thread_communicator& obj )
   return os;
 };
 
+/**
+ *  @brief Recursively create tree base communicators.
+ */ 
 void thread_communicator::Create( int level, int num_threads, int *config )
 {
   if ( level < 2 ) 
@@ -46,6 +49,9 @@ thread_communicator::thread_communicator() :
   barrier_threads_arrived( 0 )
 {};
 
+/**
+ *  @brief Default constructor takes 4 partitioning numbers.
+ */ 
 thread_communicator::thread_communicator( int jc_nt, int pc_nt, int ic_nt, int jr_nt ) :
   sent_object( NULL ), 
   comm_id( 0 ),
@@ -77,7 +83,9 @@ int thread_communicator::GetNumGroups()
   return n_groups;
 };
 
-// OpenMP thread barrier from BLIS
+/**
+ *  @brief OpenMP thread barrier from BLIS.
+ */  
 void thread_communicator::Barrier()
 {
   if ( n_threads < 2 ) return;
@@ -109,7 +117,11 @@ Worker::Worker()
 {};
 
 Worker::Worker( thread_communicator *comm ) :
-  tid( 0 ), jc_id( 0 ), pc_id( 0 ), ic_id( 0 ), jr_id( 0 )
+  tid( 0 ), 
+  jc_id( 0 ), 
+  pc_id( 0 ), 
+  ic_id( 0 ), 
+  jr_id( 0 )
 {
   int tmp;
 
@@ -143,12 +155,10 @@ Worker::Worker( thread_communicator *comm ) :
 };
 
 /**
- *
+ *  @brief The work executes the task in the runtime system.
  */ 
 bool Worker::Execute( Task *task )
 {
-  //task->status = RUNNING;
-  //task->worker = this;
   current_task = task;
 
   // Fetching data from GPU memory or from other processes.
@@ -168,6 +178,10 @@ bool Worker::Execute( Task *task )
   return true;
 };
 
+/**
+ *  @brief Pose a barrier if the device owned by this worker
+ *         is performing asybchronous execution.
+ */ 
 void Worker::WaitExecute()
 {
   // Synchroize device

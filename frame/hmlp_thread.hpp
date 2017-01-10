@@ -1,5 +1,5 @@
-#ifndef HMLP_THREAD_COMMUNICATOR_HPP
-#define HMLP_THREAD_COMMUNICATOR_HPP
+#ifndef HMLP_THREAD_HPP
+#define HMLP_THREAD_HPP
 
 #include <string>
 #include <stdio.h>
@@ -10,10 +10,6 @@
 
 namespace hmlp
 {
-
-
-
-
 
 class thread_communicator 
 {
@@ -120,4 +116,4 @@ class Worker
 
 
 
-#endif // end define HMLP_THREAD_COMMUNICATOR_HPP
+#endif // end define HMLP_THREAD_HPP

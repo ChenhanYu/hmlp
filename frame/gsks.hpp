@@ -90,7 +90,8 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
 (
-  ks_t *kernel,
+  //ks_t *kernel,
+  kernel_s<TC> *kernel,
   Worker &thread,
   int ic, int jc, int pc,
   int  m,  int n,  int k,
@@ -161,7 +162,8 @@ template<
 void gsks_internal
 (
   Worker &thread,
-  ks_t *kernel,
+  //ks_t *kernel,
+  kernel_s<TC> *kernel,
   int m, int n, int k,
   TC *u,         int *umap, 
   TA *A, TA *A2, int *amap,
@@ -374,7 +376,8 @@ template<
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
 void gsks(
-    ks_t *kernel,
+    //ks_t *kernel,
+    kernel_s<TC> *kernel,
     int m, int n, int k,
     TC *u,         int *umap,
     TA *A, TA *A2, int *amap,
@@ -679,7 +682,8 @@ void gsks(
 template<typename T>
 void gsks_ref
 (
-  ks_t *kernel,
+  //ks_t *kernel,
+  kernel_s<T> *kernel,
   int m, int n, int k,
   T *u,        int *umap,
   T *A, T *A2, int *amap,
@@ -825,6 +829,7 @@ void gsks_ref
           }
 #endif
         }
+        break;
       }
     default:
       exit( 1 );

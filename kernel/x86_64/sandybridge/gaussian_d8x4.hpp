@@ -11,7 +11,8 @@
 struct gaussian_ref_d8x4 
 {
   inline void operator()(
-      ks_t *kernel,
+      //ks_t *kernel,
+      kernel_s<double> *kernel,
       int k,
       int nrhs,
       double *u,
@@ -95,7 +96,8 @@ struct gaussian_int_d8x4
 {
   inline void operator()
   (
-   ks_t *ker,
+   //ks_t *ker,
+   kernel_s<double> *ker,
    int k,
    int rhs,
    double *u,

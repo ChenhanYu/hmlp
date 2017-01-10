@@ -18,7 +18,8 @@ using namespace hmlp::gsks;
 
 void dgsks
 (
-  ks_t *kernel,
+  //ks_t *kernel,
+  kernel_s<double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
   double *A, double *A2, int *amap,
@@ -157,7 +158,8 @@ void dgsks
 
 void dgsks_ref
 (
-  ks_t *kernel,
+  //ks_t *kernel,
+  kernel_s<double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
   double *A, double *A2, int *amap,
