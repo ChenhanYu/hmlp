@@ -378,8 +378,13 @@ void test_strassen( int m, int n, int k )
 
   compute_error( m, n, C, m, C_ref, m );
 
+#ifdef MATLAB_OUTPUT
   printf( "NT %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
       m, n, k, flops / strassen_time, flops / ref_time );
+#else
+  printf( "%5d, %5.2lf, %5.2lf;\n", 
+      k, flops / strassen_time, flops / ref_time );
+#endif
 
 }
 

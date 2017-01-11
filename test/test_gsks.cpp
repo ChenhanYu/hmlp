@@ -31,6 +31,7 @@
 #include <omp.h>
 #include <math.h>
 #include <hmlp.h>
+#include <iostream>
 
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
@@ -365,12 +366,13 @@ void test_gsks( kernel_s<T> *kernel, int m, int n, int k )
       exit( 1 );
   }
 
-
-
-
-
+#ifdef MATLAB_OUTPUT
   printf( "%d, %d, %d, %5.2lf, %5.2lf;\n", 
       m, n, k, flops / dgsks_time, flops / ref_time );
+#else
+  printf( "%d, %5.2lf, %5.2lf\n", 
+      k, flops / dgsks_time, flops / ref_time );
+#endif
 
   free( amap );
   free( umap );

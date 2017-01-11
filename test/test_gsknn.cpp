@@ -244,8 +244,14 @@ void test_gsknn( int m, int n, int k, int r )
       );
 
   flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 37.0 );
+
+#ifdef MATLAB_OUTPUT
   printf( "%d, %d, %d, %d, %5.2lf, %5.2lf;\n",
       m, n, k, r, flops / dgsknn_time, flops / ref_time );
+#else
+  printf( "%d, %5.2lf, %5.2lf\n",
+      k, flops / dgsknn_time, flops / ref_time );
+#endif
 
   free( amap );
   free( bmap );

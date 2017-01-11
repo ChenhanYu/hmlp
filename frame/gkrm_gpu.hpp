@@ -51,7 +51,12 @@ namespace gkrm
   opkernel, op1, op2, initV, opreduce, initC ) 
 
 
-
+/**
+ *  @brief
+ *
+ *  TODO: It is possible to use atomic to reduce C. The problem is
+ *        we are not sure whether size( TC ) is within 64 bits.
+ */ 
 template<
 bool TRANSA, bool TRANSB,
 const int DIM_X, const int DIM_Y,
@@ -127,12 +132,14 @@ static __device__ void gkrm_device
       C[ offsC ] = rc[ m ];
     }
   }
-}
+}; // end gkrm_device()
 
 
 
 
-
+/**
+ *  @brief
+ */ 
 template<
 bool TRANSA, bool TRANSB,
 const int DIM_X, const int DIM_Y, 
@@ -163,9 +170,11 @@ static __global__ void gkrm_kernel
     Carray[ blockIdx.z ], LDC,
     opkernel, op1, op2, initV, opreduce, initC 
   );
-};
+}; // end gkrm_kernel()
 
-
+/**
+ *  @breif
+ */ 
 template<
 bool TRANSA, bool TRANSB,
 const int DIM_X, const int DIM_Y, 
