@@ -3,17 +3,34 @@ n=4097
 kmin=4
 kmax=500
 kinc=31
+kernel="Gaussian"
+# =======================================================
 
-#echo 'Gaussian = ['
-for (( k=kmin; k<kmax; k+=kinc ))
+echo "@PRIM"
+echo 'gsks'
+# =======================================================
+
+echo "@SETUP"
+echo "HMLP_GPU_ARCH = $HMLP_GPU_ARCH"
+echo "@SETUP"
+echo "HMLP_ARCH = $HMLP_ARCH"
+echo "@SETUP"
+echo "m = $m"
+echo "@SETUP"
+echo "n = $n"
+echo "@SETUP"
+echo "kernel = $kernel"
+# =======================================================
+
+echo "@DATE"
+date
+# =======================================================
+
+for (( k=kmin, i=0; k<kmax; k+=kinc, i+=1 ))
 do
-  ./test_gsks.x Gaussian $m $n $k
+  echo "@DATA"
+  ./test_gsks.x $kernel $m $n $k; status=$?
+  echo "@STATUS"
+  echo $status
 done
-#echo '];'
-
-#echo 'Variable bandwidth = ['
-#for (( k=kmin; k<kmax; k+=kinc ))
-#do
-#  ./test_gsks.x Var_bandwidth $m $n $k
-#done
-#echo '];'
+# =======================================================

@@ -41,12 +41,13 @@
 #define GFLOPS 1073741824 
 #define TOLERANCE 1E-13
 
-void compute_error(
-    int    m,
-    int    rhs,
-    double *u_test,
-    double *u_gold
-    )
+void compute_error
+(
+  int    m,
+  int    rhs,
+  double *u_test,
+  double *u_gold
+)
 {
   int    i, p, max_idx;
   double max_err, abs_err, rel_err;
@@ -99,8 +100,9 @@ void compute_error(
  * --------------------------------------------------------------------------
  */
 template<typename T>
-void test_gsks( kernel_s<T> *kernel, int m, int n, int k ) 
+bool test_gsks( kernel_s<T> *kernel, int m, int n, int k ) 
 {
+  bool failure = false;
   int    i, j, p, nx, iter, n_iter, rhs;
   int    *amap, *bmap, *wmap, *umap;
   double *XA, *XB, *XA2, *XB2, *u, *w, *h, *umkl, *C, *C_ref;
@@ -305,9 +307,11 @@ void test_gsks( kernel_s<T> *kernel, int m, int n, int k )
 
     u_test = u[ i ];
     u_goal = umkl[ i ];
+
     if ( fabs( u_test - u_goal ) > 1E-9 ) 
     {
       printf( "u( %d ) diff %E, %E\n", i, u_test, u_goal );
+      failure = true;
       break;
     }
   }
@@ -385,7 +389,9 @@ void test_gsks( kernel_s<T> *kernel, int m, int n, int k )
   free( umkl );
   free( C );
   free( C_ref );
-}
+
+  return failure;
+}; // end test_gsks()
 
 
 
@@ -446,7 +452,7 @@ int main( int argc, char *argv[] )
     exit( 1 );
   }
 
-  test_gsks<double>( &kernel, m, n, k );
+  auto failure = test_gsks<double>( &kernel, m, n, k );
 
-  return 0;
-}
+  return failure;
+}; // end main()

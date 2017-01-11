@@ -1,15 +1,39 @@
 m=4096
 n=4096
 kmin=64
-kmax=2048
-kinc=64
+kmax=500
+kinc=32
+# =======================================================
 
-#echo 'gemm = ['
+echo "@PRIM"
+echo 'strassen'
+# =======================================================
+
+echo "@SETUP"
+echo "HMLP_GPU_ARCH = $HMLP_GPU_ARCH"
+echo "@SETUP"
+echo "HMLP_ARCH = $HMLP_ARCH"
+echo "@SETUP"
+echo "m = $m"
+echo "@SETUP"
+echo "n = $n"
+# =======================================================
+
+echo "@DATE"
+date
+# =======================================================
+
 for (( k=kmin; k<kmax; k+=kinc ))
 do
-  ./test_strassen.x $m $n $k
+  echo "@DATA"
+  ./test_strassen.x $m $n $k; status=$?
+  echo "@STATUS"
+  echo $status
 done
-#echo '];'
+# =======================================================
+
+
+
 
 #k=300
 #nmin=3

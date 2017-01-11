@@ -8,6 +8,11 @@
 
 -GSKS:
 
+-GSKNN:
+
+segmentation fault
+./test_gsknn.x 3603 4097 500 128
+
 
 -CNN: 
 
@@ -15,3 +20,8 @@
 
 
 -STRASSEN: 
+
+Reproduciable bugs:
+
+segmentation fault
+./test_strassen.x 3603 4097 500

@@ -43,10 +43,10 @@ def get_credentials():
 #end def get_credentials()
 
 
-def update_spreadsheet( service, sheetid, data ):
+def update_spreadsheet( service, sheetid, arch, data ):
 
-    value_input_option = 'RAW'
-    rangeName = 'Data!A2:C10'
+    value_input_option = 'USER_ENTERED'
+    rangeName = arch[ 0 ] + '!A2:C10'
     body = { 'values': data }
 
     result = service.spreadsheets().values().update(
@@ -69,6 +69,83 @@ def update_spreadsheet( service, sheetid, data ):
 
 
 
+def update_status( service, sheetid, arch, data ):
+
+    value_input_option = 'USER_ENTERED'
+    rangeName = arch[ 0 ] + '!D2:D10'
+    body = { 'values': data }
+
+    result = service.spreadsheets().values().update(
+            spreadsheetId=sheetid, range=rangeName,
+            valueInputOption=value_input_option, body=body ).execute()
+
+    result = service.spreadsheets().values().get( 
+            spreadsheetId=sheetid, range=rangeName ).execute()
+    values = result.get( 'values', [] )
+
+    if not values:
+        print('No data found.')
+    else: 
+        print('status')
+                                    
+    for row in values:
+        print( '%s' % ( row[0] ) )
+
+#end def update_status
+
+
+def update_date( service, sheetid, arch, data ):
+
+    value_input_option = 'USER_ENTERED'
+    rangeName = arch[ 0 ] + '!D14'
+    body = { 'values': data }
+
+    result = service.spreadsheets().values().update(
+            spreadsheetId=sheetid, range=rangeName,
+            valueInputOption=value_input_option, body=body ).execute()
+
+    result = service.spreadsheets().values().get( 
+            spreadsheetId=sheetid, range=rangeName ).execute()
+    values = result.get( 'values', [] )
+
+    if not values:
+        print('No data found.')
+    else: 
+        print('date')
+                                    
+    for row in values:
+        print( '%s' % ( row[0] ) )
+
+#end def update_status
+
+
+
+def update_setup( service, sheetid, arch, data ):
+
+    value_input_option = 'USER_ENTERED'
+    rangeName = arch[ 0 ] + '!D16:D30'
+    body = { 'values': data }
+
+    result = service.spreadsheets().values().update(
+            spreadsheetId=sheetid, range=rangeName,
+            valueInputOption=value_input_option, body=body ).execute()
+
+    result = service.spreadsheets().values().get( 
+            spreadsheetId=sheetid, range=rangeName ).execute()
+    values = result.get( 'values', [] )
+
+    if not values:
+        print('No data found.')
+    else: 
+        print('setup')
+                                    
+    for row in values:
+        print( '%s' % ( row[0] ) )
+
+#end def update_status
+
+
+
 def main():
 
     credentials = get_credentials()
@@ -77,35 +154,80 @@ def main():
                    'version=v4')
     service = discovery.build('sheets', 'v4', http=http, discoveryServiceUrl=discoveryUrl)
 
-    print( sys.argv )
-
-    sheetid = ''
-  
-    # 
-    if any( "gsks" in s for s in  sys.argv ):
-        sheetid = '1hO_zLle7mf3dr7Ph02d5kUmg_xDKOpFDE6WZovb13tA'
-
-    #
-    if any( "gsknn" in s for s in  sys.argv ):
-        sheetid = '1YKo2oJ1X3OT76aFl4njwEEPHcgZ6MIaQ2kFV45isH50'
-
-    #
-    if any( "conv2d" in s for s in  sys.argv ):
-        sheetid = '1fc0Vmpykfo1Zxa_O3I1W_MSdOTSaor8WLBcI7UXsraY'
-
-    #
-    if any( "strassen" in s for s in  sys.argv ):
-        sheetid = '1HEVv6MZyABxHMT5CzGuDsvM7pg2FjhFEVBOMFfGp_EQ'
-    
-
     hmlp_dir = os.getenv( 'HMLP_DIR' )
     hmlp_dat = hmlp_dir + '/build/bin/data'
 
-    data = [ map( float, line.strip().split( "," ) ) for line in open( hmlp_dat, 'r' ) ]
+    # Read all raws
+    raw = [ line.strip().split( "," ) for line in open( hmlp_dat, 'r' ) ]
+
+    print( raw )
+
+    setup_data = []
+    date_data = []
+    data = []
+    status_data = []
+    arch = [ '', '' ]
+    prim = ''
+
+    #
+    for i in range( len( raw ) ):
+
+        if any( "@PRIM" in s for s in raw[ i ] ):
+            prim = raw[ i + 1 ]
+
+        if any( "@SETUP" in s for s in raw[ i ] ):
+            setup_data.append( raw[ i + 1 ] )
+
+        if any( "@DATE" in s for s in raw[ i ] ):
+            date_data.append( raw[ i + 1 ] )
+
+        if any( "@DATA" in s for s in raw[ i ] ):
+            parse_raw = [ s.replace( " ", "" ) for s in raw[ i + 1 ] ]
+            data.append( parse_raw )
+        
+        if any( "@STATUS" in s for s in raw[ i ] ):
+            parse_raw = [ '-' + s + '0' for s in raw[ i + 1 ] ]
+            status_data.append( parse_raw )
+
+        if any( "sandybridge" in s for s in raw[ i ] ):
+             arch[ 0 ] = 'x86_64/sandybridge'
+
+    # // end for
+
+    
+
+    print( setup_data )
+    print( date_data )
+    print( data )
+    print( status_data )
+
+    print( sys.argv )
+
+    #
+    sheetid = ''
+    # 
+    if any( "gsks" in s for s in prim ):
+        sheetid = '1hO_zLle7mf3dr7Ph02d5kUmg_xDKOpFDE6WZovb13tA'
+    #
+    if any( "gsknn" in s for s in prim ):
+        sheetid = '1YKo2oJ1X3OT76aFl4njwEEPHcgZ6MIaQ2kFV45isH50'
+    #
+    if any( "conv2d" in s for s in prim ):
+        sheetid = '1fc0Vmpykfo1Zxa_O3I1W_MSdOTSaor8WLBcI7UXsraY'
+    #
+    if any( "strassen" in s for s in prim ):
+        sheetid = '1HEVv6MZyABxHMT5CzGuDsvM7pg2FjhFEVBOMFfGp_EQ'
+    
+
+
 
     data = data[ 1:10 ]
+    status_data = status_data[ 1:10 ]
 
-    update_spreadsheet( service, sheetid, data )
+    update_spreadsheet( service, sheetid, arch, data )
+    update_status( service, sheetid, arch, status_data )
+    update_date( service, sheetid, arch, date_data )
+    update_setup( service, sheetid, arch, setup_data )
 
     #body = { 'values': data }
 
