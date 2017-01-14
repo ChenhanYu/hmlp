@@ -267,6 +267,10 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/tree.cpp)
   target_link_libraries(test_tree.x hmlp)
 endif ()
 
+# Build SKEL test suit
+add_executable (test_skel.x ${CMAKE_SOURCE_DIR}/test/test_skel.cpp)
+target_link_libraries(test_skel.x hmlp)
+
 
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)
 # target_link_libraries(test_dgsks_list.x gsks)

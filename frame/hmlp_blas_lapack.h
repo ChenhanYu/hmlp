@@ -30,10 +30,47 @@ void xgemm
   double *C, int ldc
 );
 
+void xgeqrf
+(
+  int m, int n, 
+  double *A, int lda, 
+  double *tau, 
+  double *work, int lwork 
+);
+
+void xgeqrf
+(
+  int m, int n, 
+  float *A, int lda, 
+  float *tau, 
+  float *work, int lwork 
+);
+
+void xormqr
+(
+  const char *side, const char *trans,
+  int m, int n, int k, 
+  float *A, int lda, 
+  float *tau,
+  float *C, int ldc, 
+  float *work, int lwork
+);
+
+void xormqr
+(
+  const char *side, const char *trans,
+  int m, int n, int k, 
+  double *A, int lda, 
+  double *tau,
+  double *C, int ldc, 
+  double *work, int lwork
+);
+
 void xgeqp3
 (
   int m, int n,
-  float *A, int lda, int *jpvt,
+  float *A, int lda, int *jpvt, 
+  float *tau,
   float *work, int lwork 
 );
 
@@ -41,9 +78,27 @@ void xgeqp3
 (
   int m, int n,
   double *A, int lda, int *jpvt,
+  double *tau,
   double *work, int lwork 
 );
 
+void xgels
+(
+  const char *trans,
+  int m, int n, int nrhs,
+  float *A, int lda,
+  float *B, int ldb,
+  float *work, int lwork 
+);
+
+void xgels
+(
+  const char *trans,
+  int m, int n, int nrhs,
+  double *A, int lda,
+  double *B, int ldb,
+  double *work, int lwork 
+);
 
 #ifdef HMLP_USE_CUDA
 // cublasSgemm wrapper

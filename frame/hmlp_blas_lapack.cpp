@@ -22,14 +22,58 @@ extern "C"
       float *A, int *lda, 
       float *B, int *ldb, float *beta, 
       float *C, int *ldc );
+  void dgeref_(
+      int *m, int *n, 
+      double *A, int *lda, int *ipiv, int *info );
+  void sgeref_(
+      int *m, int *n, 
+      float *A, int *lda, int *ipiv, int *info );
+  void dgeqrf_(
+      int *m, int *n, 
+      double *A, int *lda, 
+      double *tau, 
+      double *work, int *lwork, int *info );
+  void sgeqrf_(
+      int *m, int *n, 
+      float *A, int *lda, 
+      float *tau, 
+      float *work, int *lwork, int *info );
+  void dormqr_( 
+      const char *side, const char *trans,
+      int *m, int *n, int *k, 
+      double *A, int *lda, 
+      double *tau,
+      double *C, int *ldc, 
+      double *work, int *lwork, int *info );
+  void sormqr_( 
+      const char *side, const char *trans,
+      int *m, int *n, int *k, 
+      float *A, int *lda, 
+      float *tau,
+      float *C, int *ldc, 
+      float *work, int *lwork, int *info );
   void dgeqp3_(
       int *m, int *n,
       double *A, int *lda, int *jpvt,
+      double *tau,
       double *work, int *lwork, int *info ); 
   void sgeqp3_(
       int *m, int *n,
       float *A, int *lda, int *jpvt,
-      float *work, int *lwork, int *info ); 
+      float *tau,
+      float *work, int *lwork, int *info );
+  void dgels_(
+      const char *trans,
+      int *m, int *n, int *nrhs,
+      double *A, int *lda,
+      double *B, int *ldb,
+      double *work, int *lwork, int *info );
+  void sgels_(
+      const char *trans,
+      int *m, int *n, int *nrhs,
+      float *A, int *lda,
+      float *B, int *ldb,
+      float *work, int *lwork, int *info );
 };
 
 
@@ -159,12 +203,137 @@ void xgemm
 
 
 /**
+ *  @brief DGEQRF wrapper
+ */ 
+void xgeqrf
+(
+  int m, int n, 
+  double *A, int lda, 
+  double *tau, 
+  double *work, int lwork 
+)
+{
+#ifdef USE_BLAS
+  int info;
+  dgeqrf_
+  (
+    &m, &n,
+    A, &lda, 
+    tau,
+    work, &lwork, &info
+  );
+  if ( info ) 
+  {
+    printf( "xgeqrf has illegal values at parameter %d\n", info );
+  }
+#else
+  printf( "xgeqrf must enables USE_BLAS.\n" );
+#endif
+};
+
+
+
+/**
+ *  @brief SGEQRF wrapper
+ */ 
+void xgeqrf
+(
+  int m, int n, 
+  float *A, int lda, 
+  float *tau, 
+  float *work, int lwork 
+)
+{
+#ifdef USE_BLAS
+  int info;
+  sgeqrf_
+  (
+    &m, &n,
+    A, &lda, 
+    tau,
+    work, &lwork, &info
+  );
+  if ( info ) 
+  {
+    printf( "xgeqrf has illegal values at parameter %d\n", info );
+  }
+#else
+  printf( "xgeqrf must enables USE_BLAS.\n" );
+#endif
+};
+
+/**
+ *  @brief DORMQR wrapper
+ */ 
+void xormqr
+(
+  const char *side, const char *trans,
+  int m, int n, int k, 
+  double *A, int lda, 
+  double *tau,
+  double *C, int ldc, 
+  double *work, int lwork
+)
+{
+#ifdef USE_BLAS
+  int info;
+  dormqr_
+  (
+    side, trans,
+    &m, &n, &k,
+    A, &lda,
+    tau,
+    C, &ldc,
+    work, &lwork, &info
+  );
+#else
+  printf( "xormqr must enables USE_BLAS.\n" );
+#endif
+};
+
+
+/**
+ *  @brief SORMQR wrapper
+ */ 
+void xormqr
+(
+  const char *side, const char *trans,
+  int m, int n, int k, 
+  float *A, int lda, 
+  float *tau,
+  float *C, int ldc, 
+  float *work, int lwork
+)
+{
+#ifdef USE_BLAS
+  int info;
+  sormqr_
+  (
+    side, trans,
+    &m, &n, &k,
+    A, &lda,
+    tau,
+    C, &ldc,
+    work, &lwork, &info
+  );
+#else
+  printf( "xormqr must enables USE_BLAS.\n" );
+#endif
+};
+
+
+
+
+
+
+/**
  *  @brief DGEQP3 wrapper
  */ 
 void xgeqp3
 (
   int m, int n,
   double *A, int lda, int *jpvt,
+  double *tau,
   double *work, int lwork 
 )
 {
@@ -174,6 +343,7 @@ void xgeqp3
   (
     &m, &n, 
     A, &lda, jpvt,
+    tau,
     work, &lwork, &info
   );
   if ( info ) 
@@ -193,6 +363,7 @@ void xgeqp3
 (
   int m, int n,
   float *A, int lda, int *jpvt,
+  float *tau,
   float *work, int lwork 
 )
 {
@@ -202,6 +373,7 @@ void xgeqp3
   (
     &m, &n, 
     A, &lda, jpvt,
+    tau,
     work, &lwork, &info
   );
   if ( info ) 
@@ -213,6 +385,69 @@ void xgeqp3
 #endif
 };
 
+
+/**
+ *  @brief DGELS wrapper
+ */ 
+void xgels
+(
+  const char *trans,
+  int m, int n, int nrhs,
+  double *A, int lda,
+  double *B, int ldb,
+  double *work, int lwork 
+)
+{
+#ifdef USE_BLAS
+  int info;
+  dgels_
+  (
+    trans,
+    &m, &n, &nrhs,
+    A, &lda,
+    B, &ldb,
+    work, &lwork, &info
+  );
+  if ( info ) 
+  {
+    printf( "xgels has illegal values at parameter %d\n", info );
+  }
+#else
+  printf( "xgels must enables USE_BLAS.\n" );
+#endif
+};
+
+
+/**
+ *  @brief SGELS wrapper
+ */ 
+void xgels
+(
+  const char *trans,
+  int m, int n, int nrhs,
+  float *A, int lda,
+  float *B, int ldb,
+  float *work, int lwork 
+)
+{
+#ifdef USE_BLAS
+  int info;
+  sgels_
+  (
+    trans,
+    &m, &n, &nrhs,
+    A, &lda,
+    B, &ldb,
+    work, &lwork, &info
+  );
+  if ( info ) 
+  {
+    printf( "xgels has illegal values at parameter %d\n", info );
+  }
+#else
+  printf( "xgels must enables USE_BLAS.\n" );
+#endif
+};
 
 
 }; // end namespace hmlp

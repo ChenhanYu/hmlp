@@ -10,6 +10,7 @@
 #include <hmlp.h>
 
 #include <hmlp_runtime.hpp>
+#include <data.hpp>
 
 #define DEBUG_TREE 1
 
@@ -288,16 +289,16 @@ struct centersplit
   };
 };
 
-template<typename T>
-class Data
-{
-  public:
-
-    Data();
-    ~Data();
-
-  private:
-};
+//template<typename T>
+//class Data
+//{
+//  public:
+//
+//    Data();
+//    ~Data();
+//
+//  private:
+//};
 
 template<typename T>
 class Approximation
@@ -409,11 +410,11 @@ class Node
       }
     };
 
+    int d;
+
     std::vector<T> X;
 
     int n;
-
-    int d;
 
     int l;
 
@@ -423,7 +424,10 @@ class Node
 
     std::vector<std::size_t> lids;
 
-    std::vector<std::size_t> skeletons;
+    //std::vector<std::size_t> skeletons;
+
+    hmlp::Data<std::size_t> skeletons;
+   
 
     std::vector<T> coefficients;
 

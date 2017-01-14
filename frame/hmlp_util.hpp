@@ -93,25 +93,74 @@ void hmlp_acquire_mpart
   }
 };
 
-
 template<typename T>
-void hmlp_printmatrix
+T hmlp_norm
 (
-  T *A,
-  int lda,
-  int m,
-  int n
+  int m, int n,
+  T *A, int lda
 )
 {
-  int i, j;
-  for ( i = 0; i < m; i ++ ) 
+  T nrm2 = 0.0;
+  for ( int j = 0; j < n; j ++ )
   {
-    for ( j = 0; j < n; j ++ ) 
+    for ( int i = 0; i < m; i ++ )
     {
-      printf( "%lf\t", A[j * lda + i] );  //Assume T is double...
+      nrm2 += A[ j * lda + i ] * A[ j * lda + i ];
     }
-    printf("\n");
   }
+  return std::sqrt( nrm2 );
+}; // end hmlp_norm()
+
+
+template<bool IGNOREZERO=false, bool COLUMNINDEX=false, typename T>
+void hmlp_printmatrix
+(
+  int m, int n,
+  T *A, int lda
+)
+{
+  if ( COLUMNINDEX )
+  {
+    for ( int j = 0; j < n; j ++ )
+    {
+      if ( j % 5 == 0 || j == 0 || j == n - 1 ) 
+      {
+        printf( "col[%4d] ", j );
+      }
+      else
+      {
+        printf( "          " );
+      }
+    }
+    printf( "\n" );
+    printf( "===========================================================\n" );
+  }
+  printf( "A = [\n" );
+  for ( int i = 0; i < m; i ++ ) 
+  {
+    for ( int j = 0; j < n; j ++ ) 
+    {
+      // Cast into double precision.
+      //printf( "%13E ", (double) A[ j * lda + i ] );
+      if ( IGNOREZERO )
+      {
+        if ( std::abs( A[ j * lda + i ] ) < 1E-15 )
+        {
+          printf( "          " );
+        }
+        else
+        {
+          printf( "% .2E ", (double) A[ j * lda + i ] );
+        }
+      }
+      else
+      {
+        printf( "% .2E ", (double) A[ j * lda + i ] );
+      }
+    }
+    printf(";\n");
+  }
+  printf("];\n");
 };
 
 

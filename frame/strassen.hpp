@@ -474,7 +474,7 @@ void straprim
       pc_comm.Barrier();
 
     //printf( "packB:\n" );
-    //hmlp_printmatrix( packB, PACK_NR, 4, 1 );
+    //hmlp_printmatrix( 4, 1, packB, PACK_NR );
 
 
 
@@ -1177,17 +1177,17 @@ void strassen_internal
   STRAPRIM( A00, A11, 1, B00, B11, 1, C00, C11, 1, 1 );
 
   //printf( "A00:\n" );
-  //hmlp_printmatrix( A00, m, md, kd );
+  //hmlp_printmatrix( md, kd, A00, m );
   //printf( "A11:\n" );
-  //hmlp_printmatrix( A11, m, md, kd );
+  //hmlp_printmatrix( md, kd, A11, m );
   //printf( "B00:\n" );
-  //hmlp_printmatrix( B00, k, kd, nd );
+  //hmlp_printmatrix( kd, nd, B00, k );
   //printf( "B11:\n" );
-  //hmlp_printmatrix( B11, k, kd, nd );
+  //hmlp_printmatrix( kd, nd, B11, k );
   //printf( "C00:\n" );
-  //hmlp_printmatrix( C00, m, md, nd );
+  //hmlp_printmatrix( md, nd, C00, m );
   //printf( "C01:\n" );
-  //hmlp_printmatrix( C11, m, md, nd );
+  //hmlp_printmatrix( md, nd, C11, m );
 
   // M2: C10 = 1*C10+1*(A10+A11)B00; C11 = 1*C11-1*(A10+A11)B00
   STRAPRIM( A10, A11, 1, B00, NULL, 0, C10, C11, 1, -1 )
@@ -1204,7 +1204,7 @@ void strassen_internal
   STRAPRIM( A01, A11, -1, B10, B11, 1, C00, NULL, 1, 0 )
 
   //printf( "C00:" );
-  //hmlp_printmatrix( C00, m, md, nd );
+  //hmlp_printmatrix( md, nd, C00, m );
 
   //printf( "before dynamic peeling\n" );
 
