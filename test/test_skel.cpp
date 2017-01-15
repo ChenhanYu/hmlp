@@ -80,7 +80,7 @@ int main( int argc, char *argv[] )
 
   hmlp::Data<double> X;
 
-  X.resize( 3, 30 );
+  X.resize( 3, 10 );
 
   std::cout << X.size() << std::endl;
  
@@ -90,6 +90,11 @@ int main( int argc, char *argv[] )
   std::cout << arg1 << std::endl;
   std::cout << arg2 << std::endl;
   
+
+  X.rand();
+  X.Print();
+  X.randn( 0.0, 1.0 );
+  X.Print();
 
 
 

@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <cmath>
 #include <omp.h>
 
 #ifdef HMLP_MIC_AVX512
@@ -144,7 +145,7 @@ void hmlp_printmatrix
       //printf( "%13E ", (double) A[ j * lda + i ] );
       if ( IGNOREZERO )
       {
-        if ( std::abs( A[ j * lda + i ] ) < 1E-15 )
+        if ( std::fabs( A[ j * lda + i ] ) < 1E-15 )
         {
           printf( "          " );
         }

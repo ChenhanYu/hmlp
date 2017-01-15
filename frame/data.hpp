@@ -7,8 +7,11 @@
 #include <vector>
 #include <deque>
 #include <iostream>
+#include <random>
+
 #include <hmlp.h>
 
+#include <hmlp_util.hpp>
 #include <hmlp_runtime.hpp>
 
 #define DEBUG_DATA 1
@@ -30,9 +33,9 @@ class Data : public std::vector<T, Allocator>
       this->n = n;
     };
 
-    std::size_t d;
+    //std::size_t d;
 
-    std::size_t n;
+    //std::size_t n;
 
     enum Pattern : int { STAR = -1 };
 
@@ -90,17 +93,49 @@ class Data : public std::vector<T, Allocator>
       return submatrix;
     }; 
 
-    //std::vector<T>& operator[:][ std::vector<int> &jmap ]
-    //{
 
+    void rand( T a, T b )
+    {
+      std::default_random_engine generator;
+      std::uniform_real_distribution<T> distribution( a, b );
+      for ( std::size_t i = 0; i < d * n; i ++ )
+      {
+        (*this)[ i ] =  distribution( generator );
+      }
+    };
 
+    void rand()
+    {
+      rand( 0.0, 1.0 );
+    };
 
-    //std::vector<T>& operator[:][ std::vector<int> &jmap ]
-    //{
-    //}
+    void randn( T mu, T sd )
+    {
+      std::default_random_engine generator;
+      std::normal_distribution<T> distribution( mu, sd );
+      for ( std::size_t i = 0; i < d * n; i ++ )
+      {
+        (*this)[ i ] =  distribution( generator );
+      }
+    };
 
+    void randin()
+    {
+      randn( 0.0, 1.0 );
+    };
+
+    void Print()
+    {
+      printf( "Data in %lu * %lu\n", d, n );
+      hmlp::hmlp_printmatrix( d, n, this->data(), d );
+    };
 
   private:
+
+    std::size_t d;
+
+    std::size_t n;
+
 };
 
 
