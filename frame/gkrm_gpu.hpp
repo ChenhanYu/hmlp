@@ -249,10 +249,18 @@ void gkrm_internal
   dim3 dimBlockReduce( 256, 1 );
   dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
 
+
+  printf( "%d\n", min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ) ); 
+
   reduce_template_batched_kernel
   <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
-  ( m, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y, Carray, ldc, opreduce );
+  ( 
+    m, min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), 
+    Carray, ldc, 
+    opreduce 
+  );
+
 };
 
 
@@ -301,10 +309,16 @@ void gkrm_internal
   dim3 dimBlockReduce( 256, 1 );
   dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
 
+  printf( "%d\n", min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ) ); 
+
   reduce_template_batched_strided_kernel
   <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
-  ( m, min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), Carray, ldc, loc, opreduce );
+  ( 
+    m, min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), 
+    Carray, ldc, loc, 
+    opreduce 
+  );
 };
 
 
@@ -454,5 +468,8 @@ void gkrm
   // Autotuned decision tree
   #include <gkrm_strided_autotune.hxx>
 };
+
+
+
 
 #endif // define GKRM_GPU_HPP

@@ -203,6 +203,17 @@ void gkmm_dfma
   int batchSize
 );
 
+void gkmm_mixfma
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  const double *Aarray, int lda, int loa, 
+  const double *Barray, int ldb, int lob,
+        float  *Carray, int ldc, int loc,
+  int batchSize
+);
+
 void gkrm_dkmeans
 (
   cudaStream_t stream, 
