@@ -453,9 +453,11 @@ class Tree
 
     int depth;
 
-    std::vector<Node<SPLITTER, N_CHILDREN, T>*> treelist;
+    using NODE = Node<SPLITTER, N_CHILDREN, T>;
 
-    std::deque<Node<SPLITTER, N_CHILDREN, T>*> treequeue;
+    std::vector<NODE*> treelist;
+
+    std::deque<NODE*> treequeue;
 
     Tree() : depth( 0 )
     {};
@@ -472,7 +474,10 @@ class Tree
     {
       assert( N_CHILDREN == 2 );
 
-      std::deque<Node<SPLITTER, N_CHILDREN, T>*> treequeue;
+      //std::deque<Node<SPLITTER, N_CHILDREN, T>*> treequeue;
+      std::deque<NODE*> treequeue;
+      
+
       treelist.reserve( ( n / m ) * N_CHILDREN );
       auto *root = new Node<SPLITTER, N_CHILDREN, T>( d, n, 0, X, gids, lids, NULL );
    
