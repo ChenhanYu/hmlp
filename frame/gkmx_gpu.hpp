@@ -450,7 +450,7 @@ static __device__ void gkrm_device
   OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, OPREDUCE opreduce, TC initC 
 )
 {
-  TC rc[THR_M];
+  TC rc[ THR_M ] = { { initC } };
 
   // Semi-ring rank-k update template
   #include <gkmm_stencil.hpp>
@@ -481,7 +481,7 @@ static __device__ void gkrm_device
       int coord_dCn = bly*BLK_N + n*DIM_Y + idy;
       if ( coord_dCm < M && coord_dCn < N ) 
       {
-        TV  &regC = rC[ n ][ m ];
+        TV &regC = rC[ n ][ m ];
         TC regK;
         if ( SQ2NRM ) 
         {
@@ -489,14 +489,7 @@ static __device__ void gkrm_device
           regC += sA[ 0 ][ m * DIM_X + idx ] + sB[ n * DIM_Y + idy ][ 0 ];
         }
         regK = opkernel( regC, coord_dCm, coord_dCn, blockIdx.z );
-        if ( !n ) 
-        {
-          rc[ m ] = regK;
-        }
-        else 
-        {
-          rc[ m ] = opreduce( rc[ m ], regK, coord_dCm, coord_dCn, blockIdx.z );
-        }
+        rc[ m ] = opreduce( rc[ m ], regK, coord_dCm, coord_dCn, blockIdx.z );
       }
     }
     // For special case where DIM_Y < N, we need condition idy < N.
@@ -518,20 +511,20 @@ void reduce_device
 ( 
   int M, int N, 
   TC* __restrict__ C, int LDC,
-  OPREDUCE opreduce
+  OPREDUCE opreduce, TC initC
 )
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  TC ru = initC;
   if ( idx < M ) 
   {
-    TC ru = C[ idx ];
-    for ( int j = 1; j < N; j ++ ) 
+    for ( int j = 0; j < N; j ++ ) 
     {
       ru = opreduce( ru, C[ j * LDC + idx ], idx, j, blockIdx.z );    
     }
     C[ idx ] = ru;
   }
-}
+};
 
 
 template<typename TC, typename OPREDUCE>
@@ -540,14 +533,14 @@ void reduce_kernel
 ( 
   int M, int N, 
   TC** Carray, int LDC,
-  OPREDUCE opreduce 
+  OPREDUCE opreduce, TC initC
 )
 {
   reduce_device<TC, OPREDUCE>
   ( 
     M, N, 
     Carray[ blockIdx.z ], LDC, 
-    opreduce 
+    opreduce, initC
   );
 };
 
@@ -561,14 +554,14 @@ void reduce_kernel
 ( 
   int M, int N, 
   TC* Carray, int LDC, int LOC,
-  OPREDUCE opreduce 
+  OPREDUCE opreduce, TC initC
 )
 {
   reduce_device<TC, OPREDUCE>
   ( 
     M, N, 
     Carray + blockIdx.z * LOC, LDC, 
-    opreduce 
+    opreduce, initC
   );
 };
 
@@ -580,7 +573,7 @@ void reduce
   int m, int n, 
   TC* Carray[], TC* C, int ldc, int loc,
   int batchSize, 
-  OPREDUCE opreduce 
+  OPREDUCE opreduce, TC initC 
 )
 {
   dim3 dimBlock( 256, 1 );
@@ -590,7 +583,7 @@ void reduce
   ( 
     m, n, 
     Carray, ldc,
-    opreduce 
+    opreduce, initC
   );
 };
 
@@ -701,12 +694,17 @@ void gkrm_internal
   dim3 dimBlockReduce( 256, 1 );
   dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
 
+
+  printf( "%d BLK_N %d DIM_Y %d\n", 
+      std::min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ),
+      BLK_N, DIM_Y ); 
+
   reduce_kernel<TC, OPREDUCE>
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
   ( 
-    m, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y, 
+    m, std::min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), 
     Carray, ldc, 
-    opreduce 
+    opreduce, initC 
   );
 };
 
@@ -751,13 +749,16 @@ void gkrm_internal
   dim3 dimBlockReduce( 256, 1 );
   dim3 dimGridReduce( ( m - 1 ) / 256 + 1, 1, batchSize );
 
+
+  printf( "%d\n", min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ) ); 
+
   reduce_kernel
-  <TC, DIM_X, DIM_Y, BLK_M, BLK_N, OPREDUCE>
+  <TC, OPREDUCE>
   <<< dimGridReduce, dimBlockReduce, 0, stream >>>
   ( 
-    m, thrust::minimum<int>( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), 
+    m, std::min( n, ( ( n - 1 ) / BLK_N + 1 ) * DIM_Y ), 
     Carray, ldc, loc, 
-    opreduce 
+    opreduce, initC 
   );
 };
 

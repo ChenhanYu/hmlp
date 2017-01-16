@@ -5,6 +5,9 @@
 
 -GKMX:
 
+wrong answer (no problem if n is multiple of 4)
+test_gkmx_gpu.x 8 257 4 1
+
 
 -GSKS:
 

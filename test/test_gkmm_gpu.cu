@@ -23,74 +23,15 @@
 #include <thrust/tuple.h>
 
 #include <hmlp.h>
+#include <hmlp_util.hpp>
 #include <hmlp_blas_lapack.h>
 
 #define GFLOPS 1073741824
 #define TOLERANCE 1E-13
 
+#define DO_MIX_PRECISION 1
+
 using namespace hmlp;
-
-
-template<typename T>
-void compute_error
-(
-  int m, int n,
-  T *test, int ldtest,
-  T *goal, int ldgoal
-)
-{
-  thrust::tuple<int, int, T> max_err( -1, -1, (T)0.0 );
-  T abs_err = 0.0, rel_err = 0.0, nrm2 = 0.0;
-
-  for ( int j = 0; j < n; j ++ ) 
-  {
-    for ( int i = 0; i < m; i ++ ) 
-    {
-      T tmp_goal = goal[ j * ldgoal + i ];
-      T tmp_test = test[ j * ldtest + i ];
-      T err = fabs( tmp_test - tmp_goal );
-      if ( err > thrust::get<2>( max_err ) ) 
-      {
-        max_err = thrust::make_tuple( i, j, err );
-      }
-      rel_err += err * err;
-      nrm2    += tmp_goal * tmp_goal;
-    }
-  }
-
-  abs_err = sqrt( rel_err );
-  rel_err /= nrm2;
-  rel_err = sqrt( rel_err );
-
-  if ( rel_err > TOLERANCE ) 
-  {
-	  printf( "rel error %E, abs error %E, max error %E at (%d %d)\n", 
-		  rel_err, abs_err, thrust::get<2>( max_err ), 
-          thrust::get<0>( max_err ), thrust::get<1>( max_err ) );
-  }
-};
-
-template<typename T>
-void compute_error
-(
-  int m, int n,
-  T *test, int ldtest,
-  T *goal, int ldgoal,
-  int batchSize, int stride
-)
-{
-  for ( int b = 0; b < batchSize; b ++ )
-  {
-    compute_error
-    ( 
-      m, n, 
-      test + b * stride, ldtest, 
-      goal + b * stride, ldgoal
-    );
-  }
-};
-
-
 
 
 /** 
@@ -103,14 +44,14 @@ void compute_error
 template <typename T>
 void test_gkmm( int m, int n, int k, int batchSize )
 {
+  bool USE_BATCHED_CUBLAS = false;
+
   float gkmm_time = 0.0, gkmm_strided_time = 0.0, ref_time = 0.0;
   double flops = 0.0;
 
-  //cublasHandle_t handle;
-  //cublasCreate( &handle );
-
   cublasHandle_t handle[ 32 ];
   cudaStream_t stream[ 32 ];
+
   for ( int i = 0; i < 32; i ++ ) 
   {
     cublasCreate( &handle[ i ] );
@@ -118,20 +59,19 @@ void test_gkmm( int m, int n, int k, int batchSize )
     cublasSetStream( handle[ i ], stream[ i ] );
   }
 
-
-
-
   cudaEvent_t gkmx_beg, gkmx_end;
-  // cublasOperation_t transa = CUBLAS_OP_N; 
-  // cublasOperation_t transb = CUBLAS_OP_N;
   cudaEventCreate( &gkmx_beg );
   cudaEventCreate( &gkmx_end );
 
   // Thrust style
   thrust::host_vector<T> h_A( m * k * batchSize );
   thrust::host_vector<T> h_B( k * n * batchSize );
-  thrust::host_vector<T> h_C( m * n * batchSize, (T)0.0 );
-  thrust::host_vector<T> h_Cref( m * n * batchSize, (T)0.0 );
+#ifdef DO_MIX_PRECISION
+  thrust::host_vector<float> h_C( m * n * batchSize, 0.0 );
+#else
+  thrust::host_vector<T> h_C( m * n * batchSize, 0.0 );
+#endif
+  thrust::host_vector<T> h_Cref( m * n * batchSize, 0.0 );
 
   for ( int i = 0; i < batchSize; i ++ ) 
   {
@@ -143,13 +83,21 @@ void test_gkmm( int m, int n, int k, int batchSize )
   // memcpyHostToDevice
   thrust::device_vector<T> d_A = h_A;
   thrust::device_vector<T> d_B = h_B;
+#ifdef DO_MIX_PRECISION
+  thrust::device_vector<float> d_C = h_C;
+#else
   thrust::device_vector<T> d_C = h_C;
+#endif
   thrust::device_vector<T> d_Cref = h_Cref;
 
   // Thrust style
   thrust::device_vector<T*> d_Ap( batchSize );
   thrust::device_vector<T*> d_Bp( batchSize );
+#ifdef DO_MIX_PRECISION
+  thrust::device_vector<float*> d_Cp( batchSize );
+#else
   thrust::device_vector<T*> d_Cp( batchSize );
+#endif
   thrust::device_vector<T*> d_Crefp( batchSize );
 
   // Caculate device pointers
@@ -163,6 +111,8 @@ void test_gkmm( int m, int n, int k, int batchSize )
   
   // Non-strided GKMM
   cudaEventRecord( gkmx_beg, 0 );
+#ifdef DO_MIX_PRECISION
+#else
   gkmm_dfma
   (
     0, 
@@ -173,6 +123,7 @@ void test_gkmm( int m, int n, int k, int batchSize )
                d_Cp.data().get(), m,
     batchSize 
   );
+#endif
   cudaThreadSynchronize();
   cudaEventRecord( gkmx_end, 0 );
   cudaEventSynchronize( gkmx_end );
@@ -181,6 +132,18 @@ void test_gkmm( int m, int n, int k, int batchSize )
 
   // Strided GKMM
   cudaEventRecord( gkmx_beg, 0 );
+#ifdef DO_MIX_PRECISION
+  gkmm_mixfma
+  (
+    0, 
+    HMLP_OP_N, HMLP_OP_N,
+    m, n, k, 
+    (const T*)d_A.data().get(), m, m * k,
+    (const T*)d_B.data().get(), k, k * n,
+              d_C.data().get(), m, m * n,
+    batchSize
+  );
+#else
   gkmm_dfma
   (
     0, 
@@ -191,6 +154,7 @@ void test_gkmm( int m, int n, int k, int batchSize )
               d_C.data().get(), m, m * n,
     batchSize
   );
+#endif
   cudaThreadSynchronize();
   cudaEventRecord( gkmx_end, 0 );
   cudaEventSynchronize( gkmx_end );
@@ -201,30 +165,35 @@ void test_gkmm( int m, int n, int k, int batchSize )
   // Reference 
   cudaEventRecord( gkmx_beg, 0 );
 
-  //xgemm_batched 
-  //(
-  //  handle, 
-  //  CUBLAS_OP_N, CUBLAS_OP_N,
-  //  m, n, k,
-  //  1.0,
-  //  d_Ap.data().get(), m,
-  //  d_Bp.data().get(), k, 0.0,
-  //  d_Crefp.data().get(), m,
-  //  batchSize 
-  //);
-
-  for ( int i = 0; i < batchSize; ++ i )
+  if ( USE_BATCHED_CUBLAS )
   {
-    xgemm
+    xgemm_batched 
     (
-      handle[ i % 32 ], 
+      handle[ 0 ], 
       CUBLAS_OP_N, CUBLAS_OP_N,
       m, n, k,
       1.0,
-      d_A.data().get() + i * m * k, m,
-      d_B.data().get() + i * k * n, k, 0.0,
-      d_Cref.data().get() + i * m * n, m
+      d_Ap.data().get(), m,
+      d_Bp.data().get(), k, 0.0,
+      d_Crefp.data().get(), m,
+      batchSize 
     );
+  }
+   else
+   {
+   for ( int i = 0; i < batchSize; ++ i )
+   {
+     xgemm
+     (
+       handle[ i % 32 ], 
+       CUBLAS_OP_N, CUBLAS_OP_N,
+       m, n, k,
+       1.0,
+       d_A.data().get() + i * m * k, m,
+       d_B.data().get() + i * k * n, k, 0.0,
+       d_Cref.data().get() + i * m * n, m
+     );
+   }
   }
 
   cudaThreadSynchronize();
@@ -237,22 +206,31 @@ void test_gkmm( int m, int n, int k, int batchSize )
   thrust::copy( d_C.begin(), d_C.end(), h_C.begin() );
   thrust::copy( d_Cref.begin(), d_Cref.end(), h_Cref.begin() );
 
-  compute_error
+  hmlp::hmlp_relative_error
   (
     m, n, 
-    h_C.data(),    m, 
-    h_Cref.data(), m,
-    batchSize,
-    m * n
+    h_C.data(),    m, m * n, 
+    h_Cref.data(), m, m * n,
+    batchSize
   );
 
   //flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k ) * batchSize;
   flops = ( 2.0 * m * n * k ) * (double)batchSize / ( 1000.0 * 1000.0 * 1000.0 );
+
+#ifdef MATLAB_OUTPUT
   printf( "%4d, %4d, %4d, %4d, %f, %f, %f;\n", m, n, k, batchSize, 
       flops / gkmm_time, flops / gkmm_strided_time, flops / ref_time
       //gkmm_time, gkmm_strided_time 
       );
-}
+#else
+  printf( "%4d, %f, %f\n", k, flops / gkmm_strided_time, flops / ref_time );
+#endif
+
+};
+
+
+
+
 
 
 /*
@@ -267,12 +245,10 @@ void test_gkmm( int m, int n, int k, int batchSize )
 template <typename T, typename TC>
 void test_gkrm( int m, int n, int k, int batchSize )
 {
-  float  gkrm_time = 0.0, gkrm_strided_time = 0.0;
+  float  gkrm_time = 0.0, gkrm_strided_time = 0.0, ref_time = 0.0;
   double flops = 0.0;
 
   cudaEvent_t gkmx_beg, gkmx_end;
-  // cublasOperation_t transa = CUBLAS_OP_N; 
-  // cublasOperation_t transb = CUBLAS_OP_N; 
   cudaEventCreate( &gkmx_beg );
   cudaEventCreate( &gkmx_end );
 
@@ -334,6 +310,8 @@ void test_gkrm( int m, int n, int k, int batchSize )
     d_B2p[ i ] = d_B2.data().get() + i * n;
   }
 
+  printf( "dsq2nrm\n" );
+
   dsq2nrm
   (
     HMLP_OP_T,
@@ -351,6 +329,10 @@ void test_gkrm( int m, int n, int k, int batchSize )
 
   // Setup the initial value for k-mean
   TC initC( 999999.99, -1 );
+
+
+  printf( "gkrm\n" );
+
 
   // batch_cuda_gkrm
   cudaEventRecord( gkmx_beg, 0 );
@@ -388,12 +370,14 @@ void test_gkrm( int m, int n, int k, int batchSize )
   cudaEventElapsedTime( &gkrm_strided_time, gkmx_beg, gkmx_end );
   gkrm_strided_time /= 1000.0;
 
+
+  printf( "ref\n" );
+
   // Reference
   cudaEventRecord( gkmx_beg, 0 );
   dkmeans
   (
     0, 
-    //transa, transb,
     m, n, k, 
     d_Ap.data().get(), d_A2p.data().get(), m,
     d_Bp.data().get(), d_B2p.data().get(), k,
@@ -403,11 +387,16 @@ void test_gkrm( int m, int n, int k, int batchSize )
   cudaThreadSynchronize();
   cudaEventRecord( gkmx_end, 0 );
   cudaEventSynchronize( gkmx_end );
-  cudaEventElapsedTime( &gkrm_strided_time, gkmx_beg, gkmx_end );
-  gkrm_strided_time /= 1000.0;
+  cudaEventElapsedTime( &ref_time, gkmx_beg, gkmx_end );
+  ref_time /= 1000.0;
+
+  printf( "copy\n" );
+
 
   thrust::copy( d_C.begin(), d_C.end(), h_C.begin() );
   thrust::copy( d_O.begin(), d_O.end(), h_O.begin() );
+
+  printf( "cmp\n" );
 
   // Compute error
   for ( int b = 0; b < batchSize; b++ )
@@ -426,132 +415,16 @@ void test_gkrm( int m, int n, int k, int batchSize )
 
 
   flops = ( 2.0 * m * n * k + 3.0 ) * (double)batchSize / ( 1000.0 * 1000.0 * 1000.0 );
+
+#ifdef MATLAB_OUTPUT
   printf( "%4d, %4d, %4d, %4d, %f, %f;\n", m, n, k, batchSize, 
-      flops / gkrm_time, flops / gkrm_strided_time );
-}
+      flops / gkrm_time, flops / ref_time );
+#else
+  printf( "%4d, %f, %f;\n", k, flops / gkrm_time, flops / ref_time );
+#endif
 
+};
 
-///*
-// *  @brief This is an example to invoke the gkmmv instance that implements the
-// *         kernel summation. 2-norm option is used in this
-// *         case; so A2 and B2 are precomputed. The kernel function take the
-// *         square distance and its weight, returning a weighted scalar. The reduce
-// *         function computes summation between two saclars and return the potential.
-// *        
-// */ 
-//template <typename T>
-//void test_gkmmv( int m, int n, int k, int batchSize )
-//{
-//  float  gkmmv_time = 0.0, gkmmv_strided_time = 0.0;
-//  double flops = 0.0;
-//  struct gkmx_s<T> gkmx;
-//
-//  cudaEvent_t gkmx_beg, gkmx_end;
-//  cublasOperation_t transa = CUBLAS_OP_N; 
-//  cublasOperation_t transb = CUBLAS_OP_N; 
-//  cudaEventCreate( &gkmx_beg );
-//  cudaEventCreate( &gkmx_end );
-//
-//
-//  // Thrust style
-//  thrust::host_vector<T> h_A( m * k * batchSize );
-//  thrust::host_vector<T> h_B( k * n * batchSize );
-//  thrust::host_vector<T> h_C( m * n * batchSize );
-//
-//  for ( int i = 0; i < batchSize; i ++ ) {
-//    for ( int j = 0; j < m * k; j ++ ) h_A[ i * m * k + j ] = (T) rand() / (T) RAND_MAX;
-//    for ( int j = 0; j < k * n; j ++ ) h_B[ i * k * n + j ] = (T) rand() / (T) RAND_MAX;
-//    for ( int j = 0; j < m * n; j ++ ) h_C[ i * m * n + j ] = (T) 0.0;
-//  }
-//
-//  // memcpyHostToDevice
-//  thrust::device_vector<T> d_A = h_A;
-//  thrust::device_vector<T> d_B = h_B;
-//  thrust::device_vector<T> d_C = h_C;
-//
-//  // Thrust style
-//  thrust::device_vector<T*> d_Ap( batchSize );
-//  thrust::device_vector<T*> d_Bp( batchSize );
-//  thrust::device_vector<T*> d_Cp( batchSize );
-//
-//  
-//  for ( int i = 0; i < batchSize; ++ i ) {
-//    d_Ap[ i ] = d_A.data().get() + i * m * k;
-//    d_Bp[ i ] = d_B.data().get() + i * k * n;
-//    d_Cp[ i ] = d_C.data().get() + i * m * n;
-//  }
-//  
-//  // Setup struct gkmx 
-//  gkmx.type = GKMX_GAUSSIAN;
-//  gkmx.h    = 1.0;
-//
-//  // Compute squared 2 norm for RBF kernel.
-//  thrust::device_vector<T>  d_A2( m * batchSize );
-//  thrust::device_vector<T>  d_B2( n * batchSize );
-//  thrust::device_vector<T*> d_A2p( batchSize );
-//  thrust::device_vector<T*> d_B2p( batchSize );
-//  for ( int i = 0; i < batchSize; i ++ ) {
-//    d_A2p[ i ] = d_A2.data().get() + i * m;
-//    d_B2p[ i ] = d_B2.data().get() + i * n;
-//  }
-//  gkmx.A2 = d_A2p.data().get();
-//  gkmx.B2 = d_B2p.data().get();
-//
-//  dsq2nrm_batched_t( k, m, gkmx.A2, (const T**)d_Ap.data().get(), NULL, m, batchSize );
-//  dsq2nrm_batched_n( k, n, gkmx.B2, (const T**)d_Bp.data().get(), NULL, k, batchSize );
-//
-//  // Setup u and w
-//  thrust::host_vector<T>  h_u( m * batchSize, (T)0.0 );
-//  thrust::device_vector<T>  d_u = h_u;
-//  thrust::device_vector<T*>  d_up( batchSize );
-//  for ( int i = 0; i < batchSize; ++ i ) d_up[ i ] = d_u.data().get() + i * m;
-//  gkmx.u = d_up.data().get();
-//
-//  thrust::host_vector<T>  h_w( n * batchSize );
-//  for ( int i = 0; i < n; i ++ ) h_w[ i ] = 0.1 * (double)i;
-//  thrust::device_vector<T>  d_w = h_w;
-//  thrust::device_vector<T*>  d_wp( batchSize );
-//  for ( int i = 0; i < batchSize; ++ i ) d_wp[ i ] = d_w.data().get() + i * n;
-//  gkmx.w = d_wp.data().get();
-//  
-//
-//  // batch_cuda_gkmx
-//  cudaEventRecord( gkmx_beg, 0 );
-//  dgkmmv_batched_instance(
-//      0, transa, transb,
-//      m, n, k, 
-//      (const T**)d_Ap.data().get(), m,
-//      (const T**)d_Bp.data().get(), k,
-//      d_Cp.data().get(), m,
-//      batchSize,
-//      &gkmx );
-//  cudaThreadSynchronize();
-//  cudaEventRecord( gkmx_end, 0 );
-//  cudaEventSynchronize( gkmx_end );
-//  cudaEventElapsedTime( &gkmmv_time, gkmx_beg, gkmx_end );
-//  gkmmv_time /= 1000.0;
-//
-//
-//  // Strided GKMMV
-//  cudaEventRecord( gkmx_beg, 0 );
-//  dgkmmv_batched_strided_instance(
-//      0, transa, transb,
-//      m, n, k, 
-//      d_A.data().get(), m, m * k,
-//      d_B.data().get(), k, k * n,
-//      d_C.data().get(), m, m * n,
-//      batchSize,
-//      &gkmx );
-//  cudaThreadSynchronize();
-//  cudaEventRecord( gkmx_end, 0 );
-//  cudaEventSynchronize( gkmx_end );
-//  cudaEventElapsedTime( &gkmmv_strided_time, gkmx_beg, gkmx_end );
-//  gkmmv_strided_time /= 1000.0;
-//
-//  flops = ( 2.0 * m * n * k + 2.0 + 35.0 ) * (double)batchSize / ( 1000.0 * 1000.0 * 1000.0 );
-//  printf( "%4d, %4d, %4d, %4d, %f, %f;\n", m, n, k, batchSize, 
-//      flops / gkmmv_time, flops / gkmmv_strided_time );
-//}
 
 
 /**
@@ -561,6 +434,9 @@ void test_gkrm( int m, int n, int k, int batchSize )
 int main (int argc, char *argv[])
 {
   int m, n, k, batchSize;
+
+  using T = double;
+  using TC = thrust::pair<T, int>;
 
   if ( argc < 5 ) 
   {
@@ -573,9 +449,8 @@ int main (int argc, char *argv[])
   sscanf( argv[ 3 ], "%d", &k );
   sscanf( argv[ 4 ], "%d", &batchSize );
 
-  test_gkmm<double>( m, n, k, batchSize );
-  //test_gkrm<double, thrust::pair<double, int> >( m, n, k, batchSize );
-  //test_gkmmv<double>( m, n, k, batchSize );
+  //test_gkmm<double>( m, n, k, batchSize );
+  test_gkrm<T, TC>( m, n, k, batchSize );
 
   return 0;
 }

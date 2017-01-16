@@ -53,20 +53,32 @@ void kmeans_ref
   int batchSize
 )
 {
+  using TC = thrust::pair<T, int>;
+
   cublasHandle_t handle;
   cublasCreate( &handle );
+
+  printf( "m %d ldc %d n %d k %d batchSize %d\n", m, ldc, n, k, batchSize );
 
   thrust::device_vector<T>  Varray( ldc * n * batchSize, 0.0 );
   thrust::device_vector<T*> Varrayp( batchSize );
 
-  kmeans<T, thrust::pair<T, int> > opkernel;
-  argmin<thrust::pair<T, int> > opreduce;
+
+  printf( "after allocate\n" );
+
+  kmeans<T, TC> opkernel;
+  argmin<TC> opreduce;
+
+  // Declare <TC> initial value.
+  TC initC( 999999.99, -1 );
 
   opkernel.A2 = A2array;
   opkernel.B2 = B2array;
 
 
-  for ( int i = 0; i < batchSize; ++ i ) 
+  printf( "after thrust::device\n" );
+
+  for ( int i = 0; i < batchSize; i ++ ) 
   {
     Varrayp[ i ] = Varray.data().get() + i * ldc * n;
   }
@@ -83,26 +95,32 @@ void kmeans_ref
     batchSize
   );
 
+
+  printf( "after xgemm_batched\n" );
+
   // Compute the 2-norm here and reduce
   gkmx::transform
-  <T, thrust::pair<T, int>, false, true, kmeans<T, thrust::pair<T, int> > >
+  <T, TC, false, true, kmeans<T, TC> >
   (
     0,
     m, n, 
     Varrayp.data().get(), (T*)NULL, 
-    Carray, (thrust::pair<T, int>*)NULL, ldc, ldc * n,
+    Carray, (TC*)NULL, ldc, ldc * n,
     batchSize, 
-    opkernel 
-  );
+    opkernel
+  )
+  ;
+  printf( "after transform\n" );
+
 
   gkmx::reduce
-  <thrust::pair<T, int>, false, argmin<thrust::pair<T, int> > >
+  <TC, false, argmin<TC> >
   (
     0,
     m, n,
     Carray, Carray[ 0 ], ldc, ldc * n,
     batchSize,
-    opreduce
+    opreduce, initC
   );
 };
 

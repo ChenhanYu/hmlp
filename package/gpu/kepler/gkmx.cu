@@ -45,6 +45,24 @@ struct identity
 };
 
 
+/**
+ *  @brief Type converting kernel
+ */ 
+template <typename TV, typename TC>
+struct convert
+{
+  __host__ __device__ __forceinline__ TC operator()
+  ( 
+    const TV& x, int i, int j, int b 
+  ) const 
+  {
+    return (TC)x; 
+  }
+  TV** A2;
+  TV** B2;
+};
+
+
 template <typename TV, typename TC>
 struct kmeans 
 {
@@ -197,6 +215,49 @@ void gkmm_dfma
 };
 
 
+void gkmm_mixfma
+(
+  cudaStream_t stream, 
+  hmlpOperation_t transA, hmlpOperation_t transB, 
+  int m, int n, int k,
+  const double *Aarray, int lda, int loa, 
+  const double *Barray, int ldb, int lob,
+        float  *Carray, int ldc, int loc,
+  int batchSize
+)
+{
+  using TA = double;
+  using TB = double;
+  using TC = float;
+  using TV = double;
+
+  // Declare semi-rings.
+  thrust::plus<double> op1;
+  thrust::multiplies<double> op2; 
+
+  // Declare kernel operation
+  convert<double, float> opkernel;
+
+  // Declare <TV> initial value.
+  double initV = 0.0;
+
+  // Declare SQ2NRM
+  const bool sq2nrm = false;
+
+  gkmm
+  <sq2nrm, convert<TV, TC>, thrust::plus<double>, thrust::multiplies<double>,
+  double, double, float, double>
+  (
+    stream, 
+    transA, transB,
+    m, n, k,
+    Aarray, lda, loa,
+    Barray, ldb, lob,
+    Carray, ldc, loc,
+    batchSize,
+    opkernel, op1, op2, initV
+  );
+};
 
 
 
@@ -307,7 +368,7 @@ void gkrm_dkmeans
     batchSize,
     opkernel, op1, op2, initV, opreduce, initC
   );
-}
+};
 
 ///*
 // *

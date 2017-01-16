@@ -15,12 +15,14 @@ void dgsknn
   double *D,             int *I
 )
 {
+  const bool USE_STRASSEN = false;
+
   // Sandy-bridge
   rank_k_int_d8x4 semiringkernel;
   rnn_r_int_d8x4_row microkernel;
   gsknn<
     104, 2048, 256, 8, 4, 104, 2048, 8, 4, 32,
-    true,
+    USE_STRASSEN,
     rank_k_int_d8x4,
     rnn_r_int_d8x4_row,
     double, double, double, double>

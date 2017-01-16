@@ -4,7 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cmath>
+#include <tuple>
 #include <omp.h>
+
+
 
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
@@ -111,6 +114,137 @@ T hmlp_norm
   }
   return std::sqrt( nrm2 );
 }; // end hmlp_norm()
+
+
+template<typename TA, typename TB>
+TB hmlp_relative_error
+(
+  int m, int n,
+  TA *A, int lda,
+  TB *B, int ldb
+)
+{
+  TB nrmB = 0.0;
+  TB nrm2 = 0.0;
+ 
+  std::tuple<int, int, TB> max_error( -1, -1, 0.0 );
+  for ( int j = 0; j < n; j ++ )
+  {
+    for ( int i = 0; i < m; i ++ )
+    {
+      TA a = A[ j * lda + i ];
+      TB b = B[ j * ldb + i ];
+      TB r = a - b;
+      nrmB += b * b;
+      nrm2 += r * r;
+      if ( r * r > std::get<2>( max_error ) )
+      {
+        max_error = std::make_tuple( i, j, r );
+      }
+    }
+  }
+  nrm2 = std::sqrt( nrm2 ) / std::sqrt( nrmB );
+
+  if ( nrm2 > 1E-7 )
+  {
+    printf( "relative error % .2E maxinum elemenwise error % .2E ( %d, %d )\n",
+        nrm2,
+        std::get<2>( max_error ),
+        std::get<0>( max_error ), std::get<1>( max_error ) );
+  }
+
+  return nrm2;
+};
+
+
+template<typename TA, typename TB>
+TB hmlp_relative_error
+(
+  int m, int n,
+  TA *A, int lda, int loa,
+  TB *B, int ldb, int lob,
+  int batchSize
+)
+{
+  TB err = 0.0;
+  for ( int b = 0; b < batchSize; b ++ )
+  {
+    err += 
+    hmlp_relative_error
+    ( 
+      m, n, 
+      A + b * loa, lda, 
+      B + b * lob, ldb
+    );
+  }
+  if ( err > 1E-7 )
+  {
+    printf( "average relative error % .2E\n", err / batchSize );
+  }
+  return err;
+};
+
+
+
+template<typename T>
+int hmlp_count_error
+(
+  int m, int n,
+  T *A, int lda,
+  T *B, int ldb
+)
+{
+  int error_count = 0;
+  std::tuple<int, int> err_location( -1, -1 );
+
+  for ( int j = 0; j < n; j ++ )
+  {
+    for ( int i = 0; i < m; i ++ )
+    {
+      T a = A[ j * lda + i ];
+      T b = B[ j * ldb + i ];
+      if ( a != b )
+      {
+        err_location = std::make_tuple( i, j );
+        error_count ++;
+      }
+    }
+  }
+  if ( error_count )
+  {
+    printf( "total error count %d\n", error_count );
+  }
+  return error_count;
+};
+
+
+template<typename T>
+int hmlp_count_error
+(
+  int m, int n,
+  T *A, int lda, int loa,
+  T *B, int ldb, int lob,
+  int batchSize
+)
+{
+  int error_count = 0;
+  for ( int b = 0; b < batchSize; b ++ )
+  {
+    error_count += 
+    hmlp_count_error
+    ( 
+      m, n, 
+      A + b * loa, lda, 
+      B + b * lob, ldb
+    );
+  }
+  if ( error_count )
+  {
+    printf( "total error count %d\n", error_count );
+  }
+  return error_count;
+};
+
 
 
 template<bool IGNOREZERO=false, bool COLUMNINDEX=false, typename T>

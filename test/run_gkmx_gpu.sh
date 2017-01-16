@@ -4,25 +4,37 @@ b=10
 kmin=4
 kmax=2048
 kinc=31
+# =======================================================
 
-echo 'gemm = ['
+
+
+echo "@PRIM"
+echo 'gkmm_gpu'
+# =======================================================
+
+
+echo "@SETUP"
+echo "HMLP_GPU_ARCH = $HMLP_GPU_ARCH"
+echo "@SETUP"
+echo "HMLP_ARCH = $HMLP_ARCH"
+echo "@SETUP"
+echo "m = $m"
+echo "@SETUP"
+echo "n = $n"
+echo "@SETUP"
+echo "b = $b"
+# =======================================================
+
+echo "@DATE"
+date
+# =======================================================
+
 for (( k=kmin; k<kmax; k+=kinc ))
 do
-  ./test_gkmm_gpu.x $m $n $k $b
-  ./test_strassen_gpu.x $m $n $k $b
+  echo "@DATA"
+  ./test_gkmm_gpu.x $m $n $k $b; status=$?
+  echo "@STATUS"
+  echo $status
+  #./test_strassen_gpu.x $m $n $k $b
 done
-echo '];'
-
-k=1024
-b=10
-nmin=1024
-nmax=6000
-ninc=256
-
-echo 'gemm = ['
-for (( n=nmin; n<nmax; n+=ninc ))
-do
-  ./test_gkmm_gpu.x $n $n $k $b
-  ./test_strassen_gpu.x $m $n $k $b
-done
-echo '];'
+# =======================================================
