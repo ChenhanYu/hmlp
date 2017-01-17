@@ -25,6 +25,8 @@
 #include <hmlp_blas_lapack.h>
 
 #include <tree.hpp>
+//#include <skel.hpp>
+#include <iaskit.hpp>
 
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
@@ -36,7 +38,9 @@
 using namespace hmlp::tree;
 
 #define N_CHILDREN 2
-#define SPLITTER centersplit<N_CHILDREN,double>
+
+
+//#define SPLITTER centersplit<N_CHILDREN,double>
 
 /* 
  * --------------------------------------------------------------------------
@@ -55,9 +59,21 @@ using namespace hmlp::tree;
 template<typename T>
 void test_tree( int d, int n )
 {
+  using SPLITTER = centersplit<N_CHILDREN, T>;
+  using DATA = hmlp::iaskit::Data<T>;
+  using NODE = Node<SPLITTER, N_CHILDREN, DATA, T>;
+  //using NODE = hmlp::iaskit::iaskitNode<SPLITTER, N_CHILDREN, DATA, T>;
+  //using TASK = hmlp::skeleton::Task<NODE>;
+  //using TASK = hmlp::skel::Task<NODE>;
+  using TASK = hmlp::iaskit::Task<NODE>;
+  
+
   double ref_beg, ref_time, gkmx_beg, gkmx_time;
 
-  std::vector<T> X( d * n );
+
+
+  //std::vector<T> X( d * n );
+  hmlp::Data<T> X( d, n );
   std::vector<std::size_t> gids( n ), lids( n );
 
 
@@ -77,8 +93,11 @@ void test_tree( int d, int n )
     lids[ i ] = i;
   }
   // ------------------------------------------------------------------------
-  
-  Tree<centersplit<2, double>, N_CHILDREN, double> tree;
+ 
+  // IMPORTANT: Must declare explcitly without "using"
+  //Tree< centersplit<2, double>, N_CHILDREN, hmlp::Data<double>, double> tree;
+  Tree< Node<centersplit<2, double>, N_CHILDREN, hmlp::iaskit::Data<double>, double>
+    , N_CHILDREN, double> tree;
 
   //tree.TreePartition( d, n, 128, 10, X, gids, lids );
 
@@ -93,9 +112,12 @@ void test_tree( int d, int n )
     
   tree.TreePartition( d, n, 128, 10, X, gids, lids );
 
-  tree.TraverseUp<false, hmlp::skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>>();
+  //tree.TraverseUp<false, hmlp::skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>>();
+  //tree.TraverseUp<false, hmlp::skeleton::Task<NODE>>();
+  tree.TraverseUp<false, TASK>();
   hmlp_run();
-  tree.TraverseUp<true,  hmlp::skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>>();
+  //tree.TraverseUp<true,  hmlp::skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>>();
+  tree.TraverseUp<true,  TASK>();
 };
 
 int main( int argc, char *argv[] )

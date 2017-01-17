@@ -23,6 +23,10 @@ namespace skel
 
 
 
+
+
+  
+
 template<typename T>
 void id
 (
@@ -333,34 +337,74 @@ void pmid
 
 }; // end pmid()
 
+template<class Node>
+void skeletonize( Node *node )
+{
+  auto lchild = node->lchild;
+  auto rchild = node->rchild;
+
+  // random sampling or important sampling for rows.
+  std::vector<size_t> amap;
+
+  std::vector<size_t> bmap;
+
+  //bmap = lchild
 
 
-template<typename CONTEXT>
+  printf( "id %d l %d n %d\n", node->treelist_id, node->l, node->n );
+
+}; // end skeletonize()
+
+
+
+
+//template<typename CONTEXT>
+//class Task : public hmlp::Task
+//{
+//  public:
+//    
+//    /* function ptr */
+//    void (*function)(Task<CONTEXT>*);
+//
+//    /* argument ptr */
+//    CONTEXT *arg;
+//
+//    void Set( CONTEXT *user_arg )
+//    {
+//      name = std::string( "Skeletonization" );
+//      arg = user_arg;
+//    }
+//
+//    void Execute( Worker* user_worker )
+//    {
+//      printf( "SkeletonizeTask Execute 2\n" );
+//    }
+//
+//  private:
+//
+//}; // end class Task
+
+template<class Node>
 class Task : public hmlp::Task
 {
   public:
-    
-    /* function ptr */
-    void (*function)(Task<CONTEXT>*);
 
-    /* argument ptr */
-    CONTEXT *arg;
+    Node *arg;
 
-    void Set( CONTEXT *user_arg )
+    void Set( Node *user_arg )
     {
       name = std::string( "Skeletonization" );
       arg = user_arg;
-    }
+    };
 
     void Execute( Worker* user_worker )
     {
-      printf( "SkeletonizeTask Execute 2\n" );
-    }
+      //printf( "SkeletonizeTask Execute 2\n" );
+      skeletonize( arg );
+    };
 
   private:
-
-}; // end class Task
-
+};
 
 
 

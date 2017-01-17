@@ -27,7 +27,7 @@ class Data : public std::vector<T, Allocator>
 
     Data() : d( 0 ), n( 0 ) {};
 
-    Data( std::size_t d, std::size_t n ) : std::vector( d * n )
+    Data( std::size_t d, std::size_t n ) : std::vector<T, Allocator>( d * n )
     { 
       this->d = d;
       this->n = n;

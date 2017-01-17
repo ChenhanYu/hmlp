@@ -327,7 +327,7 @@ class Approximation
 
 
 
-template<typename SPLITTER, int N_CHILDREN, typename T>
+template<typename SPLITTER, int N_CHILDREN, typename DATA, typename T>
 class Node
 {
   public:
@@ -335,7 +335,8 @@ class Node
     Node
     ( 
       int d, int n, int l, 
-      std::vector<T> &X, // only a reference
+      //std::vector<T> &X, // only a reference
+      hmlp::Data<T> &X,
       Node *parent 
     )
     {
@@ -346,6 +347,7 @@ class Node
       this->X = X;
       this->gids.resize( n );
       this->lids.resize( n );
+      this->isleaf = false;
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
@@ -355,7 +357,8 @@ class Node
     Node
     ( 
       int d, int n, int l, 
-      std::vector<T> &X, // only a reference
+      //std::vector<T> &X, // only a reference
+      hmlp::Data<T> &X,
       std::vector<std::size_t> gids,
       std::vector<std::size_t> lids,
       Node *parent 
@@ -368,6 +371,7 @@ class Node
       this->X = X;
       this->gids = gids;
       this->lids = lids;
+      this->isleaf = false;
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
@@ -408,11 +412,26 @@ class Node
           rchild = kids[ 1 ];
         }
       }
+      else
+      {
+        isleaf = true;
+      }
     };
 
     int d;
 
-    std::vector<T> X;
+    //std::vector<T> X;
+    hmlp::Data<T> X;
+
+    DATA data;
+
+    //hmlp::Data<std::size_t> skeletons;
+
+    //std::vector<T> coefficients;
+
+
+
+
 
     int n;
 
@@ -424,13 +443,6 @@ class Node
 
     std::vector<std::size_t> lids;
 
-    //std::vector<std::size_t> skeletons;
-
-    hmlp::Data<std::size_t> skeletons;
-   
-
-    std::vector<T> coefficients;
-
     Node *parent;
 
     Node *kids[ N_CHILDREN ];
@@ -439,6 +451,8 @@ class Node
 
     Node *rchild;
 
+    bool isleaf;
+
     SPLITTER splitter;
 
   private:
@@ -446,14 +460,15 @@ class Node
 };
 
 
-template<typename SPLITTER, int N_CHILDREN, typename T>
+//template<typename SPLITTER, int N_CHILDREN, typename DATA, typename T>
+template<class NODE, int N_CHILDREN, typename T>
 class Tree
 {
   public:
 
     int depth;
 
-    using NODE = Node<SPLITTER, N_CHILDREN, T>;
+    //using NODE = Node<SPLITTER, N_CHILDREN, DATA, T>;
 
     std::vector<NODE*> treelist;
 
@@ -467,7 +482,8 @@ class Tree
     void TreePartition
     (
       int d, int n, int m, int max_depth,
-      std::vector<T> &X,
+      //std::vector<T> &X,
+      hmlp::Data<T> &X,
       std::vector<std::size_t> &gids,
       std::vector<std::size_t> &lids
     )
@@ -479,7 +495,9 @@ class Tree
       
 
       treelist.reserve( ( n / m ) * N_CHILDREN );
-      auto *root = new Node<SPLITTER, N_CHILDREN, T>( d, n, 0, X, gids, lids, NULL );
+
+      //auto *root = new Node<SPLITTER, N_CHILDREN, T>( d, n, 0, X, gids, lids, NULL );
+      auto *root = new NODE( d, n, 0, X, gids, lids, NULL );
    
       treequeue.push_back( root );
     
