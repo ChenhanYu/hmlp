@@ -17,55 +17,14 @@
 
 namespace hmlp
 {
-
-namespace skeleton
-{ 
-  template<typename CONTEXT>
-  class Task : public hmlp::Task
-  {
-    public:
-      
-      /* function ptr */
-      void (*function)(Task<CONTEXT>*);
-
-      /* argument ptr */
-      CONTEXT *arg;
-
-      //void Set( std::string user_name, void (*user_function)(Task<CONTEXT>*), CONTEXT *user_arg )
-      //{
-      //  name = user_name;
-      //  function = user_function;
-      //  arg = user_arg;
-      //};
-
-      void Set( CONTEXT *user_arg )
-      {
-        name = std::string( "fake skeletonization" );
-        arg = user_arg;
-      }
-
-      void Execute( Worker* user_worker )
-      {
-        //function( this );
-        printf( "SkeletonizeTask Execute 2\n" );
-      }
-
-    private:
-  };
-
-  template<typename CONTEXT>
-  void SkeletonizeTaskFunction( Task<CONTEXT> *task )
-  {
-    auto *node = task->arg;
-    printf( "SkeletonizeTask 2\n" );
-  };
-  
-}; // end namespace skeleton
-
-
 namespace tree
 {
 
+
+/**
+ *  @brief Compute the mean values.
+ *
+ */ 
 template<typename T>
 std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &lids )
 {
@@ -105,9 +64,12 @@ std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &
 
 
   return mean;
-};
+}; // end Mean()
 
 
+/**
+ *  
+ */ 
 template<typename T>
 std::vector<T> Mean( int d, int n, std::vector<T> &X )
 {
@@ -117,6 +79,10 @@ std::vector<T> Mean( int d, int n, std::vector<T> &X )
 };
 
 
+/**
+ *  @brief
+ *
+ */ 
 template<typename T>
 T Select( int n, int k, std::vector<T> &x )
 {
@@ -230,7 +196,9 @@ struct centersplit
 
     // Compute direction
     for ( int p = 0; p < d; p ++ )
+    {
       direction[ p ] = X[ lids[ x1 ] * d + p ] - X[ lids[ x0 ] * d + p ];
+    }
 
     //printf( "After Direction\n" );
     //for ( int p = 0; p < d; p ++ )
@@ -325,22 +293,20 @@ class Approximation
 };
 
 
-
-
-template<typename SPLITTER, int N_CHILDREN, typename DATA, typename T>
+template<typename SETUP, typename SPLITTER, int N_CHILDREN, typename NODEDATA, typename T>
 class Node
 {
   public:
 
     Node
-    ( 
-      int d, int n, int l, 
-      //std::vector<T> &X, // only a reference
-      hmlp::Data<T> &X,
+    (
+      SETUP *user_setup,
+      int n, int l, 
+      hmlp::Data<T> *X,
       Node *parent 
     )
     {
-      this->d = d;
+      this->setup = user_setup;
       this->n = n;
       this->l = l;
       this->treelist_id = -1;
@@ -356,15 +322,16 @@ class Node
 
     Node
     ( 
-      int d, int n, int l, 
+      SETUP *user_setup,
+      int n, int l, 
       //std::vector<T> &X, // only a reference
-      hmlp::Data<T> &X,
+      hmlp::Data<T> *X,
       std::vector<std::size_t> gids,
       std::vector<std::size_t> lids,
       Node *parent 
     )
     {
-      this->d = d;
+      this->setup = user_setup;
       this->n = n;
       this->l = l;
       this->treelist_id = -1;
@@ -386,7 +353,7 @@ class Node
     {
       if ( n > m && l < max_depth )
       {
-        auto split = splitter( d, n, X, gids, lids );
+        auto split = splitter( X->dim(), n, *X, gids, lids );
 
         //printf( "pass splitter\n" );
 
@@ -395,7 +362,7 @@ class Node
         {
           int nchild = split[ i ].size();
          
-          kids[ i ] = new Node( d, nchild, l + 1, X, this );
+          kids[ i ] = new Node( setup, nchild, l + 1, X, this );
 
           // TODO: Can be parallelized
           for ( int j = 0; j < nchild; j ++ )
@@ -418,20 +385,18 @@ class Node
       }
     };
 
-    int d;
-
-    //std::vector<T> X;
-    hmlp::Data<T> X;
-
-    DATA data;
-
-    //hmlp::Data<std::size_t> skeletons;
-
-    //std::vector<T> coefficients;
+    //int d;
 
 
 
 
+
+    // This is the call back pointer.
+    SETUP *setup;
+
+    hmlp::Data<T> *X;
+
+    NODEDATA data;
 
     int n;
 
@@ -460,44 +425,62 @@ class Node
 };
 
 
+/**
+ *  @brief Data and setup that are shared with all nodes.
+ *
+ */ 
+template<typename T>
+class Setup
+{
+  public:
+
+    hmlp::Data<T> X;
+};
+
+
 //template<typename SPLITTER, int N_CHILDREN, typename DATA, typename T>
-template<class NODE, int N_CHILDREN, typename T>
+template<class SETUP, class NODE, int N_CHILDREN, typename T>
 class Tree
 {
   public:
 
-    int depth;
+    SETUP setup;
 
-    //using NODE = Node<SPLITTER, N_CHILDREN, DATA, T>;
+    int n;
+
+    int m;
+
+    int depth;
 
     std::vector<NODE*> treelist;
 
     std::deque<NODE*> treequeue;
 
-    Tree() : depth( 0 )
+    Tree() : n( 0 ), m( 0 ), depth( 0 )
     {};
-
 
     //std::vector<Node<SPLITTER, N_CHILDREN, T>*> TreePartition
     void TreePartition
     (
-      int d, int n, int m, int max_depth,
-      //std::vector<T> &X,
-      hmlp::Data<T> &X,
+      int leafsize, int max_depth,
+      hmlp::Data<T> *X,
       std::vector<std::size_t> &gids,
       std::vector<std::size_t> &lids
     )
     {
       assert( N_CHILDREN == 2 );
 
-      //std::deque<Node<SPLITTER, N_CHILDREN, T>*> treequeue;
+      //int d = X->dim();
+
+      n = X->num();
+
+      m = leafsize;
+
       std::deque<NODE*> treequeue;
       
-
       treelist.reserve( ( n / m ) * N_CHILDREN );
 
-      //auto *root = new Node<SPLITTER, N_CHILDREN, T>( d, n, 0, X, gids, lids, NULL );
-      auto *root = new NODE( d, n, 0, X, gids, lids, NULL );
+      auto *root = new NODE( &setup, n, 0, X, gids, lids, NULL );
    
       treequeue.push_back( root );
     

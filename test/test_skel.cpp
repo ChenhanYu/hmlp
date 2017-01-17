@@ -59,11 +59,11 @@ void test_skel( int m, int n, int s )
   }
 
   beg = omp_get_wtime();
-  pmid<T>( m, n, s, A, jpjv, P );
+  //pmid<T>( m, n, s, A, jpjv, P );
   pmid_t = omp_get_wtime() - beg;
 
   beg = omp_get_wtime();
-  id<T>( m, n, s, A, jpjv, P );
+  //id<T>( m, n, s, A, jpjv, P );
   id_t = omp_get_wtime() - beg;
 
   printf( "%d, %d %d, %5.2fs, %5.2fs\n", m, n, s, pmid_t, id_t );

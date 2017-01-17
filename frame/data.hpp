@@ -33,10 +33,6 @@ class Data : public std::vector<T, Allocator>
       this->n = n;
     };
 
-    //std::size_t d;
-
-    //std::size_t n;
-
     enum Pattern : int { STAR = -1 };
 
     void resize( std::size_t d, std::size_t n )
@@ -63,7 +59,7 @@ class Data : public std::vector<T, Allocator>
       return std::make_tuple( d, n );
     };
 
-    std::vector<T>& operator()( std::vector<int> &imap, std::vector<int> &jmap )
+    std::vector<T> operator()( std::vector<int> &imap, std::vector<int> &jmap )
     {
       std::vector<T> submatrix( imap.size() * jmap.size() );
 
@@ -78,9 +74,10 @@ class Data : public std::vector<T, Allocator>
       return submatrix;
     }; 
 
-    std::vector<T>& operator()( std::vector<int> &jmap )
+    template<typename TINDEX>
+    hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
     {
-      std::vector<T> submatrix( d * jmap.size() );
+      hmlp::Data<T> submatrix( d, jmap.size() );
 
       for ( int j = 0; j < jmap.size(); j ++ )
       {
@@ -92,6 +89,22 @@ class Data : public std::vector<T, Allocator>
 
       return submatrix;
     }; 
+
+    //std::vector<T> operator()( std::vector<std::size_t> &jmap )
+    //{
+    //  std::vector<T> submatrix( d * jmap.size() );
+
+    //  for ( int j = 0; j < jmap.size(); j ++ )
+    //  {
+    //    for ( int i = 0; i < d; i ++ )
+    //    {
+    //      submatrix[ j * d + i ] = (*this)[ d * jmap[ j ] + i ];
+    //    }
+    //  }
+
+    //  return submatrix;
+    //}; 
+
 
 
     void rand( T a, T b )
@@ -122,6 +135,16 @@ class Data : public std::vector<T, Allocator>
     void randin()
     {
       randn( 0.0, 1.0 );
+    };
+
+    std::size_t dim()
+    {
+      return d;
+    };
+
+    std::size_t num()
+    {
+      return n;
     };
 
     void Print()

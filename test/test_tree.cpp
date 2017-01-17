@@ -16,6 +16,7 @@
  * */
 
 #include <tuple>
+#include <cmath>
 #include <algorithm>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +26,6 @@
 #include <hmlp_blas_lapack.h>
 
 #include <tree.hpp>
-//#include <skel.hpp>
 #include <iaskit.hpp>
 
 #ifdef HMLP_MIC_AVX512
@@ -37,10 +37,71 @@
 
 using namespace hmlp::tree;
 
+// By default, we use binary tree.
 #define N_CHILDREN 2
 
 
-//#define SPLITTER centersplit<N_CHILDREN,double>
+
+template<typename T>
+struct gaussian
+{
+  inline hmlp::Data<T> operator()( hmlp::Data<T> &A, hmlp::Data<T> &B ) const 
+  {
+    std::vector<T> A2( A.num(), 0.0 );
+    std::vector<T> B2( B.num(), 0.0 );
+    hmlp::Data<T> Kab( A.num(), B.num() );
+
+    assert( A.dim() == B.dim() );
+
+    #pragma omp parallel for
+    for ( int i = 0; i < A.num(); i ++ )
+    {
+      T nrm2 = 0.0;
+      for ( int p = 0; p < A.dim(); p ++ )
+      {
+        T a = A[ i * A.dim() + p ];
+        nrm2 += a * a;
+      }
+      A2[ i ] = nrm2;
+    }
+
+    #pragma omp parallel for
+    for ( int j = 0; j < B.num(); j ++ )
+    {
+      T nrm2 = 0.0;
+      for ( int p = 0; p < B.dim(); p ++ )
+      {
+        T b = B[ j * B.dim() + p ];
+        nrm2 += b * b;
+      }
+      B2[ j ] = nrm2;
+    }
+
+    hmlp::xgemm
+    ( 
+      "T", "N", 
+      A.num(), B.num(), A.dim(), 
+      -2.0, A.data(),   A.dim(),
+            B.data(),   B.dim(), 
+       0.0, Kab.data(), Kab.dim()
+    );
+
+    for ( int j = 0; j < B.num(); j ++ )
+    {
+      for ( int i = 0; i < A.num(); i ++ )
+      {
+        Kab[ j * Kab.dim() + i ] = Kab[ j * Kab.dim() + i ] + A2[ i ] + B2[ j ];
+        Kab[ j * Kab.dim() + i ] = Kab[ j * Kab.dim() + i ] / ( -2.0 * h * h );        
+        Kab[ j * Kab.dim() + i ] = std::exp( Kab[ j * Kab.dim() + i ] );        
+      }
+    }
+
+    return Kab;
+  };
+
+  T h = 0.3;
+};
+
 
 /* 
  * --------------------------------------------------------------------------
@@ -59,34 +120,22 @@ using namespace hmlp::tree;
 template<typename T>
 void test_tree( int d, int n )
 {
+  using KERNEL = gaussian<T>;
+  using SETUP = hmlp::iaskit::Setup<KERNEL,T>;
   using SPLITTER = centersplit<N_CHILDREN, T>;
-  using DATA = hmlp::iaskit::Data<T>;
-  using NODE = Node<SPLITTER, N_CHILDREN, DATA, T>;
-  //using NODE = hmlp::iaskit::iaskitNode<SPLITTER, N_CHILDREN, DATA, T>;
-  //using TASK = hmlp::skeleton::Task<NODE>;
-  //using TASK = hmlp::skel::Task<NODE>;
+  using DATA = hmlp::iaskit::Data<T, KERNEL>;
+  using NODE = Node<SETUP, SPLITTER, N_CHILDREN, DATA, T>;
   using TASK = hmlp::iaskit::Task<NODE>;
   
-
   double ref_beg, ref_time, gkmx_beg, gkmx_time;
 
-
-
-  //std::vector<T> X( d * n );
   hmlp::Data<T> X( d, n );
   std::vector<std::size_t> gids( n ), lids( n );
-
 
   // ------------------------------------------------------------------------
   // Initialization
   // ------------------------------------------------------------------------
-  for ( auto i = 0; i < n; i ++ ) 
-  {
-    for ( auto p = 0; p < d; p ++ ) 
-    {
-      X[ i * d + p ] = (T)( rand() % 100 ) / 1000.0;	
-    }
-  }
+  X.rand();
   for ( auto i = 0; i < n; i ++ ) 
   {
     gids[ i ] = i;
@@ -95,28 +144,36 @@ void test_tree( int d, int n )
   // ------------------------------------------------------------------------
  
   // IMPORTANT: Must declare explcitly without "using"
-  //Tree< centersplit<2, double>, N_CHILDREN, hmlp::Data<double>, double> tree;
-  Tree< Node<centersplit<2, double>, N_CHILDREN, hmlp::iaskit::Data<double>, double>
-    , N_CHILDREN, double> tree;
+  Tree<
+    // SETUP
+    hmlp::iaskit::Setup<gaussian<double>, double>,
+    // NODE
+    Node<
+      hmlp::iaskit::Setup<gaussian<double>, double>,
+      centersplit<2, double>, 
+      N_CHILDREN, 
+      hmlp::iaskit::Data<double, gaussian<double>>, 
+      double
+        >,
+    // N_CHILDREN
+    N_CHILDREN,
+    // T
+    double
+      > tree;
 
-  //tree.TreePartition( d, n, 128, 10, X, gids, lids );
-
-  //auto treelist = tree
-  //<centersplit<2, double>, 2, double>.TreePartition
-  //( d, n, 128, 10, X, gids, lids );
-
-  //printf( "here\n" );
+  //tree.setup.X.resize( d, n );
 
 
-  //auto treelist = 
-    
-  tree.TreePartition( d, n, 128, 10, X, gids, lids );
+  tree.setup.s = 128;
 
-  //tree.TraverseUp<false, hmlp::skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>>();
-  //tree.TraverseUp<false, hmlp::skeleton::Task<NODE>>();
+
+  tree.TreePartition( 128, 10, &X, gids, lids );
+
+  // Sekeletonization with dynamic scheduling (symbolic traversal).
   tree.TraverseUp<false, TASK>();
+  // Execute all skeletonization tasks.
   hmlp_run();
-  //tree.TraverseUp<true,  hmlp::skeleton::Task<Node<SPLITTER, N_CHILDREN, T>>>();
+  // Sekeletonization with level-by-level traversal.
   tree.TraverseUp<true,  TASK>();
 };
 
@@ -131,11 +188,9 @@ int main( int argc, char *argv[] )
   
   test_tree<double>( d, n );
 
-  printf( "here\n" );
-
   hmlp_finalize();
   
-  printf( "finalize()\n" );
+  //printf( "finalize()\n" );
 
   return 0;
 };
