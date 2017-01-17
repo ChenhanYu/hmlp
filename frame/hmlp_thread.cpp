@@ -189,7 +189,7 @@ void Worker::WaitExecute()
 
 float Worker::EstimateCost( class Task * task )
 {
-  return 0.0;
+  return task->cost;
 };
 
 

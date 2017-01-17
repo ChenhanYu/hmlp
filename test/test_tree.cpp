@@ -127,21 +127,9 @@ void test_tree( int d, int n )
   using NODE = Node<SETUP, SPLITTER, N_CHILDREN, DATA, T>;
   using TASK = hmlp::iaskit::Task<NODE>;
   
-  double ref_beg, ref_time, gkmx_beg, gkmx_time;
-
-  hmlp::Data<T> X( d, n );
+  double beg, dynamic_time, ref_time;
   std::vector<std::size_t> gids( n ), lids( n );
 
-  // ------------------------------------------------------------------------
-  // Initialization
-  // ------------------------------------------------------------------------
-  X.rand();
-  for ( auto i = 0; i < n; i ++ ) 
-  {
-    gids[ i ] = i;
-    lids[ i ] = i;
-  }
-  // ------------------------------------------------------------------------
  
   // IMPORTANT: Must declare explcitly without "using"
   Tree<
@@ -161,20 +149,35 @@ void test_tree( int d, int n )
     double
       > tree;
 
-  //tree.setup.X.resize( d, n );
+  // ------------------------------------------------------------------------
+  // Initialization
+  // ------------------------------------------------------------------------
+  tree.setup.X.resize( d, n );
+  tree.setup.X.rand();
+  tree.setup.s = 512;
+  tree.setup.stol = 1E-3;
+  for ( auto i = 0; i < n; i ++ ) 
+  {
+    gids[ i ] = i;
+    lids[ i ] = i;
+  }
+  // ------------------------------------------------------------------------
 
 
-  tree.setup.s = 128;
+  tree.TreePartition( 512, 10, gids, lids );
 
-
-  tree.TreePartition( 128, 10, &X, gids, lids );
-
+  beg = omp_get_wtime();
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   tree.TraverseUp<false, TASK>();
   // Execute all skeletonization tasks.
   hmlp_run();
+  dynamic_time = omp_get_wtime() - beg;
+  beg = omp_get_wtime();
   // Sekeletonization with level-by-level traversal.
   tree.TraverseUp<true,  TASK>();
+  ref_time = omp_get_wtime() - beg;
+
+  printf( "dynamic %5.2lfs level-by-level %5.2lfs\n", dynamic_time, ref_time );
 };
 
 int main( int argc, char *argv[] )

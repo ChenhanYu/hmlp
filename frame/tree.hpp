@@ -12,7 +12,7 @@
 #include <hmlp_runtime.hpp>
 #include <data.hpp>
 
-#define DEBUG_TREE 1
+//#define DEBUG_TREE 1
 
 
 namespace hmlp
@@ -302,7 +302,7 @@ class Node
     (
       SETUP *user_setup,
       int n, int l, 
-      hmlp::Data<T> *X,
+      //hmlp::Data<T> *X,
       Node *parent 
     )
     {
@@ -310,7 +310,7 @@ class Node
       this->n = n;
       this->l = l;
       this->treelist_id = -1;
-      this->X = X;
+      //this->X = X;
       this->gids.resize( n );
       this->lids.resize( n );
       this->isleaf = false;
@@ -325,7 +325,7 @@ class Node
       SETUP *user_setup,
       int n, int l, 
       //std::vector<T> &X, // only a reference
-      hmlp::Data<T> *X,
+      //hmlp::Data<T> *X,
       std::vector<std::size_t> gids,
       std::vector<std::size_t> lids,
       Node *parent 
@@ -335,7 +335,7 @@ class Node
       this->n = n;
       this->l = l;
       this->treelist_id = -1;
-      this->X = X;
+      //this->X = X;
       this->gids = gids;
       this->lids = lids;
       this->isleaf = false;
@@ -353,7 +353,8 @@ class Node
     {
       if ( n > m && l < max_depth )
       {
-        auto split = splitter( X->dim(), n, *X, gids, lids );
+        //auto split = splitter( X->dim(), n, *X, gids, lids );
+        auto split = splitter( setup->X.dim(), n, setup->X, gids, lids );
 
         //printf( "pass splitter\n" );
 
@@ -362,7 +363,8 @@ class Node
         {
           int nchild = split[ i ].size();
          
-          kids[ i ] = new Node( setup, nchild, l + 1, X, this );
+          //kids[ i ] = new Node( setup, nchild, l + 1, X, this );
+          kids[ i ] = new Node( setup, nchild, l + 1, this );
 
           // TODO: Can be parallelized
           for ( int j = 0; j < nchild; j ++ )
@@ -394,7 +396,7 @@ class Node
     // This is the call back pointer.
     SETUP *setup;
 
-    hmlp::Data<T> *X;
+    //hmlp::Data<T> *X;
 
     NODEDATA data;
 
@@ -459,11 +461,10 @@ class Tree
     Tree() : n( 0 ), m( 0 ), depth( 0 )
     {};
 
-    //std::vector<Node<SPLITTER, N_CHILDREN, T>*> TreePartition
     void TreePartition
     (
       int leafsize, int max_depth,
-      hmlp::Data<T> *X,
+      //hmlp::Data<T> *X,
       std::vector<std::size_t> &gids,
       std::vector<std::size_t> &lids
     )
@@ -472,7 +473,7 @@ class Tree
 
       //int d = X->dim();
 
-      n = X->num();
+      n = setup.X.num();
 
       m = leafsize;
 
@@ -480,7 +481,8 @@ class Tree
       
       treelist.reserve( ( n / m ) * N_CHILDREN );
 
-      auto *root = new NODE( &setup, n, 0, X, gids, lids, NULL );
+      //auto *root = new NODE( &setup, n, 0, X, gids, lids, NULL );
+      auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
    
       treequeue.push_back( root );
     

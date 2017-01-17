@@ -27,7 +27,7 @@ namespace iaskit
 
 
 template<typename TKERNEL, typename T>
-class Setup : hmlp::tree::Setup<T>
+class Setup : public hmlp::tree::Setup<T>
 {
   public:
 
@@ -86,6 +86,7 @@ void skeletonize( NODE *node )
   std::vector<size_t> &lids = node->lids;
 
   // Get setup and shared data.
+  auto &X = node->setup->X;
   auto &kernel = node->setup->kernel;
   auto maxs = node->setup->s;
   auto nsamples = 4 * maxs;
@@ -96,7 +97,6 @@ void skeletonize( NODE *node )
   auto &proj = data.proj;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
-  auto &X = (*node->X);
 
   printf( "id %d l %d n %d isleaf %d\n", node->treelist_id, node->l, node->n, node->isleaf );
   printf( "skels.size() %lu\n", node->data.skels.size() );
@@ -179,6 +179,8 @@ class Task : public hmlp::Task
     {
       name = std::string( "Skeletonization" );
       arg = user_arg;
+      // Need an accurate cost model.
+      cost = 1.0;
     };
 
     void Execute( Worker* user_worker )
