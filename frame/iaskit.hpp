@@ -81,6 +81,9 @@ class Data
     hmlp::Data<T> VU; // 
 
     hmlp::Data<T> Sigma; // K_{\sk{lc}\sk{rc}}
+
+
+    size_t fakes;
 };
 
 
@@ -102,8 +105,8 @@ void Skeletonize( NODE *node )
   // Get setup and shared data.
   auto &X = node->setup->X;
   auto &kernel = node->setup->kernel;
-  auto maxs = node->setup->s;
-  auto nsamples = 4 * maxs;
+  //auto maxs = node->setup->s;
+  //auto nsamples = 4 * maxs;
 
   // Get node private data.
   auto &data = node->data;
@@ -111,6 +114,8 @@ void Skeletonize( NODE *node )
   auto &proj = data.proj;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
+  auto maxs = data.fakes;
+  auto nsamples = 4 * maxs;
 
   printf( "id %d l %d n %d isleaf %d\n", node->treelist_id, node->l, node->n, node->isleaf );
   printf( "skels.size() %lu\n", node->data.skels.size() );
@@ -118,7 +123,20 @@ void Skeletonize( NODE *node )
   // amap needs a random sampling scheme. TODO: this seems to be slow.
  
 
-  if ( lids.size() > maxs )
+  if ( node->isleaf )
+  {
+    bmap = node->lids;
+  }
+  else
+  {
+    auto &lskels = lchild->data.skels;
+    auto &rskels = rchild->data.skels;
+    bmap = lskels;
+    bmap.insert( bmap.end(), rskels.begin(), rskels.end() );
+  }
+
+
+  if ( bmap.size() > maxs )
   {
     if ( nsamples < X.num() - node->n )
     {
@@ -127,7 +145,7 @@ void Skeletonize( NODE *node )
       {
         size_t sample = rand() % X.num();
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
-             std::find( lids.begin(), lids.end(), sample ) == lids.end() )
+            std::find( lids.begin(), lids.end(), sample ) == lids.end() )
         {
           amap.push_back( sample );
         }
@@ -143,32 +161,21 @@ void Skeletonize( NODE *node )
         }
       }
     }
+  }
 
-    if ( node->isleaf )
-    {
-      bmap = node->lids;
-      auto A = X( amap );
-      auto B = X( bmap );
-      auto Kab = kernel( A, B );
-      hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
-    }
-    else
-    {
-      auto &lskels = lchild->data.skels;
-      auto &rskels = rchild->data.skels;
-      bmap = lskels;
-      bmap.insert( bmap.end(), rskels.begin(), rskels.end() );
-      auto A = X( amap );
-      auto B = X( bmap );
-      auto Kab = kernel( A, B );
-      hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
-    }
+
+  if ( bmap.size() > maxs )
+  {
+    auto A = X( amap );
+    auto B = X( bmap );
+    auto Kab = kernel( A, B );
+    hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
   }
   else
   {
-    skels = lids;
-    proj.resize( lids.size(), lids.size(), 0.0 );
-    for ( int i = 0; i < lids.size(); i++ )
+    skels = bmap;
+    proj.resize( bmap.size(), bmap.size(), 0.0 );
+    for ( int i = 0; i < bmap.size(); i++ )
     {
       proj[ i * proj.dim() + i ] = 1.0;
     }

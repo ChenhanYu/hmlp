@@ -173,15 +173,6 @@ bool Worker::Execute( Task *task )
 
   // WaitPrefetch
 
-
-  // TODO: Update estimated remaining time.
-  //rt.scheduler->ready_queue_lock[ assignment ].Acquire();
-  //{
-  //  rt.scheduler->time_remaining[ assignment ] -= task->cost;
-  //}
-  //rt.scheduler->ready_queue_lock[ assignment ].Release();
-
-
   current_task = NULL;
 
   return true;

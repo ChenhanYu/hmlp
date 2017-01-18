@@ -164,6 +164,8 @@ class Scheduler
 
     void Finalize();
 
+    int n_worker;
+
     int n_task;
 
     std::deque<Task*> ready_queue[ MAX_WORKER ];

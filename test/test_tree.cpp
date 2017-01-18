@@ -154,7 +154,7 @@ void test_tree( int d, int n )
   // ------------------------------------------------------------------------
   tree.setup.X.resize( d, n );
   tree.setup.X.rand();
-  tree.setup.s = 128;
+  tree.setup.s = 512;
   tree.setup.stol = 1E-3;
   for ( auto i = 0; i < n; i ++ ) 
   {
@@ -164,7 +164,7 @@ void test_tree( int d, int n )
   // ------------------------------------------------------------------------
 
 
-  tree.TreePartition( 128, 10, gids, lids );
+  tree.TreePartition( 512, 10, gids, lids );
 
   beg = omp_get_wtime();
   // Sekeletonization with dynamic scheduling (symbolic traversal).

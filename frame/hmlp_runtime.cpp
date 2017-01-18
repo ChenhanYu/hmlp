@@ -245,7 +245,8 @@ void Task::Enqueue()
   {
     status = QUEUED;
     rt.scheduler->time_remaining[ assignment ] = earliest_t;
-    rt.scheduler->ready_queue[ assignment ].push_back( this );
+    //rt.scheduler->ready_queue[ assignment ].push_back( this );
+    rt.scheduler->ready_queue[ assignment ].push_front( this );
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
@@ -271,8 +272,9 @@ Scheduler::~Scheduler()
 };
 
 
-void Scheduler::Init( int n_worker )
+void Scheduler::Init( int user_n_worker )
 {
+  n_worker = user_n_worker;
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler::Init()\n" );
 #endif
@@ -390,6 +392,12 @@ void* Scheduler::EntryPoint( void* arg )
       task->SetStatus( RUNNING );
       if ( me->Execute( task ) )
       {
+        scheduler->ready_queue_lock[ me->tid ].Acquire();
+        {
+          scheduler->time_remaining[ me->tid ] -= task->cost;
+        }
+        scheduler->ready_queue_lock[ me->tid ].Release();
+
         task->DependenciesUpdate();
         scheduler->n_task_lock.Acquire();
         {
@@ -397,6 +405,15 @@ void* Scheduler::EntryPoint( void* arg )
         }
         scheduler->n_task_lock.Release();
       }
+    }
+    else // No task in my ready_queue. Steal from others.
+    {
+      //scheduler->time_remaining[ me->tid ] = 0.0;
+     
+      //for ( int p = 0; p < scheduler->n_worker; p ++ )
+      //{
+      //  printf( "worker %d try to steal from worker %d\n", me->tid, p );  
+      //}
     }
 
     if ( scheduler->n_task >= scheduler->tasklist.size() ) 

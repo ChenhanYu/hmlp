@@ -455,6 +455,11 @@ class Tree
         {
           treequeue.push_back( node->kids[ i ] );
         }
+
+
+        node->data.fakes = size_t( ( (double) std::rand() / RAND_MAX ) * setup.s );
+
+
         treelist.push_back( node );
         treequeue.pop_front();
       }
