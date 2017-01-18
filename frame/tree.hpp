@@ -259,42 +259,10 @@ struct centersplit
   };
 };
 
-//template<typename T>
-//class Data
-//{
-//  public:
-//
-//    Data();
-//    ~Data();
-//
-//  private:
-//};
 
-template<typename T>
-class Approximation
-{
-  public:
-    
-    Approximation();
-    ~Approximation();
-
-    // Off-diagonal low-rank approximation
-    int n1;
-    int n2;
-    int r12;
-    int r21;
-
-    std::vector<T> U1;
-    std::vector<T> U2;
-    std::vector<T> V1;
-    std::vector<T> V2;
-
-    // Off-diagonal sparse approximation
-
-  private:
-};
-
-
+/**
+ *  @brief 
+ */ 
 template<typename SETUP, typename SPLITTER, int N_CHILDREN, typename NODEDATA, typename T>
 class Node
 {
@@ -304,7 +272,6 @@ class Node
     (
       SETUP *user_setup,
       int n, int l, 
-      //hmlp::Data<T> *X,
       Node *parent 
     )
     {
@@ -312,7 +279,6 @@ class Node
       this->n = n;
       this->l = l;
       this->treelist_id = -1;
-      //this->X = X;
       this->gids.resize( n );
       this->lids.resize( n );
       this->isleaf = false;
@@ -326,8 +292,6 @@ class Node
     ( 
       SETUP *user_setup,
       int n, int l, 
-      //std::vector<T> &X, // only a reference
-      //hmlp::Data<T> *X,
       std::vector<std::size_t> gids,
       std::vector<std::size_t> lids,
       Node *parent 
@@ -337,7 +301,6 @@ class Node
       this->n = n;
       this->l = l;
       this->treelist_id = -1;
-      //this->X = X;
       this->gids = gids;
       this->lids = lids;
       this->isleaf = false;
@@ -389,21 +352,17 @@ class Node
       }
     };
 
-    //int d;
 
-
-
-
-
-    // This is the call back pointer.
+    // This is the call back pointer to the shared data.
     SETUP *setup;
 
-    //hmlp::Data<T> *X;
-
+    // Per node private data.
     NODEDATA data;
 
+    // number of points in this node.
     int n;
 
+    // level in the tree
     int l;
 
     int treelist_id; // In top-down topology order.
@@ -473,8 +432,6 @@ class Tree
     {
       assert( N_CHILDREN == 2 );
 
-      //int d = X->dim();
-
       n = setup.X.num();
 
       m = leafsize;
@@ -483,7 +440,6 @@ class Tree
       
       treelist.reserve( ( n / m ) * N_CHILDREN );
 
-      //auto *root = new NODE( &setup, n, 0, X, gids, lids, NULL );
       auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
    
       treequeue.push_back( root );
@@ -510,6 +466,35 @@ class Tree
         depth = treelist.back()->l;
       }
     };
+
+
+    template<class TASK>
+    void PostOrder( NODE *node )
+    {
+      //auto *lchild = node->lchild;
+      //auto *rchild = node->rchild;
+
+      #pragma omp parallel
+      #pragma omp single nowait
+      {
+        for ( int i = 0; i < N_CHILDREN; i ++ )
+        {
+          if ( node->kids[ i ] )
+          {
+            #pragma omp task
+            PostOrder<TASK>( node->kids[ i ] );
+          }
+        }
+        #pragma omp taskwait
+        {
+          auto *task = new TASK();
+          task->Set( node );
+          task->Execute( NULL );
+          delete task;
+        }
+      }
+    };
+
 
     template<bool LEVELBYLEVEL, class TASK>
     void TraverseUp()

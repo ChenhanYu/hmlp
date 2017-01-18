@@ -219,12 +219,17 @@ void Task::Execute( Worker *user_worker )
   function( this );
 };
 
+
+/**
+ *  @brief 
+ */ 
 void Task::Enqueue()
 {
   float cost = 0.0;
   float earliest_t = -1.0;
   int assignment = -1;
 
+  // Determine which work the task should go to using HEFT policy.
   for ( int i = 0; i < rt.n_worker; i ++ )
   {
     float terminate_t = rt.scheduler->time_remaining[ i ];

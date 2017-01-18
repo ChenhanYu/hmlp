@@ -60,19 +60,33 @@ class Data
 
     TKERNEL kernel;
 
+    // Factorization
+
+    size_t n1;
+
+    size_t n2;
+
+    size_t r12;
+
+    size_t r21;
+
+    hmlp::Data<T> U1; // if ( do_fmm ) U1 = V1^{T}
+
+    hmlp::Data<T> U2; // if ( do_fmm ) U2 = V2^{T}
+
+    hmlp::Data<T> V1;
+
+    hmlp::Data<T> V2;
+
+    hmlp::Data<T> VU; // 
+
+    hmlp::Data<T> Sigma; // K_{\sk{lc}\sk{rc}}
 };
 
 
 template<typename NODE>
-void skeletonize( NODE *node )
+void Skeletonize( NODE *node )
 {
-  //int maxs = 20;
-  //int nsamples = 4 * maxs;
-  //auto *lchild = node->lchild;
-  //auto *rchild = node->rchild;
-  //auto &X = (*node->X);
-
-
   // Early return if we do not need to skeletonize
   if ( !node->parent )
   {
@@ -167,7 +181,9 @@ void skeletonize( NODE *node )
 
 
   
-
+/**
+ *
+ */ 
 template<typename NODE>
 class Task : public hmlp::Task
 {
@@ -186,11 +202,39 @@ class Task : public hmlp::Task
     void Execute( Worker* user_worker )
     {
       //printf( "SkeletonizeTask Execute 2\n" );
-      skeletonize( arg );
+      Skeletonize( arg );
     };
 
   private:
 };
+
+
+template<typename NODE>
+void Factorize( NODE *node )
+{
+  if ( !node ) return;
+
+  auto &kernel = node->setup->kernel;
+  auto &X = node->setup->X;
+
+  auto &data = node->data; 
+  auto *lchild = node->lchild;
+  auto *rchild = node->rchild;
+
+  if ( node->isleaf )
+  {
+    auto lids = node->lids;
+    auto A = X( lids );
+    data.VU = kernel( A, A );
+
+  }
+  else
+  {
+  }
+}; // end Factorize()
+
+
+
 
 
 
