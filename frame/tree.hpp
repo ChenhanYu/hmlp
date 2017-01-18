@@ -9,6 +9,8 @@
 #include <iostream>
 #include <hmlp.h>
 
+#include <mkl.h>
+
 #include <hmlp_runtime.hpp>
 #include <data.hpp>
 
@@ -525,14 +527,43 @@ class Tree
 
         if ( LEVELBYLEVEL )
         {
-          #pragma omp parallel for 
-          for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          int nthd_glb = omp_get_max_threads();
+          
+          if ( n_nodes >= nthd_glb || n_nodes == 1 )
           {
-            auto *node = *(level_beg + node_ind);
-            auto *task = new TASK();
-            task->Set( node );
-            task->Execute( NULL );
-            delete task;
+            #pragma omp parallel for if ( n_nodes > nthd_glb / 2 )
+            for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+            {
+              auto *node = *(level_beg + node_ind);
+              auto *task = new TASK();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+            }
+          }
+          else
+          {
+            int nthd_loc = nthd_glb / n_nodes;
+
+            mkl_set_dynamic( 0 );
+            mkl_set_num_threads( nthd_loc );
+            omp_set_nested( 1 );
+            omp_set_max_active_levels( 2 );
+            #pragma omp parallel for if ( n_nodes )
+            for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+            {
+              omp_set_num_threads( nthd_loc );
+              auto *node = *(level_beg + node_ind);
+              auto *task = new TASK();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+            }
+            mkl_set_dynamic( 1 );
+            mkl_set_num_threads( nthd_glb );
+            omp_set_num_threads( nthd_glb );
+            omp_set_nested( 0 );
+            omp_set_max_active_levels( 1 );
           }
         }
         else // using dynamic scheduling

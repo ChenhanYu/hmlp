@@ -425,7 +425,8 @@ void RunTime::Init()
   {
     if ( !is_init )
     {
-      n_worker = 4;
+      //n_worker = 4;
+      n_worker = omp_get_max_threads();
       scheduler = new Scheduler();
       is_init = true;
     }
