@@ -71,7 +71,7 @@ void test_spdaskit( int n )
   // Initialization
   // ------------------------------------------------------------------------
   tree.setup.K.resize( n, n );
-  tree.setup.K.randspd<false>();
+  tree.setup.K.randspd<true>();
   tree.setup.splitter.Kptr = &tree.setup.K; // The closure takes coordinates.
   tree.setup.s = 128;
   tree.setup.stol = 1E-3;

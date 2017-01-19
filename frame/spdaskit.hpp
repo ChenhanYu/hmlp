@@ -409,6 +409,8 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
     potentials.resize( amap.size(), w.dim(), 0.0 );
   }
 
+  assert( target->isleaf );
+
   if ( node->isleaf ) // direct evaluation
   {
     printf( "level %lu direct evaluation\n", node->l );
