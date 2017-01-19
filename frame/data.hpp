@@ -11,6 +11,7 @@
 
 #include <hmlp.h>
 
+#include <hmlp_blas_lapack.h>
 #include <hmlp_util.hpp>
 #include <hmlp_runtime.hpp>
 
@@ -59,9 +60,17 @@ class Data : public std::vector<T, Allocator>
       return std::make_tuple( d, n );
     };
 
-    std::vector<T> operator()( std::vector<int> &imap, std::vector<int> &jmap )
+    template<typename TINDEX>
+    inline T operator()( TINDEX i, TINDEX j )
     {
-      std::vector<T> submatrix( imap.size() * jmap.size() );
+      return (*this)[ d * j + i ];
+    };
+
+
+    template<typename TINDEX>
+    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    {
+      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
 
       for ( int j = 0; j < jmap.size(); j ++ )
       {
@@ -75,7 +84,7 @@ class Data : public std::vector<T, Allocator>
     }; 
 
     template<typename TINDEX>
-    hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
+    inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( d, jmap.size() );
 
@@ -107,19 +116,37 @@ class Data : public std::vector<T, Allocator>
 
 
 
+    template<bool SYMMETRIC = false>
     void rand( T a, T b )
     {
       std::default_random_engine generator;
       std::uniform_real_distribution<T> distribution( a, b );
-      for ( std::size_t i = 0; i < d * n; i ++ )
+
+      if ( SYMMETRIC ) assert( n == d );
+
+      for ( std::size_t j = 0; j < n; j ++ )
       {
-        (*this)[ i ] =  distribution( generator );
+        for ( std::size_t i = 0; i < d; i ++ )
+        {
+          if ( SYMMETRIC )
+          {
+            if ( i > j )
+              (*this)[ j * d + i ] = distribution( generator );
+            else
+              (*this)[ j * d + i ] = (*this)[ i * d + j ];
+          }
+          else
+          {
+            (*this)[ j * d + i ] = distribution( generator );
+          }
+        }
       }
     };
 
+    template<bool SYMMETRIC = false>
     void rand()
     {
-      rand( 0.0, 1.0 );
+      rand<SYMMETRIC>( 0.0, 1.0 );
     };
 
     void randn( T mu, T sd )
@@ -132,10 +159,56 @@ class Data : public std::vector<T, Allocator>
       }
     };
 
-    void randin()
+    void randn()
     {
       randn( 0.0, 1.0 );
     };
+
+    template<bool USE_LOWRANK=true>
+    void randspd( T a, T b )
+    {
+      std::default_random_engine generator;
+      std::uniform_real_distribution<T> distribution( a, b );
+
+      assert( n == d );
+
+      if ( USE_LOWRANK )
+      {
+        hmlp::Data<T> X( std::rand() % n, n );
+        X.rand();
+        xgemm
+        (
+          "T", "N",
+          n, n, X.dim(),
+          1.0, X.data(), X.dim(),
+               X.data(), X.dim(),
+          0.0, this->data(), this->dim()
+        );
+      }
+      else // diagonal dominating
+      {
+        for ( std::size_t j = 0; j < n; j ++ )
+        {
+          for ( std::size_t i = 0; i < d; i ++ )
+          {
+            if ( i > j )
+              (*this)[ j * d + i ] = distribution( generator );
+            else
+              (*this)[ j * d + i ] = (*this)[ i * d + j ];
+
+            // Make sure diagonal dominated
+            (*this)[ j * d + j ] += std::abs( (*this)[ j * d + i ] );
+          }
+        }
+      }
+    };
+
+    template<bool USE_LOWRANK=true>
+    void randspd()
+    {
+      randspd<USE_LOWRANK>( 0.0, 1.0 );
+    };
+
 
     std::size_t dim()
     {

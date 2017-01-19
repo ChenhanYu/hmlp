@@ -127,18 +127,25 @@ T Select( int n, int k, std::vector<T> &x )
 template<int N_SPLIT, typename T>
 struct centersplit
 {
+  // closure
+  hmlp::Data<T> *Coordinate;
+
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
-    int d, int n, 
-    std::vector<T>& X,
     std::vector<std::size_t>& gids,
     std::vector<std::size_t>& lids
   ) const 
   {
     assert( N_SPLIT == 2 );
+
+    hmlp::Data<T> &X = *Coordinate;
+    size_t d = X.dim();
+    size_t n = lids.size();
+
     T rcx0 = 0.0, rx01 = 0.0;
     std::size_t x0, x1;
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
+
 
     std::vector<T> centroid = Mean( d, n, X, lids );
     std::vector<T> direction( d );
@@ -263,7 +270,8 @@ struct centersplit
 /**
  *  @brief 
  */ 
-template<typename SETUP, typename SPLITTER, int N_CHILDREN, typename NODEDATA, typename T>
+template<typename SETUP, //typename SPLITTER, 
+  int N_CHILDREN, typename NODEDATA, typename T>
 class Node
 {
   public:
@@ -271,7 +279,7 @@ class Node
     Node
     (
       SETUP *user_setup,
-      int n, int l, 
+      size_t n, size_t l, 
       Node *parent 
     )
     {
@@ -318,10 +326,7 @@ class Node
     {
       if ( n > m && l < max_depth )
       {
-        //auto split = splitter( X->dim(), n, *X, gids, lids );
-        auto split = splitter( setup->X.dim(), n, setup->X, gids, lids );
-
-        //printf( "pass splitter\n" );
+        auto split = setup->splitter( gids, lids );
 
         // TODO: Can be parallelized
         for ( int i = 0; i < N_CHILDREN; i ++ )
@@ -360,10 +365,10 @@ class Node
     NODEDATA data;
 
     // number of points in this node.
-    int n;
+    size_t n;
 
     // level in the tree
-    int l;
+    size_t l;
 
     int treelist_id; // In top-down topology order.
 
@@ -381,7 +386,7 @@ class Node
 
     bool isleaf;
 
-    SPLITTER splitter;
+    //SPLITTER splitter;
 
   private:
 
@@ -392,12 +397,14 @@ class Node
  *  @brief Data and setup that are shared with all nodes.
  *
  */ 
-template<typename T>
+template<typename SPLITTER, typename T>
 class Setup
 {
   public:
 
     hmlp::Data<T> X;
+
+    SPLITTER splitter;
 };
 
 
@@ -425,14 +432,13 @@ class Tree
     void TreePartition
     (
       int leafsize, int max_depth,
-      //hmlp::Data<T> *X,
       std::vector<std::size_t> &gids,
       std::vector<std::size_t> &lids
     )
     {
       assert( N_CHILDREN == 2 );
 
-      n = setup.X.num();
+      n = lids.size();
 
       m = leafsize;
 
@@ -457,7 +463,7 @@ class Tree
         }
 
 
-        node->data.fakes = size_t( ( (double) std::rand() / RAND_MAX ) * setup.s );
+        //node->data.fakes = size_t( ( (double) std::rand() / RAND_MAX ) * setup.s );
 
 
         treelist.push_back( node );
@@ -476,9 +482,6 @@ class Tree
     template<class TASK>
     void PostOrder( NODE *node )
     {
-      //auto *lchild = node->lchild;
-      //auto *rchild = node->rchild;
-
       #pragma omp parallel
       #pragma omp single nowait
       {
@@ -505,7 +508,7 @@ class Tree
     void TraverseUp()
     {
       assert( N_CHILDREN == 2 );
-      printf( "TraverseUp()\n" );
+      //printf( "TraverseUp()\n" );
 
       std::vector<TASK*> tasklist;
       if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
@@ -564,6 +567,7 @@ class Tree
             // Create tasks
             tasklist[ node->treelist_id ] = new TASK();
             auto *task = tasklist[ node->treelist_id ];
+            task->Submit();
             task->Set( node );
 
             // Setup dependencies
@@ -619,6 +623,7 @@ class Tree
             // Create tasks
             tasklist[ node->treelist_id ] = new TASK();
             auto *task = tasklist[ node->treelist_id ];
+            task->Submit();
             task->Set( node );
 
             if ( node->parent )

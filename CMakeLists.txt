@@ -272,6 +272,8 @@ endif ()
 add_executable (test_skel.x ${CMAKE_SOURCE_DIR}/test/test_skel.cpp)
 target_link_libraries(test_skel.x hmlp)
 
+add_executable (test_spdaskit.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit.cpp)
+target_link_libraries(test_spdaskit.x hmlp)
 
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)
 # target_link_libraries(test_dgsks_list.x gsks)

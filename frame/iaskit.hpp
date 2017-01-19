@@ -26,8 +26,8 @@ namespace iaskit
 
 
 
-template<typename TKERNEL, typename T>
-class Setup : public hmlp::tree::Setup<T>
+template<typename TKERNEL, typename SPLITTER, typename T>
+class Setup : public hmlp::tree::Setup<SPLITTER, T>
 {
   public:
 
@@ -58,7 +58,6 @@ class Data
 
     hmlp::Data<T> proj;
 
-    TKERNEL kernel;
 
     // Factorization
 
@@ -82,8 +81,6 @@ class Data
 
     hmlp::Data<T> Sigma; // K_{\sk{lc}\sk{rc}}
 
-
-    size_t fakes;
 };
 
 
@@ -105,8 +102,8 @@ void Skeletonize( NODE *node )
   // Get setup and shared data.
   auto &X = node->setup->X;
   auto &kernel = node->setup->kernel;
-  //auto maxs = node->setup->s;
-  //auto nsamples = 4 * maxs;
+  auto maxs = node->setup->s;
+  auto nsamples = 4 * maxs;
 
   // Get node private data.
   auto &data = node->data;
@@ -114,10 +111,8 @@ void Skeletonize( NODE *node )
   auto &proj = data.proj;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
-  auto maxs = data.fakes;
-  auto nsamples = 4 * maxs;
 
-  printf( "id %d l %d n %d isleaf %d\n", node->treelist_id, node->l, node->n, node->isleaf );
+  printf( "id %d l %lu n %lu isleaf %d\n", node->treelist_id, node->l, node->n, node->isleaf );
   printf( "skels.size() %lu\n", node->data.skels.size() );
 
   // amap needs a random sampling scheme. TODO: this seems to be slow.

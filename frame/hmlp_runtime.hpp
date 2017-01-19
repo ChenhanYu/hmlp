@@ -118,6 +118,8 @@ class Task
 
     void SetStatus( TaskStatus status );
 
+    void Submit();
+
     void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
 
     void Enqueue();
@@ -177,7 +179,7 @@ class Scheduler
     // Manually describe the dependencies.
     static void DependencyAdd( Task *source, Task *target );
 
-    void NewTask( Task* );
+    void NewTask( Task *task );
 
     Lock ready_queue_lock[ MAX_WORKER ];
 

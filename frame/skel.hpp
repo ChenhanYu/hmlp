@@ -13,7 +13,7 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
-#define DEBUG_SKEL 1
+//#define DEBUG_SKEL 1
 
 namespace hmlp
 {
@@ -32,7 +32,7 @@ void id
 (
   int m, int n, int maxs,
   std::vector<T> A,
-  std::vector<size_t> &skels, std::vector<T> &proj
+  std::vector<size_t> &skels, hmlp::Data<T> &proj
 )
 {
   int nb = 512;
@@ -92,7 +92,7 @@ void id
 
   
   // Fill in proj
-  proj.resize( jpvt.size() * n );
+  proj.resize( jpvt.size(), n );
   for ( int j = 0; j < n; j ++ )
   {
     for ( int i = 0; i < jpvt.size(); i ++ )

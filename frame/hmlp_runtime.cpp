@@ -166,7 +166,7 @@ void Lock::Release()
 Task::Task()
 {
   status = ALLOCATED;
-  rt.scheduler->NewTask( this );
+  //rt.scheduler->NewTask( this );
   status = NOTREADY;
 };
 
@@ -181,6 +181,11 @@ TaskStatus Task::GetStatus()
 void Task::SetStatus( TaskStatus next_status )
 {
   status = next_status;
+};
+
+void Task::Submit()
+{
+  rt.scheduler->NewTask( this );
 };
 
 void Task::Set( std::string user_name, void (*user_function)(Task*), void *user_arg )
@@ -201,7 +206,7 @@ void Task::DependenciesUpdate()
     {
       child->n_dependencies_remaining --;
 
-      std::cout << child->n_dependencies_remaining << std::endl;
+      //std::cout << child->n_dependencies_remaining << std::endl;
 
       if ( !child->n_dependencies_remaining && child->status == NOTREADY )
       {
@@ -245,8 +250,8 @@ void Task::Enqueue()
   {
     status = QUEUED;
     rt.scheduler->time_remaining[ assignment ] = earliest_t;
-    //rt.scheduler->ready_queue[ assignment ].push_back( this );
-    rt.scheduler->ready_queue[ assignment ].push_front( this );
+    rt.scheduler->ready_queue[ assignment ].push_back( this );
+    //rt.scheduler->ready_queue[ assignment ].push_front( this );
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
@@ -311,6 +316,7 @@ void Scheduler::Init( int user_n_worker )
   }
   tasklist.clear();
 };
+
 
 void Scheduler::NewTask( Task *task )
 {

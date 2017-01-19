@@ -121,10 +121,10 @@ template<typename T>
 void test_tree( int d, int n )
 {
   using KERNEL = gaussian<T>;
-  using SETUP = hmlp::iaskit::Setup<KERNEL,T>;
   using SPLITTER = centersplit<N_CHILDREN, T>;
+  using SETUP = hmlp::iaskit::Setup<KERNEL,SPLITTER,T>;
   using DATA = hmlp::iaskit::Data<T, KERNEL>;
-  using NODE = Node<SETUP, SPLITTER, N_CHILDREN, DATA, T>;
+  using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
   using TASK = hmlp::iaskit::Task<NODE>;
   
   double beg, dynamic_time, omptask_time, ref_time;
@@ -134,11 +134,15 @@ void test_tree( int d, int n )
   // IMPORTANT: Must declare explcitly without "using"
   Tree<
     // SETUP
-    hmlp::iaskit::Setup<gaussian<double>, double>,
+    hmlp::iaskit::Setup<
+      gaussian<double>, 
+      centersplit<2, double>, 
+      double
+      >,
     // NODE
     Node<
-      hmlp::iaskit::Setup<gaussian<double>, double>,
-      centersplit<2, double>, 
+      hmlp::iaskit::Setup<gaussian<double>, centersplit<2, double>, double>,
+      //centersplit<2, double>, 
       N_CHILDREN, 
       hmlp::iaskit::Data<double, gaussian<double>>, 
       double
@@ -154,7 +158,8 @@ void test_tree( int d, int n )
   // ------------------------------------------------------------------------
   tree.setup.X.resize( d, n );
   tree.setup.X.rand();
-  tree.setup.s = 512;
+  tree.setup.splitter.Coordinate = &tree.setup.X; // The closure takes coordinates.
+  tree.setup.s = 128;
   tree.setup.stol = 1E-3;
   for ( auto i = 0; i < n; i ++ ) 
   {
