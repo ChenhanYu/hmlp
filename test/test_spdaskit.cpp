@@ -33,14 +33,71 @@ void test_spdaskit( int n )
   using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
   using SKELTASK = hmlp::spdaskit::SkeletonizeTask<NODE>;
   using UPDATETASK = hmlp::spdaskit::UpdateWeightsTask<NODE>;
+
+  using RKDTSPLITTER = hmlp::spdaskit::randomsplit<N_CHILDREN, T>;
+  using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX,RKDTSPLITTER,T>;
+  using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
+  using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE>;
   
   double beg, dynamic_time, omptask_time, ref_time;
 
 
   printf( "n %d\n", n );
 
+  // ------------------------------------------------------------------------
   // Original order of the matrix.
+  // ------------------------------------------------------------------------
+  SPDMATRIX K;
+  K.resize( n, n );
+  K.randspd<true>( 0.0, 1.0 );
+  //K.Print();
   std::vector<std::size_t> gids( n ), lids( n );
+  for ( auto i = 0; i < n; i ++ ) 
+  {
+    gids[ i ] = i;
+    lids[ i ] = i;
+  }
+  // ------------------------------------------------------------------------
+
+
+
+  // IMPORTANT: Must declare explcitly without "using"
+  Tree<
+    // SETUP
+    hmlp::spdaskit::Setup<
+      hmlp::spdaskit::SPDMatrix<double>, 
+      hmlp::spdaskit::randomsplit<2, double>, 
+      double
+      >,
+    // NODE
+    Node<
+      hmlp::spdaskit::Setup<
+        hmlp::spdaskit::SPDMatrix<double>, 
+        hmlp::spdaskit::randomsplit<2, double>, 
+        double
+        >,
+      N_CHILDREN, 
+      hmlp::spdaskit::Data<double>, 
+      double
+      >,
+    // N_CHILDREN
+    N_CHILDREN,
+    // T
+    double
+    > rkdt;
+
+  // ------------------------------------------------------------------------
+  // Initialization
+  // ------------------------------------------------------------------------
+  rkdt.setup.K = &K;
+  rkdt.setup.splitter.Kptr = rkdt.setup.K; // The closure takes coordinates.
+  std::pair<T, std::size_t> initNN( 999999.9, n );
+  // ------------------------------------------------------------------------
+
+  printf( "here\n" );
+
+  auto NN = rkdt.AllNearestNeighbor<KNNTASK>( 10, 128, 10, gids, lids, initNN );
+
 
   // IMPORTANT: Must declare explcitly without "using"
   Tree<
@@ -70,16 +127,12 @@ void test_spdaskit( int n )
   // ------------------------------------------------------------------------
   // Initialization
   // ------------------------------------------------------------------------
-  tree.setup.K.resize( n, n );
-  tree.setup.K.randspd<true>();
-  tree.setup.splitter.Kptr = &tree.setup.K; // The closure takes coordinates.
+  tree.setup.K = &K;
+  tree.setup.splitter.Kptr = tree.setup.K; // The closure takes coordinates.
+  tree.setup.NN = &NN;
+  tree.setup.k = 128;
   tree.setup.s = 128;
   tree.setup.stol = 1E-3;
-  for ( auto i = 0; i < n; i ++ ) 
-  {
-    gids[ i ] = i;
-    lids[ i ] = i;
-  }
   // ------------------------------------------------------------------------
   tree.setup.w.resize( 128, n );
   tree.setup.w.rand();

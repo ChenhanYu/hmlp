@@ -120,7 +120,7 @@ class Task
 
     void Submit();
 
-    void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
+    virtual void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
 
     void Enqueue();
 

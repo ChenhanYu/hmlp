@@ -23,6 +23,45 @@ namespace tree
 {
 
 
+template<typename NODE>
+class PermuteTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      name = std::string( "Permutation" );
+      arg = user_arg;
+      // Need an accurate cost model.
+      cost = 1.0;
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      auto &lids = arg->lids; 
+      auto &gids = arg->gids; 
+      auto *lchild = arg->lchild;
+      auto *rchild = arg->rchild;
+      
+      if ( !arg->isleaf )
+      {
+        auto &llids = lchild->lids;
+        auto &rlids = rchild->lids;
+        auto &lgids = lchild->gids;
+        auto &rgids = rchild->gids;
+        lids = llids;
+        lids.insert( lids.end(), rlids.begin(), rlids.end() );
+        gids = lgids;
+        gids.insert( gids.end(), rgids.begin(), rgids.end() );
+      }
+    };
+}; // end class SkeletonizeTask
+
+
+
+
 /**
  *  @brief Compute the mean values.
  *
@@ -270,8 +309,7 @@ struct centersplit
 /**
  *  @brief 
  */ 
-template<typename SETUP, //typename SPLITTER, 
-  int N_CHILDREN, typename NODEDATA, typename T>
+template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
 class Node
 {
   public:
@@ -404,6 +442,8 @@ class Setup
 
     hmlp::Data<T> X;
 
+    hmlp::Data<std::pair<T, std::size_t>> *NN;
+
     SPLITTER splitter;
 };
 
@@ -428,6 +468,18 @@ class Tree
 
     Tree() : n( 0 ), m( 0 ), depth( 0 )
     {};
+
+    ~Tree()
+    {
+      for ( int i = 0; i < treelist.size(); i ++ )
+      {
+        delete treelist[ i ];
+      }
+      for ( int i = 0; i < treequeue.size(); i ++ )
+      {
+        delete treequeue[ i ];
+      }
+    };
 
     void TreePartition
     (
@@ -462,10 +514,6 @@ class Tree
           treequeue.push_back( node->kids[ i ] );
         }
 
-
-        //node->data.fakes = size_t( ( (double) std::rand() / RAND_MAX ) * setup.s );
-
-
         treelist.push_back( node );
         treequeue.pop_front();
       }
@@ -476,8 +524,10 @@ class Tree
         treelist.shrink_to_fit();
         depth = treelist.back()->l;
       }
-    };
 
+      // Adgust lids and gids to the appropriate order.
+      TraverseUp<true, PermuteTask<NODE>>();
+    };
 
     template<class TASK>
     void PostOrder( NODE *node )
@@ -499,6 +549,92 @@ class Tree
           task->Set( node );
           task->Execute( NULL );
           delete task;
+        }
+      }
+    };
+
+    template<typename KNNTASK>
+    hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
+    (
+      std::size_t n_tree,
+      std::size_t k, std::size_t max_depth,
+      std::vector<std::size_t> &gids,
+      std::vector<std::size_t> &lids,
+      std::pair<T, std::size_t> initNN
+    )
+    {
+      // k-by-N
+      hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
+
+      setup.NN = &NN;
+
+      // Clean the treelist.
+      for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
+      treelist.clear();
+
+      // This loop has to be sequential to prevent from race condiditon on NN.
+      for ( int t = 0; t < n_tree; t ++ )      
+      {
+        TreePartition( 2 * k, max_depth, gids, lids );
+
+        printf( "treeparition leaf size %lu\n", 2 * k );
+
+        TraverseLeafs<true, KNNTASK>();
+        for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
+        treelist.clear();
+      }
+
+      return NN;
+    }; // end AllNearestNeighbor
+
+
+
+
+
+
+
+    template<bool LEVELBYLEVEL, class TASK>
+    void TraverseLeafs()
+    {
+      assert( N_CHILDREN == 2 );
+
+      std::vector<TASK*> tasklist;
+      int n_nodes = 1 << depth;
+      auto level_beg = treelist.begin() + n_nodes - 1;
+
+      tasklist.resize( n_nodes );
+
+      if ( LEVELBYLEVEL )
+      {
+         #pragma omp parallel for
+         for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+         {
+           auto *node = *(level_beg + node_ind);
+           auto *task = new TASK();
+           task->Set( node );
+           task->Execute( NULL );
+           delete task;
+         }
+      }
+      else
+      {
+        tasklist.resize( n_nodes );
+        for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+        {
+          auto *node = *(level_beg + node_ind);
+          // Create tasks
+          tasklist[ node->treelist_id ] = new TASK();
+          auto *task = tasklist[ node->treelist_id ];
+          task->Submit();
+          task->Set( node );
+          if ( node->kids[ 0 ] )
+          {
+            printf( "There should not be inner nodes in TraverseLeafs.\n" );
+          }
+          else
+          {
+            task->Enqueue();
+          }
         }
       }
     };
@@ -647,6 +783,43 @@ class Tree
 
     };
 };
+
+
+
+//template<class KNNTASK, typename TREE, typename T>
+//hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
+//(
+//  TREE &rkdt, std::size_t n_tree,
+//  std::size_t k, std::size_t max_depth,
+//  std::vector<std::size_t> &gids,
+//  std::vector<std::size_t> &lids,
+//  KNNTASK knntask,
+//  std::pair<T, std::size_t> initNN
+//)
+//{
+//  // k-by-N
+//  hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
+//
+//  // This loop has to be sequential to prevent from race condiditon on NN.
+//  for ( int t = 0; t < n_tree; t ++ )
+//  {
+//    auto tree = rkdt;
+//
+//    // The TREE->SETUP must have NN as a member.
+//    tree.setup.NN = &NN;
+//
+//    // On exist all leafnode's lids contain candidiates.
+//    // Each leafnode's lids are candidates for all points in the node.
+//    tree.TreePartition( 2 * k, max_depth, gids, lids );
+//
+//    tree.TraverseLeafs<true, KNNTASK>();
+//  }
+//
+//  return NN;
+//}; // end void AllNearestNeighbor()
+
+
+
 
 }; // end namespace tree 
 

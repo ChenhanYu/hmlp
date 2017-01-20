@@ -18,7 +18,7 @@
 #include <skel.hpp>
 #include <data.hpp>
 
-//#define DEBUG_SPDASKIT 1
+#define DEBUG_SPDASKIT 1
 
 
 namespace hmlp
@@ -26,10 +26,15 @@ namespace hmlp
 namespace spdaskit
 {
 
+
+
 template<typename SPDMATRIX, typename SPLITTER, typename T>
 class Setup : public hmlp::tree::Setup<SPLITTER, T>
 {
   public:
+
+    // Number of neighbors
+    size_t k;
 
     // Maximum rank 
     size_t s;
@@ -38,10 +43,7 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     T stol;
 
     // The SPDMATRIX
-    SPDMATRIX K;
-
-    // Neighbors
-    hmlp::Data<std::pair<T,size_t>> NN;
+    SPDMATRIX *K;
 
     // Weights
     hmlp::Data<T> w;
@@ -176,6 +178,95 @@ struct centersplit
 }; // end struct 
 
 
+template<int N_SPLIT, typename T>
+struct randomsplit
+{
+  // closure
+  SPDMatrix<T> *Kptr;
+
+  inline std::vector<std::vector<std::size_t> > operator()
+  ( 
+    std::vector<std::size_t>& gids,
+    std::vector<std::size_t>& lids
+  ) const 
+  {
+    assert( N_SPLIT == 2 );
+
+    SPDMatrix<T> &K = *Kptr;
+    size_t N = K.dim();
+    size_t n = lids.size();
+    std::vector<std::vector<std::size_t> > split( N_SPLIT );
+    std::vector<T> temp( n, 0.0 );
+
+    size_t idf2c = std::rand() % n;
+    size_t idf2f = std::rand() % n;
+
+    while ( idf2c == idf2f ) idf2f = std::rand() % n;
+
+#ifdef DEBUG_SPDASKIT
+    printf( "randomsplit idf2c %lu idf2f %lu\n", idf2c, idf2f );
+#endif
+
+    // Compute projection
+    #pragma omp parallel for
+    for ( size_t i = 0; i < n; i ++ )
+    {
+      temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+    }
+
+    // Parallel median search
+    T median = hmlp::tree::Select( n, n / 2, temp );
+
+    split[ 0 ].reserve( n / 2 + 1 );
+    split[ 1 ].reserve( n / 2 + 1 );
+
+    for ( size_t i = 0; i < n; i ++ )
+    {
+      if ( temp[ i ] > median ) split[ 1 ].push_back( i );
+      else                      split[ 0 ].push_back( i );
+    }
+
+    return split;
+  };
+}; // end randomsplit
+
+
+template<class NODE>
+class KNNTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      name = std::string( "neighbor search" );
+      arg = user_arg;
+      // Need an accurate cost model.
+      cost = 1.0;
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      auto &K = *arg->setup->K;
+      auto &NN = *arg->setup->NN;
+      auto &lids = arg->lids;
+     
+      // Can be parallelized
+      for ( size_t j = 0; j < lids.size(); j ++ )
+      {
+        for ( size_t i = 0; i < lids.size(); i ++ )
+        {
+          size_t ilid = lids[ i ];
+          size_t jlid = lids[ j ];
+          auto dist = K( ilid, ilid ) + K( jlid, jlid ) -2.0 * K( ilid, jlid );
+          auto query = std::make_pair( dist, ilid );
+          hmlp::HeapSelect( 1, NN.dim(), &query, NN.data() + jlid * NN.dim() );
+        }
+      }
+    };
+}; // end class SkeletonizeTask
+
 
 template<typename NODE>
 void Skeletonize( NODE *node )
@@ -190,7 +281,7 @@ void Skeletonize( NODE *node )
 
 
   // Gather shared data and create reference
-  auto &K = node->setup->K;
+  auto &K = *node->setup->K;
   auto maxs = node->setup->s;
   auto nsamples = 4 * maxs;
 
@@ -397,7 +488,7 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
 {
   auto &w = node->setup->w;
   auto &lids = node->lids;
-  auto &K = node->setup->K;
+  auto &K = *node->setup->K;
   auto &data = node->data;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
@@ -483,7 +574,7 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
 template<typename NODE, typename T>
 void ComputeError( NODE *node, hmlp::Data<T> potentials )
 {
-  auto &K = node->setup->K;
+  auto &K = *node->setup->K;
   auto &w = node->setup->w;
   auto &lids = node->lids;
 

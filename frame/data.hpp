@@ -34,6 +34,12 @@ class Data : public std::vector<T, Allocator>
       this->n = n;
     };
 
+    Data( std::size_t d, std::size_t n, T initT ) : std::vector<T, Allocator>( d * n, initT )
+    { 
+      this->d = d;
+      this->n = n;
+    };
+
     enum Pattern : int { STAR = -1 };
 
     void resize( std::size_t d, std::size_t n )
@@ -164,7 +170,7 @@ class Data : public std::vector<T, Allocator>
       randn( 0.0, 1.0 );
     };
 
-    template<bool USE_LOWRANK=true>
+    template<bool USE_LOWRANK>
     void randspd( T a, T b )
     {
       std::default_random_engine generator;
@@ -203,7 +209,7 @@ class Data : public std::vector<T, Allocator>
       }
     };
 
-    template<bool USE_LOWRANK=true>
+    template<bool USE_LOWRANK>
     void randspd()
     {
       randspd<USE_LOWRANK>( 0.0, 1.0 );

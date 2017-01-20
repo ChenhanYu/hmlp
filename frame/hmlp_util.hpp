@@ -389,6 +389,53 @@ inline void heap_select
   }
 };
 
+
+template<typename T>
+void HeapAdjust
+(
+  size_t s, size_t n,
+  std::pair<T, size_t> *NN
+)
+{
+  while ( 2 * s + 1 < n ) 
+  {
+    size_t j = 2 * s + 1;
+    if ( ( j + 1 ) < n ) 
+    {
+      if ( NN[ j ].first < NN[ j + 1 ].first ) j ++;
+    }
+    if ( NN[ s ].first < NN[ j ].first ) 
+    {
+      std::swap( NN[ s ], NN[ j ] );
+      s = j;
+    }
+    else break;
+  }
+};
+
+template<typename T>
+void HeapSelect
+(
+  size_t n, size_t k,
+  std::pair<T, size_t> *Query,
+  std::pair<T, size_t> *NN
+)
+{
+  for ( size_t i = 0; i < n; i ++ )
+  {
+    if ( Query[ i ].first > NN[ 0 ].first )
+    {
+      continue;
+    }
+    else // Replace the root with the new query.
+    {
+      NN[ 0 ] = Query[ i ];
+      HeapAdjust<T>( 0, k, NN );
+    }
+  }
+};
+
+
 /**
  *  @brief A bubble sort for reference.
  */ 
