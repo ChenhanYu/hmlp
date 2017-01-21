@@ -1,6 +1,7 @@
 #ifndef HMLP_RUNTIME_HPP
 #define HMLP_RUNTIME_HPP
 
+#include <time.h>
 #include <tuple>
 #include <deque>
 #include <cstdint>
@@ -94,6 +95,40 @@ class Lock
 #endif
 };
 
+
+class Event
+{
+  public:
+
+    Event(); 
+
+    //Event( float, float );
+    
+    //~Event();
+
+    void Set( float, float );
+
+    void Begin();
+
+    void Terminate();
+
+    void Print();
+
+  private:
+
+    float flops;
+
+    float mops;
+
+    float beg;
+
+    float end;
+
+    float sec;
+
+}; // end class Event
+
+
 class Task
 {
   public:
@@ -111,6 +146,8 @@ class Task
     int taskid;
 
     float cost;
+
+    Event event;
 
     // priority
 
@@ -180,6 +217,8 @@ class Scheduler
     static void DependencyAdd( Task *source, Task *target );
 
     void NewTask( Task *task );
+
+    void Summary();
 
     Lock ready_queue_lock[ MAX_WORKER ];
 

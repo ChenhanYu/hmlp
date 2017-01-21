@@ -1,6 +1,8 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
+#define THREAD_PROFILE 1
+
 namespace hmlp
 {
 
@@ -155,7 +157,13 @@ Worker::Worker( thread_communicator *comm ) :
 };
 
 /**
- *  @brief The work executes the task in the runtime system.
+ *  @brief The work executes the task in the runtime system. I left some
+ *         code commented out because there is no GPU support now.
+ *         With GPUs (or some distributed devices), we need to first 
+ *         gather data before the execution.
+ *
+ *  @param *task The current task pointer.
+ *
  */ 
 bool Worker::Execute( Task *task )
 {
@@ -163,20 +171,26 @@ bool Worker::Execute( Task *task )
 
   // Fetching data from GPU memory or from other processes.
   // Fetch( task );
-
   // Prefetch( task );
 
-  //(*task->function)( task );
-
+#ifdef THREAD_PROFILE
+  task->event.Begin();
+#endif
   task->Execute( this );
   WaitExecute();
+#ifdef THREAD_PROFILE
+  task->event.Terminate();
+#endif
 
   // WaitPrefetch
 
   current_task = NULL;
 
   return true;
-};
+
+}; // end bool Worker::Execute()
+
+
 
 /**
  *  @brief Pose a barrier if the device owned by this worker

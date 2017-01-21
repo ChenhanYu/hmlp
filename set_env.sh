@@ -61,7 +61,7 @@ echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
 ## Parallel options
 # export KMP_AFFINITY=compact
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=4
 export KS_JC_NT=1
 export KS_IC_NT=20
 export KS_JR_NT=1

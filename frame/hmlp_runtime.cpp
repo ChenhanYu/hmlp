@@ -160,6 +160,43 @@ void Lock::Release()
 };
 
 
+Event::Event() : flops( 0.0 ), mops( 0.0 ), beg( 0.0 ), end( 0.0 ), sec( 0.0 ) {};
+
+//Event::Event( float _flops, float _mops ) : beg( 0.0 ), end( 0.0 ), sec( 0.0 )
+//{
+//  flops = _flops;
+//  mops = _mops;
+//};
+
+
+void Event::Set( float _flops, float _mops )
+{
+  flops = _flops;
+  mops = _mops;
+};
+
+void Event::Begin()
+{
+  beg = omp_get_wtime();
+};
+
+void Event::Terminate()
+{
+  end = omp_get_wtime();
+  sec = end - beg;
+};
+
+void Event::Print()
+{
+  printf( "beg %5.2f end %5.2f sec %5.2f flops %E mops %E\n",
+      beg, end, sec, flops, mops );
+};
+
+
+
+
+
+
 /**
  *  @brief Task
  */ 
@@ -432,6 +469,23 @@ void* Scheduler::EntryPoint( void* arg )
 };
 
 
+void Scheduler::Summary()
+{
+  time_t rawtime;
+  struct tm * timeinfo;
+  char buffer[ 80 ];
+
+  time( &rawtime );
+  timeinfo = localtime( &rawtime );
+  strftime( buffer, 80, "%T.", timeinfo );
+
+  printf( "%s\n", buffer );
+
+}; // end void Schediler::Summary()
+
+
+
+
 RunTime::RunTime() :
   n_worker( 0 )
 {
@@ -468,6 +522,7 @@ void RunTime::Run()
     Init();
   }
   scheduler->Init( n_worker );
+  scheduler->Summary();
 };
 
 void RunTime::Finalize()

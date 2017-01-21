@@ -18,7 +18,7 @@
 #include <skel.hpp>
 #include <data.hpp>
 
-#define DEBUG_SPDASKIT 1
+//#define DEBUG_SPDASKIT 1
 
 
 namespace hmlp
@@ -48,7 +48,6 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     // Weights
     hmlp::Data<T> w;
 
-
 }; // end class Setup
 
 
@@ -59,6 +58,8 @@ template<typename T>
 class Data
 {
   public:
+
+    Lock lock;
 
     bool isskel = false;
 
@@ -71,6 +72,16 @@ class Data
 
     // Potential
     T u;
+
+    // These two prunning lists are used when no NN pruning.
+    std::vector<size_t> prune;
+
+    std::vector<size_t> noprune;
+
+    // These two prunning lists are used when in NN pruning.
+    std::vector<size_t> NNprune;
+
+    std::vector<size_t> NNnoprune;
 
 }; // end class Data
 
@@ -504,7 +515,9 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
 
   if ( node->isleaf ) // direct evaluation
   {
+#ifdef DEBUG_SPDASKIT
     printf( "level %lu direct evaluation\n", node->l );
+#endif
     auto Kab = K( amap, lids ); // amap.size()-by-lids.size()
     auto wb  = w( lids ); // nrhs-by-lids.size()
     xgemm
@@ -518,57 +531,217 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
   }
   else
   {
-    if ( !data.isskel && node->parent )
+    if ( !data.isskel || IsMyParent( target->morton, node->morton ) )
     {
-      printf( "level %lu not skel\n", node->l );
+#ifdef DEBUG_SPDASKIT
+      printf( "level %lu is not prunable\n", node->l );
+#endif
       Evaluate( lchild, target, potentials );      
       Evaluate( rchild, target, potentials );
     }
     else
     {
-      // Check if target is the child of node.
-      auto *parent = target;
-      
-      while ( parent )
-      {
-        if ( parent == lchild )
-        {
-          printf( "level %lu recur left prun right\n", node->l );
-          Evaluate( lchild, target, potentials );
-          auto Kab = K( amap, rchild->data.skels );
-          auto &w_skel = rchild->data.w_skel;
-          xgemm
-          (
-            "N", "N",
-            Kab.dim(), w_skel.num(), w_skel.dim(),
-            1.0, Kab.data(),        Kab.dim(),
-                 w_skel.data(),     w_skel.dim(),
-            1.0, potentials.data(), potentials.dim()
-          );          
-          break;
-        }
-        if ( parent == rchild )
-        {
-          printf( "level %lu recur right prun left\n", node->l );
-          Evaluate( rchild, target, potentials );
-          auto Kab = K( amap, lchild->data.skels );
-          auto &w_skel = lchild->data.w_skel;
-          xgemm
-          (
-            "N", "N",
-            Kab.dim(), w_skel.num(), w_skel.dim(),
-            1.0, Kab.data(),        Kab.dim(),
-                 w_skel.data(),     w_skel.dim(),
-            1.0, potentials.data(), potentials.dim()
-          );          
-          break;
-        }
-        parent = parent->parent;
-      }
+#ifdef DEBUG_SPDASKIT
+      printf( "level %lu is prunable\n", node->l );
+#endif
+      auto Kab = K( amap, node->data.skels );
+      auto &w_skel = node->data.w_skel;
+      xgemm
+      (
+        "N", "N",
+        Kab.dim(), w_skel.num(), w_skel.dim(),
+        1.0, Kab.data(),        Kab.dim(),
+             w_skel.data(),     w_skel.dim(),
+        1.0, potentials.data(), potentials.dim()
+      );          
     }
   }
 
 }; // end void Evaluate()
+
+
+/**
+ *  @breif This is a fake evaluation setup aimming to figure out
+ *         which tree node will prun which points. The result
+ *         will be stored in each node as two lists, prune and noprune.
+ *
+ */ 
+template<bool SYMBOLIC, bool NNPRUNE, typename NODE, typename T>
+void Evaluate
+( 
+  NODE *node, 
+  size_t lid, 
+  std::vector<size_t> &nnandi, // k + 1 non-prunable lists
+  hmlp::Data<T> &potentials 
+)
+{
+  auto &w = node->setup->w;
+  auto &lids = node->lids;
+  auto &K = *node->setup->K;
+  auto &data = node->data;
+  auto *lchild = node->lchild;
+  auto *rchild = node->rchild;
+
+  auto amap = std::vector<size_t>( 1 );
+
+  amap[ 0 ] = lid;
+
+  if ( !SYMBOLIC ) // No potential evaluation.
+  {
+    assert( potentials.size() == amap.size() * w.dim() );
+  }
+
+
+
+
+
+//  if ( node->isleaf ) // direct evaluation
+//  {
+//    //printf( "level %lu direct evaluation\n", node->l );
+//    if ( SYMBOLIC )
+//    {
+//      data.lock.Acquire();
+//      {
+//        // Add lid to notprune list. We use a lock.
+//        if ( NNPRUNE ) data.noprune.push_back( lid );
+//        else           data.NNnoprune.push_back( lid );
+//      }
+//      data.lock.Release();
+//    }
+//    else
+//    {
+//      printf( "level %lu direct evaluation\n", node->l );
+//      auto Kab = K( amap, lids ); // amap.size()-by-lids.size()
+//      auto wb  = w( lids ); // nrhs-by-lids.size()
+//      xgemm
+//      (
+//        "N", "T",
+//        Kab.dim(), wb.dim(), wb.num(),
+//        1.0, Kab.data(),        Kab.dim(),
+//             wb.data(),         wb.dim(),
+//        1.0, potentials.data(), potentials.dim()
+//      );
+//    }
+//  }
+//  else // recusion
+//  {
+//  }
+
+
+
+  if ( !data.isskel || node->ContainAny( nnandi ) )
+  {
+    //printf( "level %lu is not prunable\n", node->l );
+    if ( node->isleaf )
+    {
+      if ( SYMBOLIC )
+      {
+        data.lock.Acquire();
+        {
+          // Add lid to notprune list. We use a lock.
+          if ( NNPRUNE ) data.noprune.push_back( lid );
+          else           data.NNnoprune.push_back( lid );
+        }
+        data.lock.Release();
+      }
+      else
+      {
+#ifdef DEBUG_SPDASKIT
+        printf( "level %lu direct evaluation\n", node->l );
+#endif
+        auto Kab = K( amap, lids ); // amap.size()-by-lids.size()
+        auto wb  = w( lids ); // nrhs-by-lids.size()
+        xgemm
+        (
+          "N", "T",
+          Kab.dim(), wb.dim(), wb.num(),
+          1.0, Kab.data(),        Kab.dim(),
+          wb.data(),         wb.dim(),
+          1.0, potentials.data(), potentials.dim()
+        );
+      }
+    }
+    else
+    {
+      Evaluate<SYMBOLIC, NNPRUNE>( lchild, lid, nnandi, potentials );      
+      Evaluate<SYMBOLIC, NNPRUNE>( rchild, lid, nnandi, potentials );
+    }
+  }
+  else // need lid's morton and neighbors' mortons
+  {
+    //printf( "level %lu is prunable\n", node->l );
+    if ( SYMBOLIC )
+    {
+      data.lock.Acquire();
+      {
+        // Add lid to prunable list.
+        if ( NNPRUNE ) data.prune.push_back( lid );
+        else           data.NNprune.push_back( lid );
+      }
+      data.lock.Release();
+    }
+    else
+    {
+#ifdef DEBUG_SPDASKIT
+      printf( "level %lu is prunable\n", node->l );
+#endif
+      auto Kab = K( amap, node->data.skels );
+      auto &w_skel = node->data.w_skel;
+      xgemm
+      (
+        "N", "N",
+        Kab.dim(), w_skel.num(), w_skel.dim(),
+        1.0, Kab.data(),        Kab.dim(),
+        w_skel.data(),     w_skel.dim(),
+        1.0, potentials.data(), potentials.dim()
+      );          
+    }
+  }
+
+
+
+}; // end T Evaluate()
+
+
+template<bool SYMBOLIC, bool NNPRUNE, typename TREE, typename T>
+void Evaluate
+( 
+  TREE &tree, 
+  size_t gid, 
+  hmlp::Data<T> &potentials
+)
+{
+  std::vector<size_t> nnandi;
+  auto &w = tree.setup.w;
+  size_t lid = tree.Getlid( gid );
+
+  potentials.clear();
+  potentials.resize( 1, w.dim(), 0.0 );
+
+  if ( NNPRUNE )
+  {
+    auto &NN = *tree.setup.NN;
+    nnandi.reserve( NN.dim() + 1 );
+    nnandi.push_back( lid );
+    for ( size_t i = 0; i < NN.dim(); i ++ )
+    {
+      nnandi.push_back( tree.Getlid( NN[ lid * NN.dim() + i ].second ) );
+    }
+#ifdef DEBUG_SPDASKIT
+    printf( "nnandi.size() %lu\n", nnandi.size() );
+#endif
+  }
+  else
+  {
+    nnandi.reserve( 1 );
+    nnandi.push_back( lid );
+  }
+
+  Evaluate<SYMBOLIC, NNPRUNE>( tree.treelist[ 0 ], lid, nnandi, potentials );
+
+}; // end void Evaluate()
+
+
 
 
 template<typename NODE, typename T>
@@ -587,6 +760,7 @@ void ComputeError( NODE *node, hmlp::Data<T> potentials )
 
   auto nrm2 = hmlp_norm( potentials.dim(), potentials.num(), 
                          potentials.data(), potentials.dim() ); 
+
   xgemm
   (
     "N", "T",
@@ -604,6 +778,39 @@ void ComputeError( NODE *node, hmlp::Data<T> potentials )
 
 }; // end void ComputeError()
 
+
+
+template<typename TREE, typename T>
+void ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
+{
+  auto &K = *tree.setup.K;
+  auto &w = tree.setup.w;
+  auto lid = tree.Getlid( gid );
+
+  auto amap = std::vector<size_t>( 1 );
+  auto bmap = std::vector<size_t>( K.num() );
+  amap[ 0 ] = lid;
+  for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
+
+  auto Kab = K( amap, bmap );
+
+  auto nrm2 = hmlp_norm( potentials.dim(), potentials.num(), 
+                         potentials.data(), potentials.dim() ); 
+
+  xgemm
+  (
+    "N", "T",
+    Kab.dim(), w.dim(), w.num(),
+    -1.0, Kab.data(),        Kab.dim(),
+          w.data(),          w.dim(),
+     1.0, potentials.data(), potentials.dim()
+  );          
+
+  auto err = hmlp_norm( potentials.dim(), potentials.num(), 
+                        potentials.data(), potentials.dim() ); 
+  
+  printf( "gid %5lu relative error %E, nrm2 %E\n", gid, err / nrm2, nrm2 );
+};
 
 
 

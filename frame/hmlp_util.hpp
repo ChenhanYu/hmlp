@@ -66,6 +66,38 @@ void hmlp_free( T *ptr )
 #endif
 }
 
+template<typename T>
+void hmlp_print_binary( T number )
+{
+  char binary[ 33 ];
+
+  for ( size_t i = 0; i < sizeof(T) * 4; i ++ )
+  {
+    if ( number & 1 ) binary[ 31 - i ] = '1';
+    else              binary[ 31 - i ] = '0';
+    number >>= 1;
+    if ( i == 31 ) break;
+  }
+  binary[ 32 ] = '\0';
+
+  //size_t i = 0;
+
+  //while ( number ) 
+  //{
+  //  if ( i < 32 && ( number & 1 )  ) binary[ i ] = '1';
+  //  else                             binary[ i ] = '0';
+  //  //if ( number & 1) printf( "1" );
+  //  //else             printf( "0" );
+  //  number >>= 1;
+  //  i ++;
+  //}
+  //binary[ 32 ] = 3;
+  //printf("\n");
+  printf( "%s\n", binary );
+};
+
+
+
 /**
  *  @brief Split into m x n, get the subblock starting from ith row 
  *         and jth column. (for STRASSEN)

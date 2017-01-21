@@ -23,6 +23,33 @@ namespace tree
 {
 
 
+
+/**
+ *  @brief Check if ``it'' is ``me'''s ancestor by checking two facts.
+ *         1) itlevel >= mylevel and
+ *         2) morton above itlevel should be identical. For example,
+ *
+ *         me = 01110 100 (level 4)
+ *         it = 01100 010 (level 2) is my parent
+ *
+ *         me = 00000 001 (level 1)
+ *         it = 00000 011 (level 3) is not my parent
+ */ 
+template<size_t LEVELOFFSET=4>
+bool IsMyParent( size_t me, size_t it )
+{
+  size_t filter = ( 1 << LEVELOFFSET ) - 1;
+  size_t itlevel = ( 1 << LEVELOFFSET ) - ( it & filter );
+  size_t mylevel = ( 1 << LEVELOFFSET ) - ( me & filter );
+#ifdef DEBUG_TREE
+  hmlp_print_binary( me );
+  hmlp_print_binary( it );
+#endif
+  return !( ( me ^ it ) >> ( itlevel + LEVELOFFSET ) ) & ( itlevel >= mylevel );
+}; // end bool IsMyParent();
+
+
+
 template<typename NODE>
 class PermuteTask : public hmlp::Task
 {
@@ -324,6 +351,7 @@ class Node
       this->setup = user_setup;
       this->n = n;
       this->l = l;
+      this->morton = 0;
       this->treelist_id = -1;
       this->gids.resize( n );
       this->lids.resize( n );
@@ -346,6 +374,7 @@ class Node
       this->setup = user_setup;
       this->n = n;
       this->l = l;
+      this->morton = 0;
       this->treelist_id = -1;
       this->gids = gids;
       this->lids = lids;
@@ -395,6 +424,32 @@ class Node
       }
     };
 
+    /**
+     *  @brief Check if this node contain any query using morton.
+     *
+     */ 
+    bool ContainAny( std::vector<size_t> &querys )
+    {
+      if ( !setup->morton.size() )
+      {
+        printf( "Morton id was not initialized.\n" );
+        exit( 1 );
+      }
+      for ( size_t i = 0; i < querys.size(); i ++ )
+      {
+        if ( IsMyParent( setup->morton[ querys[ i ] ], morton ) ) 
+        {
+#ifdef DEBUG_TREE
+          printf( "\n" );
+          hmlp_print_binary( setup->morton[ querys[ i ] ] );
+          hmlp_print_binary( morton );
+          printf( "\n" );
+#endif
+          return true;
+        }
+      }
+      return false;
+    }; //
 
     // This is the call back pointer to the shared data.
     SETUP *setup;
@@ -403,12 +458,15 @@ class Node
     NODEDATA data;
 
     // number of points in this node.
-    size_t n;
+    std::size_t n;
 
     // level in the tree
-    size_t l;
+    std::size_t l;
 
-    int treelist_id; // In top-down topology order.
+    // Morton id
+    std::size_t morton;
+
+    std::size_t treelist_id; // In top-down topology order.
 
     std::vector<std::size_t> gids;
 
@@ -440,9 +498,17 @@ class Setup
 {
   public:
 
+    Setup() {};
+
+    ~Setup()
+    {
+    };
+
     hmlp::Data<T> X;
 
     hmlp::Data<std::pair<T, std::size_t>> *NN;
+
+    std::vector<size_t> morton;
 
     SPLITTER splitter;
 };
@@ -456,11 +522,11 @@ class Tree
 
     SETUP setup;
 
-    int n;
+    size_t n;
 
-    int m;
+    size_t m;
 
-    int depth;
+    size_t depth;
 
     std::vector<NODE*> treelist;
 
@@ -478,6 +544,41 @@ class Tree
       for ( int i = 0; i < treequeue.size(); i ++ )
       {
         delete treequeue[ i ];
+      }
+    };
+
+    /**
+     *  
+     */ 
+    size_t Getlid( size_t gid ) 
+    {
+      return gid;
+    }; // end void Getlid()
+
+    template<size_t LEVELOFFSET=4>
+    void Morton( NODE *node, size_t morton )
+    {
+      if ( node )
+      {
+        Morton( node->lchild, ( morton << 1 ) + 0 );
+        Morton( node->rchild, ( morton << 1 ) + 1 );
+        size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
+        node->morton = ( morton << shift ) + node->l;
+        if ( node->lchild )
+        {
+#ifdef DEBUG_TREE
+          std::cout << IsMyParent( node->lchild->morton, node->rchild->morton ) << std::endl;
+          std::cout << IsMyParent( node->lchild->morton, node->morton         ) << std::endl;
+#endif
+        }
+        else // Setup morton id for all points in the leaf node.
+        {
+          auto &lids = node->lids;
+          for ( size_t i = 0; i < lids.size(); i ++ )
+          {
+            setup.morton[ lids[ i ] ] = node->morton;
+          }
+        }
       }
     };
 
@@ -523,6 +624,16 @@ class Tree
       {
         treelist.shrink_to_fit();
         depth = treelist.back()->l;
+      }
+
+      if ( N_CHILDREN == 2 )
+      {
+        setup.morton.resize( n );
+        Morton( treelist[ 0 ], 0 );
+      }
+      else
+      {
+        printf( "No morton id available\n" );
       }
 
       // Adgust lids and gids to the appropriate order.
@@ -577,7 +688,7 @@ class Tree
       {
         TreePartition( 2 * k, max_depth, gids, lids );
 
-        printf( "treeparition leaf size %lu\n", 2 * k );
+        //printf( "treeparition leaf size %lu\n", 2 * k );
 
         TraverseLeafs<true, KNNTASK>();
         for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];

@@ -112,7 +112,7 @@ void Skeletonize( NODE *node )
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
-  printf( "id %d l %lu n %lu isleaf %d\n", node->treelist_id, node->l, node->n, node->isleaf );
+  printf( "id %lu l %lu n %lu isleaf %d\n", node->treelist_id, node->l, node->n, node->isleaf );
   printf( "skels.size() %lu\n", node->data.skels.size() );
 
   // amap needs a random sampling scheme. TODO: this seems to be slow.
