@@ -4,6 +4,16 @@
 // #define DEBUG_SCHEDULER 1
 
 
+struct 
+{
+  bool operator()( std::tuple<bool, double, size_t> a, std::tuple< bool , double, size_t> b )
+  {   
+    return std::get<1>( a ) < std::get<1>( b );
+  }   
+} EventLess;
+
+
+
 namespace hmlp
 {
 
@@ -169,15 +179,22 @@ Event::Event() : flops( 0.0 ), mops( 0.0 ), beg( 0.0 ), end( 0.0 ), sec( 0.0 ) {
 //};
 
 
-void Event::Set( float _flops, float _mops )
+void Event::Set( double _flops, double _mops )
 {
   flops = _flops;
   mops = _mops;
 };
 
-void Event::Begin()
+void Event::Begin( size_t _tid )
 {
+  tid = _tid;
   beg = omp_get_wtime();
+};
+
+void Event::Normalize( double shift )
+{
+  beg -= shift;
+  end -= shift;
 };
 
 void Event::Terminate()
@@ -186,11 +203,45 @@ void Event::Terminate()
   sec = end - beg;
 };
 
+double Event::GetBegin()
+{
+  return beg;
+};
+
+double Event::GetEnd()
+{
+  return end;
+};
+
+double Event::GetDuration()
+{
+  return sec;
+};
+
 void Event::Print()
 {
-  printf( "beg %5.2f end %5.2f sec %5.2f flops %E mops %E\n",
+  printf( "beg %5.3lf end %5.3lf sec %5.3lf flops %E mops %E\n",
       beg, end, sec, flops, mops );
 };
+
+void Event::Timeline( bool isbeg, size_t tag )
+{
+  if ( isbeg )
+  {
+    printf( "@TIMELINE\n" );
+    printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 0, beg, (double)tid + 0.0 );
+    printf( "@TIMELINE\n" );
+    printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 1, beg, (double)tid + 0.6 );
+  }
+  else
+  {
+    printf( "@TIMELINE\n" );
+    printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 0, beg, (double)tid + 0.6 );
+    printf( "@TIMELINE\n" );
+    printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 1, beg, (double)tid + 0.0 );
+  }
+
+}
 
 
 
@@ -261,6 +312,7 @@ void Task::Execute( Worker *user_worker )
   function( this );
 };
 
+void Task::GetEventRecord() {};
 
 /**
  *  @brief 
@@ -286,9 +338,10 @@ void Task::Enqueue()
   rt.scheduler->ready_queue_lock[ assignment ].Acquire();
   {
     status = QUEUED;
-    rt.scheduler->time_remaining[ assignment ] = earliest_t;
-    rt.scheduler->ready_queue[ assignment ].push_back( this );
-    //rt.scheduler->ready_queue[ assignment ].push_front( this );
+    rt.scheduler->time_remaining[ assignment ] += 
+      rt.workers[ assignment ].EstimateCost( this );
+    //rt.scheduler->ready_queue[ assignment ].push_back( this );
+    rt.scheduler->ready_queue[ assignment ].push_front( this );
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
@@ -299,11 +352,12 @@ void Task::Enqueue()
 /**
  *  @brief Scheduler
  */ 
-Scheduler::Scheduler()
+Scheduler::Scheduler() : timeline_tag( 500 )
 {
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler()\n" );
 #endif
+  timeline_beg = omp_get_wtime();
 };
 
 Scheduler::~Scheduler()
@@ -346,12 +400,6 @@ void Scheduler::Init( int user_n_worker )
     EntryPoint( (void*)&(rt.workers[ i ]) );
   }
 #endif
-  // Reset tasklist
-  for ( auto it = tasklist.begin(); it != tasklist.end(); it ++ )
-  {
-    delete *it; 
-  }
-  tasklist.clear();
 };
 
 
@@ -376,6 +424,15 @@ void Scheduler::Finalize()
   }
 #else
 #endif
+#ifdef DUMP_ANALYSIS_DATA
+  Summary();
+#endif
+  // Reset tasklist
+  for ( auto it = tasklist.begin(); it != tasklist.end(); it ++ )
+  {
+    delete *it; 
+  }
+  tasklist.clear();
 };
 
 
@@ -438,6 +495,8 @@ void* Scheduler::EntryPoint( void* arg )
         scheduler->ready_queue_lock[ me->tid ].Acquire();
         {
           scheduler->time_remaining[ me->tid ] -= task->cost;
+          if ( scheduler->time_remaining[ me->tid ] < 0.0 )
+            scheduler->time_remaining[ me->tid ] = 0.0;
         }
         scheduler->ready_queue_lock[ me->tid ].Release();
 
@@ -479,7 +538,36 @@ void Scheduler::Summary()
   timeinfo = localtime( &rawtime );
   strftime( buffer, 80, "%T.", timeinfo );
 
-  printf( "%s\n", buffer );
+  //printf( "%s\n", buffer );
+
+  std::deque<std::tuple<bool, double, size_t>> timeline;
+
+
+  if ( tasklist.size() )
+  {
+    for ( size_t i = 0; i < tasklist.size(); i ++ )
+    {
+      tasklist[ i ]->event.Normalize( timeline_beg );
+    }
+
+    for ( size_t i = 0; i < tasklist.size(); i ++ )
+    {
+      auto &event = tasklist[ i ]->event;
+      timeline.push_back( std::make_tuple( true,  event.GetBegin(), i ) );
+      timeline.push_back( std::make_tuple( false, event.GetEnd(),   i ) );
+    }
+
+    std::sort( timeline.begin(), timeline.end(), EventLess );
+
+    for ( size_t i = 0; i < timeline.size(); i ++ )
+    {
+      auto &data = timeline[ i ];
+      auto &event = tasklist[ std::get<2>( data ) ]->event;  
+      event.Timeline( std::get<0>( data ), i + timeline_tag );
+    }
+
+    timeline_tag += timeline.size();
+  }
 
 }; // end void Schediler::Summary()
 
@@ -522,7 +610,7 @@ void RunTime::Run()
     Init();
   }
   scheduler->Init( n_worker );
-  scheduler->Summary();
+  scheduler->Finalize();
 };
 
 void RunTime::Finalize()

@@ -2,6 +2,7 @@
 #define SPDASKIT_HPP
 
 #include <vector>
+#include <deque>
 #include <assert.h>
 #include <typeinfo>
 #include <algorithm>
@@ -83,6 +84,11 @@ class Data
 
     std::vector<size_t> NNnoprune;
 
+    // Events (from HMLP Runtime)
+    hmlp::Event skeletonize;
+
+    hmlp::Event updateweight;
+
 }; // end class Data
 
 
@@ -110,6 +116,64 @@ class SPDMatrix : public hmlp::Data<T>
     //}; 
 
 }; // end class SPDMatrix
+
+
+template<typename NODE>
+class Summary
+{
+
+  public:
+
+    Summary() {};
+
+    std::deque<hmlp::Statistic> rank;
+
+    std::deque<hmlp::Statistic> skeletonize;
+
+    std::deque<hmlp::Statistic> updateweight;
+
+    void operator() ( NODE *node )
+    {
+      if ( rank.size() <= node->l )
+      {
+        rank.push_back( hmlp::Statistic() );
+        skeletonize.push_back( hmlp::Statistic() );
+        updateweight.push_back( hmlp::Statistic() );
+      }
+
+      rank[ node->l ].Update( (double)node->data.skels.size() );
+      skeletonize[ node->l ].Update( node->data.skeletonize.GetDuration() );
+      updateweight[ node->l ].Update( node->data.updateweight.GetDuration() );
+
+      if ( node->parent )
+      {
+        auto *parent = node->parent;
+        printf( "@TREE\n" );
+        printf( "#%lu (s%lu), #%lu (s%lu), %lu, %lu\n", 
+            node->treelist_id, node->data.skels.size(), 
+            parent->treelist_id, parent->data.skels.size(),
+            node->data.skels.size(), node->l );
+      }
+      else
+      {
+        printf( "@TREE\n" );
+        printf( "#%lu (s%lu), , %lu, %lu\n", 
+            node->treelist_id, node->data.skels.size(), 
+            node->data.skels.size(), node->l );
+      }
+    };
+
+    void Print()
+    {
+      for ( size_t l = 0; l < rank.size(); l ++ )
+      {
+        printf( "@SUMMARY\n" );
+        //rank[ l ].Print();
+        skeletonize[ l ].Print();
+      }
+    };
+
+}; // end class Summary
 
 
 template<int N_SPLIT, typename T>
@@ -242,7 +306,7 @@ struct randomsplit
 }; // end randomsplit
 
 
-template<class NODE>
+template<class NODE, typename T>
 class KNNTask : public hmlp::Task
 {
   public:
@@ -255,6 +319,20 @@ class KNNTask : public hmlp::Task
       arg = user_arg;
       // Need an accurate cost model.
       cost = 1.0;
+
+      //--------------------------------------
+      double flops, mops;
+      auto &lids = arg->lids;
+      auto &NN = *arg->setup->NN;
+      flops = lids.size();
+      flops *= 4.0 * lids.size();
+      // Heap select worst case
+      mops = std::log( NN.dim() ) * lids.size();
+      mops *= lids.size();
+      // Access K
+      mops += flops;
+      event.Set( flops, mops );
+      //--------------------------------------
     };
 
     void Execute( Worker* user_worker )
@@ -270,8 +348,8 @@ class KNNTask : public hmlp::Task
         {
           size_t ilid = lids[ i ];
           size_t jlid = lids[ j ];
-          auto dist = K( ilid, ilid ) + K( jlid, jlid ) -2.0 * K( ilid, jlid );
-          auto query = std::make_pair( dist, ilid );
+          T dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
+          std::pair<T, size_t> query( dist, ilid );
           hmlp::HeapSelect( 1, NN.dim(), &query, NN.data() + jlid * NN.dim() );
         }
       }
@@ -394,6 +472,11 @@ class SkeletonizeTask : public hmlp::Task
       cost = 1.0;
     };
 
+    void GetEventRecord()
+    {
+      arg->data.skeletonize = event;
+    };
+
     void Execute( Worker* user_worker )
     {
       Skeletonize( arg );
@@ -485,6 +568,11 @@ class UpdateWeightsTask : public hmlp::Task
       arg = user_arg;
       // Need an accurate cost model.
       cost = 1.0;
+    };
+
+    void GetEventRecord()
+    {
+      arg->data.updateweight = event;
     };
 
     void Execute( Worker* user_worker )
@@ -590,44 +678,6 @@ void Evaluate
   {
     assert( potentials.size() == amap.size() * w.dim() );
   }
-
-
-
-
-
-//  if ( node->isleaf ) // direct evaluation
-//  {
-//    //printf( "level %lu direct evaluation\n", node->l );
-//    if ( SYMBOLIC )
-//    {
-//      data.lock.Acquire();
-//      {
-//        // Add lid to notprune list. We use a lock.
-//        if ( NNPRUNE ) data.noprune.push_back( lid );
-//        else           data.NNnoprune.push_back( lid );
-//      }
-//      data.lock.Release();
-//    }
-//    else
-//    {
-//      printf( "level %lu direct evaluation\n", node->l );
-//      auto Kab = K( amap, lids ); // amap.size()-by-lids.size()
-//      auto wb  = w( lids ); // nrhs-by-lids.size()
-//      xgemm
-//      (
-//        "N", "T",
-//        Kab.dim(), wb.dim(), wb.num(),
-//        1.0, Kab.data(),        Kab.dim(),
-//             wb.data(),         wb.dim(),
-//        1.0, potentials.data(), potentials.dim()
-//      );
-//    }
-//  }
-//  else // recusion
-//  {
-//  }
-
-
 
   if ( !data.isskel || node->ContainAny( nnandi ) )
   {
@@ -779,9 +829,11 @@ void ComputeError( NODE *node, hmlp::Data<T> potentials )
 }; // end void ComputeError()
 
 
-
+/**
+ *  @brief
+ */ 
 template<typename TREE, typename T>
-void ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
+T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 {
   auto &K = *tree.setup.K;
   auto &w = tree.setup.w;
@@ -808,9 +860,9 @@ void ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 
   auto err = hmlp_norm( potentials.dim(), potentials.num(), 
                         potentials.data(), potentials.dim() ); 
-  
-  printf( "gid %5lu relative error %E, nrm2 %E\n", gid, err / nrm2, nrm2 );
-};
+
+  return err / nrm2;
+}; // end T ComputeError()
 
 
 

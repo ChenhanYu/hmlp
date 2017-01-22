@@ -1,7 +1,7 @@
 n=5000
-s=64
+s=256
 nrhs=128
-kmin=8
+kmin=50
 kmax=64
 kinc=16
 # =======================================================
@@ -18,8 +18,14 @@ echo "@SETUP"
 echo "n = $n"
 echo "@SETUP"
 echo "s = $s"
-echo "@SETIP"
+echo "@SETUP"
 echo "nrhs = $nrhs"
+echo "@SETUP"
+echo "kmin = $kmin"
+echo "@SETUP"
+echo "kmax = $kmax"
+echo "@SETUP"
+echo "kinc = $kinc"
 # =======================================================
 
 echo "@DATE"
@@ -29,7 +35,6 @@ date
 
 for (( k=kmin; k<kmax; k+=kinc ))
 do
-  echo "@DATA"
   ./test_spdaskit.x $n $k $s $nrhs; status=$?
   echo "@STATUS"
   echo $status

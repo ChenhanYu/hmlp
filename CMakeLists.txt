@@ -137,6 +137,12 @@ endif ()
 # ---------------------------
 # set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_PTHREAD_RUNTIME")
 
+# Dump analysis data to google site
+# ---------------------------
+if ($ENV{HMLP_ANALYSIS_DATA} MATCHES "true")
+  set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DDUMP_ANALYSIS_DATA")
+endif()
+
 
 # Setup all flags
 # ---------------------------

@@ -68,6 +68,43 @@ def update_spreadsheet( service, sheetid, arch, data ):
 # end def update_spreadsheet()
 
 
+def update_timeline( service, sheetid, arch, data ):
+
+    value_input_option = 'USER_ENTERED'
+    rangeName = 'Timeline'
+    body = { 'values': data }
+
+    result = service.spreadsheets().values().update(
+            spreadsheetId=sheetid, range=rangeName,
+            valueInputOption=value_input_option, body=body ).execute()
+
+# end def update_timeline()
+
+
+def update_tree( service, sheetid, arch, data ):
+
+    value_input_option = 'USER_ENTERED'
+    rangeName = 'Tree'
+    body = { 'values': data }
+
+    result = service.spreadsheets().values().update(
+            spreadsheetId=sheetid, range=rangeName,
+            valueInputOption=value_input_option, body=body ).execute()
+
+# end def update_timeline()
+
+
+def update_summary( service, sheetid, arch, data ):
+
+    value_input_option = 'USER_ENTERED'
+    rangeName = 'Summary'
+    body = { 'values': data }
+
+    result = service.spreadsheets().values().update(
+            spreadsheetId=sheetid, range=rangeName,
+            valueInputOption=value_input_option, body=body ).execute()
+
+# end def update_timeline()
 
 def update_status( service, sheetid, arch, data ):
 
@@ -164,6 +201,9 @@ def main():
 
     setup_data = []
     date_data = []
+    timeline_data = []
+    tree_data = []
+    summary_data = []
     data = []
     status_data = []
     arch = [ '', '' ]
@@ -180,6 +220,18 @@ def main():
 
         if any( "@DATE" in s for s in raw[ i ] ):
             date_data.append( raw[ i + 1 ] )
+
+        if any( "@TIMELINE" in s for s in raw[ i ] ):
+            parse_raw = [ s.replace( " ", "" ) for s in raw[ i + 1 ] ]
+            timeline_data.append( parse_raw )
+
+        if any( "@TREE" in s for s in raw[ i ] ):
+            parse_raw = [ s.replace( " ", "" ) for s in raw[ i + 1 ] ]
+            tree_data.append( parse_raw )
+
+        if any( "@SUMMARY" in s for s in raw[ i ] ):
+            parse_raw = [ s.replace( " ", "" ) for s in raw[ i + 1 ] ]
+            summary_data.append( parse_raw )
 
         if any( "@DATA" in s for s in raw[ i ] ):
             parse_raw = [ s.replace( " ", "" ) for s in raw[ i + 1 ] ]
@@ -217,17 +269,26 @@ def main():
     #
     if any( "strassen" in s for s in prim ):
         sheetid = '1HEVv6MZyABxHMT5CzGuDsvM7pg2FjhFEVBOMFfGp_EQ'
-    
-
-
-
+    #    
+    if any( "spdaskit" in s for s in prim ):
+        sheetid = '1AZOv_1oml6mJQml7upWJXEyXtIj0jrNHoqevjPcWtmY'
+        
     data = data[ 1:10 ]
     status_data = status_data[ 1:10 ]
 
-    update_spreadsheet( service, sheetid, arch, data )
-    update_status( service, sheetid, arch, status_data )
-    update_date( service, sheetid, arch, date_data )
-    update_setup( service, sheetid, arch, setup_data )
+
+    if any( "spdaskit" in s for s in prim ):
+        update_spreadsheet( service, sheetid, arch, data )
+        update_date( service, sheetid, arch, date_data )
+        update_setup( service, sheetid, arch, setup_data )
+        update_timeline( service, sheetid, arch, timeline_data )
+        update_tree( service, sheetid, arch, tree_data )
+        update_summary( service, sheetid, arch, summary_data )
+    else:
+        update_spreadsheet( service, sheetid, arch, data )
+        update_status( service, sheetid, arch, status_data )
+        update_date( service, sheetid, arch, date_data )
+        update_setup( service, sheetid, arch, setup_data )
 
     #body = { 'values': data }
 

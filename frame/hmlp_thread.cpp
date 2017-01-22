@@ -1,8 +1,6 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
-#define THREAD_PROFILE 1
-
 namespace hmlp
 {
 
@@ -173,13 +171,14 @@ bool Worker::Execute( Task *task )
   // Fetch( task );
   // Prefetch( task );
 
-#ifdef THREAD_PROFILE
-  task->event.Begin();
+#ifdef DUMP_ANALYSIS_DATA
+  task->event.Begin( this->tid );
 #endif
   task->Execute( this );
   WaitExecute();
-#ifdef THREAD_PROFILE
+#ifdef DUMP_ANALYSIS_DATA
   task->event.Terminate();
+  task->GetEventRecord();
 #endif
 
   // WaitPrefetch

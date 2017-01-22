@@ -19,10 +19,46 @@
 #define GFLOPS 1073741824 
 #define TOLERANCE 1E-13
 
+//#define DUMP_ANALYSIS_DATA 1
+
+
+
 using namespace hmlp::tree;
 
 // By default, we use binary tree.
 #define N_CHILDREN 2
+
+
+
+//#define SPDMATRIX hmlp::spdaskit::SPDMatrix<double>
+//#define SPLITTER hmlp::spdaskit::centersplit<N_CHILDREN,double>
+//#define SETUP hmlp::spdaskit::Setup<SPDMATRIX,SPLITTER,double>
+//#define DATA hmlp::spdaskit::Data<double>
+//#define NODE Node<SETUP,N_CHILDREN,DATA,double>
+//#define SKELTASK hmlp::spdaskit::SkeletonizeTask<NODE>
+//#define UPDATETASK hmlp::spdaskit::UpdateWeightsTask<NODE>
+//
+//#define RKDTSPLITTER hmlp::spdaskit::randomsplit<N_CHILDREN,double>
+//#define RKDTSETUP hmlp::spdaskit::Setup<SPDMATRIX,RKDTSPLITTER,double>
+//#define RKDTNODE Node<RKDTSETUP,N_CHILDREN,DATA,double>
+//#define KNNTASK hmlp::spdaskit::KNNTask<RKDTNODE>
+  
+
+//#define SPDMATRIX hmlp::spdaskit::SPDMatrix<T>
+//#define SPLITTER hmlp::spdaskit::centersplit<N_CHILDREN, T>
+//#define SETUP hmlp::spdaskit::Setup<SPDMATRIX,SPLITTER,T>
+//#define DATA hmlp::spdaskit::Data<T>
+//#define NODE Node<SETUP, N_CHILDREN, DATA, T>
+//#define SKELTASK hmlp::spdaskit::SkeletonizeTask<NODE>
+//#define UPDATETASK hmlp::spdaskit::UpdateWeightsTask<NODE>
+//
+//#define RKDTSPLITTER hmlp::spdaskit::randomsplit<N_CHILDREN, T>
+//#define RKDTSETUP hmlp::spdaskit::Setup<SPDMATRIX,RKDTSPLITTER,T>
+//#define RKDTNODE Node<RKDTSETUP, N_CHILDREN, DATA, T>
+//#define KNNTASK hmlp::spdaskit::KNNTask<RKDTNODE>
+  
+
+
 
 template<typename T>
 void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
@@ -38,10 +74,13 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   using RKDTSPLITTER = hmlp::spdaskit::randomsplit<N_CHILDREN, T>;
   using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX,RKDTSPLITTER,T>;
   using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE>;
+  using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE, T>;
   
   double beg, dynamic_time, omptask_time, ref_time, ann_time, tree_time, nneval_time, nonneval_time;
 
+  SKELTASK skeltask;
+  UPDATETASK updatetask;
+  KNNTASK knntask;
 
   // ------------------------------------------------------------------------
   // Original order of the matrix.
@@ -58,32 +97,7 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   }
   // ------------------------------------------------------------------------
 
-
-
-  // IMPORTANT: Must declare explcitly without "using"
-  Tree<
-    // SETUP
-    hmlp::spdaskit::Setup<
-      hmlp::spdaskit::SPDMatrix<double>, 
-      hmlp::spdaskit::randomsplit<2, double>, 
-      double
-      >,
-    // NODE
-    Node<
-      hmlp::spdaskit::Setup<
-        hmlp::spdaskit::SPDMatrix<double>, 
-        hmlp::spdaskit::randomsplit<2, double>, 
-        double
-        >,
-      N_CHILDREN, 
-      hmlp::spdaskit::Data<double>, 
-      double
-      >,
-    // N_CHILDREN
-    N_CHILDREN,
-    // T
-    double
-    > rkdt;
+  Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
 
   // ------------------------------------------------------------------------
   // Initialization
@@ -93,37 +107,11 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   std::pair<T, std::size_t> initNN( 999999.9, n );
   // ------------------------------------------------------------------------
 
-  //printf( "here\n" );
-
   beg = omp_get_wtime();
-  auto NN = rkdt.AllNearestNeighbor<KNNTASK>( 10, k, 10, gids, lids, initNN );
+  auto NN = rkdt.AllNearestNeighbor( 10, k, 10, gids, lids, initNN, knntask );
   ann_time = omp_get_wtime() - beg;
 
-
-  // IMPORTANT: Must declare explcitly without "using"
-  Tree<
-    // SETUP
-    hmlp::spdaskit::Setup<
-      hmlp::spdaskit::SPDMatrix<double>, 
-      hmlp::spdaskit::centersplit<2, double>, 
-      double
-      >,
-    // NODE
-    Node<
-      hmlp::spdaskit::Setup<
-        hmlp::spdaskit::SPDMatrix<double>, 
-        hmlp::spdaskit::centersplit<2, double>, 
-        double
-        >,
-      N_CHILDREN, 
-      hmlp::spdaskit::Data<double>, 
-      double
-      >,
-    // N_CHILDREN
-    N_CHILDREN,
-    // T
-    double
-    > tree;
+  Tree<SETUP, NODE, N_CHILDREN, T> tree;
 
   // ------------------------------------------------------------------------
   // Initialization
@@ -144,20 +132,21 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   tree.TreePartition( 512, 10, gids, lids );
   tree_time = omp_get_wtime() - beg;
 
+
   beg = omp_get_wtime();
   // Sekeletonization with dynamic scheduling (symbolic traversal).
-  tree.TraverseUp<false, SKELTASK>();
+  tree.TraverseUp<false>( skeltask );
   // Execute all skeletonization tasks.
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
-  beg = omp_get_wtime();
-  // Sekeletonization with level-by-level traversal.
-  tree.TraverseUp<true,  SKELTASK>();
-  ref_time = omp_get_wtime() - beg;
-  beg = omp_get_wtime();
-  // Sekeletonization with omp task.
-  tree.PostOrder<SKELTASK>( tree.treelist[ 0 ] );
-  omptask_time = omp_get_wtime() - beg;
+//  beg = omp_get_wtime();
+//  // Sekeletonization with level-by-level traversal.
+//  tree.TraverseUp<true>( skeltask );
+//  ref_time = omp_get_wtime() - beg;
+//  beg = omp_get_wtime();
+//  // Sekeletonization with omp task.
+//  tree.PostOrder( tree.treelist[ 0 ], skeltask );
+//  omptask_time = omp_get_wtime() - beg;
   
 
   printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
@@ -165,18 +154,18 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
 
   beg = omp_get_wtime();
   // Sekeletonization with dynamic scheduling (symbolic traversal).
-  tree.TraverseUp<false, UPDATETASK>();
+  tree.TraverseUp<false>( updatetask );
   // Execute all skeletonization tasks.
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
-  beg = omp_get_wtime();
-  // Sekeletonization with level-by-level traversal.
-  tree.TraverseUp<true, UPDATETASK>();
-  ref_time = omp_get_wtime() - beg;
-  beg = omp_get_wtime();
-  // Sekeletonization with omp task.
-  tree.PostOrder<UPDATETASK>( tree.treelist[ 0 ] );
-  omptask_time = omp_get_wtime() - beg;
+//  beg = omp_get_wtime();
+//  // Sekeletonization with level-by-level traversal.
+//  tree.TraverseUp<true>( updatetask );
+//  ref_time = omp_get_wtime() - beg;
+//  beg = omp_get_wtime();
+//  // Sekeletonization with omp task.
+//  tree.PostOrder( tree.treelist[ 0 ], updatetask );
+//  omptask_time = omp_get_wtime() - beg;
 
   printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
       dynamic_time, ref_time, omptask_time );
@@ -198,15 +187,24 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
     beg = omp_get_wtime();
     hmlp::spdaskit::Evaluate<false, true>( tree, i, potentials );
     nneval_time = omp_get_wtime() - beg;
-    hmlp::spdaskit::ComputeError( tree, i, potentials );
+    auto nnerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
     // Do not use NN pruning
     beg = omp_get_wtime();
     hmlp::spdaskit::Evaluate<false, false>( tree, i, potentials );
     nonneval_time = omp_get_wtime() - beg;
-    hmlp::spdaskit::ComputeError( tree, i, potentials );
+    auto nonnerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
+#ifdef DUMP_ANALYSIS_DATA
+    printf( "@DATA\n" );
+    printf( "%5lu, %E, %E\n", i, nnerr, nonnerr );
+#endif
+    printf( "gid %5lu relative error (NN) %E, relative error %E\n", i, nnerr, nonnerr );
   }
 
-
+#ifdef DUMP_ANALYSIS_DATA
+  hmlp::spdaskit::Summary<NODE> summary;
+  tree.Summary( summary );
+  summary.Print();
+#endif
   printf( "n %5lu k %4lu s %4lu nrhs %4lu ANN %5.3lf CONSTRUCT %5.3lf EVAL(NN) %5.3lf EVAL %5.3lf\n", 
       n, k, s, nrhs, ann_time, tree_time, nneval_time, nonneval_time );
 
@@ -224,6 +222,8 @@ int main( int argc, char *argv[] )
   hmlp_init();
   
   test_spdaskit<double>( n, k, s, nrhs );
+
+  //test_spdaskit<float>( n, k, s, nrhs );
 
   hmlp_finalize();
  

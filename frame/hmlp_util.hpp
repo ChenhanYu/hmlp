@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <cmath>
 #include <tuple>
+#include <limits>
+#include <algorithm>
 #include <omp.h>
 
 
@@ -493,6 +495,46 @@ void bubble_sort
     }
   }
 };
+
+class Statistic
+{
+  public:
+
+    Statistic()
+    {
+      _num = 0;
+      _max = std::numeric_limits<double>::min();
+      _min = std::numeric_limits<double>::max();
+      _avg = 0.0;
+    };
+
+    std::size_t _num;
+
+    double _max;
+
+    double _min;
+
+    double _avg;
+
+    void Update( double query )
+    {
+      // Compute the sum
+      _avg = _num * _avg;
+      _num += 1;
+      _max = std::max( _max, query );
+      _min = std::min( _max, query );
+      _avg += query;
+      _avg /= _num;
+    };
+
+    void Print()
+    {
+      printf( "%lu, %lf, %lf, %lf\n", _num, _min, _max, _avg );
+    };
+  
+}; // end class Statistic
+
+
 
 }; // end namespace hmlp
 

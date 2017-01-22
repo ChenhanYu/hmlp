@@ -125,8 +125,11 @@ void test_tree( int d, int n )
   using SETUP = hmlp::iaskit::Setup<KERNEL,SPLITTER,T>;
   using DATA = hmlp::iaskit::Data<T, KERNEL>;
   using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
-  using TASK = hmlp::iaskit::Task<NODE>;
+  using SKELTASK = hmlp::iaskit::Task<NODE>;
   
+
+  SKELTASK skeltask;
+
   double beg, dynamic_time, omptask_time, ref_time;
   std::vector<std::size_t> gids( n ), lids( n );
 
@@ -173,17 +176,17 @@ void test_tree( int d, int n )
 
   beg = omp_get_wtime();
   // Sekeletonization with dynamic scheduling (symbolic traversal).
-  tree.TraverseUp<false, TASK>();
+  tree.TraverseUp<false>( skeltask );
   // Execute all skeletonization tasks.
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
   beg = omp_get_wtime();
   // Sekeletonization with level-by-level traversal.
-  tree.TraverseUp<true,  TASK>();
+  tree.TraverseUp<true>( skeltask );
   ref_time = omp_get_wtime() - beg;
   beg = omp_get_wtime();
   // Sekeletonization with omp task.
-  tree.PostOrder<TASK>( tree.treelist[ 0 ] );
+  tree.PostOrder( tree.treelist[ 0 ], skeltask );
   omptask_time = omp_get_wtime() - beg;
   
 

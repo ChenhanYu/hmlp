@@ -352,7 +352,7 @@ class Node
       this->n = n;
       this->l = l;
       this->morton = 0;
-      this->treelist_id = -1;
+      this->treelist_id = 0;
       this->gids.resize( n );
       this->lids.resize( n );
       this->isleaf = false;
@@ -375,7 +375,7 @@ class Node
       this->n = n;
       this->l = l;
       this->morton = 0;
-      this->treelist_id = -1;
+      this->treelist_id = 0;
       this->gids = gids;
       this->lids = lids;
       this->isleaf = false;
@@ -466,7 +466,8 @@ class Node
     // Morton id
     std::size_t morton;
 
-    std::size_t treelist_id; // In top-down topology order.
+    // In top-down topology order. (-1 if not used)
+    std::size_t treelist_id; 
 
     std::vector<std::size_t> gids;
 
@@ -637,11 +638,12 @@ class Tree
       }
 
       // Adgust lids and gids to the appropriate order.
-      TraverseUp<true, PermuteTask<NODE>>();
+      PermuteTask<NODE> permutetask;
+      TraverseUp<true>( permutetask );
     };
 
     template<class TASK>
-    void PostOrder( NODE *node )
+    void PostOrder( NODE *node, TASK &dummy )
     {
       #pragma omp parallel
       #pragma omp single nowait
@@ -651,7 +653,7 @@ class Tree
           if ( node->kids[ i ] )
           {
             #pragma omp task
-            PostOrder<TASK>( node->kids[ i ] );
+            PostOrder( node->kids[ i ], dummy );
           }
         }
         #pragma omp taskwait
@@ -671,7 +673,8 @@ class Tree
       std::size_t k, std::size_t max_depth,
       std::vector<std::size_t> &gids,
       std::vector<std::size_t> &lids,
-      std::pair<T, std::size_t> initNN
+      std::pair<T, std::size_t> initNN,
+      KNNTASK &dummy
     )
     {
       // k-by-N
@@ -690,7 +693,7 @@ class Tree
 
         //printf( "treeparition leaf size %lu\n", 2 * k );
 
-        TraverseLeafs<true, KNNTASK>();
+        TraverseLeafs<true>( dummy );
         for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
         treelist.clear();
       }
@@ -705,7 +708,7 @@ class Tree
 
 
     template<bool LEVELBYLEVEL, class TASK>
-    void TraverseLeafs()
+    void TraverseLeafs( TASK &dummy )
     {
       assert( N_CHILDREN == 2 );
 
@@ -751,18 +754,21 @@ class Tree
     };
 
 
-    template<bool LEVELBYLEVEL, class TASK>
-    void TraverseUp()
+    template<bool LEVELBYLEVEL, typename TASK>
+    void TraverseUp( TASK &dummy )
     {
+#ifdef DEBUG_TREE
+      printf( "TraverseUp()\n" );
+#endif
       assert( N_CHILDREN == 2 );
-      //printf( "TraverseUp()\n" );
 
       std::vector<TASK*> tasklist;
       if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
 
+      // IMPORTANT: here l must be int, use unsigned int will wrap over.
       for ( int l = depth; l >= 0; l -- )
       {
-        int n_nodes = 1 << l;
+        std::size_t n_nodes = 1 << l;
         auto level_beg = treelist.begin() + n_nodes - 1;
 
         if ( LEVELBYLEVEL )
@@ -772,7 +778,7 @@ class Tree
           if ( n_nodes >= nthd_glb || n_nodes == 1 )
           {
             #pragma omp parallel for if ( n_nodes > nthd_glb / 2 )
-            for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+            for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
             {
               auto *node = *(level_beg + node_ind);
               auto *task = new TASK();
@@ -808,7 +814,7 @@ class Tree
         }
         else // using dynamic scheduling
         {
-          for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
           {
             auto *node = *(level_beg + node_ind);
             // Create tasks
@@ -834,25 +840,28 @@ class Tree
           }
         }
       }
+#ifdef DEBUG_TREE
+      printf( "end TraverseUp()\n" );
+#endif
     }; // end TraverseUp()
 
-    template<bool LEVELBYLEVEL, class TASK>
-    void TraverseDown()
+    template<bool LEVELBYLEVEL, typename TASK>
+    void TraverseDown( TASK &dummy )
     {
       std::vector<TASK*> tasklist;
       if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
 
-      for ( int l = 0; l < depth; l ++ )
+      for ( std::size_t l = 0; l= < depth; l ++ )
       {
         if ( LEVELBYLEVEL )
         {
-          int n_nodes = 1 << l;
+          std::size_t n_nodes = 1 << l;
           auto level_beg = treelist.begin() + n_nodes - 1;
 
           if ( LEVELBYLEVEL )
           {
             #pragma omp parallel for 
-            for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+            for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
             {
               auto *node = *(level_beg + node_ind);
               auto *task = new TASK();
@@ -864,7 +873,7 @@ class Tree
         }
         else // using dynamic scheduling
         {
-          for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
           {
             auto *node = *(level_beg + node_ind);
             // Create tasks
@@ -889,10 +898,23 @@ class Tree
       }
     }; // end TraverseDown()
 
-    void Summary()
+    template<typename SUMMARY>
+    void Summary( SUMMARY &summary )
     {
+      assert( N_CHILDREN == 2 );
 
-    };
+      for ( std::size_t l = 0; l <= depth; l ++ )
+      {
+        std::size_t n_nodes = 1 << l;
+        auto level_beg = treelist.begin() + n_nodes - 1;
+        for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+        {
+          auto *node = *(level_beg + node_ind);
+          summary( node );
+        }
+      }
+    }; // end void Summary()
+
 };
 
 

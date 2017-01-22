@@ -58,6 +58,11 @@ echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 export HMLP_QSML_DIR=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
 
+## Output google site data
+export HMLP_ANALYSIS_DATA=false
+echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
+
+
 
 ## Parallel options
 # export KMP_AFFINITY=compact

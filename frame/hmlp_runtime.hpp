@@ -3,6 +3,7 @@
 
 #include <time.h>
 #include <tuple>
+#include <algorithm>
 #include <deque>
 #include <cstdint>
 #include <cassert>
@@ -106,25 +107,37 @@ class Event
     
     //~Event();
 
-    void Set( float, float );
+    void Set( double, double );
 
-    void Begin();
+    void Begin( size_t );
+
+    double GetBegin();
+
+    double GetEnd();
+
+    double GetDuration();
+
+    void Normalize( double shift );
 
     void Terminate();
 
     void Print();
 
+    void Timeline( bool isbeg, size_t tag );
+
   private:
 
-    float flops;
+    size_t tid;
 
-    float mops;
+    double flops;
 
-    float beg;
+    double mops;
 
-    float end;
+    double beg;
 
-    float sec;
+    double end;
+
+    double sec;
 
 }; // end class Event
 
@@ -162,6 +175,8 @@ class Task
     void Enqueue();
 
     virtual void Execute( Worker* );
+
+    virtual void GetEventRecord();
 
     /* function ptr */
     void (*function)(Task*);
@@ -206,6 +221,10 @@ class Scheduler
     int n_worker;
 
     int n_task;
+
+    size_t timeline_tag;
+
+    double timeline_beg;
 
     std::deque<Task*> ready_queue[ MAX_WORKER ];
 
