@@ -363,7 +363,7 @@ class KNNTask : public hmlp::Task
 }; // end class SkeletonizeTask
 
 
-template<typename NODE>
+template<bool ADAPTIVE, typename NODE>
 void Skeletonize( NODE *node )
 {
 
@@ -381,13 +381,21 @@ void Skeletonize( NODE *node )
 
   // Early return if we do not need to skeletonize
   if ( !node->parent ) return;
-  if ( !node->isleaf &&
-       ( !lchild->data.isskel || !rchild->data.isskel ) )
+
+  if ( ADAPTIVE )
   {
-    skels.clear();
-    proj.resize( 0, 0 );
-    data.isskel = false;
-    return;
+    if ( !node->isleaf && ( !lchild->data.isskel || !rchild->data.isskel ) )
+    {
+      skels.clear();
+      proj.resize( 0, 0 );
+      data.isskel = false;
+      return;
+    }
+  }
+  else
+  {
+    //skels.resize( maxs );
+    //proj.resize( )
   }
 
   // random sampling or importance sampling for rows.
@@ -442,9 +450,16 @@ void Skeletonize( NODE *node )
   }
 
   auto Kab = K( amap, bmap );
-  hmlp::skel::id( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
-
-  data.isskel = skels.size();
+  if ( ADAPTIVE )
+  {
+    hmlp::skel::id( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
+    data.isskel = skels.size();
+  }
+  else
+  {
+    hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
+    data.isskel = true;
+  }
 
 }; // end void Skeletonize()
 
@@ -452,7 +467,7 @@ void Skeletonize( NODE *node )
 /**
  *
  */ 
-template<typename NODE>
+template<bool ADAPTIVE, typename NODE>
 class SkeletonizeTask : public hmlp::Task
 {
   public:
@@ -474,7 +489,7 @@ class SkeletonizeTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      Skeletonize( arg );
+      Skeletonize<ADAPTIVE>( arg );
     };
 }; // end class SkeletonizeTask
 

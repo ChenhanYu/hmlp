@@ -60,7 +60,7 @@ using namespace hmlp::tree;
 
 
 
-template<typename T>
+template<bool ADAPTIVE, typename T>
 void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
 {
   // Instantiation for the Spd-Askit tree.
@@ -69,7 +69,7 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   using SETUP = hmlp::spdaskit::Setup<SPDMATRIX,SPLITTER,T>;
   using DATA = hmlp::spdaskit::Data<T>;
   using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
-  using SKELTASK = hmlp::spdaskit::SkeletonizeTask<NODE>;
+  using SKELTASK = hmlp::spdaskit::SkeletonizeTask<ADAPTIVE, NODE>;
   using UPDATETASK = hmlp::spdaskit::UpdateWeightsTask<NODE>;
 
   // Instantiation for the randomisze Spd-Askit tree.
@@ -240,6 +240,8 @@ int main( int argc, char *argv[] )
 {
   size_t n, m, k, s, nrhs;
 
+  const bool ADAPTIVE = false;
+
   sscanf( argv[ 1 ], "%lu", &n );
   sscanf( argv[ 2 ], "%lu", &m );
   sscanf( argv[ 3 ], "%lu", &k );
@@ -248,9 +250,9 @@ int main( int argc, char *argv[] )
 
   hmlp_init();
   
-  test_spdaskit<double>( n, m, k, s, nrhs );
+  test_spdaskit<ADAPTIVE, double>( n, m, k, s, nrhs );
 
-  //test_spdaskit<float>( n, m, k, s, nrhs );
+  //test_spdaskit<ADAPTIVE, float>( n, m, k, s, nrhs );
 
   hmlp_finalize();
  
