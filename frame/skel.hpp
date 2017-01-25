@@ -122,6 +122,123 @@ void id
 #endif
 
 }; // end id()
+
+
+
+
+
+
+template<typename T>
+void id
+(
+  int m, int n, int maxs, T stol,
+  std::vector<T> A,
+  std::vector<size_t> &skels, hmlp::Data<T> &proj
+)
+{
+  int nb = 512;
+  int lwork = 2 * n  + ( n + 1 ) * nb;
+  std::vector<T> work( lwork );
+  std::vector<T> tau( std::min( m, n ) );
+  std::vector<T> S, Z;
+  std::vector<T> A_tmp = A;
+
+  // Initilize jpvt to zeros. Otherwise, GEQP3 will permute A.
+  std::vector<int> jpvt( n, 0 );
+
+  // Traditional pivoting QR (GEQP3)
+  hmlp::xgeqp3
+  (
+    m, n, 
+    A_tmp.data(), m,
+    jpvt.data(), 
+    tau.data(),
+    work.data(), lwork
+  );
+  //printf( "end xgeqp3\n" );
+
+  // Search for rank 1 <= s <= maxs that satisfies the error tolerance
+  int s;
+  for ( s = 1; s < n; s ++ )
+  {
+    if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol )
+      break;
+  }
+
+  // Failed to skeletonize
+  if ( s > maxs )
+  {
+    skels.clear();
+    proj.resize( 0, 0 );
+    return;
+  }
+ 
+  jpvt.resize( s );
+  skels.resize( s );
+
+  // Now shift jpvt from 1-base to 0-base index.
+  for ( int j = 0; j < jpvt.size(); j ++ ) 
+  {
+    jpvt[ j ] = jpvt[ j ] - 1;
+    skels[ j ] = jpvt[ j ];
+  }
+
+  Z.resize( m * jpvt.size() );
+ 
+  for ( int j = 0; j < jpvt.size(); j ++ )
+  {
+    // reuse Z
+    for ( int i = 0; i < m; i ++ )
+    {
+      Z[ j * m + i ] = A[ jpvt[ j ] * m + i ];
+    }
+  }
+  auto A_skel = Z;
+
+
+  S = A;
+  // P (overwrite S) = pseudo-inverse( Z ) * S
+  hmlp::xgels
+  ( 
+    "N", 
+    m, jpvt.size(), n, 
+       Z.data(), m, 
+       S.data(), m, 
+    work.data(), lwork 
+  );
+
+ 
+  // Fill in proj
+  proj.resize( jpvt.size(), n );
+  for ( int j = 0; j < n; j ++ )
+  {
+    for ( int i = 0; i < jpvt.size(); i ++ )
+    {
+      proj[ j * jpvt.size() + i ] = S[ j * m + i ];
+    }
+  }
+
+ 
+
+#ifdef DEBUG_SKEL
+  double nrm = hmlp_norm( m, n, A.data(), m );
+
+  hmlp::xgemm
+  ( 
+    "N", "N", 
+    m, n, jpvt.size(), 
+    -1.0,  A_skel.data(), m, 
+                S.data(), m, 
+     1.0,       A.data(), m 
+   );
+
+  double err = hmlp_norm( m, n, A.data(), m );
+  printf( "m %d n %d k %lu absolute l2 error %E related l2 error %E\n", 
+      m, n, jpvt.size(),
+      err, err / nrm );
+#endif
+
+}; // end id()
   
 
 
