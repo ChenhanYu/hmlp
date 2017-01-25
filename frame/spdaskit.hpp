@@ -366,19 +366,11 @@ class KNNTask : public hmlp::Task
 template<typename NODE>
 void Skeletonize( NODE *node )
 {
-  // Early return if we do not need to skeletonize
-  if ( !node->parent ) return;
-
-  // random sampling or important sampling for rows.
-  std::vector<size_t> amap;
-  std::vector<size_t> bmap;
-  std::vector<size_t> &lids = node->lids;
-
 
   // Gather shared data and create reference
   auto &K = *node->setup->K;
   auto maxs = node->setup->s;
-  auto nsamples = 4 * maxs;
+  auto stol = node->setup->stol;
 
   // Gather per node data and create reference
   auto &data = node->data;
@@ -386,6 +378,23 @@ void Skeletonize( NODE *node )
   auto &proj = data.proj;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
+
+  // Early return if we do not need to skeletonize
+  if ( !node->parent ) return;
+  if ( !node->isleaf &&
+       ( !lchild->data.isskel || !rchild->data.isskel ) )
+  {
+    skels.clear();
+    proj.resize( 0, 0 );
+    data.isskel = false;
+    return;
+  }
+
+  // random sampling or importance sampling for rows.
+  std::vector<size_t> amap;
+  std::vector<size_t> bmap;
+  std::vector<size_t> &lids = node->lids;
+
 
   if ( node->isleaf )
   {
@@ -399,63 +408,43 @@ void Skeletonize( NODE *node )
     bmap.insert( bmap.end(), rskels.begin(), rskels.end() );
   }
 
+  auto nsamples = 2 * bmap.size();
+
 
   // TODO: random sampling or important sampling for rows. (Severin)
   // Create nsamples.
   // amap = .....
     
    
-    // My uniform sample.
-  if ( bmap.size() > maxs )
+  // My uniform sample.
+  if ( nsamples < K.num() - node->n )
   {
-    if ( nsamples < K.num() - node->n )
+    amap.reserve( nsamples );
+    while ( amap.size() < nsamples )
     {
-      amap.reserve( nsamples );
-      while ( amap.size() < nsamples )
+      size_t sample = rand() % K.num();
+      if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
+           std::find( lids.begin(), lids.end(), sample ) == lids.end() )
       {
-        size_t sample = rand() % K.num();
-        if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
-             std::find( lids.begin(), lids.end(), sample ) == lids.end() )
-        {
-          amap.push_back( sample );
-        }
+        amap.push_back( sample );
       }
     }
-    else // Use all off-diagonal blocks without samples.
+  }
+  else // Use all off-diagonal blocks without samples.
+  {
+    for ( int sample = 0; sample < K.num(); sample ++ )
     {
-      for ( int sample = 0; sample < K.num(); sample ++ )
+      if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() )
       {
-        if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() )
-        {
-          amap.push_back( sample );
-        }
+        amap.push_back( sample );
       }
     }
   }
 
-  // TODO: apdative id. Need to return skels and proj. (James)
-  {
-    // auto Kab = K( amap, bmap );
-    // id( amap.size, bmap.size(), maxs, stol, skels, proj );
+  auto Kab = K( amap, bmap );
+  hmlp::skel::id( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
 
-    // My fix rank id.
-    if ( bmap.size() > maxs )
-    {
-      auto Kab = K( amap, bmap );
-      hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
-    }
-    else
-    {
-      skels = bmap;
-      proj.resize( bmap.size(), bmap.size(), 0.0 );
-      for ( int i = 0; i < bmap.size(); i++ )
-      {
-        proj[ i * proj.dim() + i ] = 1.0;
-      }
-    }
-  }
-
-  data.isskel = true;
+  data.isskel = skels.size();
 
 }; // end void Skeletonize()
 
@@ -495,7 +484,7 @@ template<typename NODE>
 void UpdateWeights( NODE *node )
 {
   // This function computes the skeleton weights.
-  if ( !node->parent ) return;
+  if ( !node->parent || !node->data.isskel ) return;
 
   // Gather shared data and create reference
   auto &w = node->setup->w;
