@@ -1,6 +1,7 @@
 #ifndef SPDASKIT_HPP
 #define SPDASKIT_HPP
 
+#include <set>
 #include <vector>
 #include <deque>
 #include <assert.h>
@@ -8,7 +9,7 @@
 #include <algorithm>
 #include <random>
 #include <numeric>
-
+#include <stdio.h>
 
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
@@ -73,16 +74,6 @@ class Data
 
     // Potential
     T u;
-
-    // These two prunning lists are used when no NN pruning.
-    std::vector<size_t> prune;
-
-    std::vector<size_t> noprune;
-
-    // These two prunning lists are used when in NN pruning.
-    std::vector<size_t> NNprune;
-
-    std::vector<size_t> NNnoprune;
 
     // Events (from HMLP Runtime)
     hmlp::Event skeletonize;
@@ -649,6 +640,327 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
 
 
 /**
+ *  @brief This evaluation evaluate the potentils of the whole target node.
+ *
+ */ 
+template<bool SYMMETRIC, bool NNPRUNE, typename NODE>
+void Evaluate( NODE *node, NODE *target )
+{
+  assert( target->isleaf );
+
+  auto &data = node->data;
+  auto *lchild = node->lchild;
+  auto *rchild = node->rchild;
+
+  std::set<NODE*> *NearNodes;
+
+  if ( NNPRUNE ) NearNodes = &target->NNNearNodes;
+  else           NearNodes = &target->NearNodes;
+
+  if ( !data.isskel || node->ContainAny( *NearNodes ) )
+  {
+    if ( node->isleaf )
+    {
+      // Do notthing, because the NearNodes list was constructed.
+    }
+    else
+    {
+      Evaluate<SYMMETRIC, NNPRUNE>( lchild, target );
+      Evaluate<SYMMETRIC, NNPRUNE>( rchild, target );
+    }
+  }
+  else
+  {
+    if ( SYMMETRIC && node->morton < target->morton )
+    {
+      // Since target->morton is larger than the visiting node,
+      // the interaction between the target and this node has
+      // been computed. 
+    }
+    else
+    {
+      if ( NNPRUNE ) 
+      {
+        target->NNFarNodes.insert( node );
+      }
+      else           
+      {
+        target->FarNodes.insert( node );
+      }
+    }
+  }
+};
+
+
+template<typename NODE>
+void PrintSet( std::set<NODE*> &set )
+{
+  for ( auto it = set.begin(); it != set.end(); it ++ )
+  {
+    printf( "%lu, ", (*it)->treelist_id );
+  }
+  printf( "\n" );
+};
+
+
+/**
+ *  @brief Compute those near leaf nodes and build a list. This is just like
+ *         the neighbor list but the granularity is in nodes but not points.
+ *         The algorithm is to compute the node morton ids of neighbor points.
+ *         Get the pointers of these nodes and insert them into a std::set.
+ *         std::set will automatic remove duplication. Here the insertion 
+ *         will be performed twice each time to get a symmetric one. That is
+ *         if alpha has beta in its list, then beta will also have alpha in
+ *         its list.
+ *
+ *         Only leaf nodes will have the list `` NearNodes''.
+ *
+ *         This list will later be used to get the FarNodes using a recursive
+ *         node traversal scheme.
+ *  
+ */ 
+template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
+void SymmetricNearNodes( TREE &tree )
+{
+  int n_nodes = 1 << tree.depth;
+  auto level_beg = tree.treelist.begin() + n_nodes - 1;
+
+  // Traverse all leaf nodes. 
+  #pragma omp parallel for
+  for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+  {
+    auto *node = *(level_beg + node_ind);
+    auto &data = node->data;
+    auto &setup = tree.setup;
+    auto &NN = *setup.NN;
+
+    if ( NNPRUNE )
+    {
+      // Add myself to the list.
+      node->NNNearNodes.insert( node );
+      // Traverse all points and their neighbors. NN is stored in k-by-N.
+      // NN 
+      for ( size_t j = 0; j < node->lids.size(); j ++ )
+      {
+        size_t lid = node->lids[ j ];
+        for ( size_t i = 0; i < NN.dim(); i ++ )
+        {
+          size_t neighbor_gid = NN( i, lid ).second;
+          //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
+          size_t neighbor_lid = tree.Getlid( neighbor_gid );
+          size_t neighbor_morton = setup.morton[ neighbor_lid ];
+          //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
+          node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
+        }
+      }
+    }
+    else
+    {
+      // Add myself to the list, and it's done.
+      node->NearNodes.insert( node );
+    }
+  }
+ 
+  if ( SYMMETRIC && NNPRUNE )
+  {
+    // Make it symmetric
+    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    {
+      auto *node = *(level_beg + node_ind);
+      auto &NNNearNodes = node->NNNearNodes;
+      for ( auto it = NNNearNodes.begin(); it != NNNearNodes.end(); it ++ )
+      {
+        (*it)->NNNearNodes.insert( node );
+      }
+    }
+#ifdef DEBUG_SPDASKIT
+    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    {
+      auto *node = *(level_beg + node_ind);
+      auto &NNNearNodes = node->NNNearNodes;
+      printf( "Node %lu NearNodes ", node->treelist_id );
+      for ( auto it = NNNearNodes.begin(); it != NNNearNodes.end(); it ++ )
+      {
+        printf( "%lu, ", (*it)->treelist_id );
+      }
+      printf( "\n" );
+    }
+#endif
+  }
+};
+
+/**
+ *  TODO: change to task.
+ *
+ */
+template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
+void SymmetricFarNodes( TREE &tree )
+{
+
+  for ( int l = tree.depth; l >= 0; l -- )
+  {
+    std::size_t n_nodes = 1 << l;
+    auto level_beg = tree.treelist.begin() + n_nodes - 1;
+
+    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    {
+      auto *node = *(level_beg + node_ind);
+
+      if ( node->isleaf )
+      {
+        Evaluate<SYMMETRIC, NNPRUNE>( tree.treelist[ 0 ], node );
+      }
+      else
+      {
+        // Merging FarNodes from children
+        auto *lchild = node->lchild;
+        auto *rchild = node->rchild;
+        if ( NNPRUNE )
+        {
+          auto &pFarNodes =   node->NNFarNodes;
+          auto &lFarNodes = lchild->NNFarNodes;
+          auto &rFarNodes = rchild->NNFarNodes;
+
+          for ( auto it = lFarNodes.begin(); it != lFarNodes.end(); ++ it )
+          {
+            if ( rFarNodes.count( *it ) ) pFarNodes.insert( *it );
+          }
+          for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
+          {
+            lFarNodes.erase( *it );
+            rFarNodes.erase( *it );
+          }
+
+        }
+        else
+        {
+          auto &pFarNodes =   node->FarNodes;
+          auto &lFarNodes = lchild->FarNodes;
+          auto &rFarNodes = rchild->FarNodes;
+          for ( auto it = lFarNodes.begin(); it != lFarNodes.end(); it ++ )
+          {
+            if ( rFarNodes.count( *it ) ) pFarNodes.insert( *it );
+          }
+          for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
+          {
+            lFarNodes.erase( *it );
+            rFarNodes.erase( *it );
+          }
+        }
+      }
+    }
+  }
+
+  if ( SYMMETRIC )
+  {
+    // Symmetrinize FarNodes to FarNodes interaction.
+    for ( int l = tree.depth; l >= 0; l -- )
+    {
+      std::size_t n_nodes = 1 << l;
+      auto level_beg = tree.treelist.begin() + n_nodes - 1;
+
+      for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+      {
+        auto *node = *(level_beg + node_ind);
+        auto &pFarNodes =   node->NNFarNodes;
+        for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
+        {
+          (*it)->NNFarNodes.insert( node );
+        }
+      }
+    }
+  }
+  
+#ifdef DEBUG_SPDASKIT
+  for ( int l = tree.depth; l >= 0; l -- )
+  {
+    std::size_t n_nodes = 1 << l;
+    auto level_beg = tree.treelist.begin() + n_nodes - 1;
+
+    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    {
+      auto *node = *(level_beg + node_ind);
+      auto &pFarNodes =   node->NNFarNodes;
+      for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
+      {
+        if ( !( (*it)->NNFarNodes.count( node ) ) )
+        {
+          printf( "Unsymmetric FarNodes %lu, %lu\n", node->treelist_id, (*it)->treelist_id );
+          printf( "Near\n" );
+          PrintSet(  node->NNNearNodes );
+          PrintSet( (*it)->NNNearNodes );
+          printf( "Far\n" );
+          PrintSet(  node->NNFarNodes );
+          PrintSet( (*it)->NNFarNodes );
+          printf( "======\n" );
+          break;
+        }
+      }
+      if ( pFarNodes.size() )
+      {
+        printf( "l %2lu FarNodes(%lu) ", node->l, node->treelist_id );
+        PrintSet( pFarNodes );
+      }
+    }
+  }
+#endif
+};
+
+
+template<bool NNPRUNE, typename TREE>
+void DrawInteraction( TREE &tree )
+{
+  FILE * pFile;
+  int n;
+  char name [100];
+
+  pFile = fopen ( "interaction.m", "w" );
+
+
+  fprintf( pFile, "figure;" );
+  fprintf( pFile, "hold on;" );
+  fprintf( pFile, "axis square;" );
+  fprintf( pFile, "axis ij;" );
+
+  for ( int l = tree.depth; l >= 0; l -- )
+  {
+    std::size_t n_nodes = 1 << l;
+    auto level_beg = tree.treelist.begin() + n_nodes - 1;
+
+    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    {
+      auto *node = *(level_beg + node_ind);
+
+      if ( NNPRUNE )
+      {
+        auto &pNearNodes = node->NNNearNodes;
+        auto &pFarNodes = node->NNFarNodes;
+        for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
+        {
+          fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor','w');\n",
+              node->offset,      (*it)->offset,
+              node->lids.size(), (*it)->lids.size() );
+        }
+        for ( auto it = pNearNodes.begin(); it != pNearNodes.end(); it ++ )
+        {
+          fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor','b');\n",
+              node->offset,      (*it)->offset,
+              node->lids.size(), (*it)->lids.size() );
+        }  
+      }
+      else
+      {
+      }
+    }
+  }
+  fprintf( pFile, "hold off;" );
+  fclose( pFile );
+};
+
+
+
+
+/**
  *  @breif This is a fake evaluation setup aimming to figure out
  *         which tree node will prun which points. The result
  *         will be stored in each node as two lists, prune and noprune.
@@ -689,8 +1001,14 @@ void Evaluate
         data.lock.Acquire();
         {
           // Add lid to notprune list. We use a lock.
-          if ( NNPRUNE ) data.noprune.push_back( lid );
-          else           data.NNnoprune.push_back( lid );
+          if ( NNPRUNE ) 
+          {
+            node->NNNearIDs.insert( lid );
+          }
+          else           
+          {
+            node->NearIDs.insert( lid );
+          }
         }
         data.lock.Release();
       }
@@ -725,8 +1043,14 @@ void Evaluate
       data.lock.Acquire();
       {
         // Add lid to prunable list.
-        if ( NNPRUNE ) data.prune.push_back( lid );
-        else           data.NNprune.push_back( lid );
+        if ( NNPRUNE ) 
+        {
+          node->FarIDs.insert( lid );
+        }
+        else           
+        {
+          node->NNFarIDs.insert( lid );
+        }
       }
       data.lock.Release();
     }
@@ -790,7 +1114,6 @@ void Evaluate
   Evaluate<SYMBOLIC, NNPRUNE>( tree.treelist[ 0 ], lid, nnandi, potentials );
 
 }; // end void Evaluate()
-
 
 
 

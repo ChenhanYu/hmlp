@@ -180,7 +180,7 @@ class Data : public std::vector<T, Allocator>
 
       if ( USE_LOWRANK )
       {
-        hmlp::Data<T> X( std::rand() % n, n );
+        hmlp::Data<T> X( ( std::rand() % n ) / 2 + 1, n );
         X.rand();
         xgemm
         (

@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <typeinfo>
 #include <algorithm>
+#include <set>
 #include <vector>
 #include <deque>
 #include <iostream>
@@ -39,13 +40,18 @@ template<size_t LEVELOFFSET=4>
 bool IsMyParent( size_t me, size_t it )
 {
   size_t filter = ( 1 << LEVELOFFSET ) - 1;
-  size_t itlevel = ( 1 << LEVELOFFSET ) - ( it & filter );
-  size_t mylevel = ( 1 << LEVELOFFSET ) - ( me & filter );
+  size_t itlevel = it & filter;
+  size_t mylevel = me & filter;
+  size_t itshift = ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET;
+  bool ret = !( ( me ^ it ) >> itshift ) && ( itlevel <= mylevel );
 #ifdef DEBUG_TREE
   hmlp_print_binary( me );
   hmlp_print_binary( it );
+  hmlp_print_binary( ( me ^ it ) >> itshift );
+  printf( "ismyparent %d itlevel %lu mylevel %lu shift %lu fixed shift %d\n",
+      ret, itlevel, mylevel, itshift, 1 << LEVELOFFSET );
 #endif
-  return !( ( me ^ it ) >> ( itlevel + LEVELOFFSET ) ) & ( itlevel >= mylevel );
+  return ret;
 }; // end bool IsMyParent();
 
 
@@ -451,6 +457,24 @@ class Node
       return false;
     }; //
 
+    bool ContainAny( std::set<Node*> &querys )
+    {
+      if ( !setup->morton.size() )
+      {
+        printf( "Morton id was not initialized.\n" );
+        exit( 1 );
+      }
+      for ( auto it = querys.begin(); it != querys.end(); it ++ )
+      {
+        if ( IsMyParent( (*it)->morton, morton ) ) 
+        {
+          return true;
+        }
+      }
+      return false;
+    }; 
+
+
     // This is the call back pointer to the shared data.
     SETUP *setup;
 
@@ -466,12 +490,32 @@ class Node
     // Morton id
     std::size_t morton;
 
+    std::size_t offset;
+
+
+
     // In top-down topology order. (-1 if not used)
     std::size_t treelist_id; 
 
     std::vector<std::size_t> gids;
 
     std::vector<std::size_t> lids;
+
+    // These two prunning lists are used when no NN pruning.
+    std::set<size_t> FarIDs;
+    std::set<Node*>  FarNodes;
+
+    // Only leaf nodes will have this list.
+    std::set<size_t> NearIDs;
+    std::set<Node*>  NearNodes;
+
+    // These two prunning lists are used when in NN pruning.
+    std::set<size_t> NNFarIDs;
+    std::set<Node*>  NNFarNodes;
+
+    // Only leaf nodes will have this list.
+    std::set<size_t> NNNearIDs;
+    std::set<Node*>  NNNearNodes;
 
     Node *parent;
 
@@ -556,6 +600,21 @@ class Tree
       return gid;
     }; // end void Getlid()
 
+
+    void Offset( NODE *node, size_t offset )
+    {
+      if ( node )
+      {
+        node->offset = offset;
+        if ( node->lchild )
+        {
+          Offset( node->lchild, offset + 0 );
+          Offset( node->rchild, offset + node->lchild->lids.size() );
+        }
+      }
+    };
+
+
     template<size_t LEVELOFFSET=4>
     void Morton( NODE *node, size_t morton )
     {
@@ -582,6 +641,22 @@ class Tree
         }
       }
     };
+
+    template<size_t LEVELOFFSET=4>
+    NODE *Morton2Node( size_t me )
+    {
+      assert( N_CHILDREN == 2 );
+      // Get my level.
+      size_t filter = ( 1 << LEVELOFFSET ) - 1;
+      size_t mylevel = me & filter;
+      auto level_beg = treelist.begin() + ( 1 << mylevel ) - 1;
+      // Get my index in this level.
+      size_t shift = ( 1 << LEVELOFFSET ) - mylevel + LEVELOFFSET;
+      size_t index = me >> shift;
+      //printf( "level %lu index %lu\n", mylevel, index );
+      return *(level_beg + index);
+    };
+
 
     void TreePartition
     (
@@ -631,6 +706,7 @@ class Tree
       {
         setup.morton.resize( n );
         Morton( treelist[ 0 ], 0 );
+        Offset( treelist[ 0 ], 0 );
       }
       else
       {

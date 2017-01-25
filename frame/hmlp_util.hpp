@@ -73,6 +73,14 @@ void hmlp_print_binary( T number )
 {
   char binary[ 33 ];
 
+  for ( int i = 31; i >= 0; i -- )
+  {
+    if ( i % 5 ) printf( " " );
+    else         printf( "%d", i / 5 );
+  }
+  printf( "\n" );
+
+
   for ( size_t i = 0; i < sizeof(T) * 4; i ++ )
   {
     if ( number & 1 ) binary[ 31 - i ] = '1';

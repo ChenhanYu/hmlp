@@ -49,8 +49,8 @@ export HMLP_MIC_AVX512=false
 
 ## Manually set the mkl path
 # export HMLP_MKL_DIR=$TACC_MKL_DIR
-# export HMLP_MKL_DIR=/opt/intel/mkl
-export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
+export HMLP_MKL_DIR=/opt/intel/mkl
+# export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
 

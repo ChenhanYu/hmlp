@@ -108,7 +108,7 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   // ------------------------------------------------------------------------
 
   beg = omp_get_wtime();
-  auto NN = rkdt.AllNearestNeighbor( 10, k, 10, gids, lids, initNN, knntask );
+  auto NN = rkdt.AllNearestNeighbor( 20, k, 10, gids, lids, initNN, knntask );
   ann_time = omp_get_wtime() - beg;
 
   Tree<SETUP, NODE, N_CHILDREN, T> tree;
@@ -129,7 +129,7 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
 
 
   beg = omp_get_wtime();
-  tree.TreePartition( 512, 10, gids, lids );
+  tree.TreePartition( 64, 10, gids, lids );
   tree_time = omp_get_wtime() - beg;
 
 
@@ -179,6 +179,16 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   */
 
 
+  // SymmetricNearNodes
+  //hmlp::spdaskit::SymmetricNearNodes<true, true>( tree );
+  hmlp::spdaskit::SymmetricNearNodes<false, true>( tree );
+  //hmlp::spdaskit::SymmetricFarNodes<true, true>( tree );
+  hmlp::spdaskit::SymmetricFarNodes<false, true>( tree );
+  hmlp::spdaskit::DrawInteraction<true>( tree );
+
+  printf( "end SymmetricNearNodes\n" );
+
+
   // Test evaluation with NN prunning.
   for ( size_t i = 0; i < 10; i ++ )
   {
@@ -193,6 +203,10 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
     hmlp::spdaskit::Evaluate<false, false>( tree, i, potentials );
     nonneval_time = omp_get_wtime() - beg;
     auto nonnerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
+
+    // Symbolic evaluation
+    hmlp::spdaskit::Evaluate<true, true>( tree, i, potentials );
+
 #ifdef DUMP_ANALYSIS_DATA
     printf( "@DATA\n" );
     printf( "%5lu, %E, %E\n", i, nnerr, nonnerr );
