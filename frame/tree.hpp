@@ -772,13 +772,14 @@ class Tree
         TraverseLeafs<true>( dummy );
         for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
         treelist.clear();
-
+#ifdef DEBUG_TREE
         printf( "Iter %2d NN 0 ", t );
         for ( size_t i = 0; i < NN.dim(); i ++ )
         {
           printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
         }
         printf( "\n" );
+#endif
       }
 
       if ( SORTED )
@@ -797,12 +798,14 @@ class Tree
         {
           std::sort( NN.data() + j * NN.dim(), NN.data() + ( j + 1 ) * NN.dim() );
         }
+#ifdef DEBUG_TREE
         printf( "Sorted  NN 0 " );
         for ( size_t i = 0; i < NN.dim(); i ++ )
         {
           printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
         }
         printf( "\n" );
+#endif
       }
 
       return NN;

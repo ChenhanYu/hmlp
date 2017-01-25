@@ -7,6 +7,7 @@
 #include <vector>
 #include <deque>
 #include <iostream>
+#include <fstream>
 #include <random>
 
 #include <hmlp.h>
@@ -40,6 +41,22 @@ class Data : public std::vector<T, Allocator>
       this->n = n;
     };
 
+    Data( std::size_t d, std::size_t n, std::string &filename ) : std::vector<T, Allocator>( d * n )
+    {
+      this->d = d;
+      this->n = n;
+
+      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
+      if ( file.is_open() )
+      {
+        auto size = file.tellg();
+        assert( size == d * n * sizeof(T) );
+        file.seekg( 0, std::ios::beg );
+        file.read( (char*)this->data(), size );
+        file.close();
+      }
+    };
+
     enum Pattern : int { STAR = -1 };
 
     void resize( std::size_t d, std::size_t n )
@@ -59,6 +76,23 @@ class Data : public std::vector<T, Allocator>
     void reserve( std::size_t d, std::size_t n ) 
     {
       std::vector::reserve( d * n );
+    };
+
+    void read( std::size_t d, std::size_t n, std::string &filename )
+    {
+      assert( this->d == d );
+      assert( this->n == n );
+      assert( this->size() == d * n );
+
+      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
+      if ( file.is_open() )
+      {
+        auto size = file.tellg();
+        assert( size == d * n * sizeof(T) );
+        file.seekg( 0, std::ios::beg );
+        file.read( (char*)this->data(), size );
+        file.close();
+      }
     };
 
     std::tuple<size_t, size_t> shape()
