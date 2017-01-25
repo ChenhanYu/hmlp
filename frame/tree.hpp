@@ -742,7 +742,7 @@ class Tree
       }
     };
 
-    template<typename KNNTASK>
+    template<bool SORTED, typename KNNTASK>
     hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
     (
       std::size_t n_tree,
@@ -772,6 +772,37 @@ class Tree
         TraverseLeafs<true>( dummy );
         for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
         treelist.clear();
+
+        printf( "Iter %2d NN 0 ", t );
+        for ( size_t i = 0; i < NN.dim(); i ++ )
+        {
+          printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
+        }
+        printf( "\n" );
+      }
+
+      if ( SORTED )
+      {
+        struct 
+        {
+          bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
+          {   
+            return a.first < b.first;
+          }   
+        } ANNLess;
+
+
+        #pragma omp parallel for
+        for ( size_t j = 0; j < NN.num(); j ++ )
+        {
+          std::sort( NN.data() + j * NN.dim(), NN.data() + ( j + 1 ) * NN.dim() );
+        }
+        printf( "Sorted  NN 0 " );
+        for ( size_t i = 0; i < NN.dim(); i ++ )
+        {
+          printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
+        }
+        printf( "\n" );
       }
 
       return NN;

@@ -61,8 +61,9 @@ using namespace hmlp::tree;
 
 
 template<typename T>
-void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
+void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
 {
+  // Instantiation for the Spd-Askit tree.
   using SPDMATRIX = hmlp::spdaskit::SPDMatrix<T>;
   using SPLITTER = hmlp::spdaskit::centersplit<N_CHILDREN, T>;
   using SETUP = hmlp::spdaskit::Setup<SPDMATRIX,SPLITTER,T>;
@@ -71,13 +72,16 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   using SKELTASK = hmlp::spdaskit::SkeletonizeTask<NODE>;
   using UPDATETASK = hmlp::spdaskit::UpdateWeightsTask<NODE>;
 
+  // Instantiation for the randomisze Spd-Askit tree.
   using RKDTSPLITTER = hmlp::spdaskit::randomsplit<N_CHILDREN, T>;
   using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX,RKDTSPLITTER,T>;
   using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
   using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE, T>;
   
-  double beg, dynamic_time, omptask_time, ref_time, ann_time, tree_time, nneval_time, nonneval_time;
+  double beg, dynamic_time, omptask_time, ref_time, ann_time, tree_time;
+  double nneval_time, nonneval_time, symbolic_evaluation_time;
 
+  // Dummy instances for each task.
   SKELTASK skeltask;
   UPDATETASK updatetask;
   KNNTASK knntask;
@@ -85,9 +89,10 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   // ------------------------------------------------------------------------
   // Original order of the matrix.
   // ------------------------------------------------------------------------
+  const bool USE_LOWRANK = true;
   SPDMATRIX K;
   K.resize( n, n );
-  K.randspd<true>( 0.0, 1.0 );
+  K.randspd<USE_LOWRANK>( 0.0, 1.0 );
   //K.Print();
   std::vector<std::size_t> gids( n ), lids( n );
   for ( auto i = 0; i < n; i ++ ) 
@@ -97,25 +102,25 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   }
   // ------------------------------------------------------------------------
 
+  // ------------------------------------------------------------------------
+  // Initialize randomized Spd-Askit tree.
+  // ------------------------------------------------------------------------
   Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
-
-  // ------------------------------------------------------------------------
-  // Initialization
-  // ------------------------------------------------------------------------
   rkdt.setup.K = &K;
-  rkdt.setup.splitter.Kptr = rkdt.setup.K; // The closure takes coordinates.
+  rkdt.setup.splitter.Kptr = rkdt.setup.K;
   std::pair<T, std::size_t> initNN( 999999.9, n );
   // ------------------------------------------------------------------------
 
+  const size_t n_iter = 20;
+  const bool SORTED = true;
   beg = omp_get_wtime();
-  auto NN = rkdt.AllNearestNeighbor( 20, k, 10, gids, lids, initNN, knntask );
+  auto NN = rkdt.AllNearestNeighbor<SORTED>( n_iter, k, 10, gids, lids, initNN, knntask );
   ann_time = omp_get_wtime() - beg;
 
+  // ------------------------------------------------------------------------
+  // Initialize Spd-Askit tree using approximate center split.
+  // ------------------------------------------------------------------------
   Tree<SETUP, NODE, N_CHILDREN, T> tree;
-
-  // ------------------------------------------------------------------------
-  // Initialization
-  // ------------------------------------------------------------------------
   tree.setup.K = &K;
   tree.setup.splitter.Kptr = tree.setup.K; // The closure takes coordinates.
   tree.setup.NN = &NN;
@@ -129,7 +134,7 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
 
 
   beg = omp_get_wtime();
-  tree.TreePartition( 64, 10, gids, lids );
+  tree.TreePartition( m, 10, gids, lids );
   tree_time = omp_get_wtime() - beg;
 
 
@@ -179,14 +184,20 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   */
 
 
-  // SymmetricNearNodes
+  // NearFarNodes
+  const bool SYMMETRIC_PRUNING = true;
+  const bool NNPRUNE = true;
+  beg = omp_get_wtime();
+  hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNING, NNPRUNE>( tree );
+
   //hmlp::spdaskit::SymmetricNearNodes<true, true>( tree );
-  hmlp::spdaskit::SymmetricNearNodes<false, true>( tree );
+  //hmlp::spdaskit::SymmetricNearNodes<false, true>( tree );
   //hmlp::spdaskit::SymmetricFarNodes<true, true>( tree );
-  hmlp::spdaskit::SymmetricFarNodes<false, true>( tree );
+  //hmlp::spdaskit::SymmetricFarNodes<false, true>( tree );
+  symbolic_evaluation_time = omp_get_wtime() - beg;
   hmlp::spdaskit::DrawInteraction<true>( tree );
 
-  printf( "end SymmetricNearNodes\n" );
+  //printf( "end SymmetricNearNodes\n" );
 
 
   // Test evaluation with NN prunning.
@@ -219,25 +230,27 @@ void test_spdaskit( size_t n, size_t k, size_t s, size_t nrhs )
   tree.Summary( summary );
   summary.Print();
 #endif
-  printf( "n %5lu k %4lu s %4lu nrhs %4lu ANN %5.3lf CONSTRUCT %5.3lf EVAL(NN) %5.3lf EVAL %5.3lf\n", 
-      n, k, s, nrhs, ann_time, tree_time, nneval_time, nonneval_time );
+  printf( "n %5lu k %4lu s %4lu nrhs %4lu ANN %5.3lf CONSTRUCT %5.3lf EVAL(NN) %5.3lf EVAL %5.3lf SYMBOLIC EVAL %5.3lf\n", 
+      n, k, s, nrhs, ann_time, tree_time, 
+      nneval_time, nonneval_time, symbolic_evaluation_time );
 
 };
 
 int main( int argc, char *argv[] )
 {
-  size_t n, k, s, nrhs;
+  size_t n, m, k, s, nrhs;
 
   sscanf( argv[ 1 ], "%lu", &n );
-  sscanf( argv[ 2 ], "%lu", &k );
-  sscanf( argv[ 3 ], "%lu", &s );
-  sscanf( argv[ 4 ], "%lu", &nrhs );
+  sscanf( argv[ 2 ], "%lu", &m );
+  sscanf( argv[ 3 ], "%lu", &k );
+  sscanf( argv[ 4 ], "%lu", &s );
+  sscanf( argv[ 5 ], "%lu", &nrhs );
 
   hmlp_init();
   
-  test_spdaskit<double>( n, k, s, nrhs );
+  test_spdaskit<double>( n, m, k, s, nrhs );
 
-  //test_spdaskit<float>( n, k, s, nrhs );
+  //test_spdaskit<float>( n, m, k, s, nrhs );
 
   hmlp_finalize();
  

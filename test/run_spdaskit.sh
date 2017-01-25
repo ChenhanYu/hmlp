@@ -1,8 +1,9 @@
 n=5000
-s=256
+m=64
+s=32
 nrhs=128
-kmin=50
-kmax=64
+kmin=21
+kmax=22
 kinc=16
 # =======================================================
 
@@ -16,6 +17,8 @@ echo "@SETUP"
 echo "HMLP_ARCH = $HMLP_ARCH"
 echo "@SETUP"
 echo "n = $n"
+echo "@SETUP"
+echo "m = $m"
 echo "@SETUP"
 echo "s = $s"
 echo "@SETUP"
@@ -35,7 +38,7 @@ date
 
 for (( k=kmin; k<kmax; k+=kinc ))
 do
-  ./test_spdaskit.x $n $k $s $nrhs; status=$?
+  ./test_spdaskit.x $n $m $k $s $nrhs; status=$?
   echo "@STATUS"
   echo $status
 done

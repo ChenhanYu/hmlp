@@ -335,13 +335,28 @@ class KNNTask : public hmlp::Task
       // Can be parallelized
       for ( size_t j = 0; j < lids.size(); j ++ )
       {
+        std::set<size_t> NNset;
+
+        for ( size_t i = 0; i < NN.dim(); i ++ )
+        {
+          size_t jlid = lids[ j ];
+          NNset.insert( NN[ jlid * NN.dim() + i ].second );
+        }
+
         for ( size_t i = 0; i < lids.size(); i ++ )
         {
           size_t ilid = lids[ i ];
           size_t jlid = lids[ j ];
-          T dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
-          std::pair<T, size_t> query( dist, ilid );
-          hmlp::HeapSelect( 1, NN.dim(), &query, NN.data() + jlid * NN.dim() );
+          if ( !NNset.count( ilid ) )
+          {
+            T dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
+            std::pair<T, size_t> query( dist, ilid );
+            hmlp::HeapSelect( 1, NN.dim(), &query, NN.data() + jlid * NN.dim() );
+          }
+          else
+          {
+            // Duplication
+          }
         }
       }
     };
@@ -573,6 +588,71 @@ class UpdateWeightsTask : public hmlp::Task
 }; // end class SetWeights
 
 
+
+/**
+ *  @brief Compute the interation from column skeletons to row
+ *         skeletons. Store the results in the node. Later
+ *         there is a SkeletonstoAll function to be called.
+ *
+ */ 
+template<typename NODE>
+void SkeletonsToSkeletons( NODE *node )
+{
+}; // end void SkeletonsToSkeletons()
+
+
+
+
+
+/**
+ *  @brief There is no dependency between each task. However 
+ *         there are raw (read after write) dependencies:
+ *
+ *         NodesToSkeletons (P*w)
+ *         SkeletonsToSkeletons ( Sum( Kab * ))
+ *
+ *
+ */ 
+template<typename NODE>
+class SkeletonsToSkeletonsTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+
+    void Set( NODE *user_arg )
+    {
+      name = std::string( "SkeletonsToSkeletons" );
+      arg = user_arg;
+      // Need an accurate cost model.
+      cost = 1.0;
+    };
+
+    void GetEventRecord()
+    {
+      //arg->data.updateweight = event;
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      SkeletonsToSkeletons( arg );
+    };
+}; // end class SkeletonsToSkeletonsTask
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 template<typename NODE, typename T>
 void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
 {
@@ -720,7 +800,7 @@ void PrintSet( std::set<NODE*> &set )
  *  
  */ 
 template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
-void SymmetricNearNodes( TREE &tree )
+void NearNodes( TREE &tree )
 {
   int n_nodes = 1 << tree.depth;
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
@@ -794,7 +874,7 @@ void SymmetricNearNodes( TREE &tree )
  *
  */
 template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
-void SymmetricFarNodes( TREE &tree )
+void FarNodes( TREE &tree )
 {
 
   for ( int l = tree.depth; l >= 0; l -- )
@@ -907,6 +987,25 @@ void SymmetricFarNodes( TREE &tree )
 };
 
 
+/**
+ *  @brief Create a list of near nodes for  each leave (direct evaluation).
+ *         Create a list of far nodes for each node (low-rank).
+ *
+ *         If ( SYMMETRIC ) Both near and far lists are symmetric.
+ *         If ( NNPRUNE )   All neighbors are near nodes. Lists stored in
+ *                          NNNearNodes and NNFarNodes.
+ *         Else             Only the leave itself is the near node. Use
+ *                          NearNodes and FarNodes.
+ *        
+ */ 
+template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
+void NearFarNodes( TREE &tree )
+{
+  NearNodes<SYMMETRIC, NNPRUNE>( tree );
+  FarNodes<SYMMETRIC, NNPRUNE>( tree );
+};
+
+
 template<bool NNPRUNE, typename TREE>
 void DrawInteraction( TREE &tree )
 {
@@ -917,7 +1016,7 @@ void DrawInteraction( TREE &tree )
   pFile = fopen ( "interaction.m", "w" );
 
 
-  fprintf( pFile, "figure;" );
+  fprintf( pFile, "figure('Position',[100,100,800,800]);" );
   fprintf( pFile, "hold on;" );
   fprintf( pFile, "axis square;" );
   fprintf( pFile, "axis ij;" );
@@ -937,13 +1036,16 @@ void DrawInteraction( TREE &tree )
         auto &pFarNodes = node->NNFarNodes;
         for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
         {
-          fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor','w');\n",
+          double gb = (double)std::min( node->l, (*it)->l ) / tree.depth;
+          //printf( "node->l %lu (*it)->l %lu depth %lu\n", node->l, (*it)->l, tree.depth );
+          fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[1.0,%lf,%lf]);\n",
               node->offset,      (*it)->offset,
-              node->lids.size(), (*it)->lids.size() );
+              node->lids.size(), (*it)->lids.size(),
+              gb, gb );
         }
         for ( auto it = pNearNodes.begin(); it != pNearNodes.end(); it ++ )
         {
-          fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor','b');\n",
+          fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[0.2,0.4,1.0]);\n",
               node->offset,      (*it)->offset,
               node->lids.size(), (*it)->lids.size() );
         }  
@@ -1150,6 +1252,12 @@ void ComputeError( NODE *node, hmlp::Data<T> potentials )
 
 
 }; // end void ComputeError()
+
+
+
+
+
+
 
 
 /**
