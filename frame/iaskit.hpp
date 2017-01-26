@@ -100,7 +100,7 @@ void Skeletonize( NODE *node )
   std::vector<size_t> &lids = node->lids;
 
   // Get setup and shared data.
-  auto &X = node->setup->X;
+  auto &X = *node->setup->X;
   auto &kernel = node->setup->kernel;
   auto maxs = node->setup->s;
   auto nsamples = 4 * maxs;

@@ -8,6 +8,7 @@
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
 #include <hmlp_util.hpp>
+#include <limits>
 
 #include <tree.hpp>
 #include <spdaskit.hpp>
@@ -116,7 +117,7 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
   rkdt.setup.K = &K;
   rkdt.setup.splitter.Kptr = rkdt.setup.K;
-  std::pair<T, std::size_t> initNN( 999999.9, n );
+  std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
   // ------------------------------------------------------------------------
 
   const size_t n_iter = 20;
@@ -190,19 +191,15 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   */
 
 
-//  // NearFarNodes
-//  const bool SYMMETRIC_PRUNING = true;
-//  const bool NNPRUNE = true;
-//  beg = omp_get_wtime();
-//  hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNING, NNPRUNE>( tree );
-//
-//  //hmlp::spdaskit::SymmetricNearNodes<true, true>( tree );
-//  //hmlp::spdaskit::SymmetricNearNodes<false, true>( tree );
-//  //hmlp::spdaskit::SymmetricFarNodes<true, true>( tree );
-//  //hmlp::spdaskit::SymmetricFarNodes<false, true>( tree );
-//  symbolic_evaluation_time = omp_get_wtime() - beg;
-//  hmlp::spdaskit::DrawInteraction<true>( tree );
-//
+  // NearFarNodes
+  const bool SYMMETRIC_PRUNING = true;
+  const bool NNPRUNE = true;
+  beg = omp_get_wtime();
+  hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNING, NNPRUNE>( tree );
+  symbolic_evaluation_time = omp_get_wtime() - beg;
+  printf( "end SymmetricNearNodes\n" );
+  hmlp::spdaskit::DrawInteraction<true>( tree );
+
 //  printf( "end SymmetricNearNodes\n" );
 
 
@@ -266,7 +263,7 @@ int main( int argc, char *argv[] )
   }
   else
   {
-    //n = 1024;
+    n = 1024;
     test_spdaskit<ADAPTIVE, 1, double>( n, m, k, s, nrhs );
     test_spdaskit<ADAPTIVE, 2, double>( n, m, k, s, nrhs );
     test_spdaskit<ADAPTIVE, 3, double>( n, m, k, s, nrhs );

@@ -10,6 +10,7 @@
 #include <random>
 #include <numeric>
 #include <stdio.h>
+#include <omp.h>
 
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
@@ -30,6 +31,12 @@ namespace spdaskit
 
 
 
+/**
+ *  @brief These are data that shared by the whole tree.
+ *
+ *  @TODO  Make w into a pointer.
+ *
+ */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
 class Setup : public hmlp::tree::Setup<SPLITTER, T>
 {
@@ -72,6 +79,8 @@ class Data
     // Weights
     hmlp::Data<T> w_skel;
 
+    hmlp::Data<T> u_skel;
+
     // Potential
     T u;
 
@@ -109,6 +118,9 @@ class SPDMatrix : public hmlp::Data<T>
 }; // end class SPDMatrix
 
 
+/**
+ *
+ */ 
 template<typename NODE>
 class Summary
 {
@@ -167,6 +179,16 @@ class Summary
 }; // end class Summary
 
 
+/**
+ *  @brief This the main splitter used to build the Spd-Askit tree.
+ *         First compute the approximate center using subsamples.
+ *         Then find the two most far away points to do the 
+ *         projection.
+ *
+ *  @TODO  This splitter often fails to produce an even split when
+ *         the matrix is sparse.
+ *
+ */ 
 template<int N_SPLIT, typename T>
 struct centersplit
 {
@@ -233,6 +255,7 @@ struct centersplit
     split[ 0 ].reserve( n / 2 + 1 );
     split[ 1 ].reserve( n / 2 + 1 );
 
+    // TODO: Can be parallelized
     for ( size_t i = 0; i < n; i ++ )
     {
       if ( temp[ i ] > median ) split[ 1 ].push_back( i );
@@ -241,9 +264,16 @@ struct centersplit
 
     return split;
   };
-}; // end struct 
+}; // end struct centersplit
 
 
+/**
+ *  @brief This the splitter used in the randomized tree.
+ *
+ *  @TODO  This splitter often fails to produce an even split when
+ *         the matrix is sparse.
+ *
+ */ 
 template<int N_SPLIT, typename T>
 struct randomsplit
 {
@@ -286,6 +316,7 @@ struct randomsplit
     split[ 0 ].reserve( n / 2 + 1 );
     split[ 1 ].reserve( n / 2 + 1 );
 
+    // TODO: Can be parallelized
     for ( size_t i = 0; i < n; i ++ )
     {
       if ( temp[ i ] > median ) split[ 1 ].push_back( i );
@@ -294,9 +325,20 @@ struct randomsplit
 
     return split;
   };
-}; // end randomsplit
+}; // end struct randomsplit
 
 
+/**
+ *  @brief This is the task wrapper of the exact KNN search we
+ *         perform in the leaf node of the randomized tree.
+ *         Currently our heap select cannot deal with duplicate
+ *         id; thus, I need to use a std::set to check for the
+ *         duplication before inserting the candidate into the
+ *         heap.
+ *
+ *  @TODO  Improve the heap to deal with unique id.
+ *
+ */ 
 template<class NODE, typename T>
 class KNNTask : public hmlp::Task
 {
@@ -332,7 +374,7 @@ class KNNTask : public hmlp::Task
       auto &NN = *arg->setup->NN;
       auto &lids = arg->lids;
      
-      // Can be parallelized
+      #pragma omp parallel for
       for ( size_t j = 0; j < lids.size(); j ++ )
       {
         std::set<size_t> NNset;
@@ -347,6 +389,14 @@ class KNNTask : public hmlp::Task
         {
           size_t ilid = lids[ i ];
           size_t jlid = lids[ j ];
+
+          if ( ilid >= NN.num() ) 
+          {
+            printf( "ilid %lu exceeds N\n", ilid );
+            exit( 1 );
+          }
+
+
           if ( !NNset.count( ilid ) )
           {
             T dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
@@ -358,11 +408,13 @@ class KNNTask : public hmlp::Task
             // Duplication
           }
         }
-      }
+      } // end omp parallel for
     };
-}; // end class SkeletonizeTask
+}; // end class KNNTask
 
-
+/**
+ *
+ */ 
 template<bool ADAPTIVE, typename NODE>
 void Skeletonize( NODE *node )
 {
@@ -513,6 +565,7 @@ void UpdateWeights( NODE *node )
   auto *rchild = node->rchild;
 
   // w_skel is s-by-nrhs
+  w_skel.clear();
   w_skel.resize( skels.size(), w.dim() );
 
   if ( node->isleaf )
@@ -602,6 +655,32 @@ class UpdateWeightsTask : public hmlp::Task
 template<typename NODE>
 void SkeletonsToSkeletons( NODE *node )
 {
+  auto &K = *node->setup.K;
+  auto &FarNodes = node->NNFarNodes;
+  auto &amap = node->skels;
+  auto &u_skel = node->data.u_skel;
+
+  // Initilize u_skel to be zeros( s, nrhs ).
+  u_skel.clear();
+  u_skel.resize( amap.size(), node->data.w_skel.num(), 0.0 );
+
+  // Reduce all u_skel.
+  for ( auto it = FarNodes.begin(); it != FarNodes.end(); it ++ )
+  {
+    auto &bmap = (*it)->skels;
+    auto &w_skel = (*it)->data.w_skel;
+    auto Kab = K( amap, bmap );
+    assert( w_skel.num() == u_skel.num() );
+    xgemm
+    (
+      "N", "N",
+      u_skel.dim(), u_skel.num(), Kab.dim(),
+      1.0, Kab.data(),    Kab.dim(),
+           w_skel.data(), w_skel.dim(),
+      1.0, u_skel.data(), u_skel.dim()
+    );
+  }
+
 }; // end void SkeletonsToSkeletons()
 
 
@@ -645,7 +724,15 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 }; // end class SkeletonsToSkeletonsTask
 
 
-
+/**
+ *  @brief This is a task in Downward traversal. There is data
+ *         dependency on u_skel.
+ *         
+ */ 
+template<typename NODE>
+void SkeletonsToNodes( NODE *node )
+{
+}; // end SkeletonsToNodes()
 
 
 
@@ -806,17 +893,22 @@ void PrintSet( std::set<NODE*> &set )
 template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
 void NearNodes( TREE &tree )
 {
-  int n_nodes = 1 << tree.depth;
+  auto &setup = tree.setup;
+  auto &NN = *setup.NN;
+  size_t n_nodes = 1 << tree.depth;
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
+  //printf( "NN( %lu, %lu ) depth %lu n_nodes %lu treelist.size() %lu\n", 
+  //    NN.dim(), NN.num(),      
+  //    tree.depth, n_nodes, tree.treelist.size() );
+
+
   // Traverse all leaf nodes. 
-  #pragma omp parallel for
-  for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+  //#pragma omp parallel for
+  for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
     auto *node = *(level_beg + node_ind);
     auto &data = node->data;
-    auto &setup = tree.setup;
-    auto &NN = *setup.NN;
 
     if ( NNPRUNE )
     {
@@ -834,6 +926,7 @@ void NearNodes( TREE &tree )
           size_t neighbor_lid = tree.Getlid( neighbor_gid );
           size_t neighbor_morton = setup.morton[ neighbor_lid ];
           //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
+
           node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
         }
       }
@@ -844,7 +937,7 @@ void NearNodes( TREE &tree )
       node->NearNodes.insert( node );
     }
   }
- 
+
   if ( SYMMETRIC && NNPRUNE )
   {
     // Make it symmetric
@@ -1005,7 +1098,9 @@ void FarNodes( TREE &tree )
 template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
 void NearFarNodes( TREE &tree )
 {
+  //printf( "Enter NearNodes\n" );
   NearNodes<SYMMETRIC, NNPRUNE>( tree );
+  //printf( "Finish NearNodes\n" );
   FarNodes<SYMMETRIC, NNPRUNE>( tree );
 };
 

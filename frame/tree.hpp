@@ -56,6 +56,14 @@ bool IsMyParent( size_t me, size_t it )
 
 
 
+
+/**
+ *  @brief Permuate the order of gids and lids of each inner node
+ *         to the order of leaf nodes.
+ *         
+ *  @para  The parallelism is exploited in the task level using a
+ *         bottom up traversal.
+ */ 
 template<typename NODE>
 class PermuteTask : public hmlp::Task
 {
@@ -98,6 +106,9 @@ class PermuteTask : public hmlp::Task
 /**
  *  @brief Compute the mean values.
  *
+ *  @para  The parallelism is exploited by manual reduction with
+ *         temporary buffers.
+ *
  */ 
 template<typename T>
 std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &lids )
@@ -121,6 +132,7 @@ std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &
     }
   }
 
+  // Reduce all temporary buffers
   for ( int j = 0; j < n_split; j ++ )
   {
     for ( int p = 0; p < d; p ++ )
@@ -141,7 +153,10 @@ std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &
 }; // end Mean()
 
 
+
+
 /**
+ *  @brief Compute the mean values. (alternative interface)
  *  
  */ 
 template<typename T>
@@ -150,12 +165,16 @@ std::vector<T> Mean( int d, int n, std::vector<T> &X )
   std::vector<std::size_t> lids( n );
   for ( int i = 0; i < n; i ++ ) lids[ i ] = i;
   return Mean( d, n, X, lids );
-};
+}; // end Mean()
 
 
 /**
- *  @brief
+ *  @brief Select the kth element in x in the increasing order.
  *
+ *  @para  
+ *
+ *  @TODO  The mean function is parallel, but the splitter is not.
+ *         I need something like a parallel scan.
  */ 
 template<typename T>
 T Select( int n, int k, std::vector<T> &x )
@@ -166,6 +185,7 @@ T Select( int n, int k, std::vector<T> &x )
   lhs.reserve( n );
   rhs.reserve( n );
 
+  // TODO: This splitter need to be parallelized.
   for ( int i = 0; i < n; i ++ )
   {
     if ( x[ i ] > mean[ 0 ] ) rhs.push_back( x[ i ] );
@@ -193,9 +213,19 @@ T Select( int n, int k, std::vector<T> &x )
   {
     return Select( rhs.size(), k - lhs.size(), rhs );
   }
-};
+}; // end Select()
 
 
+/**
+ *  @brief This is the default ball tree splitter. Given coordinates,
+ *         compute the direction from the two most far away points.
+ *         Project all points to this line and split into two groups
+ *         using a median select.
+ *
+ *  @para
+ *
+ *  @TODO  Need to explit the parallelism.
+ */ 
 template<int N_SPLIT, typename T>
 struct centersplit
 {
@@ -397,15 +427,23 @@ class Node
 
     void Split( int m, int max_depth )
     {
+
+      for ( size_t i = 0; i < lids.size(); i ++ )
+      {
+        assert( lids[ i ] < 1024 );
+        assert( gids[ i ] < 1024 );
+      }
+
       if ( n > m && l < max_depth )
       {
         auto split = setup->splitter( gids, lids );
 
         if ( N_CHILDREN == 2 )
         {
-          if ( std::abs( split[ 0 ].size() - split[ 1 ].size() > 1 ) )
+          if ( std::abs( (int)split[ 0 ].size() - (int)split[ 1 ].size() ) > 1 )
           {
-            printf( "WARNING! the split is uneven, the tree may be an incomplete binary tree. Using random split instead\n" );
+            printf( "WARNING! the split is uneven. Using random split instead\n" );
+            printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", split[ 0 ].size(), split[ 1 ].size() );
             split[ 0 ].resize( gids.size() / 2 );
             split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
             for ( size_t i = 0; i < gids.size(); i ++ )
@@ -413,6 +451,10 @@ class Node
               if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
               else                       split[ 1 ][ i - ( gids.size() / 2 ) ] = i;
             }
+          }
+          else
+          {
+            //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", split[ 0 ].size(), split[ 1 ].size() );
           }
         }
 
@@ -554,6 +596,7 @@ class Node
 /**
  *  @brief Data and setup that are shared with all nodes.
  *
+ *
  */ 
 template<typename SPLITTER, typename T>
 class Setup
@@ -562,11 +605,9 @@ class Setup
 
     Setup() {};
 
-    ~Setup()
-    {
-    };
+    ~Setup() {};
 
-    hmlp::Data<T> X;
+    hmlp::Data<T> *X;
 
     hmlp::Data<std::pair<T, std::size_t>> *NN;
 
@@ -576,7 +617,9 @@ class Setup
 };
 
 
-//template<typename SPLITTER, int N_CHILDREN, typename DATA, typename T>
+/**
+ *
+ */ 
 template<class SETUP, class NODE, int N_CHILDREN, typename T>
 class Tree
 {
@@ -670,7 +713,11 @@ class Tree
       // Get my index in this level.
       size_t shift = ( 1 << LEVELOFFSET ) - mylevel + LEVELOFFSET;
       size_t index = me >> shift;
-      //printf( "level %lu index %lu\n", mylevel, index );
+      if ( index >= ( 1 << mylevel ) )
+      {
+        printf( "level %lu index %lu\n", mylevel, index );
+        hmlp::hmlp_print_binary( me );
+      }
       return *(level_beg + index);
     };
 
@@ -717,6 +764,8 @@ class Tree
       {
         treelist.shrink_to_fit();
         depth = treelist.back()->l;
+        assert( treelist.size() == (2 << depth) - 1 );
+        //printf( "depth %lu number of tree nides %lu\n", depth, treelist.size() );
       }
 
       if ( N_CHILDREN == 2 )
@@ -823,6 +872,19 @@ class Tree
         }
         printf( "\n" );
 #endif
+      }
+
+
+      #pragma omp parallel for
+      for ( size_t j = 0; j < NN.num(); j ++ )
+      {
+        for ( size_t i = 0; i < NN.dim(); i ++ )
+        {
+          if ( NN( i, j ).second >= NN.num() )
+          {
+            printf( "NN bug ( %lu, %lu ) = %lf, %lu\n", i, j, NN( i, j ).first, NN( i, j ).second );
+          }
+        }
       }
 
       return NN;
@@ -1025,6 +1087,11 @@ class Tree
       }
     }; // end TraverseDown()
 
+
+    /**
+     *  @brief Summarize all events in each level. 
+     *
+     */ 
     template<typename SUMMARY>
     void Summary( SUMMARY &summary )
     {
@@ -1046,46 +1113,9 @@ class Tree
 
 
 
-//template<class KNNTASK, typename TREE, typename T>
-//hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
-//(
-//  TREE &rkdt, std::size_t n_tree,
-//  std::size_t k, std::size_t max_depth,
-//  std::vector<std::size_t> &gids,
-//  std::vector<std::size_t> &lids,
-//  KNNTASK knntask,
-//  std::pair<T, std::size_t> initNN
-//)
-//{
-//  // k-by-N
-//  hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
-//
-//  // This loop has to be sequential to prevent from race condiditon on NN.
-//  for ( int t = 0; t < n_tree; t ++ )
-//  {
-//    auto tree = rkdt;
-//
-//    // The TREE->SETUP must have NN as a member.
-//    tree.setup.NN = &NN;
-//
-//    // On exist all leafnode's lids contain candidiates.
-//    // Each leafnode's lids are candidates for all points in the node.
-//    tree.TreePartition( 2 * k, max_depth, gids, lids );
-//
-//    tree.TraverseLeafs<true, KNNTASK>();
-//  }
-//
-//  return NN;
-//}; // end void AllNearestNeighbor()
-
-
 
 
 }; // end namespace tree 
-
-
-
-
 }; // end namespace hmlp
 
 #endif // define TREE_HPP

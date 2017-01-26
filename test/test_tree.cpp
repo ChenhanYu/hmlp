@@ -159,9 +159,13 @@ void test_tree( int d, int n )
   // ------------------------------------------------------------------------
   // Initialization
   // ------------------------------------------------------------------------
-  tree.setup.X.resize( d, n );
-  tree.setup.X.rand();
-  tree.setup.splitter.Coordinate = &tree.setup.X; // The closure takes coordinates.
+  hmlp::Data<T> X( d, n );
+  X.rand();
+  tree.setup.X = &X;
+  //tree.setup.X.resize( d, n );
+  //tree.setup.X.rand();
+
+  tree.setup.splitter.Coordinate = tree.setup.X; // The closure takes coordinates.
   tree.setup.s = 128;
   tree.setup.stol = 1E-3;
   for ( auto i = 0; i < n; i ++ ) 
