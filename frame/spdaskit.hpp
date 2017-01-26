@@ -390,13 +390,6 @@ class KNNTask : public hmlp::Task
           size_t ilid = lids[ i ];
           size_t jlid = lids[ j ];
 
-          if ( ilid >= NN.num() ) 
-          {
-            printf( "ilid %lu exceeds N\n", ilid );
-            exit( 1 );
-          }
-
-
           if ( !NNset.count( ilid ) )
           {
             T dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );

@@ -179,7 +179,7 @@ std::vector<T> Mean( int d, int n, std::vector<T> &X )
 template<typename T>
 T Select( int n, int k, std::vector<T> &x )
 {
-  assert( k <= n );
+  assert( k <= n && x.size() == n );
   std::vector<T> mean = Mean( 1, n, x );
   std::vector<T> lhs, rhs;
   lhs.reserve( n );
@@ -199,7 +199,7 @@ T Select( int n, int k, std::vector<T> &x )
 
 
   // TODO: Here lhs.size() == k seems to be buggy.
-  if ( lhs.size() == n || lhs.size() == k || n == 1 ) 
+  if ( lhs.size() == n || rhs.size() == n || lhs.size() == k || n == 1 ) 
   {
     //printf( "lrh[ %d - 1 ] %lf n %d\n", k, lhs[ k - 1 ], n );
     //return lhs[ k - 1 ];
@@ -428,11 +428,11 @@ class Node
     void Split( int m, int max_depth )
     {
 
-      for ( size_t i = 0; i < lids.size(); i ++ )
-      {
-        assert( lids[ i ] < 1024 );
-        assert( gids[ i ] < 1024 );
-      }
+      //for ( size_t i = 0; i < lids.size(); i ++ )
+      //{
+      //  assert( lids[ i ] < 1024 );
+      //  assert( gids[ i ] < 1024 );
+      //}
 
       if ( n > m && l < max_depth )
       {
@@ -736,15 +736,15 @@ class Tree
       m = leafsize;
 
       std::deque<NODE*> treequeue;
-      
+     
+      treelist.clear();
+      treequeue.clear();
       treelist.reserve( ( n / m ) * N_CHILDREN );
 
       auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
    
       treequeue.push_back( root );
     
-      depth = max_depth;
-
       // TODO: there is parallelism to be exploited here.
       while ( auto *node = treequeue.front() )
       {
@@ -778,6 +778,7 @@ class Tree
       {
         printf( "No morton id available\n" );
       }
+
 
       // Adgust lids and gids to the appropriate order.
       PermuteTask<NODE> permutetask;
@@ -832,8 +833,6 @@ class Tree
       for ( int t = 0; t < n_tree; t ++ )      
       {
         TreePartition( 2 * k, max_depth, gids, lids );
-
-        //printf( "treeparition leaf size %lu\n", 2 * k );
 
         TraverseLeafs<true>( dummy );
         for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
