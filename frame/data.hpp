@@ -46,6 +46,8 @@ class Data : public std::vector<T, Allocator>
       this->d = d;
       this->n = n;
 
+      std::cout << filename << std::endl;
+
       std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
       if ( file.is_open() )
       {
@@ -83,6 +85,28 @@ class Data : public std::vector<T, Allocator>
       assert( this->d == d );
       assert( this->n == n );
       assert( this->size() == d * n );
+
+      std::cout << filename << std::endl;
+
+      //FILE *file;
+
+      //file=fopen( filename.data(),"rb" );
+      //
+      //if ( file ) 
+      //{
+      //  T *buffer = new T[ d * n ];
+      //  fread( buffer, sizeof(T), d * n, file );
+      //  fclose( file );
+      //  for ( int i = 0; i < d * n; i ++ )
+      //  {
+      //    (*this)[ i ] = buffer[ i ];
+      //  }
+      //  delete buffer;
+      //}
+      //else
+      //{
+      //  printf( "fail to open %s\n", filename.data() );
+      //}
 
       std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
       if ( file.is_open() )

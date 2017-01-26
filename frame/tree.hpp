@@ -401,6 +401,23 @@ class Node
       {
         auto split = setup->splitter( gids, lids );
 
+        if ( N_CHILDREN == 2 )
+        {
+          if ( std::abs( split[ 0 ].size() - split[ 1 ].size() > 1 ) )
+          {
+            printf( "WARNING! the split is uneven, the tree may be an incomplete binary tree. Using random split instead\n" );
+            split[ 0 ].resize( gids.size() / 2 );
+            split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
+            for ( size_t i = 0; i < gids.size(); i ++ )
+            {
+              if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
+              else                       split[ 1 ][ i - ( gids.size() / 2 ) ] = i;
+            }
+          }
+        }
+
+
+
         // TODO: Can be parallelized
         for ( int i = 0; i < N_CHILDREN; i ++ )
         {
@@ -937,8 +954,8 @@ class Tree
             if ( node->kids[ 0 ] )
             {
 #ifdef DEBUG_TREE
-              printf( "DependencyAdd %d -> %d\n", node->kids[ 0 ]->treelist_id, node->treelist_id );
-              printf( "DependencyAdd %d -> %d\n", node->kids[ 1 ]->treelist_id, node->treelist_id );
+              printf( "DependencyAdd %lu -> %lu\n", node->kids[ 0 ]->treelist_id, node->treelist_id );
+              printf( "DependencyAdd %lu -> %lu\n", node->kids[ 1 ]->treelist_id, node->treelist_id );
 #endif
               Scheduler::DependencyAdd( tasklist[ node->kids[ 0 ]->treelist_id ], task );
               Scheduler::DependencyAdd( tasklist[ node->kids[ 1 ]->treelist_id ], task );
