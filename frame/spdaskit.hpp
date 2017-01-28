@@ -418,6 +418,22 @@ class KNNTask : public hmlp::Task
     };
 }; // end class KNNTask
 
+// Helper functions for sorting sampling neighbors 
+template<typename A, typename B>
+std::pair<B,A> flip_pair(const std::pair<A,B> &p)
+{
+    return std::pair<B,A>(p.second, p.first);
+}
+
+template<typename A, typename B>
+std::multimap<B,A> flip_map(const std::map<A,B> &src)
+{
+    std::multimap<B,A> dst;
+    std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()), 
+                   flip_pair<A,B>);
+    return dst;
+}
+
 template<typename NODE >
 void BuildNeighbors( NODE *node )
 {
@@ -586,15 +602,16 @@ void Skeletonize( NODE *node )
   // Create nsamples.
   // Build Node Neighbors from all nearest neighbors
   BuildNeighbors( node );
-  // we draw here uniform from sampling neighbors 
-  // we should prioritize by distance, but that comes with adaptive
+  
   auto &snids = data.snids;
+  // Order snids by distance
+  std::multimap<double,size_t > ordered_snids = flip_map(snids);
   if ( nsamples < K.num() - node->n )
   {
     amap.reserve( nsamples );
-    for (auto cur=snids.begin();cur!=snids.end(); cur++)
+    for (auto cur=ordered_snids.begin();cur!=ordered_snids.end(); cur++)
     {
-      amap.push_back(cur->first);
+      amap.push_back(cur->second);
     }
     if (amap.size() < nsamples)
     {
