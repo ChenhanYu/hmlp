@@ -395,6 +395,7 @@ class Node
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
+      this->recent_task = NULL;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
@@ -418,6 +419,7 @@ class Node
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
+      this->recent_task = NULL;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
@@ -442,8 +444,8 @@ class Node
         {
           if ( std::abs( (int)split[ 0 ].size() - (int)split[ 1 ].size() ) > 1 )
           {
-            printf( "WARNING! the split is uneven. Using random split instead\n" );
-            printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", split[ 0 ].size(), split[ 1 ].size() );
+            //printf( "WARNING! the split is uneven. Using random split instead\n" );
+            //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", split[ 0 ].size(), split[ 1 ].size() );
             split[ 0 ].resize( gids.size() / 2 );
             split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
             for ( size_t i = 0; i < gids.size(); i ++ )
@@ -586,7 +588,7 @@ class Node
 
     bool isleaf;
 
-    //SPLITTER splitter;
+    hmlp::Task *recent_task;
 
   private:
 
@@ -891,6 +893,52 @@ class Tree
 
 
 
+    template<bool DEPENDONPREVIOUSTASK, bool LEVELBYLEVEL, class TASK>
+    void TraverseUnOrdered( TASK &dummy )
+    {
+      std::vector<TASK*> tasklist;
+      if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
+
+      for ( std::size_t l = 0; l <= depth; l ++ )
+      {
+        std::size_t n_nodes = 1 << l;
+        auto level_beg = treelist.begin() + n_nodes - 1;
+        if ( LEVELBYLEVEL )
+        {
+          #pragma omp parallel for 
+          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          {
+            auto *node = *(level_beg + node_ind);
+            auto *task = new TASK();
+            task->Set( node );
+            task->Execute( NULL );
+            delete task;
+          }
+        }
+        else // using dynamic scheduling
+        {
+          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          {
+            auto *node = *(level_beg + node_ind);
+            // Create tasks
+            tasklist[ node->treelist_id ] = new TASK();
+            auto *task = tasklist[ node->treelist_id ];
+            task->Submit();
+            task->Set( node );
+            node->recent_task = task;
+            if ( DEPENDONPREVIOUSTASK )
+            {
+              Scheduler::DependencyAdd( node->recent_task, task );
+            }
+            else
+            {
+              task->Enqueue();
+            }
+          }
+        }
+      }
+
+    }; // end TraverseUnOrdered()
 
 
 
@@ -929,6 +977,7 @@ class Tree
           auto *task = tasklist[ node->treelist_id ];
           task->Submit();
           task->Set( node );
+          node->recent_task = task;
           if ( node->kids[ 0 ] )
           {
             printf( "There should not be inner nodes in TraverseLeafs.\n" );
@@ -1010,6 +1059,7 @@ class Tree
             auto *task = tasklist[ node->treelist_id ];
             task->Submit();
             task->Set( node );
+            node->recent_task = task;
 
             // Setup dependencies
             if ( node->kids[ 0 ] )
@@ -1039,24 +1089,21 @@ class Tree
       std::vector<TASK*> tasklist;
       if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
 
-      for ( std::size_t l = 0; l= < depth; l ++ )
+      for ( std::size_t l = 0; l <= depth; l ++ )
       {
+        std::size_t n_nodes = 1 << l;
+        auto level_beg = treelist.begin() + n_nodes - 1;
+
         if ( LEVELBYLEVEL )
         {
-          std::size_t n_nodes = 1 << l;
-          auto level_beg = treelist.begin() + n_nodes - 1;
-
-          if ( LEVELBYLEVEL )
+          #pragma omp parallel for 
+          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
           {
-            #pragma omp parallel for 
-            for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
-            {
-              auto *node = *(level_beg + node_ind);
-              auto *task = new TASK();
-              task->Set( node );
-              task->Execute( NULL );
-              delete task;
-            }
+            auto *node = *(level_beg + node_ind);
+            auto *task = new TASK();
+            task->Set( node );
+            task->Execute( NULL );
+            delete task;
           }
         }
         else // using dynamic scheduling
@@ -1069,6 +1116,7 @@ class Tree
             auto *task = tasklist[ node->treelist_id ];
             task->Submit();
             task->Set( node );
+            node->recent_task = task;
 
             if ( node->parent )
             {

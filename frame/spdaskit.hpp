@@ -57,6 +57,9 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     // Weights
     hmlp::Data<T> w;
 
+    // Potentials
+    hmlp::Data<T> u;
+
 }; // end class Setup
 
 
@@ -82,7 +85,7 @@ class Data
     hmlp::Data<T> u_skel;
 
     // Potential
-    T u;
+    // T u;
 
     // Events (from HMLP Runtime)
     hmlp::Event skeletonize;
@@ -648,19 +651,24 @@ class UpdateWeightsTask : public hmlp::Task
 template<typename NODE>
 void SkeletonsToSkeletons( NODE *node )
 {
-  auto &K = *node->setup.K;
+  if ( !node->parent || !node->data.isskel ) return;
+
+
+  auto &K = *node->setup->K;
   auto &FarNodes = node->NNFarNodes;
-  auto &amap = node->skels;
+  auto &amap = node->data.skels;
   auto &u_skel = node->data.u_skel;
 
   // Initilize u_skel to be zeros( s, nrhs ).
   u_skel.clear();
   u_skel.resize( amap.size(), node->data.w_skel.num(), 0.0 );
 
+  //printf( "%lu Skel2Skel ", node->treelist_id );
   // Reduce all u_skel.
   for ( auto it = FarNodes.begin(); it != FarNodes.end(); it ++ )
   {
-    auto &bmap = (*it)->skels;
+    //printf( "%lu, ", (*it)->treelist_id );
+    auto &bmap = (*it)->data.skels;
     auto &w_skel = (*it)->data.w_skel;
     auto Kab = K( amap, bmap );
     assert( w_skel.num() == u_skel.num() );
@@ -673,10 +681,9 @@ void SkeletonsToSkeletons( NODE *node )
       1.0, u_skel.data(), u_skel.dim()
     );
   }
+  //printf( "\n" );
 
 }; // end void SkeletonsToSkeletons()
-
-
 
 
 
@@ -695,7 +702,6 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
   public:
 
     NODE *arg;
-
 
     void Set( NODE *user_arg )
     {
@@ -722,17 +728,162 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
  *         dependency on u_skel.
  *         
  */ 
-template<typename NODE>
+template<typename NODE, typename T>
 void SkeletonsToNodes( NODE *node )
 {
+  if ( !node->parent || !node->data.isskel ) return;
+
+  // Gather shared data and create reference
+  auto &K = *node->setup->K;
+  auto &w = node->setup->w;
+  auto &u = node->setup->u;
+
+  // Gather per node data and create reference
+  auto &lids = node->lids;
+  auto &data = node->data;
+  auto &proj = data.proj;
+  auto &skels = data.skels;
+  auto &u_skel = data.u_skel;
+  auto *lchild = node->lchild;
+  auto *rchild = node->rchild;
+
+  //printf( "%lu Skel2Node ", node->treelist_id );
+
+  if ( node->isleaf )
+  {
+    auto &NearNodes = node->NNNearNodes;
+    auto &amap = node->lids;
+    hmlp::Data<T> u_leaf( u_skel.num(), lids.size(), 0.0 );
+    //xgemm
+    //(
+    //  "T", "T",
+    //  u_leaf.num(), u_leaf.dim(), proj.dim(),
+    //  1.0, proj.data(),   proj.dim(),
+    //       u_skel.data(), u_skel.dim(),
+    //  0.0, u_leaf.data(), u_leaf.dim()
+    //);
+    xgemm
+    (
+      "T", "N",
+      u_leaf.dim(), u_leaf.num(), proj.dim(),
+      1.0, u_skel.data(), u_skel.dim(),
+           proj.data(),   proj.dim(),
+      0.0, u_leaf.data(), u_leaf.dim()
+    );
+
+    for ( auto it = NearNodes.begin(); it != NearNodes.end(); it ++ )
+    {
+      //printf( "%lu, ", (*it)->treelist_id );
+      auto &bmap = (*it)->lids;
+      auto Kab = K( amap, bmap );
+      auto wb = w( bmap );
+      xgemm
+      (
+        "N", "T",
+        u_leaf.dim(), u_leaf.num(), wb.num(),
+        1.0, wb.data(),     wb.dim(),
+             Kab.data(),    Kab.dim(),
+        1.0, u_leaf.data(), u_leaf.dim()
+      );
+    }
+
+    for ( size_t j = 0; j < amap.size(); j ++ )
+    {
+      for ( size_t i = 0; i < u.dim(); i ++ )
+      {
+        u[ amap[ j ] * u.dim() + i ] = u_leaf[ j * u.dim() + i ];
+      }
+    }
+  }
+  else
+  {
+    auto &u_lskel = lchild->data.u_skel;
+    auto &u_rskel = rchild->data.u_skel;
+    auto &lskel = lchild->data.skels;
+    auto &rskel = rchild->data.skels;
+    xgemm
+    (
+      "T", "N",
+      u_lskel.dim(), u_lskel.num(), proj.dim(),
+      1.0, proj.data(),    proj.dim(),
+           u_skel.data(),  u_skel.dim(),
+      1.0, u_lskel.data(), u_lskel.dim()
+    );
+    xgemm
+    (
+      "T", "N",
+      u_rskel.dim(), u_rskel.num(), proj.dim(),
+      1.0, proj.data() + proj.dim() * lskel.size(), proj.dim(),
+           u_rskel.data(), u_rskel.dim(),
+      1.0, u_rskel.data(), u_rskel.dim()
+    );
+  }
+  //printf( "\n" );
+
 }; // end SkeletonsToNodes()
 
 
+template<typename NODE, typename T>
+class SkeletonsToNodesTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      name = std::string( "SkeletonsToNodes" );
+      arg = user_arg;
+      // Need an accurate cost model.
+      cost = 1.0;
+    };
+
+    void GetEventRecord()
+    {
+      //arg->data.updateweight = event;
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      SkeletonsToNodes<NODE, T>( arg );
+    };
+}; // end class SkeletonsToNodesTask
 
 
+template<typename NODE, typename T>
+void LeavesToLeaves( NODE *node )
+{
+  assert( node->isleaf );
 
 
+}; // end void LeavesToLeaves()
 
+
+template<typename NODE, typename T>
+class LeavesToLeavesTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      name = std::string( "LeavesToLeaves" );
+      arg = user_arg;
+      // Need an accurate cost model.
+      cost = 1.0;
+    };
+
+    void GetEventRecord()
+    {
+      //arg->data.updateweight = event;
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      LeavesToLeaves<NODE, T>( arg );
+    };
+}; // end class SkeletonsToNodesTask
 
 
 
@@ -821,6 +972,8 @@ void Evaluate( NODE *node, NODE *target )
   if ( NNPRUNE ) NearNodes = &target->NNNearNodes;
   else           NearNodes = &target->NearNodes;
 
+  //std::cout << data.isskel << std::endl;
+
   if ( !data.isskel || node->ContainAny( *NearNodes ) )
   {
     if ( node->isleaf )
@@ -829,6 +982,7 @@ void Evaluate( NODE *node, NODE *target )
     }
     else
     {
+      //printf( "%lu not prunes %lu\n", target->treelist_id, node->treelist_id );
       Evaluate<SYMMETRIC, NNPRUNE>( lchild, target );
       Evaluate<SYMMETRIC, NNPRUNE>( rchild, target );
     }
@@ -840,11 +994,13 @@ void Evaluate( NODE *node, NODE *target )
       // Since target->morton is larger than the visiting node,
       // the interaction between the target and this node has
       // been computed. 
+      //printf( "symmetric prune\n" );
     }
     else
     {
       if ( NNPRUNE ) 
       {
+        //printf( "target %lu has FarNode %lu\n", target->treelist_id, node->treelist_id );
         target->NNFarNodes.insert( node );
       }
       else           
@@ -943,7 +1099,7 @@ void NearNodes( TREE &tree )
         (*it)->NNNearNodes.insert( node );
       }
     }
-#ifdef DEBUG_SPDASKIT
+//#ifdef DEBUG_SPDASKIT
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
@@ -955,7 +1111,7 @@ void NearNodes( TREE &tree )
       }
       printf( "\n" );
     }
-#endif
+//#endif
   }
 };
 
@@ -966,7 +1122,6 @@ void NearNodes( TREE &tree )
 template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
 void FarNodes( TREE &tree )
 {
-
   for ( int l = tree.depth; l >= 0; l -- )
   {
     std::size_t n_nodes = 1 << l;
@@ -979,6 +1134,7 @@ void FarNodes( TREE &tree )
       if ( node->isleaf )
       {
         Evaluate<SYMMETRIC, NNPRUNE>( tree.treelist[ 0 ], node );
+        //printf( "Leaf nodes evaluate\n" );
       }
       else
       {
@@ -1368,9 +1524,20 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
   for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
 
   auto Kab = K( amap, bmap );
+  auto exact = potentials;
 
-  auto nrm2 = hmlp_norm( potentials.dim(), potentials.num(), 
-                         potentials.data(), potentials.dim() ); 
+  xgemm
+  (
+    "N", "T",
+    Kab.dim(), w.dim(), w.num(),
+    1.0, Kab.data(),        Kab.dim(),
+          w.data(),          w.dim(),
+    0.0, exact.data(), exact.dim()
+  );          
+
+
+  auto nrm2 = hmlp_norm( exact.dim(),  exact.num(), 
+                         exact.data(), exact.dim() ); 
 
   xgemm
   (

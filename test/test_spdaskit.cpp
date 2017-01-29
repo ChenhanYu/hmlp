@@ -71,6 +71,8 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
   using SKELTASK = hmlp::spdaskit::SkeletonizeTask<ADAPTIVE, NODE>;
   using UPDATETASK = hmlp::spdaskit::UpdateWeightsTask<NODE>;
+  using SKELTOSKELTASK = hmlp::spdaskit::SkeletonsToSkeletonsTask<NODE>;
+  using SKELTONODETASK = hmlp::spdaskit::SkeletonsToNodesTask<NODE, T>;
 
   // Instantiation for the randomisze Spd-Askit tree.
   using RKDTSPLITTER = hmlp::spdaskit::randomsplit<N_CHILDREN, T>;
@@ -83,6 +85,8 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
 
   // Dummy instances for each task.
   SKELTASK skeltask;
+  SKELTOSKELTASK skeltoskeltask;
+  SKELTONODETASK skeltonodetask;
   UPDATETASK updatetask;
   KNNTASK knntask;
 
@@ -139,11 +143,15 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   // ------------------------------------------------------------------------
   tree.setup.w.resize( nrhs, n );
   tree.setup.w.rand();
+  tree.setup.u.resize( nrhs, n );
   // ------------------------------------------------------------------------
 
   beg = omp_get_wtime();
   tree.TreePartition( m, 10, gids, lids );
   tree_time = omp_get_wtime() - beg;
+
+
+
 
   beg = omp_get_wtime();
   // Sekeletonization with dynamic scheduling (symbolic traversal).
@@ -164,6 +172,21 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
       dynamic_time, ref_time, omptask_time );
 
+
+
+  // NearFarNodes (This requires to know the fact that of ``isskel''.)
+  const bool SYMMETRIC_PRUNING = true;
+  const bool NNPRUNE = true;
+  beg = omp_get_wtime();
+  hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNING, NNPRUNE>( tree );
+  symbolic_evaluation_time = omp_get_wtime() - beg;
+  hmlp::spdaskit::DrawInteraction<true>( tree );
+  printf( "end SymmetricNearNodes\n" );
+
+
+
+
+
   beg = omp_get_wtime();
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   tree.TraverseUp<false>( updatetask );
@@ -182,6 +205,24 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
       dynamic_time, ref_time, omptask_time );
 
+
+  beg = omp_get_wtime();
+  tree.TraverseUnOrdered<false,false>( skeltoskeltask );
+  hmlp_run();
+  dynamic_time = omp_get_wtime() - beg;
+  printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
+      dynamic_time, ref_time, omptask_time );
+
+  beg = omp_get_wtime();
+  tree.TraverseDown<false>( skeltonodetask );
+  //tree.TraverseDown<true>( skeltonodetask );
+  hmlp_run();
+  dynamic_time = omp_get_wtime() - beg;
+  printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
+      dynamic_time, ref_time, omptask_time );
+
+
+
   // Use the right most leaf node to test the accuracy.
   // Do not use NN pruning
   /*
@@ -190,17 +231,6 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   hmlp::spdaskit::ComputeError( tree.treelist.back(), potentials );
   */
 
-
-  // NearFarNodes
-  const bool SYMMETRIC_PRUNING = true;
-  const bool NNPRUNE = true;
-  beg = omp_get_wtime();
-  hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNING, NNPRUNE>( tree );
-  symbolic_evaluation_time = omp_get_wtime() - beg;
-  printf( "end SymmetricNearNodes\n" );
-  hmlp::spdaskit::DrawInteraction<true>( tree );
-
-//  printf( "end SymmetricNearNodes\n" );
 
 
   // Test evaluation with NN prunning.
@@ -218,14 +248,24 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
     nonneval_time = omp_get_wtime() - beg;
     auto nonnerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
 
+
+
     // Symbolic evaluation
-    hmlp::spdaskit::Evaluate<true, true>( tree, i, potentials );
+    //hmlp::spdaskit::Evaluate<true, true>( tree, i, potentials );
+
+    printf( "%lu %lu\n", potentials.dim(), potentials.num() );
+
+    for ( size_t p = 0; p < potentials.num(); p ++ )
+    {
+      potentials[ p ] = tree.setup.u( p, i );
+    }
+    auto fmmerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
 
 #ifdef DUMP_ANALYSIS_DATA
     printf( "@DATA\n" );
     printf( "%5lu, %E, %E\n", i, nnerr, nonnerr );
 #endif
-    printf( "gid %5lu relative error (NN) %E, relative error %E\n", i, nnerr, nonnerr );
+    printf( "gid %5lu relative error (NN) %E, relative error %E fmm error %E\n", i, nnerr, nonnerr, fmmerr );
   }
 
 #ifdef DUMP_ANALYSIS_DATA
@@ -247,7 +287,7 @@ int main( int argc, char *argv[] )
   size_t n, m, k, s, nrhs;
 
   const bool ADAPTIVE = false;
-  const bool RANDOMMATRIX = false;
+  const bool RANDOMMATRIX = true;
 
   sscanf( argv[ 1 ], "%lu", &n );
   sscanf( argv[ 2 ], "%lu", &m );
