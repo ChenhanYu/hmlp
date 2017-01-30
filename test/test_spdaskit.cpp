@@ -253,8 +253,6 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
     // Symbolic evaluation
     //hmlp::spdaskit::Evaluate<true, true>( tree, i, potentials );
 
-    printf( "%lu %lu\n", potentials.dim(), potentials.num() );
-
     for ( size_t p = 0; p < potentials.num(); p ++ )
     {
       potentials[ p ] = tree.setup.u( p, i );

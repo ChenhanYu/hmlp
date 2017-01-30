@@ -683,6 +683,54 @@ void SkeletonsToSkeletons( NODE *node )
   }
   //printf( "\n" );
 
+  //for ( auto it = FarNodes.begin(); it != FarNodes.end(); it ++ )
+  //{
+  //  auto &alids = node->lids;
+  //  auto &blids = (*it)->lids;
+  //  auto &bmap = (*it)->data.skels;
+  //  auto &proja = node->data.proj;
+  //  auto &projb = (*it)->data.proj;
+  //  auto Kab = K( alids, blids );
+  //  auto Kas = K( alids, bmap );
+  //  auto Kss = K( amap, bmap );
+
+  //  auto nrm2 = hmlp_norm( Kab.dim(), Kab.num(), Kab.data(), Kab.dim() ); 
+  //  xgemm
+  //  (
+  //    "N", "N",
+  //    Kab.dim(), Kab.num(), projb.dim(),
+  //    -1.0, Kas.data(), Kas.dim(),
+  //         projb.data(), projb.dim(),
+  //     1.0, Kab.data(), Kab.dim()
+  //  );
+  //  auto err = hmlp_norm( Kab.dim(), Kab.num(), Kab.data(), Kab.dim() ); 
+  //  auto iderr = err / nrm2;
+
+
+  //  Kab = K( alids, blids );
+  //  xgemm
+  //  (
+  //    "T", "N",
+  //    Kas.dim(), Kas.num(), proja.dim(),
+  //    1.0, proja.data(), proja.dim(),
+  //         Kss.data(), Kss.dim(),
+  //    0.0, Kas.data(), Kas.dim()
+  //  );
+  //  xgemm
+  //  (
+  //    "N", "N",
+  //    Kab.dim(), Kab.num(), projb.dim(),
+  //    -1.0, Kas.data(), Kas.dim(),
+  //         projb.data(), projb.dim(),
+  //     1.0, Kab.data(), Kab.dim()
+  //  );
+  //  err = hmlp_norm( Kab.dim(), Kab.num(), Kab.data(), Kab.dim() );
+  //  auto fmmerr = err / nrm2;
+
+  //  printf( "%lu %lu error: %E, %E\n", node->treelist_id, (*it)->treelist_id, iderr, fmmerr );
+
+  //}
+
 }; // end void SkeletonsToSkeletons()
 
 
@@ -814,7 +862,7 @@ void SkeletonsToNodes( NODE *node )
       "T", "N",
       u_rskel.dim(), u_rskel.num(), proj.dim(),
       1.0, proj.data() + proj.dim() * lskel.size(), proj.dim(),
-           u_rskel.data(), u_rskel.dim(),
+           u_skel.data(), u_skel.dim(),
       1.0, u_rskel.data(), u_rskel.dim()
     );
   }
@@ -1099,7 +1147,7 @@ void NearNodes( TREE &tree )
         (*it)->NNNearNodes.insert( node );
       }
     }
-//#ifdef DEBUG_SPDASKIT
+#ifdef DEBUG_SPDASKIT
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
@@ -1111,7 +1159,7 @@ void NearNodes( TREE &tree )
       }
       printf( "\n" );
     }
-//#endif
+#endif
   }
 };
 
