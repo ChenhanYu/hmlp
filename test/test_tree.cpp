@@ -180,13 +180,13 @@ void test_tree( int d, int n )
 
   beg = omp_get_wtime();
   // Sekeletonization with dynamic scheduling (symbolic traversal).
-  tree.TraverseUp<false>( skeltask );
+  tree.TraverseUp<false, true>( skeltask );
   // Execute all skeletonization tasks.
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
   beg = omp_get_wtime();
   // Sekeletonization with level-by-level traversal.
-  tree.TraverseUp<true>( skeltask );
+  tree.TraverseUp<false, false>( skeltask );
   ref_time = omp_get_wtime() - beg;
   beg = omp_get_wtime();
   // Sekeletonization with omp task.

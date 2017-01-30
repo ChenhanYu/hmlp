@@ -784,7 +784,7 @@ class Tree
 
       // Adgust lids and gids to the appropriate order.
       PermuteTask<NODE> permutetask;
-      TraverseUp<true>( permutetask );
+      TraverseUp<false, false>( permutetask );
     };
 
     template<class TASK>
@@ -836,7 +836,7 @@ class Tree
       {
         TreePartition( 2 * k, max_depth, gids, lids );
 
-        TraverseLeafs<true>( dummy );
+        TraverseLeafs<false>( dummy );
         for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
         treelist.clear();
 #ifdef DEBUG_TREE
@@ -893,17 +893,17 @@ class Tree
 
 
 
-    template<bool DEPENDONPREVIOUSTASK, bool LEVELBYLEVEL, class TASK>
+    template<bool DEPEND_ON_PREVIOUS_TASK, bool USE_RUNTIME, class TASK>
     void TraverseUnOrdered( TASK &dummy )
     {
       std::vector<TASK*> tasklist;
-      if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
+      if ( USE_RUNTIME ) tasklist.resize( treelist.size() );
 
       for ( std::size_t l = 0; l <= depth; l ++ )
       {
         std::size_t n_nodes = 1 << l;
         auto level_beg = treelist.begin() + n_nodes - 1;
-        if ( LEVELBYLEVEL )
+        if ( !USE_RUNTIME )
         {
           #pragma omp parallel for 
           for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -925,8 +925,7 @@ class Tree
             auto *task = tasklist[ node->treelist_id ];
             task->Submit();
             task->Set( node );
-            node->recent_task = task;
-            if ( DEPENDONPREVIOUSTASK )
+            if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
             {
               Scheduler::DependencyAdd( node->recent_task, task );
             }
@@ -934,6 +933,7 @@ class Tree
             {
               task->Enqueue();
             }
+            node->recent_task = task;
           }
         }
       }
@@ -943,7 +943,7 @@ class Tree
 
 
 
-    template<bool LEVELBYLEVEL, class TASK>
+    template<bool USE_RUNTIME, class TASK>
     void TraverseLeafs( TASK &dummy )
     {
       assert( N_CHILDREN == 2 );
@@ -954,7 +954,7 @@ class Tree
 
       tasklist.resize( n_nodes );
 
-      if ( LEVELBYLEVEL )
+      if ( !USE_RUNTIME )
       {
          #pragma omp parallel for
          for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -977,7 +977,6 @@ class Tree
           auto *task = tasklist[ node->treelist_id ];
           task->Submit();
           task->Set( node );
-          node->recent_task = task;
           if ( node->kids[ 0 ] )
           {
             printf( "There should not be inner nodes in TraverseLeafs.\n" );
@@ -986,12 +985,13 @@ class Tree
           {
             task->Enqueue();
           }
+          node->recent_task = task;
         }
       }
     };
 
 
-    template<bool LEVELBYLEVEL, typename TASK>
+    template<bool DEPEND_ON_PREVIOUS_TASK, bool USE_RUNTIME, typename TASK>
     void TraverseUp( TASK &dummy )
     {
 #ifdef DEBUG_TREE
@@ -1000,7 +1000,7 @@ class Tree
       assert( N_CHILDREN == 2 );
 
       std::vector<TASK*> tasklist;
-      if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
+      if ( USE_RUNTIME ) tasklist.resize( treelist.size() );
 
       // IMPORTANT: here l must be int, use unsigned int will wrap over.
       for ( int l = depth; l >= 0; l -- )
@@ -1008,7 +1008,7 @@ class Tree
         std::size_t n_nodes = 1 << l;
         auto level_beg = treelist.begin() + n_nodes - 1;
 
-        if ( LEVELBYLEVEL )
+        if ( !USE_RUNTIME )
         {
           int nthd_glb = omp_get_max_threads();
           
@@ -1059,7 +1059,6 @@ class Tree
             auto *task = tasklist[ node->treelist_id ];
             task->Submit();
             task->Set( node );
-            node->recent_task = task;
 
             // Setup dependencies
             if ( node->kids[ 0 ] )
@@ -1070,11 +1069,25 @@ class Tree
 #endif
               Scheduler::DependencyAdd( tasklist[ node->kids[ 0 ]->treelist_id ], task );
               Scheduler::DependencyAdd( tasklist[ node->kids[ 1 ]->treelist_id ], task );
+
+              if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
+              {
+                Scheduler::DependencyAdd( node->recent_task, task );
+              }
             }
-            else // leafnodes, directly enqueue
+            else // leafnodes, directly enqueue if not depends on the preivous task
             {
-              task->Enqueue();
+              if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
+              {
+                Scheduler::DependencyAdd( node->recent_task, task );
+              }
+              else
+              {
+                task->Enqueue();
+              }
             }
+            // Update the recent created task on this node.
+            node->recent_task = task;
           }
         }
       }
@@ -1083,18 +1096,18 @@ class Tree
 #endif
     }; // end TraverseUp()
 
-    template<bool LEVELBYLEVEL, typename TASK>
+    template<bool DEPEND_ON_PREVIOUS_TASK, bool USE_RUNTIME, typename TASK>
     void TraverseDown( TASK &dummy )
     {
       std::vector<TASK*> tasklist;
-      if ( !LEVELBYLEVEL ) tasklist.resize( treelist.size() );
+      if ( USE_RUNTIME ) tasklist.resize( treelist.size() );
 
       for ( std::size_t l = 0; l <= depth; l ++ )
       {
         std::size_t n_nodes = 1 << l;
         auto level_beg = treelist.begin() + n_nodes - 1;
 
-        if ( LEVELBYLEVEL )
+        if ( !USE_RUNTIME )
         {
           #pragma omp parallel for 
           for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -1116,7 +1129,6 @@ class Tree
             auto *task = tasklist[ node->treelist_id ];
             task->Submit();
             task->Set( node );
-            node->recent_task = task;
 
             if ( node->parent )
             {
@@ -1124,11 +1136,24 @@ class Tree
               printf( "DependencyAdd %d -> %d\n", node->parent->treelist_id, node->treelist_id );
 #endif
               Scheduler::DependencyAdd( tasklist[ node->parent->treelist_id ], task );
+              if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
+              {
+                Scheduler::DependencyAdd( node->recent_task, task );
+              }
             }
             else // root, directly enqueue
             {
-              task->Enqueue();
+              if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
+              {
+                Scheduler::DependencyAdd( node->recent_task, task );
+              }
+              else
+              {
+                task->Enqueue();
+              }
             }
+            // Update the recent created task on this node.
+            node->recent_task = task;
           }
         }
       }

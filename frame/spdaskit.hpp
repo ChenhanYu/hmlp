@@ -1511,7 +1511,42 @@ void Evaluate
 
   Evaluate<SYMBOLIC, NNPRUNE>( tree.treelist[ 0 ], lid, nnandi, potentials );
 
-}; // end void Evaluate()
+}; // end Evaluate()
+
+
+template<bool USE_RUNTIME, bool SYMMETRIC_PRUNE, bool NNPRUNE, typename TREE, typename T>
+void ComputeAll
+( 
+  TREE &tree,
+  hmlp::Data<T> &weights,
+  hmlp::Data<T> &potentials
+)
+{
+  if ( SYMMETRIC_PRUNE )
+  {
+    using NODETOSKELTASK = UpdateWeightsTask<NODE>;
+    using SKELTOSKELTASK = SkeletonsToSkeletonsTask<NODE>;
+    using SKELTONODETASK = SkeletonsToNodesTask<NODE, T>;
+
+    auto nodetoskeltask = NODETOSKELTASK;
+    auto skeltoskeltask = SKELTOSKELTASK;
+    auto skeltonodetask = SKELTONODETASK;
+
+    tree.TraverseUp<false,USE_RUNTIME>( nodetoskeltask );
+    hmlp_run();
+    tree.TraverseUnOrdered<false,USE_RUNTIME>( skeltoskeltask );
+    hmlp_run();
+    tree.TraverseDown<false,USE_RUNTIME>( skeltonodetask );
+    hmlp_run();
+  }
+  else
+  {
+    // Not yet implemented.
+    printf( "Non symmetric ComputeAll is not yet implemented\n" );
+  }
+
+}; // end ComputeAll()
+
 
 
 
