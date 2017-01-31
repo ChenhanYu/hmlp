@@ -3,6 +3,8 @@
 
 #include <set>
 #include <vector>
+#include <map>
+#include <unordered_set>
 #include <deque>
 #include <assert.h>
 #include <typeinfo>
@@ -78,6 +80,10 @@ class Data
     std::vector<size_t> skels;
 
     hmlp::Data<T> proj;
+    //Neighbors
+    std::map<std::size_t, T> snids; //sampling neighbors ids
+
+    std::unordered_set<std::size_t> pnids; //pruning neighbors ids
 
     // Weights
     hmlp::Data<T> w_skel;
@@ -408,9 +414,129 @@ class KNNTask : public hmlp::Task
     };
 }; // end class KNNTask
 
-/**
- *
- */ 
+// Helper functions for sorting sampling neighbors 
+template<typename A, typename B>
+std::pair<B,A> flip_pair(const std::pair<A,B> &p)
+{
+    return std::pair<B,A>(p.second, p.first);
+}
+
+template<typename A, typename B>
+std::multimap<B,A> flip_map(const std::map<A,B> &src)
+{
+    std::multimap<B,A> dst;
+    std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()), 
+                   flip_pair<A,B>);
+    return dst;
+}
+
+template<typename NODE >
+void BuildNeighbors( NODE *node )
+{
+
+  auto &NN = node->setup->NN;
+  std::vector<size_t> &gids = node->gids;
+  auto &snids = node->data.snids;
+  auto &pnids = node->data.pnids;
+  int n = node->n;
+  int k = NN->dim();
+
+  if ( node->isleaf )
+  {
+
+    // Pruning neighbor lists/sets:
+    pnids = std::unordered_set<size_t>();
+    for ( int ii=0; ii < k/2; ii++ )
+    {
+      for ( int jj=0; jj < n; jj++ )
+      {
+        pnids.insert(NN->data()[gids[jj] * k + ii].second);
+        //printf("%lu;",NN->data()[ gids[jj] * k + ii].second); 
+      }
+    }
+    //printf("Size of pruning neighbor set: %lu \n", pnids.size());
+
+    // Sampling neighbors
+    snids = std::map<size_t,double>();
+    // TODO: Make building sampling neighbor adaptive.  
+    // E.g. request 0-100 closest neighbors, 
+    // if additional 100 neighbors are requested, return sneighbors 100-200 
+    // Use a priority queue s.t. we don't look at everything
+    // Push candidate sampling neighbors (with priority distance) to queue 
+    for ( int ii=k/2; ii < k; ii++ )
+    {
+      for ( int jj=0; jj < n; jj++ )
+      {
+        // Is candidate not in pruning neighbor list?
+        if ( ! pnids.count(NN->data()[gids[jj] * k + ii].second)  )
+        {
+          // Try to insert
+          std::pair<std::map<size_t,double>::iterator,bool> ret;
+          ret = snids.insert(std::pair<size_t,double>(
+            NN->data()[gids[jj] * k + ii].second , 
+            NN->data()[gids[jj] * k + ii].first));
+          if ( ret.second == false )
+          {
+            // Update distance?
+            if ( ret.first->second > NN->data()[gids[jj] * k + ii].first)
+            {
+              ret.first->second = NN->data()[gids[jj] * k + ii].first;
+            }
+          }
+        }
+      }
+    }
+    //printf("Size of sampling neighbor list: %lu \n", snids.size());
+  }
+  else
+  {
+    // At interior node 
+    auto &lsnids = node->lchild->data.snids;
+    auto &rsnids = node->rchild->data.snids;
+    auto &lpnids = node->lchild->data.pnids;
+    auto &rpnids = node->rchild->data.pnids;
+
+    // Merge children's sampling neighbors...    
+    // Start with left sampling neighbor list 
+    snids = lsnids;
+    // Add right sampling neighbor list. If duplicate update distace if nec.
+    std::pair<std::map<size_t,double>::iterator,bool> ret;
+    for (auto cur=rsnids.begin(); cur!=rsnids.end(); cur++)
+    {
+      ret = snids.insert( *cur );
+      if ( ret.second == false )
+      {
+        // Update distance?
+        if ( ret.first->second > (*cur).first)
+        {
+          ret.first->second = (*cur).first;
+        }
+      }
+    }
+
+    // Remove "own" points
+    for (int i=0; i<n; i++)
+    {
+      snids.erase(gids[i]);
+    }
+
+    // Remove pruning neighbors from left and right
+    for (auto cur=lpnids.begin(); cur != lpnids.end(); cur++ )
+    {
+      snids.erase( *cur );
+    }
+    for (auto cur=rpnids.begin(); cur != rpnids.end(); cur++ )
+    {
+      snids.erase( *cur );
+    }
+
+    //printf("Interior sampling neighbor size: %lu\n", snids.size());
+  }
+}
+
+
+
+ 
 template<bool ADAPTIVE, typename NODE>
 void Skeletonize( NODE *node )
 {
@@ -419,6 +545,7 @@ void Skeletonize( NODE *node )
   auto &K = *node->setup->K;
   auto maxs = node->setup->s;
   auto stol = node->setup->stol;
+  auto &NN = *node->setup->NN;
 
   // Gather per node data and create reference
   auto &data = node->data;
@@ -469,11 +596,34 @@ void Skeletonize( NODE *node )
 
   // TODO: random sampling or important sampling for rows. (Severin)
   // Create nsamples.
-  // amap = .....
-    
-   
-  // My uniform sample.
+  // Build Node Neighbors from all nearest neighbors
+  BuildNeighbors( node );
+  
+  auto &snids = data.snids;
+  // Order snids by distance
+  std::multimap<double,size_t > ordered_snids = flip_map(snids);
   if ( nsamples < K.num() - node->n )
+  {
+    amap.reserve( nsamples );
+    for (auto cur=ordered_snids.begin();cur!=ordered_snids.end(); cur++)
+    {
+      amap.push_back(cur->second);
+    }
+    if (amap.size() < nsamples)
+    {
+      while ( amap.size() < nsamples )
+      {
+        size_t sample = rand() % K.num();
+        if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
+             std::find( lids.begin(), lids.end(), sample ) == lids.end() )
+        {
+          amap.push_back( sample );
+        }
+      }
+    }
+  }
+  // Chenhan's uniform sample.
+  /*if ( nsamples < K.num() - node->n )
   {
     amap.reserve( nsamples );
     while ( amap.size() < nsamples )
@@ -485,7 +635,7 @@ void Skeletonize( NODE *node )
         amap.push_back( sample );
       }
     }
-  }
+  }*/
   else // Use all off-diagonal blocks without samples.
   {
     for ( int sample = 0; sample < K.num(); sample ++ )
@@ -508,7 +658,15 @@ void Skeletonize( NODE *node )
     hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
     data.isskel = true;
   }
-
+  // Update Pruning neighbor list
+  data.pnids.clear();
+  for ( int ii=0 ; ii<skels.size() ; ii++ )
+  {
+    for ( int jj=0; jj < NN.dim()/2; jj++)
+    {
+      data.pnids.insert(NN.data()[ skels[ii] * NN.dim() + jj].second);
+    }
+  }
 }; // end void Skeletonize()
 
 
