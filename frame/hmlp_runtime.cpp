@@ -307,6 +307,7 @@ void Task::DependenciesUpdate()
   status = DONE;
 };
 
+
 void Task::Execute( Worker *user_worker )
 {
   function( this );
@@ -461,6 +462,54 @@ void Scheduler::DependencyAdd( Task *source, Task *target )
   }
   target->task_lock.Release();
 }; // end DependencyAdd()
+
+
+/**
+ *  @brief Different from DependencyAdd, which asks programmer to manually
+ *         add the dependency between two tasks. DependencyAnalysis track
+ *         the read/write dependencies if the data extends hmlp::Object.
+ *         
+ *         There are 3 different data dependencies may happen: 
+ *         RAW: read after write a.k.a data-dependency;
+ *         WAR: write after read a.k.a anti-dependency, and
+ *         WAW: write after write (we don't care).
+ *
+ *         Take a task that read/write the object, then this task depends
+ *         on the previous write task. Since it also overwrites the object,
+ *         this task must wait for all other tasks that want to read the
+ *         previous state of the object.
+ *
+ */ 
+template<bool READ, bool WRITE>
+void Scheduler::DependencyAnalysis( Task *task, hmlp::Object &object )
+{
+  // read and write are std::deque<Task*>.
+  auto &read = object.read;
+  auto &write = object.read;
+
+  if ( READ )
+  {
+    read.push_back( task );
+    // Read after write (RAW) data dependencies.
+    for ( auto it = write.begin(); it != write.end(); it ++ )
+    {
+      DependencyAdd( (*it), task );
+    }
+  }
+
+  if ( WRITE )
+  {
+    // Write after read (WAR) anti-dependencies.
+    for ( auto it = read.begin(); it != read.end(); it ++ )
+    {
+      DependencyAdd( (*it), task );
+    }
+    write.clear();
+    write.push_back( task );
+    read.clear();
+  }
+
+}; // end DependencyAnalysis()
 
 
 void* Scheduler::EntryPoint( void* arg )

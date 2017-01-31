@@ -55,10 +55,10 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     SPDMATRIX *K;
 
     // Weights
-    hmlp::Data<T> w;
+    hmlp::Data<T> *w;
 
     // Potentials
-    hmlp::Data<T> u;
+    hmlp::Data<T> *u;
 
 }; // end class Setup
 
@@ -550,7 +550,7 @@ void UpdateWeights( NODE *node )
   if ( !node->parent || !node->data.isskel ) return;
 
   // Gather shared data and create reference
-  auto &w = node->setup->w;
+  auto &w = *node->setup->w;
 
   // Gather per node data and create reference
   auto &data = node->data;
@@ -623,10 +623,36 @@ class UpdateWeightsTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      name = std::string( "SetWeights" );
+      name = std::string( "UpdateWeights" );
       arg = user_arg;
       // Need an accurate cost model.
       cost = 1.0;
+
+      //--------------------------------------
+      double flops, mops;
+      auto &lids = arg->lids;
+      auto &skels = arg->data.skels;
+      auto &w = *arg->setup->w;
+      if ( arg->isleaf )
+      {
+        auto m = skels.size();
+        auto n = w.dim();
+        auto k = lids.size();
+        flops = 2.0 * m * n * k;
+        mops = 2.0 * ( m * n + m * k + k * n );
+      }
+      else
+      {
+        auto &lskels = arg->lchild->data.skels;
+        auto &rskels = arg->rchild->data.skels;
+        auto m = skels.size();
+        auto n = w.dim();
+        auto k = lskels.size() + rskels.size();
+        flops = 2.0 * m * n * k;
+        mops = 2.0 * ( m * n + m * k + k * n );
+      }
+      event.Set( flops, mops );
+      //--------------------------------------
     };
 
     void GetEventRecord()
@@ -648,14 +674,17 @@ class UpdateWeightsTask : public hmlp::Task
  *         there is a SkeletonstoAll function to be called.
  *
  */ 
-template<typename NODE>
+template<bool NNPRUNE, typename NODE>
 void SkeletonsToSkeletons( NODE *node )
 {
   if ( !node->parent || !node->data.isskel ) return;
 
+  std::set<NODE*> *FarNodes;
+  if ( NNPRUNE ) FarNodes = &node->NNFarNodes;
+  else           FarNodes = &node->FarNodes;
 
   auto &K = *node->setup->K;
-  auto &FarNodes = node->NNFarNodes;
+  //auto &FarNodes = node->NNFarNodes;
   auto &amap = node->data.skels;
   auto &u_skel = node->data.u_skel;
 
@@ -665,7 +694,7 @@ void SkeletonsToSkeletons( NODE *node )
 
   //printf( "%lu Skel2Skel ", node->treelist_id );
   // Reduce all u_skel.
-  for ( auto it = FarNodes.begin(); it != FarNodes.end(); it ++ )
+  for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
   {
     //printf( "%lu, ", (*it)->treelist_id );
     auto &bmap = (*it)->data.skels;
@@ -744,7 +773,7 @@ void SkeletonsToSkeletons( NODE *node )
  *
  *
  */ 
-template<typename NODE>
+template<bool NNPRUNE, typename NODE>
 class SkeletonsToSkeletonsTask : public hmlp::Task
 {
   public:
@@ -766,7 +795,7 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      SkeletonsToSkeletons( arg );
+      SkeletonsToSkeletons<NNPRUNE, NODE>( arg );
     };
 }; // end class SkeletonsToSkeletonsTask
 
@@ -776,15 +805,15 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
  *         dependency on u_skel.
  *         
  */ 
-template<typename NODE, typename T>
+template<bool NNPRUNE, typename NODE, typename T>
 void SkeletonsToNodes( NODE *node )
 {
   if ( !node->parent || !node->data.isskel ) return;
 
   // Gather shared data and create reference
   auto &K = *node->setup->K;
-  auto &w = node->setup->w;
-  auto &u = node->setup->u;
+  auto &w = *node->setup->w;
+  auto &u = *node->setup->u;
 
   // Gather per node data and create reference
   auto &lids = node->lids;
@@ -799,17 +828,11 @@ void SkeletonsToNodes( NODE *node )
 
   if ( node->isleaf )
   {
-    auto &NearNodes = node->NNNearNodes;
+    std::set<NODE*> *NearNodes;
+    if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
+    else           NearNodes = &node->NearNodes;
     auto &amap = node->lids;
     hmlp::Data<T> u_leaf( u_skel.num(), lids.size(), 0.0 );
-    //xgemm
-    //(
-    //  "T", "T",
-    //  u_leaf.num(), u_leaf.dim(), proj.dim(),
-    //  1.0, proj.data(),   proj.dim(),
-    //       u_skel.data(), u_skel.dim(),
-    //  0.0, u_leaf.data(), u_leaf.dim()
-    //);
     xgemm
     (
       "T", "N",
@@ -819,7 +842,7 @@ void SkeletonsToNodes( NODE *node )
       0.0, u_leaf.data(), u_leaf.dim()
     );
 
-    for ( auto it = NearNodes.begin(); it != NearNodes.end(); it ++ )
+    for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
     {
       //printf( "%lu, ", (*it)->treelist_id );
       auto &bmap = (*it)->lids;
@@ -871,7 +894,7 @@ void SkeletonsToNodes( NODE *node )
 }; // end SkeletonsToNodes()
 
 
-template<typename NODE, typename T>
+template<bool NNPRUNE, typename NODE, typename T>
 class SkeletonsToNodesTask : public hmlp::Task
 {
   public:
@@ -893,45 +916,45 @@ class SkeletonsToNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      SkeletonsToNodes<NODE, T>( arg );
+      SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
     };
 }; // end class SkeletonsToNodesTask
 
 
-template<typename NODE, typename T>
-void LeavesToLeaves( NODE *node )
-{
-  assert( node->isleaf );
+//template<typename NODE, typename T>
+//void LeavesToLeaves( NODE *node )
+//{
+//  assert( node->isleaf );
+//
+//
+//}; // end void LeavesToLeaves()
 
 
-}; // end void LeavesToLeaves()
-
-
-template<typename NODE, typename T>
-class LeavesToLeavesTask : public hmlp::Task
-{
-  public:
-
-    NODE *arg;
-
-    void Set( NODE *user_arg )
-    {
-      name = std::string( "LeavesToLeaves" );
-      arg = user_arg;
-      // Need an accurate cost model.
-      cost = 1.0;
-    };
-
-    void GetEventRecord()
-    {
-      //arg->data.updateweight = event;
-    };
-
-    void Execute( Worker* user_worker )
-    {
-      LeavesToLeaves<NODE, T>( arg );
-    };
-}; // end class SkeletonsToNodesTask
+//template<bool NNPRUNE, typename NODE, typename T>
+//class LeavesToLeavesTask : public hmlp::Task
+//{
+//  public:
+//
+//    NODE *arg;
+//
+//    void Set( NODE *user_arg )
+//    {
+//      name = std::string( "LeavesToLeaves" );
+//      arg = user_arg;
+//      // Need an accurate cost model.
+//      cost = 1.0;
+//    };
+//
+//    void GetEventRecord()
+//    {
+//      //arg->data.updateweight = event;
+//    };
+//
+//    void Execute( Worker* user_worker )
+//    {
+//      LeavesToLeaves<NNPRUNE, NODE, T>( arg );
+//    };
+//}; // end class SkeletonsToNodesTask
 
 
 
@@ -1373,9 +1396,9 @@ void Evaluate
   hmlp::Data<T> &potentials 
 )
 {
-  auto &w = node->setup->w;
-  auto &lids = node->lids;
   auto &K = *node->setup->K;
+  auto &w = *node->setup->w;
+  auto &lids = node->lids;
   auto &data = node->data;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
@@ -1484,7 +1507,7 @@ void Evaluate
 )
 {
   std::vector<size_t> nnandi;
-  auto &w = tree.setup.w;
+  auto &w = *tree.setup.w;
   size_t lid = tree.Getlid( gid );
 
   potentials.clear();
@@ -1514,37 +1537,50 @@ void Evaluate
 }; // end Evaluate()
 
 
-template<bool USE_RUNTIME, bool SYMMETRIC_PRUNE, bool NNPRUNE, typename TREE, typename T>
-void ComputeAll
+template<bool USE_RUNTIME, bool SYMMETRIC_PRUNE, bool NNPRUNE, typename NODE, typename TREE, typename T>
+hmlp::Data<T> ComputeAll
 ( 
   TREE &tree,
-  hmlp::Data<T> &weights,
-  hmlp::Data<T> &potentials
+  hmlp::Data<T> &weights
 )
 {
+  hmlp::Data<T> potentials( weights.dim(), weights.num() );
+
+  tree.setup.w = &weights;
+  tree.setup.u = &potentials;
+
   if ( SYMMETRIC_PRUNE )
   {
     using NODETOSKELTASK = UpdateWeightsTask<NODE>;
-    using SKELTOSKELTASK = SkeletonsToSkeletonsTask<NODE>;
-    using SKELTONODETASK = SkeletonsToNodesTask<NODE, T>;
+    using SKELTOSKELTASK = SkeletonsToSkeletonsTask<NNPRUNE, NODE>;
+    using SKELTONODETASK = SkeletonsToNodesTask<NNPRUNE, NODE, T>;
 
-    auto nodetoskeltask = NODETOSKELTASK;
-    auto skeltoskeltask = SKELTOSKELTASK;
-    auto skeltonodetask = SKELTONODETASK;
+    NODETOSKELTASK nodetoskeltask;
+    SKELTOSKELTASK skeltoskeltask;
+    SKELTONODETASK skeltonodetask;
 
     tree.TraverseUp<false,USE_RUNTIME>( nodetoskeltask );
-    hmlp_run();
+    if ( USE_RUNTIME ) hmlp_run();
     tree.TraverseUnOrdered<false,USE_RUNTIME>( skeltoskeltask );
-    hmlp_run();
+    if ( USE_RUNTIME ) hmlp_run();
     tree.TraverseDown<false,USE_RUNTIME>( skeltonodetask );
-    hmlp_run();
+    if ( USE_RUNTIME ) hmlp_run();
   }
   else
   {
+    using NODETOSKELTASK = UpdateWeightsTask<NODE>;
+
+    NODETOSKELTASK nodetoskeltask;
+
+    tree.TraverseUp<false,USE_RUNTIME>( nodetoskeltask );
+    if ( USE_RUNTIME ) hmlp_run();
+
+
     // Not yet implemented.
     printf( "Non symmetric ComputeAll is not yet implemented\n" );
   }
 
+  return potentials;
 }; // end ComputeAll()
 
 
@@ -1598,7 +1634,7 @@ template<typename TREE, typename T>
 T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 {
   auto &K = *tree.setup.K;
-  auto &w = tree.setup.w;
+  auto &w = *tree.setup.w;
   auto lid = tree.Getlid( gid );
 
   auto amap = std::vector<size_t>( 1 );

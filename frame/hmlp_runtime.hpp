@@ -18,6 +18,7 @@
 #endif
 
 #include <hmlp_thread.hpp>
+//#include <data.hpp>
 
 #define MAX_WORKER 24
 
@@ -206,6 +207,21 @@ class Task
 };
 
 
+
+class Object
+{
+  public:
+
+    // Tracking the read set of the object.
+    std::deque<Task*> read;
+
+    // Tracking the write set of the object.
+    std::deque<Task*> write;
+
+}; // end class Object
+
+
+
 class Scheduler
 {
   public:
@@ -234,6 +250,9 @@ class Scheduler
 
     // Manually describe the dependencies.
     static void DependencyAdd( Task *source, Task *target );
+
+    template<bool READ, bool WRITE>
+    static void DependencyAnalysis( Task *task, Object &object );
 
     void NewTask( Task *task );
 

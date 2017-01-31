@@ -893,7 +893,7 @@ class Tree
 
 
 
-    template<bool DEPEND_ON_PREVIOUS_TASK, bool USE_RUNTIME, class TASK>
+    template<bool AUTO_DEPENDENCY, bool USE_RUNTIME, class TASK>
     void TraverseUnOrdered( TASK &dummy )
     {
       std::vector<TASK*> tasklist;
@@ -925,11 +925,7 @@ class Tree
             auto *task = tasklist[ node->treelist_id ];
             task->Submit();
             task->Set( node );
-            if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
-            {
-              Scheduler::DependencyAdd( node->recent_task, task );
-            }
-            else
+            if ( !AUTO_DEPENDENCY )
             {
               task->Enqueue();
             }
@@ -991,7 +987,7 @@ class Tree
     };
 
 
-    template<bool DEPEND_ON_PREVIOUS_TASK, bool USE_RUNTIME, typename TASK>
+    template<bool AUTO_DEPENDENCY, bool USE_RUNTIME, typename TASK>
     void TraverseUp( TASK &dummy )
     {
 #ifdef DEBUG_TREE
@@ -1061,27 +1057,18 @@ class Tree
             task->Set( node );
 
             // Setup dependencies
-            if ( node->kids[ 0 ] )
+            if ( !AUTO_DEPENDENCY )
             {
+              if ( node->kids[ 0 ] )
+              {
 #ifdef DEBUG_TREE
-              printf( "DependencyAdd %lu -> %lu\n", node->kids[ 0 ]->treelist_id, node->treelist_id );
-              printf( "DependencyAdd %lu -> %lu\n", node->kids[ 1 ]->treelist_id, node->treelist_id );
+                printf( "DependencyAdd %lu -> %lu\n", node->kids[ 0 ]->treelist_id, node->treelist_id );
+                printf( "DependencyAdd %lu -> %lu\n", node->kids[ 1 ]->treelist_id, node->treelist_id );
 #endif
-              Scheduler::DependencyAdd( tasklist[ node->kids[ 0 ]->treelist_id ], task );
-              Scheduler::DependencyAdd( tasklist[ node->kids[ 1 ]->treelist_id ], task );
-
-              if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
-              {
-                Scheduler::DependencyAdd( node->recent_task, task );
+                Scheduler::DependencyAdd( tasklist[ node->kids[ 0 ]->treelist_id ], task );
+                Scheduler::DependencyAdd( tasklist[ node->kids[ 1 ]->treelist_id ], task );
               }
-            }
-            else // leafnodes, directly enqueue if not depends on the preivous task
-            {
-              if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
-              {
-                Scheduler::DependencyAdd( node->recent_task, task );
-              }
-              else
+              else // leafnodes, directly enqueue if not depends on the preivous task
               {
                 task->Enqueue();
               }
@@ -1096,7 +1083,7 @@ class Tree
 #endif
     }; // end TraverseUp()
 
-    template<bool DEPEND_ON_PREVIOUS_TASK, bool USE_RUNTIME, typename TASK>
+    template<bool AUTO_DEPENDENCY, bool USE_RUNTIME, typename TASK>
     void TraverseDown( TASK &dummy )
     {
       std::vector<TASK*> tasklist;
@@ -1130,24 +1117,16 @@ class Tree
             task->Submit();
             task->Set( node );
 
-            if ( node->parent )
+            if ( !AUTO_DEPENDENCY )
             {
+              if ( node->parent )
+              {
 #ifdef DEBUG_TREE
-              printf( "DependencyAdd %d -> %d\n", node->parent->treelist_id, node->treelist_id );
+                printf( "DependencyAdd %d -> %d\n", node->parent->treelist_id, node->treelist_id );
 #endif
-              Scheduler::DependencyAdd( tasklist[ node->parent->treelist_id ], task );
-              if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
-              {
-                Scheduler::DependencyAdd( node->recent_task, task );
+                Scheduler::DependencyAdd( tasklist[ node->parent->treelist_id ], task );
               }
-            }
-            else // root, directly enqueue
-            {
-              if ( DEPEND_ON_PREVIOUS_TASK && node->recent_task )
-              {
-                Scheduler::DependencyAdd( node->recent_task, task );
-              }
-              else
+              else // root, directly enqueue
               {
                 task->Enqueue();
               }
