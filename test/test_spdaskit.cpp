@@ -41,7 +41,7 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   using SETUP = hmlp::spdaskit::Setup<SPDMATRIX,SPLITTER,T>;
   using DATA = hmlp::spdaskit::Data<T>;
   using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
-  using SKELTASK = hmlp::spdaskit::SkeletonizeTask<ADAPTIVE, NODE>;
+  using SKELTASK = hmlp::spdaskit::SkeletonizeTask<ADAPTIVE, NODE, T>;
   //Using UPDATETASK = hmlp::spdaskit::UpdateWeightsTask<NODE>;
   //Using SKELTOSKELTASK = hmlp::spdaskit::SkeletonsToSkeletonsTask<NODE>;
   //Using SKELTONODETASK = hmlp::spdaskit::SkeletonsToNodesTask<NODE, T>;

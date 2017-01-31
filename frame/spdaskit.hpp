@@ -80,10 +80,11 @@ class Data
     std::vector<size_t> skels;
 
     hmlp::Data<T> proj;
-    //Neighbors
-    std::map<std::size_t, T> snids; //sampling neighbors ids
 
-    std::unordered_set<std::size_t> pnids; //pruning neighbors ids
+    // Neighbors
+    std::map<std::size_t, T> snids; // sampling neighbors ids
+
+    std::unordered_set<std::size_t> pnids; // pruning neighbors ids
 
     // Weights
     hmlp::Data<T> w_skel;
@@ -414,26 +415,34 @@ class KNNTask : public hmlp::Task
     };
 }; // end class KNNTask
 
-// Helper functions for sorting sampling neighbors 
-template<typename A, typename B>
-std::pair<B,A> flip_pair(const std::pair<A,B> &p)
-{
-    return std::pair<B,A>(p.second, p.first);
-}
 
-template<typename A, typename B>
-std::multimap<B,A> flip_map(const std::map<A,B> &src)
-{
-    std::multimap<B,A> dst;
-    std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()), 
-                   flip_pair<A,B>);
-    return dst;
-}
 
-template<typename NODE >
+/*
+ * @brief Helper functions for sorting sampling neighbors.
+ */ 
+template<typename TA, typename TB>
+std::pair<TB, TA> flip_pair( const std::pair<TA, TB> &p )
+{
+  return std::pair<TB, TA>( p.second, p.first );
+}; // end flip_pair()
+
+
+template<typename TA, typename TB>
+std::multimap<TB, TA> flip_map( const std::map<TA, TB> &src )
+{
+  std::multimap<TB, TA> dst;
+  std::transform( src.begin(), src.end(), std::inserter( dst, dst.begin() ), 
+                 flip_pair<TA, TB> );
+  return dst;
+}; // end flip_map()
+
+
+/**
+ *  @brief Building neighbors for each tree node.
+ */ 
+template<typename NODE, typename T>
 void BuildNeighbors( NODE *node )
 {
-
   auto &NN = node->setup->NN;
   std::vector<size_t> &gids = node->gids;
   auto &snids = node->data.snids;
@@ -443,44 +452,48 @@ void BuildNeighbors( NODE *node )
 
   if ( node->isleaf )
   {
-
     // Pruning neighbor lists/sets:
     pnids = std::unordered_set<size_t>();
-    for ( int ii=0; ii < k/2; ii++ )
+    for ( int ii = 0; ii < k / 2; ii ++ )
     {
-      for ( int jj=0; jj < n; jj++ )
+      for ( int jj = 0; jj < n; jj ++ )
       {
-        pnids.insert(NN->data()[gids[jj] * k + ii].second);
+        pnids.insert( NN->data()[ gids[ jj ] * k + ii ].second );
         //printf("%lu;",NN->data()[ gids[jj] * k + ii].second); 
       }
     }
     //printf("Size of pruning neighbor set: %lu \n", pnids.size());
 
     // Sampling neighbors
-    snids = std::map<size_t,double>();
+    snids = std::map<size_t, T>();
     // TODO: Make building sampling neighbor adaptive.  
     // E.g. request 0-100 closest neighbors, 
     // if additional 100 neighbors are requested, return sneighbors 100-200 
     // Use a priority queue s.t. we don't look at everything
     // Push candidate sampling neighbors (with priority distance) to queue 
-    for ( int ii=k/2; ii < k; ii++ )
+    for ( int ii = k / 2; ii < k; ii ++ )
     {
-      for ( int jj=0; jj < n; jj++ )
+      for ( int jj = 0; jj < n; jj ++ )
       {
         // Is candidate not in pruning neighbor list?
-        if ( ! pnids.count(NN->data()[gids[jj] * k + ii].second)  )
+        if ( !pnids.count( NN->data()[ gids[ jj ] * k + ii ].second ) )
         {
           // Try to insert
-          std::pair<std::map<size_t,double>::iterator,bool> ret;
-          ret = snids.insert(std::pair<size_t,double>(
-            NN->data()[gids[jj] * k + ii].second , 
-            NN->data()[gids[jj] * k + ii].first));
+          //std::pair<std::map<size_t, T>::iterator, bool> ret;
+          auto ret = snids.insert
+                (
+                  std::pair<size_t, T>
+                  (
+                    NN->data()[ gids[ jj ] * k + ii ].second, 
+                    NN->data()[ gids[ jj ] * k + ii ].first
+                  )
+                );
           if ( ret.second == false )
           {
             // Update distance?
-            if ( ret.first->second > NN->data()[gids[jj] * k + ii].first)
+            if ( ret.first->second > NN->data()[ gids[ jj ] * k + ii ].first )
             {
-              ret.first->second = NN->data()[gids[jj] * k + ii].first;
+              ret.first->second = NN->data()[ gids[ jj ] * k + ii ].first;
             }
           }
         }
@@ -500,10 +513,10 @@ void BuildNeighbors( NODE *node )
     // Start with left sampling neighbor list 
     snids = lsnids;
     // Add right sampling neighbor list. If duplicate update distace if nec.
-    std::pair<std::map<size_t,double>::iterator,bool> ret;
-    for (auto cur=rsnids.begin(); cur!=rsnids.end(); cur++)
+    //std::pair<std::map<size_t, T>::iterator, bool> ret;
+    for ( auto cur = rsnids.begin(); cur != rsnids.end(); cur ++ )
     {
-      ret = snids.insert( *cur );
+      auto ret = snids.insert( *cur );
       if ( ret.second == false )
       {
         // Update distance?
@@ -515,29 +528,29 @@ void BuildNeighbors( NODE *node )
     }
 
     // Remove "own" points
-    for (int i=0; i<n; i++)
+    for (int i = 0; i < n; i ++ )
     {
-      snids.erase(gids[i]);
+      snids.erase( gids[ i ] );
     }
 
     // Remove pruning neighbors from left and right
-    for (auto cur=lpnids.begin(); cur != lpnids.end(); cur++ )
+    for (auto cur = lpnids.begin(); cur != lpnids.end(); cur++ )
     {
       snids.erase( *cur );
     }
-    for (auto cur=rpnids.begin(); cur != rpnids.end(); cur++ )
+    for (auto cur = rpnids.begin(); cur != rpnids.end(); cur++ )
     {
       snids.erase( *cur );
     }
 
     //printf("Interior sampling neighbor size: %lu\n", snids.size());
   }
-}
+}; // end BuildNeighbors()
 
 
 
  
-template<bool ADAPTIVE, typename NODE>
+template<bool ADAPTIVE, typename NODE, typename T>
 void Skeletonize( NODE *node )
 {
 
@@ -597,11 +610,11 @@ void Skeletonize( NODE *node )
   // TODO: random sampling or important sampling for rows. (Severin)
   // Create nsamples.
   // Build Node Neighbors from all nearest neighbors
-  BuildNeighbors( node );
+  BuildNeighbors<NODE, T>( node );
   
   auto &snids = data.snids;
   // Order snids by distance
-  std::multimap<double,size_t > ordered_snids = flip_map(snids);
+  std::multimap<T, size_t > ordered_snids = flip_map(snids);
   if ( nsamples < K.num() - node->n )
   {
     amap.reserve( nsamples );
@@ -673,7 +686,7 @@ void Skeletonize( NODE *node )
 /**
  *
  */ 
-template<bool ADAPTIVE, typename NODE>
+template<bool ADAPTIVE, typename NODE, typename T>
 class SkeletonizeTask : public hmlp::Task
 {
   public:
@@ -695,7 +708,7 @@ class SkeletonizeTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      Skeletonize<ADAPTIVE>( arg );
+      Skeletonize<ADAPTIVE, NODE, T>( arg );
     };
 }; // end class SkeletonizeTask
 
