@@ -925,7 +925,11 @@ class Tree
             auto *task = tasklist[ node->treelist_id ];
             task->Submit();
             task->Set( node );
-            if ( !AUTO_DEPENDENCY )
+            if ( AUTO_DEPENDENCY )
+            {
+              task->DependencyAnalysis();
+            }
+            else
             {
               task->Enqueue();
             }
@@ -1057,7 +1061,11 @@ class Tree
             task->Set( node );
 
             // Setup dependencies
-            if ( !AUTO_DEPENDENCY )
+            if ( AUTO_DEPENDENCY )
+            {
+              task->DependencyAnalysis();
+            }
+            else
             {
               if ( node->kids[ 0 ] )
               {
@@ -1117,7 +1125,11 @@ class Tree
             task->Submit();
             task->Set( node );
 
-            if ( !AUTO_DEPENDENCY )
+            if ( AUTO_DEPENDENCY )
+            {
+              task->DependencyAnalysis();
+            }
+            else
             {
               if ( node->parent )
               {

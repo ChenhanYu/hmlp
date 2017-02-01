@@ -179,6 +179,8 @@ class Task
 
     virtual void GetEventRecord();
 
+    virtual void DependencyAnalysis();
+
     /* function ptr */
     void (*function)(Task*);
 
@@ -208,9 +210,11 @@ class Task
 
 
 
-class Object
+class ReadWrite
 {
   public:
+
+    ReadWrite();
 
     // Tracking the read set of the object.
     std::deque<Task*> read;
@@ -218,7 +222,11 @@ class Object
     // Tracking the write set of the object.
     std::deque<Task*> write;
 
-}; // end class Object
+    void DependencyAnalysis( ReadWriteType type, Task *task );
+
+  private:
+
+}; // end class ReadWrite
 
 
 
@@ -251,8 +259,9 @@ class Scheduler
     // Manually describe the dependencies.
     static void DependencyAdd( Task *source, Task *target );
 
-    template<bool READ, bool WRITE>
-    static void DependencyAnalysis( Task *task, Object &object );
+    //template<bool READ, bool WRITE>
+    //static void DependencyAnalysis( Task *task, Object &object );
+
 
     void NewTask( Task *task );
 

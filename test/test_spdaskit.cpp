@@ -10,6 +10,7 @@
 #include <hmlp_util.hpp>
 #include <limits>
 
+#include <data.hpp>
 #include <tree.hpp>
 #include <spdaskit.hpp>
 

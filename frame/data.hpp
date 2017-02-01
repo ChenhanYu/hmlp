@@ -23,7 +23,7 @@ namespace hmlp
 {
 
 template<class T, class Allocator = std::allocator<T> >
-class Data : public std::vector<T, Allocator>, public hmlp::Object
+class Data : public ReadWrite, public std::vector<T, Allocator>
 {
   public:
 

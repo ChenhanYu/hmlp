@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <random>
 #include <numeric>
+#include <string>
 #include <stdio.h>
 #include <omp.h>
 
@@ -358,8 +359,9 @@ class KNNTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      name = std::string( "neighbor search" );
       arg = user_arg;
+      name = std::string( "neighbor search" );
+      label = std::to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
 
@@ -695,8 +697,9 @@ class SkeletonizeTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      name = std::string( "Skeletonization" );
       arg = user_arg;
+      name = std::string( "Skeletonization" );
+      label = std::to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
     };
@@ -717,6 +720,9 @@ class SkeletonizeTask : public hmlp::Task
 template<typename NODE>
 void UpdateWeights( NODE *node )
 {
+#ifdef DEBUG_SPDASKIT
+  printf( "%lu UpdateWeight\n", node->treelist_id );
+#endif
   // This function computes the skeleton weights.
   if ( !node->parent || !node->data.isskel ) return;
 
@@ -731,9 +737,14 @@ void UpdateWeights( NODE *node )
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
+
+
   // w_skel is s-by-nrhs
   w_skel.clear();
   w_skel.resize( skels.size(), w.dim() );
+
+
+  //printf( "%lu UpdateWeight w_skel.num() %lu\n", node->treelist_id, w_skel.num() );
 
   if ( node->isleaf )
   {
@@ -794,8 +805,9 @@ class UpdateWeightsTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      name = std::string( "UpdateWeights" );
       arg = user_arg;
+      name = std::string( "UpdateWeights" );
+      label = std::to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
 
@@ -831,6 +843,30 @@ class UpdateWeightsTask : public hmlp::Task
       arg->data.updateweight = event;
     };
 
+    void DependencyAnalysis()
+    {
+      if ( !arg->parent ) 
+      {
+        this->Enqueue();
+        return;
+      }
+
+      auto &w_skel = arg->data.w_skel;
+      w_skel.DependencyAnalysis( hmlp::ReadWriteType::W, this );
+
+      if ( !arg->isleaf )
+      {
+        auto &w_lskel = arg->lchild->data.w_skel;
+        auto &w_rskel = arg->rchild->data.w_skel;
+        w_lskel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        w_rskel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+      else
+      {
+        this->Enqueue();
+      }
+    };
+
     void Execute( Worker* user_worker )
     {
       UpdateWeights( arg );
@@ -848,6 +884,10 @@ class UpdateWeightsTask : public hmlp::Task
 template<bool NNPRUNE, typename NODE>
 void SkeletonsToSkeletons( NODE *node )
 {
+#ifdef DEBUG_SPDASKIT
+  printf( "%lu Skel2Skel \n", node->treelist_id ); fflush( stdout );
+#endif
+
   if ( !node->parent || !node->data.isskel ) return;
 
   std::set<NODE*> *FarNodes;
@@ -861,16 +901,16 @@ void SkeletonsToSkeletons( NODE *node )
 
   // Initilize u_skel to be zeros( s, nrhs ).
   u_skel.clear();
-  u_skel.resize( amap.size(), node->data.w_skel.num(), 0.0 );
+  u_skel.resize( amap.size(), node->setup->w->dim(), 0.0 );
 
-  //printf( "%lu Skel2Skel ", node->treelist_id );
   // Reduce all u_skel.
   for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
   {
-    //printf( "%lu, ", (*it)->treelist_id );
     auto &bmap = (*it)->data.skels;
     auto &w_skel = (*it)->data.w_skel;
     auto Kab = K( amap, bmap );
+    //printf( "%lu (%lu), ", (*it)->treelist_id, w_skel.num() );
+    //fflush( stdout );
     assert( w_skel.num() == u_skel.num() );
     xgemm
     (
@@ -953,8 +993,9 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      name = std::string( "SkeletonsToSkeletons" );
       arg = user_arg;
+      name = std::string( "SkeletonsToSkeletons" );
+      label = std::to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
     };
@@ -962,6 +1003,25 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
     void GetEventRecord()
     {
       //arg->data.updateweight = event;
+    };
+
+    void DependencyAnalysis()
+    {
+      auto &u_skel = arg->data.u_skel;
+      std::set<NODE*> *FarNodes;
+      FarNodes = &arg->NNFarNodes;
+
+      if ( !arg->parent || !FarNodes->size() ) this->Enqueue();
+
+      //printf( "node %lu write u_skel ", arg->treelist_id );
+      u_skel.DependencyAnalysis( hmlp::ReadWriteType::W, this );
+      for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+      {
+        //printf( "%lu ", (*it)->treelist_id );
+        auto &w_skel = (*it)->data.w_skel;
+        w_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+      //printf( "\n" );
     };
 
     void Execute( Worker* user_worker )
@@ -979,6 +1039,10 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 template<bool NNPRUNE, typename NODE, typename T>
 void SkeletonsToNodes( NODE *node )
 {
+#ifdef DEBUG_SPDASKIT
+  printf( "%lu Skel2Node u_skel.dim() %lu\n", node->treelist_id, node->data.u_skel.dim() ); fflush( stdout );
+#endif
+
   if ( !node->parent || !node->data.isskel ) return;
 
   // Gather shared data and create reference
@@ -994,8 +1058,6 @@ void SkeletonsToNodes( NODE *node )
   auto &u_skel = data.u_skel;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
-
-  //printf( "%lu Skel2Node ", node->treelist_id );
 
   if ( node->isleaf )
   {
@@ -1074,8 +1136,9 @@ class SkeletonsToNodesTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      name = std::string( "SkeletonsToNodes" );
       arg = user_arg;
+      name = std::string( "SkeletonsToNodes" );
+      label = std::to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
     };
@@ -1083,6 +1146,25 @@ class SkeletonsToNodesTask : public hmlp::Task
     void GetEventRecord()
     {
       //arg->data.updateweight = event;
+    };
+
+    void DependencyAnalysis()
+    {
+#ifdef DEBUG_SPDASKIT
+      printf( "Skel2Node DepenencyAnalysis %lu\n", arg->treelist_id );
+#endif
+      //if ( !arg->parent )  this->Enqueue();
+
+      auto &u_skel = arg->data.u_skel;
+      u_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+
+      if ( !arg->isleaf )
+      {
+        auto &u_lskel = arg->lchild->data.u_skel;
+        auto &u_rskel = arg->rchild->data.u_skel;
+        u_lskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        u_rskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      }
     };
 
     void Execute( Worker* user_worker )
@@ -1715,6 +1797,7 @@ hmlp::Data<T> ComputeAll
   hmlp::Data<T> &weights
 )
 {
+  const bool AUTO_DEPENDENCY = true;
   hmlp::Data<T> potentials( weights.dim(), weights.num() );
 
   tree.setup.w = &weights;
@@ -1730,11 +1813,12 @@ hmlp::Data<T> ComputeAll
     SKELTOSKELTASK skeltoskeltask;
     SKELTONODETASK skeltonodetask;
 
-    tree.TraverseUp<false,USE_RUNTIME>( nodetoskeltask );
-    if ( USE_RUNTIME ) hmlp_run();
-    tree.TraverseUnOrdered<false,USE_RUNTIME>( skeltoskeltask );
-    if ( USE_RUNTIME ) hmlp_run();
-    tree.TraverseDown<false,USE_RUNTIME>( skeltonodetask );
+    tree.TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
+    //if ( USE_RUNTIME ) hmlp_run();
+
+    tree.TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
+    //if ( USE_RUNTIME ) hmlp_run();
+    tree.TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
   else

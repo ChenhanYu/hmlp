@@ -315,6 +315,8 @@ void Task::Execute( Worker *user_worker )
 
 void Task::GetEventRecord() {};
 
+void Task::DependencyAnalysis() {};
+
 /**
  *  @brief 
  */ 
@@ -347,6 +349,48 @@ void Task::Enqueue()
   rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
 
+
+
+/**
+ *  @breief ReadWrite
+ */ 
+ReadWrite::ReadWrite() {};
+
+void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
+{
+  if ( type == R || type == RW )
+  {
+    read.push_back( task );
+    // Read after write (RAW) data dependencies.
+    for ( auto it = write.begin(); it != write.end(); it ++ )
+    {
+      Scheduler::DependencyAdd( (*it), task );
+#ifdef DEBUG_RUNTIME
+      printf( "RAW %s (%s) --> %s (%s)\n", 
+          (*it)->name.data(), (*it)->label.data(), 
+          task->name.data(), task->label.data() );
+#endif
+    }
+  }
+
+  if ( type == W || type == RW )
+  {
+    // Write after read (WAR) anti-dependencies.
+    for ( auto it = read.begin(); it != read.end(); it ++ )
+    {
+      Scheduler::DependencyAdd( (*it), task );
+#ifdef DEBUG_RUNTIME
+      printf( "WAR %s (%s) --> %s (%s)\n", 
+          (*it)->name.data(), (*it)->label.data(), 
+          task->name.data(), task->label.data() );
+#endif
+    }
+    write.clear();
+    write.push_back( task );
+    read.clear();
+  }
+
+}; // end DependencyAnalysis()
 
 
 
@@ -444,6 +488,9 @@ void Scheduler::Finalize()
  */ 
 void Scheduler::DependencyAdd( Task *source, Task *target )
 {
+  // Avoid self-loop
+  if ( source == target ) return;
+
   // Update the source list.
   source->task_lock.Acquire();
   {
@@ -480,36 +527,36 @@ void Scheduler::DependencyAdd( Task *source, Task *target )
  *         previous state of the object.
  *
  */ 
-template<bool READ, bool WRITE>
-void Scheduler::DependencyAnalysis( Task *task, hmlp::Object &object )
-{
-  // read and write are std::deque<Task*>.
-  auto &read = object.read;
-  auto &write = object.read;
-
-  if ( READ )
-  {
-    read.push_back( task );
-    // Read after write (RAW) data dependencies.
-    for ( auto it = write.begin(); it != write.end(); it ++ )
-    {
-      DependencyAdd( (*it), task );
-    }
-  }
-
-  if ( WRITE )
-  {
-    // Write after read (WAR) anti-dependencies.
-    for ( auto it = read.begin(); it != read.end(); it ++ )
-    {
-      DependencyAdd( (*it), task );
-    }
-    write.clear();
-    write.push_back( task );
-    read.clear();
-  }
-
-}; // end DependencyAnalysis()
+//template<bool READ, bool WRITE>
+//void Scheduler::DependencyAnalysis( Task *task, Object &object )
+//{
+//  // read and write are std::deque<Task*>.
+//  auto &read = object.read;
+//  auto &write = object.read;
+//
+//  if ( READ )
+//  {
+//    read.push_back( task );
+//    // Read after write (RAW) data dependencies.
+//    for ( auto it = write.begin(); it != write.end(); it ++ )
+//    {
+//      DependencyAdd( (*it), task );
+//    }
+//  }
+//
+//  if ( WRITE )
+//  {
+//    // Write after read (WAR) anti-dependencies.
+//    for ( auto it = read.begin(); it != read.end(); it ++ )
+//    {
+//      DependencyAdd( (*it), task );
+//    }
+//    write.clear();
+//    write.push_back( task );
+//    read.clear();
+//  }
+//
+//}; // end DependencyAnalysis()
 
 
 void* Scheduler::EntryPoint( void* arg )
