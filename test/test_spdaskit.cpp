@@ -229,9 +229,11 @@ int main( int argc, char *argv[] )
 {
   size_t n, m, k, s, nrhs;
 
-  const bool ADAPTIVE = false;
+  const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
-  const bool RANDOMMATRIX = false;
+  const bool RANDOMMATRIX = true;
+
+  using T = double;
 
   sscanf( argv[ 1 ], "%lu", &n );
   sscanf( argv[ 2 ], "%lu", &m );
@@ -243,27 +245,25 @@ int main( int argc, char *argv[] )
   
   if ( RANDOMMATRIX )
   {
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, -1, double>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, -1, T>( n, m, k, s, nrhs );
   }
   else
   {
     n = 1024;
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  1, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  2, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  3, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  4, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  5, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  6, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  7, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  8, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  9, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 10, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 11, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 12, double>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 13, double>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  1, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  2, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  3, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  4, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  5, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  6, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  7, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  8, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  9, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 10, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 11, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 12, T>( n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 13, T>( n, m, k, s, nrhs );
   }
-
-  //test_spdaskit<ADAPTIVE, float>( n, m, k, s, nrhs );
 
   hmlp_finalize();
  

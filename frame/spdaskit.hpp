@@ -650,7 +650,16 @@ void Skeletonize( NODE *node )
   if ( ADAPTIVE )
   {
     hmlp::skel::id( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
-    data.isskel = skels.size();
+    if ( skels.size() == maxs && LEVELRESTRICTION )
+    {
+      skels.clear();
+      proj.resize( 0, 0 );
+      data.isskel = false;
+    }
+    else
+    {
+      data.isskel = true;
+    }
   }
   else
   {
@@ -887,7 +896,6 @@ void SkeletonsToSkeletons( NODE *node )
   else           FarNodes = &node->FarNodes;
 
   auto &K = *node->setup->K;
-  //auto &FarNodes = node->NNFarNodes;
   auto &amap = node->data.skels;
   auto &u_skel = node->data.u_skel;
 
@@ -901,13 +909,13 @@ void SkeletonsToSkeletons( NODE *node )
     auto &bmap = (*it)->data.skels;
     auto &w_skel = (*it)->data.w_skel;
     auto Kab = K( amap, bmap );
-    //printf( "%lu (%lu), ", (*it)->treelist_id, w_skel.num() );
+    //printf( "%lu (%lu, %lu), ", (*it)->treelist_id, w_skel.dim(), w_skel.num() );
     //fflush( stdout );
     assert( w_skel.num() == u_skel.num() );
     xgemm
     (
       "N", "N",
-      u_skel.dim(), u_skel.num(), Kab.dim(),
+      u_skel.dim(), u_skel.num(), Kab.num(),
       1.0, Kab.data(),    Kab.dim(),
            w_skel.data(), w_skel.dim(),
       1.0, u_skel.data(), u_skel.dim()
@@ -1035,8 +1043,6 @@ void SkeletonsToNodes( NODE *node )
   printf( "%lu Skel2Node u_skel.dim() %lu\n", node->treelist_id, node->data.u_skel.dim() ); fflush( stdout );
 #endif
 
-  if ( !node->parent || !node->data.isskel ) return;
-
   // Gather shared data and create reference
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
@@ -1057,15 +1063,19 @@ void SkeletonsToNodes( NODE *node )
     if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
     else           NearNodes = &node->NearNodes;
     auto &amap = node->lids;
-    hmlp::Data<T> u_leaf( u_skel.num(), lids.size(), 0.0 );
-    xgemm
-    (
-      "T", "N",
-      u_leaf.dim(), u_leaf.num(), proj.dim(),
-      1.0, u_skel.data(), u_skel.dim(),
-           proj.data(),   proj.dim(),
-      0.0, u_leaf.data(), u_leaf.dim()
-    );
+    hmlp::Data<T> u_leaf( w.dim(), lids.size(), 0.0 );
+
+    if ( data.isskel )
+    {
+      xgemm
+      (
+        "T", "N",
+        u_leaf.dim(), u_leaf.num(), proj.dim(),
+        1.0, u_skel.data(), u_skel.dim(),
+             proj.data(),   proj.dim(),
+        0.0, u_leaf.data(), u_leaf.dim()
+      );
+    }
 
     for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
     {
@@ -1093,6 +1103,8 @@ void SkeletonsToNodes( NODE *node )
   }
   else
   {
+    if ( !node->parent || !node->data.isskel ) return;
+
     auto &u_lskel = lchild->data.u_skel;
     auto &u_rskel = rchild->data.u_skel;
     auto &lskel = lchild->data.skels;
@@ -1375,6 +1387,18 @@ void NearNodes( TREE &tree )
     auto *node = *(level_beg + node_ind);
     auto &data = node->data;
 
+    // If no skeletons, then add every leaf nodes.
+    if ( !node->data.isskel )
+    {
+      //printf( "leaf %lu not skel\n", node->treelist_id );
+      for ( size_t i = 0; i < n_nodes; i ++ )
+      {
+        if ( NNPRUNE ) node->NNNearNodes.insert( *(level_beg + i) );
+        else           node->NearNodes.insert(   *(level_beg + i) );
+      }
+      //continue;
+    }
+
     if ( NNPRUNE )
     {
       // Add myself to the list.
@@ -1446,6 +1470,9 @@ void FarNodes( TREE &tree )
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
+
+      // If I don't have any skeleton, then I'm nobody's far field.
+      if ( !node->data.isskel ) continue;
 
       if ( node->isleaf )
       {
@@ -1807,11 +1834,13 @@ hmlp::Data<T> ComputeAll
 
     tree.TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
     //if ( USE_RUNTIME ) hmlp_run();
-
+    //printf( "UpdateWeights\n" );
     tree.TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
     //if ( USE_RUNTIME ) hmlp_run();
+    //printf( "Skel2Skel\n" );
     tree.TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
     if ( USE_RUNTIME ) hmlp_run();
+    //printf( "Skel2Node\n" );
   }
   else
   {
@@ -1821,7 +1850,6 @@ hmlp::Data<T> ComputeAll
 
     tree.TraverseUp<false,USE_RUNTIME>( nodetoskeltask );
     if ( USE_RUNTIME ) hmlp_run();
-
 
     // Not yet implemented.
     printf( "Non symmetric ComputeAll is not yet implemented\n" );

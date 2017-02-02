@@ -189,7 +189,6 @@ void id
   }
   auto A_skel = Z;
 
-
   S = A;
   // P (overwrite S) = pseudo-inverse( Z ) * S
   hmlp::xgels
