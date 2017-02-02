@@ -552,9 +552,11 @@ void BuildNeighbors( NODE *node )
 
 
  
-template<bool ADAPTIVE, typename NODE, typename T>
+template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
 void Skeletonize( NODE *node )
 {
+  // Early return if we do not need to skeletonize
+  if ( !node->parent ) return;
 
   // Gather shared data and create reference
   auto &K = *node->setup->K;
@@ -569,11 +571,9 @@ void Skeletonize( NODE *node )
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
-  // Early return if we do not need to skeletonize
-  if ( !node->parent ) return;
-
-  if ( ADAPTIVE )
+  if ( LEVELRESTRICTION )
   {
+    assert( ADAPTIVE );
     if ( !node->isleaf && ( !lchild->data.isskel || !rchild->data.isskel ) )
     {
       skels.clear();
@@ -608,23 +608,21 @@ void Skeletonize( NODE *node )
 
   auto nsamples = 2 * bmap.size();
 
-
-  // TODO: random sampling or important sampling for rows. (Severin)
-  // Create nsamples.
   // Build Node Neighbors from all nearest neighbors
   BuildNeighbors<NODE, T>( node );
   
   auto &snids = data.snids;
   // Order snids by distance
-  std::multimap<T, size_t > ordered_snids = flip_map(snids);
+  std::multimap<T, size_t > ordered_snids = flip_map( snids );
   if ( nsamples < K.num() - node->n )
   {
     amap.reserve( nsamples );
-    for (auto cur=ordered_snids.begin();cur!=ordered_snids.end(); cur++)
+    for ( auto cur = ordered_snids.begin(); cur != ordered_snids.end(); cur++ )
     {
-      amap.push_back(cur->second);
+      amap.push_back( cur->second );
     }
-    if (amap.size() < nsamples)
+    // Uniform samples.
+    if ( amap.size() < nsamples )
     {
       while ( amap.size() < nsamples )
       {
@@ -637,20 +635,6 @@ void Skeletonize( NODE *node )
       }
     }
   }
-  // Chenhan's uniform sample.
-  /*if ( nsamples < K.num() - node->n )
-  {
-    amap.reserve( nsamples );
-    while ( amap.size() < nsamples )
-    {
-      size_t sample = rand() % K.num();
-      if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
-           std::find( lids.begin(), lids.end(), sample ) == lids.end() )
-      {
-        amap.push_back( sample );
-      }
-    }
-  }*/
   else // Use all off-diagonal blocks without samples.
   {
     for ( int sample = 0; sample < K.num(); sample ++ )
@@ -673,13 +657,21 @@ void Skeletonize( NODE *node )
     hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
     data.isskel = true;
   }
+
+  // Relabel skels with the real lids
+  for ( size_t i = 0; i < skels.size(); i ++ )
+  {
+    skels[ i ] = bmap[ skels[ i ] ];
+  }
+
+
   // Update Pruning neighbor list
   data.pnids.clear();
-  for ( int ii=0 ; ii<skels.size() ; ii++ )
+  for ( int ii = 0 ; ii < skels.size() ; ii ++ )
   {
-    for ( int jj=0; jj < NN.dim()/2; jj++)
+    for ( int jj = 0; jj < NN.dim() / 2; jj ++ )
     {
-      data.pnids.insert(NN.data()[ skels[ii] * NN.dim() + jj].second);
+      data.pnids.insert( NN.data()[ skels[ ii ] * NN.dim() + jj ].second );
     }
   }
 }; // end void Skeletonize()
@@ -688,7 +680,7 @@ void Skeletonize( NODE *node )
 /**
  *
  */ 
-template<bool ADAPTIVE, typename NODE, typename T>
+template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
 class SkeletonizeTask : public hmlp::Task
 {
   public:
@@ -711,7 +703,7 @@ class SkeletonizeTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      Skeletonize<ADAPTIVE, NODE, T>( arg );
+      Skeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
     };
 }; // end class SkeletonizeTask
 

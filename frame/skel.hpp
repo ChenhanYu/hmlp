@@ -136,6 +136,7 @@ void id
   std::vector<size_t> &skels, hmlp::Data<T> &proj
 )
 {
+  int s;
   int nb = 512;
   int lwork = 2 * n  + ( n + 1 ) * nb;
   std::vector<T> work( lwork );
@@ -158,20 +159,13 @@ void id
   //printf( "end xgeqp3\n" );
 
   // Search for rank 1 <= s <= maxs that satisfies the error tolerance
-  int s;
   for ( s = 1; s < n; s ++ )
   {
-    if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol )
-      break;
+    if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol ) break;
   }
 
   // Failed to skeletonize
-  if ( s > maxs )
-  {
-    skels.clear();
-    proj.resize( 0, 0 );
-    return;
-  }
+  if ( s > maxs ) s = maxs;
  
   jpvt.resize( s );
   skels.resize( s );
