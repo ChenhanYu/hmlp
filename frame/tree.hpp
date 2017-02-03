@@ -101,7 +101,26 @@ class PermuteTask : public hmlp::Task
 }; // end class SkeletonizeTask
 
 
+template<typename NODE>
+class SplitTask : public hmlp::Task
+{
+  public:
 
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      name = std::string( "Split" );
+      arg = user_arg;
+      // Need an accurate cost model.
+      cost = 1.0;
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      arg->Split<true>( 0 );
+    };
+}; // end class SplitTask
 
 /**
  *  @brief Compute the mean values.
@@ -423,18 +442,22 @@ class Node
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
-
-
     ~Node() {};
 
-    void Split( int m, int max_depth )
+    void Resize( int n )
     {
+      this->n = n;
+      gids.resize( n );
+      lids.resize( n );
+    };
 
-      //for ( size_t i = 0; i < lids.size(); i ++ )
-      //{
-      //  assert( lids[ i ] < 1024 );
-      //  assert( gids[ i ] < 1024 );
-      //}
+
+    template<bool PREALLOCATE>
+    //void Split( int m, int max_depth )
+    void Split( int dummy )
+    {
+      int m = setup->m;
+      int max_depth = setup->max_depth;
 
       if ( n > m && l < max_depth )
       {
@@ -460,15 +483,20 @@ class Node
           }
         }
 
-
-
         // TODO: Can be parallelized
         for ( int i = 0; i < N_CHILDREN; i ++ )
         {
           int nchild = split[ i ].size();
-         
-          //kids[ i ] = new Node( setup, nchild, l + 1, X, this );
-          kids[ i ] = new Node( setup, nchild, l + 1, this );
+     
+          if ( PREALLOCATE )
+          {
+            assert( kids[ i ] );
+            kids[ i ]->Resize( nchild );
+          }
+          else
+          {
+            kids[ i ] = new Node( setup, nchild, l + 1, this );
+          }
 
           // TODO: Can be parallelized
           for ( int j = 0; j < nchild; j ++ )
@@ -489,7 +517,8 @@ class Node
       {
         isleaf = true;
       }
-    };
+    }; // end Split()
+
 
     /**
      *  @brief Check if this node contain any query using morton.
@@ -609,6 +638,11 @@ class Setup
 
     ~Setup() {};
 
+    size_t m;
+    
+    // By default we use 4 bits = 0-15 levels.
+    size_t max_depth = 15;
+
     hmlp::Data<T> *X;
 
     hmlp::Data<std::pair<T, std::size_t>> *NN;
@@ -726,7 +760,7 @@ class Tree
 
     void TreePartition
     (
-      int leafsize, int max_depth,
+      //int leafsize, int max_depth,
       std::vector<std::size_t> &gids,
       std::vector<std::size_t> &lids
     )
@@ -734,8 +768,9 @@ class Tree
       assert( N_CHILDREN == 2 );
 
       n = lids.size();
-
-      m = leafsize;
+      //m = leafsize;
+      m = setup.m;
+      int max_depth = setup.max_depth;
 
       std::deque<NODE*> treequeue;
      
@@ -743,23 +778,64 @@ class Tree
       treequeue.clear();
       treelist.reserve( ( n / m ) * N_CHILDREN );
 
+//      auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
+//   
+//      treequeue.push_back( root );
+//    
+//      // TODO: there is parallelism to be exploited here.
+//      while ( auto *node = treequeue.front() )
+//      {
+//        node->treelist_id = treelist.size();
+//        //node->Split<false>( m, max_depth );
+//        node->Split<false>( 0 );
+//        for ( int i = 0; i < N_CHILDREN; i ++ )
+//        {
+//          treequeue.push_back( node->kids[ i ] );
+//        }
+//
+//        treelist.push_back( node );
+//        treequeue.pop_front();
+//      }
+
+      // Assume complete tree, compute the tree level first.
+      depth = 0;
+      size_t n_per_node = n;
+      while ( n_per_node > m && depth < max_depth )
+      {
+        n_per_node /= N_CHILDREN;
+        depth ++;
+      }
+      size_t n_node = ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
+      //printf( "n_per_node %lu depth %lu n_nodes %lu\n", n_per_node, depth, n_node );
+
       auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
-   
       treequeue.push_back( root );
-    
-      // TODO: there is parallelism to be exploited here.
       while ( auto *node = treequeue.front() )
       {
         node->treelist_id = treelist.size();
-        node->Split( m, max_depth );
-        for ( int i = 0; i < N_CHILDREN; i ++ )
+        if ( node->l < depth )
         {
-          treequeue.push_back( node->kids[ i ] );
+          for ( int i = 0; i < N_CHILDREN; i ++ )
+          {
+            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
+            treequeue.push_back( node->kids[ i ] );
+          }
         }
-
+        else
+        {
+          treequeue.push_back( NULL );
+        }
         treelist.push_back( node );
         treequeue.pop_front();
       }
+
+      SplitTask<NODE> splittask;
+      TraverseDown<false, false>( splittask );
+
+
+
+
+
 
       // All tree nodes were created. Now decide tree depth.
       if ( treelist.size() )
@@ -770,6 +846,7 @@ class Tree
         //printf( "depth %lu number of tree nides %lu\n", depth, treelist.size() );
       }
 
+      double beg = omp_get_wtime();
       if ( N_CHILDREN == 2 )
       {
         setup.morton.resize( n );
@@ -780,11 +857,16 @@ class Tree
       {
         printf( "No morton id available\n" );
       }
+      double morton_time = omp_get_wtime() - beg;
+      //printf( "morton time %5.3lfs\n", morton_time );
 
 
+      beg = omp_get_wtime();
       // Adgust lids and gids to the appropriate order.
       PermuteTask<NODE> permutetask;
       TraverseUp<false, false>( permutetask );
+      double permute_time = omp_get_wtime() - beg;
+      //printf( "permute time %5.3lfs\n", permute_time );
     };
 
     template<class TASK>
@@ -825,18 +907,23 @@ class Tree
       // k-by-N
       hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
 
+      setup.m = 2 * k;
+      if ( setup.m < 16 ) setup.m = 16;
       setup.NN = &NN;
 
       // Clean the treelist.
+      #pragma omp parallel for
       for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
       treelist.clear();
 
       // This loop has to be sequential to prevent from race condiditon on NN.
       for ( int t = 0; t < n_tree; t ++ )      
       {
-        TreePartition( 2 * k, max_depth, gids, lids );
-
+        //TreePartition( 2 * k, max_depth, gids, lids );
+        TreePartition( gids, lids );
         TraverseLeafs<false>( dummy );
+
+        #pragma omp parallel for
         for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
         treelist.clear();
 #ifdef DEBUG_TREE

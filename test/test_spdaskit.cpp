@@ -122,13 +122,15 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   tree.setup.K = &K;
   tree.setup.splitter.Kptr = tree.setup.K; // The closure takes coordinates.
   tree.setup.NN = &NN;
+  tree.setup.m = m;
   tree.setup.k = k;
   tree.setup.s = s;
   tree.setup.stol = 1E-3;
   // ------------------------------------------------------------------------
 
   beg = omp_get_wtime();
-  tree.TreePartition( m, 10, gids, lids );
+  //tree.TreePartition( m, 10, gids, lids );
+  tree.TreePartition( gids, lids );
   tree_time = omp_get_wtime() - beg;
 
 
