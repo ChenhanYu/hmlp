@@ -441,21 +441,25 @@ std::multimap<TB, TA> flip_map( const std::map<TA, TB> &src )
                  flip_pair<TA, TB> );
   return dst;
 }; // end flip_map()
-
-
+/*template<typename TA, typename TB>
+bool compare_pair ( std::pair<TA, TB> a , std::pair<TA, TB> b ) 
+{
+  return (a.first < b.first); 
+}
+*/
 /**
  *  @brief Building neighbors for each tree node.
  */ 
 template<typename NODE, typename T>
-void BuildNeighbors( NODE *node )
+void BuildNeighbors( NODE *node , size_t nsamples)
 {
   auto &NN = node->setup->NN;
   std::vector<size_t> &gids = node->gids;
+  std::vector<size_t> &lids = node->lids;
   auto &snids = node->data.snids;
   auto &pnids = node->data.pnids;
   int n = node->n;
   int k = NN->dim();
-
   if ( node->isleaf )
   {
     // Pruning neighbor lists/sets:
@@ -464,47 +468,41 @@ void BuildNeighbors( NODE *node )
     {
       for ( int jj = 0; jj < n; jj ++ )
       {
-        pnids.insert( NN->data()[ gids[ jj ] * k + ii ].second );
+        pnids.insert( NN->data()[ lids[ jj ] * k + ii ].second );
         //printf("%lu;",NN->data()[ gids[jj] * k + ii].second); 
       }
     }
+    // Remove "own" points
+    for ( int i = 0; i < n; i ++ )
+    {
+      pnids.erase( gids[ i ] );
+    }
     //printf("Size of pruning neighbor set: %lu \n", pnids.size());
-
     // Sampling neighbors
-    snids = std::map<size_t, T>();
-    // TODO: Make building sampling neighbor adaptive.  
+    // To think about: Make building sampling neighbor adaptive.  
     // E.g. request 0-100 closest neighbors, 
     // if additional 100 neighbors are requested, return sneighbors 100-200 
-    // Use a priority queue s.t. we don't look at everything
-    // Push candidate sampling neighbors (with priority distance) to queue 
+    snids = std::map<size_t, T>(); 
+    std::vector<std::pair<T, size_t>> tmp ( k / 2 * n ); 
+    std::set<size_t> nodeIdx( gids.begin() , gids.end() );    
+    // Allocate array for sorting 
     for ( int ii = k / 2; ii < k; ii ++ )
     {
       for ( int jj = 0; jj < n; jj ++ )
       {
-        // Is candidate not in pruning neighbor list?
-        if ( !pnids.count( NN->data()[ gids[ jj ] * k + ii ].second ) )
-        {
-          // Try to insert
-          //std::pair<std::map<size_t, T>::iterator, bool> ret;
-          auto ret = snids.insert
-                (
-                  std::pair<size_t, T>
-                  (
-                    NN->data()[ gids[ jj ] * k + ii ].second, 
-                    NN->data()[ gids[ jj ] * k + ii ].first
-                  )
-                );
-          if ( ret.second == false )
-          {
-            // Update distance?
-            if ( ret.first->second > NN->data()[ gids[ jj ] * k + ii ].first )
-            {
-              ret.first->second = NN->data()[ gids[ jj ] * k + ii ].first;
-            }
-          }
-        }
+        tmp [ (ii-k/2) * n + jj ] = NN->data()[  jj * k + ii ];
       }
     }
+    std::sort( tmp.begin() , tmp.end() );
+    int i = 0;
+    while ( snids.size() < nsamples && i < k * n / 2 )
+    {
+      if ( !pnids.count( tmp[i].second ) && !nodeIdx.count( tmp[i].second ) )
+      {
+        snids.insert( std::pair<size_t,T>( tmp[i].second , tmp[i].first ) );
+      }
+      i++;
+    } 
     //printf("Size of sampling neighbor list: %lu \n", snids.size());
   }
   else
@@ -613,7 +611,7 @@ void Skeletonize( NODE *node )
   auto nsamples = 2 * bmap.size();
 
   // Build Node Neighbors from all nearest neighbors
-  BuildNeighbors<NODE, T>( node );
+  BuildNeighbors<NODE, T>( node, nsamples );
   
   auto &snids = data.snids;
   // Order snids by distance
