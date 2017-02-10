@@ -491,16 +491,16 @@ void BuildNeighbors( NODE *node , size_t nsamples)
     std::vector<std::pair<T, size_t>> tmp ( k / 2 * n ); 
     std::set<size_t> nodeIdx( gids.begin() , gids.end() );    
     // Allocate array for sorting 
-    for ( int ii = k / 2; ii < k; ii ++ )
+    for ( int ii = (k+1) / 2; ii < k; ii ++ )
     {
       for ( int jj = 0; jj < n; jj ++ )
       {
-        tmp [ (ii-k/2) * n + jj ] = NN->data()[  jj * k + ii ];
+        tmp [ (ii-(k+1)/2) * n + jj ] = NN->data()[  jj * k + ii ];
       }
     }
     std::sort( tmp.begin() , tmp.end() );
     int i = 0;
-    while ( snids.size() < nsamples && i < k * n / 2 )
+    while ( snids.size() < nsamples && i <  (k-1) * n / 2 )
     {
       if ( !pnids.count( tmp[i].second ) && !nodeIdx.count( tmp[i].second ) )
       {
