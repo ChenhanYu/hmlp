@@ -118,6 +118,10 @@ class Event
 
     double GetDuration();
 
+    double GetFlops();
+
+    double GetMops();
+
     void Normalize( double shift );
 
     void Terminate();

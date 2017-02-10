@@ -171,15 +171,15 @@ bool Worker::Execute( Task *task )
   // Fetch( task );
   // Prefetch( task );
 
-#ifdef DUMP_ANALYSIS_DATA
+//#ifdef DUMP_ANALYSIS_DATA
   task->event.Begin( this->tid );
-#endif
+//#endif
   task->Execute( this );
   WaitExecute();
-#ifdef DUMP_ANALYSIS_DATA
+//#ifdef DUMP_ANALYSIS_DATA
   task->event.Terminate();
   task->GetEventRecord();
-#endif
+//#endif
 
   // WaitPrefetch
 

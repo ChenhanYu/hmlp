@@ -218,6 +218,17 @@ double Event::GetDuration()
   return sec;
 };
 
+double Event::GetFlops()
+{
+  return flops;
+};
+
+double Event::GetMops()
+{
+  return mops;
+};
+
+
 void Event::Print()
 {
   printf( "beg %5.3lf end %5.3lf sec %5.3lf flops %E mops %E\n",
@@ -226,19 +237,25 @@ void Event::Print()
 
 void Event::Timeline( bool isbeg, size_t tag )
 {
+  double gflops_peak = 15.0;
+  double flops_efficiency = flops / ( gflops_peak * sec * 1E+9 );
   if ( isbeg )
   {
+    //printf( "@TIMELINE\n" );
+    //printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 0, beg, (double)tid + 0.0 );
+    //printf( "@TIMELINE\n" );
+    //printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 1, beg, (double)tid + flops_efficiency );
     printf( "@TIMELINE\n" );
-    printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 0, beg, (double)tid + 0.0 );
-    printf( "@TIMELINE\n" );
-    printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 1, beg, (double)tid + 0.6 );
+    printf( "worker%lu, %lu, %E, %lf\n", tid, tag, beg, (double)tid + flops_efficiency );
   }
   else
   {
+    //printf( "@TIMELINE\n" );
+    //printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 0, beg, (double)tid + flops_efficiency );
+    //printf( "@TIMELINE\n" );
+    //printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 1, beg, (double)tid + 0.0 );
     printf( "@TIMELINE\n" );
-    printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 0, beg, (double)tid + 0.6 );
-    printf( "@TIMELINE\n" );
-    printf( "worker%lu, %lu, %E, %lf\n", tid, 2 * tag + 1, beg, (double)tid + 0.0 );
+    printf( "worker%lu, %lu, %E, %lf\n", tid, tag, end, (double)tid + 0.0 );
   }
 
 }
@@ -469,9 +486,7 @@ void Scheduler::Finalize()
   }
 #else
 #endif
-#ifdef DUMP_ANALYSIS_DATA
   Summary();
-#endif
   // Reset tasklist
   for ( auto it = tasklist.begin(); it != tasklist.end(); it ++ )
   {
@@ -626,6 +641,7 @@ void* Scheduler::EntryPoint( void* arg )
 
 void Scheduler::Summary()
 {
+  double total_flops = 0.0, total_mops = 0.0;
   time_t rawtime;
   struct tm * timeinfo;
   char buffer[ 80 ];
@@ -636,8 +652,17 @@ void Scheduler::Summary()
 
   //printf( "%s\n", buffer );
 
-  std::deque<std::tuple<bool, double, size_t>> timeline;
 
+    for ( size_t i = 0; i < tasklist.size(); i ++ )
+    {
+      total_flops += tasklist[ i ]->event.GetFlops();
+      total_mops  += tasklist[ i ]->event.GetMops();
+    }
+    printf( "flops %E mops %E\n", total_flops, total_mops );
+
+
+#ifdef DUMP_ANALYSIS_DATA
+  std::deque<std::tuple<bool, double, size_t>> timeline;
 
   if ( tasklist.size() )
   {
@@ -664,6 +689,7 @@ void Scheduler::Summary()
 
     timeline_tag += timeline.size();
   }
+#endif
 
 }; // end void Schediler::Summary()
 

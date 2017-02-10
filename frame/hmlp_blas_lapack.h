@@ -30,6 +30,34 @@ void xgemm
   double *C, int ldc
 );
 
+void xgetrf
+(
+  int m, int n, 
+  double *A, int lda, int *ipiv
+);
+
+void xgetrf
+(
+  int m, int n, 
+  float *A, int lda, int *ipiv
+);
+
+void xgetrs
+(
+  const char *trans,
+  int m, int nrhs, 
+  double *A, int lda, int *ipiv,
+  double *B, int ldb
+);
+
+void xgetrs
+(
+  const char *trans,
+  int m, int nrhs, 
+  float *A, int lda, int *ipiv,
+  float *B, int ldb
+);
+
 void xgeqrf
 (
   int m, int n, 
@@ -43,6 +71,22 @@ void xgeqrf
   int m, int n, 
   float *A, int lda, 
   float *tau, 
+  float *work, int lwork 
+);
+
+void xorgqr
+(
+  int m, int n, int k,
+  double *A, int lda, 
+  double *tau,
+  double *work, int lwork 
+);
+
+void xorgqr
+(
+  int m, int n, int k,
+  float *A, int lda, 
+  float *tau,
   float *work, int lwork 
 );
 

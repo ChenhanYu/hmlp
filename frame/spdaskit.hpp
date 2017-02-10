@@ -100,6 +100,10 @@ class Data
 
     hmlp::Event updateweight;
 
+    hmlp::Event skeltoskel;
+
+    hmlp::Event skeltonode;
+
 }; // end class Data
 
 
@@ -707,6 +711,25 @@ class SkeletonizeTask : public hmlp::Task
 
     void GetEventRecord()
     {
+      double flops = 0.0, mops = 0.0;
+
+      size_t n = arg->data.proj.num();
+      size_t m = 2 * n;
+      size_t k = arg->data.proj.dim();
+
+      // GEQP3
+      flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+
+      // GELS
+      flops += ( 2.0 / 3.0 ) * k * k * ( 3 * m - k );
+      mops += 2.0 * m * k;
+      flops += 2.0 * m * n * k;
+      mops += 2.0 * ( m * k + k * n + m * n );
+      flops += ( 1.0 / 3.0 ) * k * k * n;
+      mops += 2.0 * ( k * k + k * n );
+
+      event.Set( flops, mops );
       arg->data.skeletonize = event;
     };
 
@@ -922,55 +945,6 @@ void SkeletonsToSkeletons( NODE *node )
     );
   }
   //printf( "\n" );
-
-  //for ( auto it = FarNodes.begin(); it != FarNodes.end(); it ++ )
-  //{
-  //  auto &alids = node->lids;
-  //  auto &blids = (*it)->lids;
-  //  auto &bmap = (*it)->data.skels;
-  //  auto &proja = node->data.proj;
-  //  auto &projb = (*it)->data.proj;
-  //  auto Kab = K( alids, blids );
-  //  auto Kas = K( alids, bmap );
-  //  auto Kss = K( amap, bmap );
-
-  //  auto nrm2 = hmlp_norm( Kab.dim(), Kab.num(), Kab.data(), Kab.dim() ); 
-  //  xgemm
-  //  (
-  //    "N", "N",
-  //    Kab.dim(), Kab.num(), projb.dim(),
-  //    -1.0, Kas.data(), Kas.dim(),
-  //         projb.data(), projb.dim(),
-  //     1.0, Kab.data(), Kab.dim()
-  //  );
-  //  auto err = hmlp_norm( Kab.dim(), Kab.num(), Kab.data(), Kab.dim() ); 
-  //  auto iderr = err / nrm2;
-
-
-  //  Kab = K( alids, blids );
-  //  xgemm
-  //  (
-  //    "T", "N",
-  //    Kas.dim(), Kas.num(), proja.dim(),
-  //    1.0, proja.data(), proja.dim(),
-  //         Kss.data(), Kss.dim(),
-  //    0.0, Kas.data(), Kas.dim()
-  //  );
-  //  xgemm
-  //  (
-  //    "N", "N",
-  //    Kab.dim(), Kab.num(), projb.dim(),
-  //    -1.0, Kas.data(), Kas.dim(),
-  //         projb.data(), projb.dim(),
-  //     1.0, Kab.data(), Kab.dim()
-  //  );
-  //  err = hmlp_norm( Kab.dim(), Kab.num(), Kab.data(), Kab.dim() );
-  //  auto fmmerr = err / nrm2;
-
-  //  printf( "%lu %lu error: %E, %E\n", node->treelist_id, (*it)->treelist_id, iderr, fmmerr );
-
-  //}
-
 }; // end void SkeletonsToSkeletons()
 
 
@@ -982,6 +956,7 @@ void SkeletonsToSkeletons( NODE *node )
  *         NodesToSkeletons (P*w)
  *         SkeletonsToSkeletons ( Sum( Kab * ))
  *
+ *  @TODO  The flops and mops of constructing Kab.
  *
  */ 
 template<bool NNPRUNE, typename NODE>
@@ -1003,6 +978,24 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
     void GetEventRecord()
     {
       //arg->data.updateweight = event;
+
+      //--------------------------------------
+      double flops = 0.0, mops = 0.0;
+      size_t m = arg->data.skels.size();
+
+      std::set<NODE*> *FarNodes;
+      if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
+      else           FarNodes = &arg->FarNodes;
+
+      for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+      {
+        size_t n = (*it)->data.w_skel.num();
+        size_t k = (*it)->data.w_skel.dim();
+        flops += 2.0 * m * n * k;
+        mops += m * k; // cost of Kab
+        mops += 2.0 * ( m * n + n * k + k * n );
+      }
+      event.Set( flops, mops );
     };
 
     void DependencyAnalysis()
@@ -1145,6 +1138,49 @@ class SkeletonsToNodesTask : public hmlp::Task
       label = std::to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
+
+      //--------------------------------------
+      double flops = 0.0, mops = 0.0;
+      auto &lids = arg->lids;
+      auto &data = arg->data;
+      auto &proj = data.proj;
+      auto &skels = data.skels;
+      auto &w = *arg->setup->w;
+      if ( arg->isleaf )
+      {
+        size_t m = proj.num();
+        size_t n = w.dim();
+        size_t k = proj.dim();
+        std::set<NODE*> *NearNodes;
+        if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
+        else           NearNodes = &arg->NearNodes;
+
+        flops += 2.0 * m * n * k;
+        mops += 2.0 * ( m * n + n * k + m * k );
+        for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+        {
+          k = (*it)->lids.size();
+          flops += 2.0 * m * n * k;
+          mops += m * k;
+          mops += 2.0 * ( m * n + n * k + m * k );
+        }
+      }
+      else
+      {
+        if ( !arg->parent || !arg->data.isskel )
+        {
+          // No computation.
+        }
+        else
+        {
+          size_t m = proj.num();
+          size_t n = w.dim();
+          size_t k = proj.dim();
+          flops += 2.0 * m * n * k;
+          mops += 2.0 * ( m * n + n * k + m * k );
+        }
+      }
+      event.Set( flops, mops );
     };
 
     void GetEventRecord()
