@@ -77,7 +77,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     void reserve( std::size_t d, std::size_t n ) 
     {
-      std::vector::reserve( d * n );
+      std::vector<T, Allocator>::reserve( d * n );
     };
 
     void read( std::size_t d, std::size_t n, std::string &filename )

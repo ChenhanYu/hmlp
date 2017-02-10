@@ -118,7 +118,7 @@ class SplitTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      arg->Split<true>( 0 );
+      arg->template Split<true>( 0 );
     };
 }; // end class SplitTask
 

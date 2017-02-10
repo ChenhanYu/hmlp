@@ -72,13 +72,15 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   K.resize( n, n );
   if ( TESTSUITS > 0 )
   {
-    std::string testsuit = std::string( "K" ) + std::to_string( TESTSUITS ) 
+    std::ostringstream ss;
+    ss << TESTSUITS;
+    std::string testsuit = std::string( "K" ) + ss.str()
                                               + std::string( ".dat" );
     K.read( n, n, testsuit );
   }
   else
   {
-    K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+    K.template randspd<USE_LOWRANK>( 0.0, 1.0 );
   }
   //K.Print();
   std::vector<std::size_t> gids( n ), lids( n );
@@ -101,7 +103,7 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   const size_t n_iter = 20;
   const bool SORTED = true;
   beg = omp_get_wtime();
-  auto NN = rkdt.AllNearestNeighbor<SORTED>( n_iter, k, 10, gids, lids, initNN, knntask );
+  auto NN = rkdt.template AllNearestNeighbor<SORTED>( n_iter, k, 10, gids, lids, initNN, knntask );
   ann_time = omp_get_wtime() - beg;
 
  /*print neighbors for checking 
@@ -139,7 +141,7 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
   beg = omp_get_wtime();
-  tree.TraverseUp<false, true>( skeltask );
+  tree.template TraverseUp< false, true, SKELTASK >( skeltask );
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
   printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 

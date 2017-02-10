@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <random>
 #include <numeric>
+#include <sstream>
+#include <iostream>
 #include <string>
 #include <stdio.h>
 #include <omp.h>
@@ -363,9 +365,12 @@ class KNNTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
+      std::ostringstream ss;
       arg = user_arg;
       name = std::string( "neighbor search" );
-      label = std::to_string( arg->treelist_id );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
       // Need an accurate cost model.
       cost = 1.0;
 
@@ -702,9 +707,12 @@ class SkeletonizeTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
+      std::ostringstream ss;
       arg = user_arg;
       name = std::string( "Skeletonization" );
-      label = std::to_string( arg->treelist_id );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
       // Need an accurate cost model.
       cost = 1.0;
     };
@@ -829,9 +837,12 @@ class UpdateWeightsTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
+      std::ostringstream ss;
       arg = user_arg;
       name = std::string( "UpdateWeights" );
-      label = std::to_string( arg->treelist_id );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
       // Need an accurate cost model.
       cost = 1.0;
 
@@ -968,9 +979,12 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
+      std::ostringstream ss;
       arg = user_arg;
       name = std::string( "SkeletonsToSkeletons" );
-      label = std::to_string( arg->treelist_id );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
       // Need an accurate cost model.
       cost = 1.0;
     };
@@ -1133,9 +1147,12 @@ class SkeletonsToNodesTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
+      std::ostringstream ss;
       arg = user_arg;
       name = std::string( "SkeletonsToNodes" );
-      label = std::to_string( arg->treelist_id );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
       // Need an accurate cost model.
       cost = 1.0;
 
@@ -1868,13 +1885,13 @@ hmlp::Data<T> ComputeAll
     SKELTOSKELTASK skeltoskeltask;
     SKELTONODETASK skeltonodetask;
 
-    tree.TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
+    tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
     //if ( USE_RUNTIME ) hmlp_run();
     //printf( "UpdateWeights\n" );
-    tree.TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
+    tree.template TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
     //if ( USE_RUNTIME ) hmlp_run();
     //printf( "Skel2Skel\n" );
-    tree.TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+    tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
     if ( USE_RUNTIME ) hmlp_run();
     //printf( "Skel2Node\n" );
   }
@@ -1884,7 +1901,7 @@ hmlp::Data<T> ComputeAll
 
     NODETOSKELTASK nodetoskeltask;
 
-    tree.TraverseUp<false,USE_RUNTIME>( nodetoskeltask );
+    tree.template TraverseUp<false, USE_RUNTIME>( nodetoskeltask );
     if ( USE_RUNTIME ) hmlp_run();
 
     // Not yet implemented.
