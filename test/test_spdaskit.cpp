@@ -211,8 +211,8 @@ int main( int argc, char *argv[] )
   const bool LEVELRESTRICTION = false;
   const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
-  const bool DENSETESTSUIT = true;
-  const bool SPARSETESTSUIT = true;
+  const bool DENSETESTSUIT = false;
+  const bool SPARSETESTSUIT = false;
   const bool OOCTESTSUIT = true;
 
   size_t n, m, k, s, nrhs;
