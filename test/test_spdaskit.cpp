@@ -212,7 +212,7 @@ int main( int argc, char *argv[] )
   const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
-  const bool SPARSETESTSUIT = false;
+  const bool SPARSETESTSUIT = true;
   const bool OOCTESTSUIT = true;
 
   size_t n, m, k, s, nrhs;
@@ -270,19 +270,31 @@ int main( int argc, char *argv[] )
   if ( SPARSETESTSUIT )
   {
     {
-      std::string filename( "/Users/chenhan/Documents/Projects/hmlp/build/bin/bcsstk10/bcsstk10.mtx" );
+      std::string filename( "bcsstk10/bcsstk10.mtx" );
       n = 1086;
       hmlp::CSC<T> K( n, n, (size_t)11578 );
       K.readmtx<false>( filename );
-      //K.Print();
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
     }
     {
-      std::string filename( "/Users/chenhan/Documents/Projects/hmlp/build/bin/msdoor/msdoor.mtx" );
+      std::string filename( "msdoor/msdoor.mtx" );
       n = 415863;
       hmlp::CSC<T> K( n, n, (size_t)10328399 );
       K.readmtx<false>( filename );
-      //K.Print();
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
+    }
+  }
+
+  if ( OOCTESTSUIT )
+  {
+    n = 1024;
+    for ( size_t id = 1; id < 14; id ++ )
+    {
+      std::ostringstream id_stream;
+      id_stream << id;
+      std::string filename = std::string( "K" ) + id_stream.str()
+                                                + std::string( ".dat" );
+      hmlp::OOC<T> K( n, n, filename );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
     }
   }

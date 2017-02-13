@@ -429,6 +429,111 @@ class CSC : public ReadWrite
 }; // end class CSC
 
 
+template<class T, class Allocator = std::allocator<T> >
+class OOC : public ReadWrite
+{
+  public:
+
+    template<typename TINDEX>
+    OOC( TINDEX m, TINDEX n, std::string filename ) :
+      file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate )
+    {
+      this->m = m;
+      this->n = n;
+      this->filename = filename;
+      if ( file.is_open() )
+      {
+        auto size = file.tellg();
+        assert( size == m * n * sizeof(T) );
+      }
+      std::cout << filename << std::endl;
+    };
+
+    ~OOC()
+    {
+      if ( file.is_open() ) file.close();
+      printf( "finish readmatrix %s\n", filename.data() );
+    };
+
+
+    template<typename TINDEX>
+    inline T operator()( TINDEX i, TINDEX j )
+    {
+      T Kij;
+      if ( !read_from_cache( i, j, &Kij ) )
+      {
+        if ( !read_from_disk( i, j, &Kij ) )
+        {
+          printf( "Accessing disk fail\n" );
+          exit( 1 );
+        }
+      }
+      return Kij;
+    };
+
+    template<typename TINDEX>
+    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    {
+      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+      for ( int j = 0; j < jmap.size(); j ++ )
+      {
+        for ( int i = 0; i < imap.size(); i ++ )
+        {
+          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
+        }
+      }
+      return submatrix;
+    }; 
+
+    std::size_t dim() { return m; };
+
+    std::size_t num() { return n; };
+
+  private:
+
+    template<typename TINDEX>
+    bool read_from_cache( TINDEX i, TINDEX j, T *Kij )
+    {
+      // Need some method to search in the caahe.
+      return false;
+    };
+
+    /**
+     *  @brief We need a lock here.
+     */ 
+    template<typename TINDEX>
+      bool read_from_disk( TINDEX i, TINDEX j, T *Kij )
+      {
+        if ( file.is_open() )
+        {
+          //printf( "try %4lu, %4lu ", i, j );
+          #pragma omp critical
+          {
+            file.seekg( ( j * m + i ) * sizeof(T) );
+            file.read( (char*)Kij, sizeof(T) );
+          }
+          // printf( "read %4lu, %4lu, %E\n", i, j, *Kij );
+          // TODO: Need some method to cache the data.
+          return true;
+        }
+        else
+        {
+          return false;
+        }
+      };
+
+    std::size_t m;
+
+    std::size_t n;
+
+    std::string filename;
+
+    std::ifstream file;
+
+
+}; // end class OOC
+
+
 }; // end namespace hmlp
 
 #endif //define DATA_HPP
