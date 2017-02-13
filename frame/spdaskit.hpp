@@ -206,11 +206,11 @@ class Summary
  *         the matrix is sparse.
  *
  */ 
-template<int N_SPLIT, typename T>
+template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct centersplit
 {
   // closure
-  SPDMatrix<T> *Kptr;
+  SPDMATRIX *Kptr;
 
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
@@ -220,8 +220,8 @@ struct centersplit
   {
     assert( N_SPLIT == 2 );
 
-    SPDMatrix<T> &K = *Kptr;
-    size_t N = K.dim();
+    SPDMATRIX &K = *Kptr;
+    //size_t N = K.dim();
     size_t n = lids.size();
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
 
@@ -291,11 +291,11 @@ struct centersplit
  *         the matrix is sparse.
  *
  */ 
-template<int N_SPLIT, typename T>
+template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct randomsplit
 {
   // closure
-  SPDMatrix<T> *Kptr;
+  SPDMATRIX *Kptr;
 
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
@@ -305,8 +305,8 @@ struct randomsplit
   {
     assert( N_SPLIT == 2 );
 
-    SPDMatrix<T> &K = *Kptr;
-    size_t N = K.dim();
+    SPDMATRIX &K = *Kptr;
+    //size_t N = K.dim();
     size_t n = lids.size();
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
     std::vector<T> temp( n, 0.0 );
@@ -1998,6 +1998,7 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 
   return err / nrm2;
 }; // end T ComputeError()
+
 
 
 

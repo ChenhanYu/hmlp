@@ -33,23 +33,19 @@ using namespace hmlp::tree;
 
 
 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, int TESTSUITS = -1, typename T>
-void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
+template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T, typename SPDMATRIX>
+void test_spdaskit( SPDMATRIX &K, size_t n, size_t m, size_t k, size_t s, size_t nrhs )
 {
   // Instantiation for the Spd-Askit tree.
-  using SPDMATRIX = hmlp::spdaskit::SPDMatrix<T>;
-  using SPLITTER = hmlp::spdaskit::centersplit<N_CHILDREN, T>;
-  using SETUP = hmlp::spdaskit::Setup<SPDMATRIX,SPLITTER,T>;
+  using SPLITTER = hmlp::spdaskit::centersplit<SPDMATRIX, N_CHILDREN, T>;
+  using SETUP = hmlp::spdaskit::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA = hmlp::spdaskit::Data<T>;
   using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
   using SKELTASK = hmlp::spdaskit::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
-  //Using UPDATETASK = hmlp::spdaskit::UpdateWeightsTask<NODE>;
-  //Using SKELTOSKELTASK = hmlp::spdaskit::SkeletonsToSkeletonsTask<NODE>;
-  //Using SKELTONODETASK = hmlp::spdaskit::SkeletonsToNodesTask<NODE, T>;
 
   // Instantiation for the randomisze Spd-Askit tree.
-  using RKDTSPLITTER = hmlp::spdaskit::randomsplit<N_CHILDREN, T>;
-  using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX,RKDTSPLITTER,T>;
+  using RKDTSPLITTER = hmlp::spdaskit::randomsplit<SPDMATRIX, N_CHILDREN, T>;
+  using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
   using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE, T>;
  
@@ -59,30 +55,11 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
 
   // Dummy instances for each task.
   SKELTASK skeltask;
-  //SKELTOSKELTASK skeltoskeltask;
-  //SKELTONODETASK skeltonodetask;
-  //UPDATETASK updatetask;
   KNNTASK knntask;
 
   // ------------------------------------------------------------------------
   // Original order of the matrix.
   // ------------------------------------------------------------------------
-  const bool USE_LOWRANK = true;
-  SPDMATRIX K;
-  K.resize( n, n );
-  if ( TESTSUITS > 0 )
-  {
-    std::ostringstream ss;
-    ss << TESTSUITS;
-    std::string testsuit = std::string( "K" ) + ss.str()
-                                              + std::string( ".dat" );
-    K.read( n, n, testsuit );
-  }
-  else
-  {
-    K.template randspd<USE_LOWRANK>( 0.0, 1.0 );
-  }
-  //K.Print();
   std::vector<std::size_t> gids( n ), lids( n );
   for ( auto i = 0; i < n; i ++ ) 
   {
@@ -131,7 +108,6 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   // ------------------------------------------------------------------------
 
   beg = omp_get_wtime();
-  //tree.TreePartition( m, 10, gids, lids );
   tree.TreePartition( gids, lids );
   tree_time = omp_get_wtime() - beg;
 
@@ -141,7 +117,7 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
   beg = omp_get_wtime();
-  tree.template TraverseUp< false, true, SKELTASK >( skeltask );
+  tree.template TraverseUp<false, true, SKELTASK>( skeltask );
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
   printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
@@ -231,11 +207,15 @@ void test_spdaskit( size_t n, size_t m, size_t k, size_t s, size_t nrhs )
 
 int main( int argc, char *argv[] )
 {
-  size_t n, m, k, s, nrhs;
-
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
   const bool RANDOMMATRIX = true;
+  const bool USE_LOWRANK = true;
+  const bool DENSETESTSUIT = true;
+  const bool SPARSETESTSUIT = true;
+  const bool OOCTESTSUIT = true;
+
+  size_t n, m, k, s, nrhs;
 
   using T = double;
 
@@ -245,28 +225,66 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 4 ], "%lu", &s );
   sscanf( argv[ 5 ], "%lu", &nrhs );
 
+  //T val[ 6 ] = { 1.0, 4.0, 5.0, 2.0, 3.0, 6.0 };
+  //std::size_t row_ind[ 6 ] = { 0, 2, 2, 0, 1, 2 };
+  //std::size_t col_ptr[ 4 ] = { 0, 2, 3, 6 };
+  //hmlp::CSC<T> myK( (size_t)3, (size_t)3, (size_t)6, val, row_ind, col_ptr );
+  //myK.Print();
+
+
+  //hmlp::CSC<T> LF10( (size_t)18, (size_t)18, (size_t)50 );
+  //std::string filename( "/Users/chenhan/Documents/Projects/hmlp/build/bin/LF10/LF10.mtx" );
+  //LF10.readmtx<false>( filename );
+  //LF10.Print();
+
+
+
+
+
   hmlp_init();
   
   if ( RANDOMMATRIX )
   {
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, -1, T>( n, m, k, s, nrhs );
+    hmlp::spdaskit::SPDMatrix<T> K;
+    K.resize( n, n );
+    K.template randspd<USE_LOWRANK>( 0.0, 1.0 );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
   }
-  else
+  
+  if ( DENSETESTSUIT )
   {
     n = 1024;
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  1, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  2, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  3, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  4, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  5, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  6, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  7, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  8, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION,  9, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 10, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 11, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 12, T>( n, m, k, s, nrhs );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, 13, T>( n, m, k, s, nrhs );
+    hmlp::spdaskit::SPDMatrix<T> K;
+    K.resize( n, n );
+    for ( size_t id = 1; id < 14; id ++ )
+    {
+      std::ostringstream id_stream;
+      id_stream << id;
+      std::string filename = std::string( "K" ) + id_stream.str()
+                                                + std::string( ".dat" );
+      K.read( n, n, filename );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
+    }
+  }
+
+  if ( SPARSETESTSUIT )
+  {
+    {
+      std::string filename( "/Users/chenhan/Documents/Projects/hmlp/build/bin/bcsstk10/bcsstk10.mtx" );
+      n = 1086;
+      hmlp::CSC<T> K( n, n, (size_t)11578 );
+      K.readmtx<false>( filename );
+      //K.Print();
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
+    }
+    {
+      std::string filename( "/Users/chenhan/Documents/Projects/hmlp/build/bin/msdoor/msdoor.mtx" );
+      n = 415863;
+      hmlp::CSC<T> K( n, n, (size_t)10328399 );
+      K.readmtx<false>( filename );
+      //K.Print();
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
+    }
   }
 
   hmlp_finalize();

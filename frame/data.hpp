@@ -88,26 +88,6 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
       std::cout << filename << std::endl;
 
-      //FILE *file;
-
-      //file=fopen( filename.data(),"rb" );
-      //
-      //if ( file ) 
-      //{
-      //  T *buffer = new T[ d * n ];
-      //  fread( buffer, sizeof(T), d * n, file );
-      //  fclose( file );
-      //  for ( int i = 0; i < d * n; i ++ )
-      //  {
-      //    (*this)[ i ] = buffer[ i ];
-      //  }
-      //  delete buffer;
-      //}
-      //else
-      //{
-      //  printf( "fail to open %s\n", filename.data() );
-      //}
-
       std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
       if ( file.is_open() )
       {
@@ -163,23 +143,6 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       return submatrix;
     }; 
 
-    //std::vector<T> operator()( std::vector<std::size_t> &jmap )
-    //{
-    //  std::vector<T> submatrix( d * jmap.size() );
-
-    //  for ( int j = 0; j < jmap.size(); j ++ )
-    //  {
-    //    for ( int i = 0; i < d; i ++ )
-    //    {
-    //      submatrix[ j * d + i ] = (*this)[ d * jmap[ j ] + i ];
-    //    }
-    //  }
-
-    //  return submatrix;
-    //}; 
-
-
-
     template<bool SYMMETRIC = false>
     void rand( T a, T b )
     {
@@ -208,10 +171,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     };
 
     template<bool SYMMETRIC = false>
-    void rand()
-    {
-      rand<SYMMETRIC>( 0.0, 1.0 );
-    };
+    void rand() { rand<SYMMETRIC>( 0.0, 1.0 ); };
 
     void randn( T mu, T sd )
     {
@@ -223,10 +183,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       }
     };
 
-    void randn()
-    {
-      randn( 0.0, 1.0 );
-    };
+    void randn() { randn( 0.0, 1.0 ); };
 
     template<bool USE_LOWRANK>
     void randspd( T a, T b )
@@ -268,21 +225,11 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     };
 
     template<bool USE_LOWRANK>
-    void randspd()
-    {
-      randspd<USE_LOWRANK>( 0.0, 1.0 );
-    };
+    void randspd() { randspd<USE_LOWRANK>( 0.0, 1.0 ); };
 
+    std::size_t dim() { return d; };
 
-    std::size_t dim()
-    {
-      return d;
-    };
-
-    std::size_t num()
-    {
-      return n;
-    };
+    std::size_t num() { return n; };
 
     void Print()
     {
@@ -297,6 +244,189 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     std::size_t n;
 
 };
+
+
+template<class T, class Allocator = std::allocator<T> >
+class CSC : public ReadWrite
+{
+  public:
+
+    template<typename TINDEX>
+    CSC( TINDEX m, TINDEX n, TINDEX nnz )
+    {
+      this->m = m;
+      this->n = n;
+      this->nnz = nnz;
+      this->val.resize( nnz, 0.0 );
+      this->row_ind.resize( nnz, 0 );
+      this->col_ptr.resize( n + 1, 0 );
+    };
+
+    // Construct from three arrays.
+    // val[ nnz ]
+    // row_ind[ nnz ]
+    // col_ptr[ n + 1 ]
+    template<typename TINDEX>
+    CSC( TINDEX m, TINDEX n, TINDEX nnz, T *val, TINDEX *row_ind, TINDEX *col_ptr ) 
+      : CSC( m, n, nnz )
+    {
+      assert( val ); assert( row_ind ); assert( col_ptr );
+      for ( size_t i = 0; i < nnz; i ++ )
+      {
+        this->val[ i ] = val[ i ];
+        this->row_ind[ i ] = row_ind[ i ];
+      }
+      for ( size_t j = 0; j < n + 1; j ++ )
+      {
+        this->col_ptr[ j ] = col_ptr[ j ];
+      }
+    };
+
+    ~CSC() {};
+
+    template<bool SYMMETRIC = true, typename TINDEX>
+    inline T operator()( TINDEX i, TINDEX j )
+    {
+      if ( SYMMETRIC && ( i < j  ) ) std::swap( i, j );
+      size_t row_beg = col_ptr[ j ];
+      size_t row_end = col_ptr[ j + 1 ];
+      auto lower = std::lower_bound
+                   ( 
+                     row_ind.begin() + row_beg, 
+                     row_ind.begin() + row_end,
+                     i
+                   );
+      if ( *lower == i )
+      {
+        return val[ std::distance( row_ind.begin(), lower ) ];
+      }
+      else
+      {
+        return 0.0;
+      }
+    };
+
+    template<bool SYMMETRIC = true, typename TINDEX>
+    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    {
+      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+      for ( int j = 0; j < jmap.size(); j ++ )
+      {
+        for ( int i = 0; i < imap.size(); i ++ )
+        {
+          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
+        }
+      }
+      return submatrix;
+    }; 
+
+    void Print()
+    {
+      for ( size_t j = 0; j < n; j ++ )
+      {
+        printf( "%8lu ", j );
+      }
+      printf( "\n" );
+      for ( size_t i = 0; i < m; i ++ )
+      {
+        for ( size_t j = 0; j < n; j ++ )
+        {
+          printf( "% 3.1E ", (*this)( i, j ) );
+        }
+        printf( "\n" );
+      }
+    }; // end Print()
+
+
+    /** 
+     *  @brief Read matrix market format (ijv) format. Only lower triangular
+     *         part is stored
+     */ 
+    template<bool ISZEROBASE>
+    void readmtx( std::string &filename )
+    {
+      size_t m_mtx, n_mtx, nnz_mtx;
+
+      std::vector<size_t> col_ind( nnz );
+
+      // Read all tuples.
+      std::cout << filename << std::endl;
+      std::ifstream file( filename.data() );
+      std::string line;
+      if ( file.is_open() )
+      {
+        size_t nnz_count = 0;
+
+        while ( std::getline( file, line ) )
+        {
+          if ( line.size() )
+          {
+            if ( line[ 0 ] != '%' )
+            {
+              std::istringstream iss( line );
+              iss >> m_mtx >> n_mtx >> nnz_mtx;
+              assert( this->m == m_mtx );
+              assert( this->n == n_mtx );
+              assert( this->nnz == nnz_mtx );
+              break;
+            }
+          }
+        }
+
+        while ( std::getline( file, line ) )
+        {
+          std::istringstream iss( line );
+          if ( !( iss >> row_ind[ nnz_count ] >> col_ind[ nnz_count ] >> val[ nnz_count ] ) )
+          {
+            printf( "line %lu has illegle format\n", nnz_count );
+            break;
+          }
+          nnz_count ++;
+        }
+      }
+      // Close the file.
+      file.close();
+
+      for ( size_t j = 0; j < nnz; j ++ )
+      {
+        if ( ISZEROBASE )
+        {
+          col_ptr[ col_ind[ j ] + 1 ] += 1;
+        }
+        else
+        {
+          col_ptr[ col_ind[ j ] ] += 1;
+          row_ind[ j ] -= 1;
+        }
+      }
+      for ( size_t j = 0; j < n; j ++ )
+      {
+        col_ptr[ j + 1 ] += col_ptr[ j ];
+      }
+      printf( "finish readmatrix %s\n", filename.data() );
+    };
+
+
+    std::size_t dim() { return m; };
+
+    std::size_t num() { return n; };
+
+  private:
+
+    std::size_t m;
+
+    std::size_t n;
+
+    std::size_t nnz;
+
+    std::vector<T> val;
+
+    std::vector<std::size_t> row_ind;
+   
+    std::vector<std::size_t> col_ptr;
+
+
+}; // end class CSC
 
 
 }; // end namespace hmlp

@@ -459,7 +459,7 @@ class Node
       int m = setup->m;
       int max_depth = setup->max_depth;
 
-      if ( n > m && l < max_depth )
+      if ( n > m && l < max_depth || ( PREALLOCATE && kids[ 0 ] ) )
       {
         auto split = setup->splitter( gids, lids );
 
@@ -515,6 +515,7 @@ class Node
       }
       else
       {
+        if ( PREALLOCATE ) assert( kids[ 0 ] == NULL );
         isleaf = true;
       }
     }; // end Split()
@@ -802,11 +803,12 @@ class Tree
       size_t n_per_node = n;
       while ( n_per_node > m && depth < max_depth )
       {
-        n_per_node /= N_CHILDREN;
+        n_per_node = ( n_per_node + 1 ) / N_CHILDREN;
         depth ++;
       }
       size_t n_node = ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
-      //printf( "n_per_node %lu depth %lu n_nodes %lu\n", n_per_node, depth, n_node );
+      //printf( "n %lu m %lu n_per_node %lu depth %lu n_nodes %lu\n", 
+      //    n, m, n_per_node, depth, n_node );
 
       auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
       treequeue.push_back( root );
