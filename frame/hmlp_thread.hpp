@@ -11,6 +11,15 @@
 namespace hmlp
 {
 
+
+typedef enum 
+{
+  NVIDIA_GPU,
+  OTHER_GPU,
+  TI_DSP
+} DeviceType;
+
+
 class thread_communicator 
 {
 	public:
@@ -48,6 +57,31 @@ class thread_communicator
 	  volatile bool barrier_sense;
 
 	  int           barrier_threads_arrived;
+};
+
+/**
+ *  @brief This class describes devices or accelerators that require
+ *         a master thread to control. A device can accept tasks from
+ *         multiple workers. All received tasks are expected to be
+ *         executed independently in a time-sharing fashion.
+ *         Whether these tasks are executed in parallel, sequential
+ *         or with some built-in context switching scheme does not
+ *         matter.
+ *
+ */ 
+class Device
+{
+  public:
+
+    Device();
+
+    DeviceType devicetype;
+
+    std::string name;
+
+  private:
+
+    class Worker *workers;
 };
 
 
@@ -104,6 +138,8 @@ class Worker
   private:
 
     class Task *current_task;
+
+    class Device *device;
 };
 
 

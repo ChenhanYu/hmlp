@@ -18,7 +18,6 @@
 #endif
 
 #include <hmlp_thread.hpp>
-//#include <data.hpp>
 
 #define MAX_WORKER 24
 

@@ -23,8 +23,22 @@ namespace iaskit
 {
 
 
+typedef enum 
+{
+  HODLR,
+  PHSS,
+  HSS,
+  ASKIT
+} HFamilyType;
 
-
+typedef enum 
+{
+  UV,
+  COLUMNID,
+  ROWID,
+  CUR,
+  LOWRANKPLUSSPARSE
+} OffdiagonalType;
 
 template<typename TKERNEL, typename SPLITTER, typename T>
 class Setup : public hmlp::tree::Setup<SPLITTER, T>
@@ -42,6 +56,75 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
 };
 
 
+ 
+template<HFamilyType TH, OffdiagonalType TOFFDIAG, typename T>
+class HFamily
+{
+  public:
+
+    HFamily() {};
+    
+    void Setup
+    ( 
+       bool isleaf, bool isroot,
+       std::size_t n, 
+       std::size_t n1,  std::size_t n2,
+       std::size_t s12, std::size_t s21
+    )
+    {
+      this->isleaf = isleaf;
+      this->isroot = isroot;
+      this->n = n;
+      this->n1 = n1;
+      this->n2 = n2;
+      this->s12 = s12;
+      this->s21 = s21;
+    };
+
+    void Factorize() {};
+
+    void Solve() {};
+
+    void Telescope() {};
+
+  private:
+
+    bool isleaf;
+
+    bool isroot;
+
+    size_t n;
+
+    size_t n1;
+
+    size_t n2;
+
+    size_t s12;
+
+    size_t s21;
+
+    // Reduced system Z = [ I  VU   if ( HODLR || p-HSS )
+    //                      VU  I ]
+    //                Z = [ 
+    hmlp::Data<T> Z;
+
+    // Low-rank
+    hmlp::Data<T> U; 
+
+    hmlp::Data<T> V; // if ( SYMMETRIC ) V = U'
+
+    /** r21 * r12 */
+    hmlp::Data<T> Sigma12; 
+
+    /** r12 * r21, if ( SYMMETROC ) Sigma21 = Sigma12' */
+    hmlp::Data<T> Sigma21;
+
+    /** n1 * n2 */
+    hmlp::CSC<T> S12;
+
+    /** n2 * n1, if ( SYMMETRIC ) S21 = S12' */
+    hmlp::CSC<T> S21; 
+};
 
 
 /**

@@ -16,12 +16,30 @@
 #include <hmlp_util.hpp>
 #include <hmlp_runtime.hpp>
 
-#define DEBUG_DATA 1
+#ifdef HMLP_USE_CUDA
+#include <host_vector.h>
+#include <device_vector.h>
+#endif // ifdef HMLP_USE_CUDA
 
+
+
+
+#define DEBUG_DATA 1
 
 namespace hmlp
 {
 
+#ifdef HMLP_USE_CUDA
+template<class T>
+class Data : public ReadWrite
+{
+  publuc:
+
+  private:
+
+}; // end class Data
+
+#else
 template<class T, class Allocator = std::allocator<T> >
 class Data : public ReadWrite, public std::vector<T, Allocator>
 {
@@ -244,6 +262,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     std::size_t n;
 
 };
+#endif // ifdef HMLP_USE_CUDA
 
 
 template<class T, class Allocator = std::allocator<T> >
@@ -502,25 +521,25 @@ class OOC : public ReadWrite
      *  @brief We need a lock here.
      */ 
     template<typename TINDEX>
-      bool read_from_disk( TINDEX i, TINDEX j, T *Kij )
+    bool read_from_disk( TINDEX i, TINDEX j, T *Kij )
+    {
+      if ( file.is_open() )
       {
-        if ( file.is_open() )
+        //printf( "try %4lu, %4lu ", i, j );
+        #pragma omp critical
         {
-          //printf( "try %4lu, %4lu ", i, j );
-          #pragma omp critical
-          {
-            file.seekg( ( j * m + i ) * sizeof(T) );
-            file.read( (char*)Kij, sizeof(T) );
-          }
-          // printf( "read %4lu, %4lu, %E\n", i, j, *Kij );
-          // TODO: Need some method to cache the data.
-          return true;
+          file.seekg( ( j * m + i ) * sizeof(T) );
+          file.read( (char*)Kij, sizeof(T) );
         }
-        else
-        {
-          return false;
-        }
-      };
+        // printf( "read %4lu, %4lu, %E\n", i, j, *Kij );
+        // TODO: Need some method to cache the data.
+        return true;
+      }
+      else
+      {
+        return false;
+      }
+    };
 
     std::size_t m;
 
@@ -532,7 +551,6 @@ class OOC : public ReadWrite
 
 
 }; // end class OOC
-
 
 }; // end namespace hmlp
 
