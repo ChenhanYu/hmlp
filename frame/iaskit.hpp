@@ -216,12 +216,12 @@ void Skeletonize( NODE *node )
 
   if ( bmap.size() > maxs )
   {
-    if ( nsamples < X.num() - node->n )
+    if ( nsamples < X.col() - node->n )
     {
       amap.reserve( nsamples );
       while ( amap.size() < nsamples )
       {
-        size_t sample = rand() % X.num();
+        size_t sample = rand() % X.col();
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
             std::find( lids.begin(), lids.end(), sample ) == lids.end() )
         {
@@ -231,7 +231,7 @@ void Skeletonize( NODE *node )
     }
     else // Use all off-diagonal blocks without samples.
     {
-      for ( int sample = 0; sample < X.num(); sample ++ )
+      for ( int sample = 0; sample < X.col(); sample ++ )
       {
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() )
         {
@@ -255,7 +255,7 @@ void Skeletonize( NODE *node )
     proj.resize( bmap.size(), bmap.size(), 0.0 );
     for ( int i = 0; i < bmap.size(); i++ )
     {
-      proj[ i * proj.dim() + i ] = 1.0;
+      proj[ i * proj.row() + i ] = 1.0;
     }
   }
 

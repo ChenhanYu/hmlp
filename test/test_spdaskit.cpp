@@ -178,7 +178,7 @@ void test_spdaskit( SPDMATRIX &K, size_t n, size_t m, size_t k, size_t s, size_t
     nonneval_time = omp_get_wtime() - beg;
     auto nonnerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
 
-    for ( size_t p = 0; p < potentials.num(); p ++ )
+    for ( size_t p = 0; p < potentials.col(); p ++ )
     {
       potentials[ p ] = u( p, i );
     }
@@ -211,7 +211,7 @@ int main( int argc, char *argv[] )
   const bool LEVELRESTRICTION = false;
   const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
-  const bool DENSETESTSUIT = false;
+  const bool DENSETESTSUIT = true;
   const bool SPARSETESTSUIT = true;
   const bool OOCTESTSUIT = true;
 

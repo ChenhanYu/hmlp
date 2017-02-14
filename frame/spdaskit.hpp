@@ -221,7 +221,7 @@ struct centersplit
     assert( N_SPLIT == 2 );
 
     SPDMATRIX &K = *Kptr;
-    //size_t N = K.dim();
+    //size_t N = K.row();
     size_t n = lids.size();
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
 
@@ -306,7 +306,7 @@ struct randomsplit
     assert( N_SPLIT == 2 );
 
     SPDMATRIX &K = *Kptr;
-    //size_t N = K.dim();
+    //size_t N = K.row();
     size_t n = lids.size();
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
     std::vector<T> temp( n, 0.0 );
@@ -381,7 +381,7 @@ class KNNTask : public hmlp::Task
       flops = lids.size();
       flops *= 4.0 * lids.size();
       // Heap select worst case
-      mops = std::log( NN.dim() ) * lids.size();
+      mops = std::log( NN.row() ) * lids.size();
       mops *= lids.size();
       // Access K
       mops += flops;
@@ -400,10 +400,10 @@ class KNNTask : public hmlp::Task
       {
         std::set<size_t> NNset;
 
-        for ( size_t i = 0; i < NN.dim(); i ++ )
+        for ( size_t i = 0; i < NN.row(); i ++ )
         {
           size_t jlid = lids[ j ];
-          NNset.insert( NN[ jlid * NN.dim() + i ].second );
+          NNset.insert( NN[ jlid * NN.row() + i ].second );
         }
 
         for ( size_t i = 0; i < lids.size(); i ++ )
@@ -415,7 +415,7 @@ class KNNTask : public hmlp::Task
           {
             T dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
             std::pair<T, size_t> query( dist, ilid );
-            hmlp::HeapSelect( 1, NN.dim(), &query, NN.data() + jlid * NN.dim() );
+            hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
           }
           else
           {
@@ -464,7 +464,7 @@ void BuildNeighbors( NODE *node , size_t nsamples)
   auto &snids = node->data.snids;
   auto &pnids = node->data.pnids;
   int n = node->n;
-  int k = NN->dim();
+  int k = NN->row();
   if ( node->isleaf )
   {
     // Pruning neighbor lists/sets:
@@ -621,7 +621,7 @@ void Skeletonize( NODE *node )
   auto &snids = data.snids;
   // Order snids by distance
   std::multimap<T, size_t > ordered_snids = flip_map( snids );
-  if ( nsamples < K.num() - node->n )
+  if ( nsamples < K.col() - node->n )
   {
     amap.reserve( nsamples );
     for ( auto cur = ordered_snids.begin(); cur != ordered_snids.end(); cur++ )
@@ -633,7 +633,7 @@ void Skeletonize( NODE *node )
     {
       while ( amap.size() < nsamples )
       {
-        size_t sample = rand() % K.num();
+        size_t sample = rand() % K.col();
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
              std::find( lids.begin(), lids.end(), sample ) == lids.end() )
         {
@@ -644,7 +644,7 @@ void Skeletonize( NODE *node )
   }
   else // Use all off-diagonal blocks without samples.
   {
-    for ( int sample = 0; sample < K.num(); sample ++ )
+    for ( int sample = 0; sample < K.col(); sample ++ )
     {
       if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() )
       {
@@ -685,9 +685,9 @@ void Skeletonize( NODE *node )
   data.pnids.clear();
   for ( int ii = 0 ; ii < skels.size() ; ii ++ )
   {
-    for ( int jj = 0; jj < NN.dim() / 2; jj ++ )
+    for ( int jj = 0; jj < NN.row() / 2; jj ++ )
     {
-      data.pnids.insert( NN.data()[ skels[ ii ] * NN.dim() + jj ].second );
+      data.pnids.insert( NN.data()[ skels[ ii ] * NN.row() + jj ].second );
     }
   }
 }; // end void Skeletonize()
@@ -719,9 +719,9 @@ class SkeletonizeTask : public hmlp::Task
     {
       double flops = 0.0, mops = 0.0;
 
-      size_t n = arg->data.proj.num();
+      size_t n = arg->data.proj.col();
       size_t m = 2 * n;
-      size_t k = arg->data.proj.dim();
+      size_t k = arg->data.proj.row();
 
       // GEQP3
       flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
@@ -771,7 +771,7 @@ void UpdateWeights( NODE *node )
 
   // w_skel is s-by-nrhs
   w_skel.clear();
-  w_skel.resize( skels.size(), w.dim() );
+  w_skel.resize( skels.size(), w.row() );
 
 
   //printf( "%lu UpdateWeight w_skel.num() %lu\n", node->treelist_id, w_skel.num() );
@@ -782,18 +782,18 @@ void UpdateWeights( NODE *node )
 
 #ifdef DEBUG_SPDASKIT
     printf( "m %lu n %lu k %lu\n", 
-      w_skel.dim(), w_skel.num(), w_leaf.num());
-    printf( "proj.dim() %lu w_leaf.dim() %lu w_skel.dim() %lu\n", 
-        proj.dim(), w_leaf.dim(), w_skel.dim() );
+      w_skel.row(), w_skel.col(), w_leaf.col());
+    printf( "proj.row() %lu w_leaf.row() %lu w_skel.row() %lu\n", 
+        proj.row(), w_leaf.row(), w_skel.row() );
 #endif
 
     xgemm
     (
       "N", "T",
-      w_skel.dim(), w_skel.num(), w_leaf.num(),
-      1.0, proj.data(),   proj.dim(),
-           w_leaf.data(), w_leaf.dim(),
-      0.0, w_skel.data(), w_skel.dim()
+      w_skel.row(), w_skel.col(), w_leaf.col(),
+      1.0, proj.data(),   proj.row(),
+           w_leaf.data(), w_leaf.row(),
+      0.0, w_skel.data(), w_skel.row()
     );
   }
   else
@@ -805,18 +805,18 @@ void UpdateWeights( NODE *node )
     xgemm
     (
       "N", "N",
-      w_skel.dim(), w_skel.num(), lskel.size(),
-      1.0, proj.data(),    proj.dim(),
-           w_lskel.data(), w_lskel.dim(),
-      0.0, w_skel.data(),  w_skel.dim()
+      w_skel.row(), w_skel.col(), lskel.size(),
+      1.0, proj.data(),    proj.row(),
+           w_lskel.data(), w_lskel.row(),
+      0.0, w_skel.data(),  w_skel.row()
     );
     xgemm
     (
       "N", "N",
-      w_skel.dim(), w_skel.num(), rskel.size(),
-      1.0, proj.data() + proj.dim() * lskel.size(), proj.dim(),
-           w_rskel.data(), w_rskel.dim(),
-      1.0, w_skel.data(),  w_skel.dim()
+      w_skel.row(), w_skel.col(), rskel.size(),
+      1.0, proj.data() + proj.row() * lskel.size(), proj.row(),
+           w_rskel.data(), w_rskel.row(),
+      1.0, w_skel.data(),  w_skel.row()
     );
   }
 
@@ -852,7 +852,7 @@ class UpdateWeightsTask : public hmlp::Task
       if ( arg->isleaf )
       {
         auto m = skels.size();
-        auto n = w.dim();
+        auto n = w.row();
         auto k = lids.size();
         flops = 2.0 * m * n * k;
         mops = 2.0 * ( m * n + m * k + k * n );
@@ -862,7 +862,7 @@ class UpdateWeightsTask : public hmlp::Task
         auto &lskels = arg->lchild->data.skels;
         auto &rskels = arg->rchild->data.skels;
         auto m = skels.size();
-        auto n = w.dim();
+        auto n = w.row();
         auto k = lskels.size() + rskels.size();
         flops = 2.0 * m * n * k;
         mops = 2.0 * ( m * n + m * k + k * n );
@@ -933,7 +933,7 @@ void SkeletonsToSkeletons( NODE *node )
 
   // Initilize u_skel to be zeros( s, nrhs ).
   u_skel.clear();
-  u_skel.resize( amap.size(), node->setup->w->dim(), 0.0 );
+  u_skel.resize( amap.size(), node->setup->w->row(), 0.0 );
 
   // Reduce all u_skel.
   for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
@@ -941,16 +941,16 @@ void SkeletonsToSkeletons( NODE *node )
     auto &bmap = (*it)->data.skels;
     auto &w_skel = (*it)->data.w_skel;
     auto Kab = K( amap, bmap );
-    //printf( "%lu (%lu, %lu), ", (*it)->treelist_id, w_skel.dim(), w_skel.num() );
+    //printf( "%lu (%lu, %lu), ", (*it)->treelist_id, w_skel.row(), w_skel.num() );
     //fflush( stdout );
-    assert( w_skel.num() == u_skel.num() );
+    assert( w_skel.col() == u_skel.col() );
     xgemm
     (
       "N", "N",
-      u_skel.dim(), u_skel.num(), Kab.num(),
-      1.0, Kab.data(),    Kab.dim(),
-           w_skel.data(), w_skel.dim(),
-      1.0, u_skel.data(), u_skel.dim()
+      u_skel.row(), u_skel.col(), Kab.col(),
+      1.0, Kab.data(),    Kab.row(),
+           w_skel.data(), w_skel.row(),
+      1.0, u_skel.data(), u_skel.row()
     );
   }
   //printf( "\n" );
@@ -1001,8 +1001,8 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
       for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
       {
-        size_t n = (*it)->data.w_skel.num();
-        size_t k = (*it)->data.w_skel.dim();
+        size_t n = (*it)->data.w_skel.col();
+        size_t k = (*it)->data.w_skel.row();
         flops += 2.0 * m * n * k;
         mops += m * k; // cost of Kab
         mops += 2.0 * ( m * n + n * k + k * n );
@@ -1045,7 +1045,7 @@ template<bool NNPRUNE, typename NODE, typename T>
 void SkeletonsToNodes( NODE *node )
 {
 #ifdef DEBUG_SPDASKIT
-  printf( "%lu Skel2Node u_skel.dim() %lu\n", node->treelist_id, node->data.u_skel.dim() ); fflush( stdout );
+  printf( "%lu Skel2Node u_skel.row() %lu\n", node->treelist_id, node->data.u_skel.row() ); fflush( stdout );
 #endif
 
   // Gather shared data and create reference
@@ -1068,17 +1068,17 @@ void SkeletonsToNodes( NODE *node )
     if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
     else           NearNodes = &node->NearNodes;
     auto &amap = node->lids;
-    hmlp::Data<T> u_leaf( w.dim(), lids.size(), 0.0 );
+    hmlp::Data<T> u_leaf( w.row(), lids.size(), 0.0 );
 
     if ( data.isskel )
     {
       xgemm
       (
         "T", "N",
-        u_leaf.dim(), u_leaf.num(), proj.dim(),
-        1.0, u_skel.data(), u_skel.dim(),
-             proj.data(),   proj.dim(),
-        0.0, u_leaf.data(), u_leaf.dim()
+        u_leaf.row(), u_leaf.col(), proj.row(),
+        1.0, u_skel.data(), u_skel.row(),
+             proj.data(),   proj.row(),
+        0.0, u_leaf.data(), u_leaf.row()
       );
     }
 
@@ -1091,18 +1091,18 @@ void SkeletonsToNodes( NODE *node )
       xgemm
       (
         "N", "T",
-        u_leaf.dim(), u_leaf.num(), wb.num(),
-        1.0, wb.data(),     wb.dim(),
-             Kab.data(),    Kab.dim(),
-        1.0, u_leaf.data(), u_leaf.dim()
+        u_leaf.row(), u_leaf.col(), wb.col(),
+        1.0, wb.data(),     wb.row(),
+             Kab.data(),    Kab.row(),
+        1.0, u_leaf.data(), u_leaf.row()
       );
     }
 
     for ( size_t j = 0; j < amap.size(); j ++ )
     {
-      for ( size_t i = 0; i < u.dim(); i ++ )
+      for ( size_t i = 0; i < u.row(); i ++ )
       {
-        u[ amap[ j ] * u.dim() + i ] = u_leaf[ j * u.dim() + i ];
+        u[ amap[ j ] * u.row() + i ] = u_leaf[ j * u.row() + i ];
       }
     }
   }
@@ -1117,18 +1117,18 @@ void SkeletonsToNodes( NODE *node )
     xgemm
     (
       "T", "N",
-      u_lskel.dim(), u_lskel.num(), proj.dim(),
-      1.0, proj.data(),    proj.dim(),
-           u_skel.data(),  u_skel.dim(),
-      1.0, u_lskel.data(), u_lskel.dim()
+      u_lskel.row(), u_lskel.col(), proj.row(),
+      1.0, proj.data(),    proj.row(),
+           u_skel.data(),  u_skel.row(),
+      1.0, u_lskel.data(), u_lskel.row()
     );
     xgemm
     (
       "T", "N",
-      u_rskel.dim(), u_rskel.num(), proj.dim(),
-      1.0, proj.data() + proj.dim() * lskel.size(), proj.dim(),
-           u_skel.data(), u_skel.dim(),
-      1.0, u_rskel.data(), u_rskel.dim()
+      u_rskel.row(), u_rskel.col(), proj.row(),
+      1.0, proj.data() + proj.row() * lskel.size(), proj.row(),
+           u_skel.data(), u_skel.row(),
+      1.0, u_rskel.data(), u_rskel.row()
     );
   }
   //printf( "\n" );
@@ -1163,9 +1163,9 @@ class SkeletonsToNodesTask : public hmlp::Task
       auto &w = *arg->setup->w;
       if ( arg->isleaf )
       {
-        size_t m = proj.num();
-        size_t n = w.dim();
-        size_t k = proj.dim();
+        size_t m = proj.col();
+        size_t n = w.row();
+        size_t k = proj.row();
         std::set<NODE*> *NearNodes;
         if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
         else           NearNodes = &arg->NearNodes;
@@ -1188,9 +1188,9 @@ class SkeletonsToNodesTask : public hmlp::Task
         }
         else
         {
-          size_t m = proj.num();
-          size_t n = w.dim();
-          size_t k = proj.dim();
+          size_t m = proj.col();
+          size_t n = w.row();
+          size_t k = proj.row();
           flops += 2.0 * m * n * k;
           mops += 2.0 * ( m * n + n * k + m * k );
         }
@@ -1279,9 +1279,9 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
 
   auto &amap = target->lids;
 
-  if ( potentials.size() != amap.size() * w.dim() )
+  if ( potentials.size() != amap.size() * w.row() )
   {
-    potentials.resize( amap.size(), w.dim(), 0.0 );
+    potentials.resize( amap.size(), w.row(), 0.0 );
   }
 
   assert( target->isleaf );
@@ -1296,10 +1296,10 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
     xgemm
     (
       "N", "T",
-      Kab.dim(), wb.dim(), wb.num(),
-      1.0, Kab.data(),        Kab.dim(),
-           wb.data(),         wb.dim(),
-      1.0, potentials.data(), potentials.dim()
+      Kab.row(), wb.row(), wb.col(),
+      1.0, Kab.data(),        Kab.row(),
+           wb.data(),         wb.row(),
+      1.0, potentials.data(), potentials.row()
     );
   }
   else
@@ -1322,10 +1322,10 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
       xgemm
       (
         "N", "N",
-        Kab.dim(), w_skel.num(), w_skel.dim(),
-        1.0, Kab.data(),        Kab.dim(),
-             w_skel.data(),     w_skel.dim(),
-        1.0, potentials.data(), potentials.dim()
+        Kab.row(), w_skel.col(), w_skel.row(),
+        1.0, Kab.data(),        Kab.row(),
+             w_skel.data(),     w_skel.row(),
+        1.0, potentials.data(), potentials.row()
       );          
     }
   }
@@ -1427,7 +1427,7 @@ void NearNodes( TREE &tree )
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
   //printf( "NN( %lu, %lu ) depth %lu n_nodes %lu treelist.size() %lu\n", 
-  //    NN.dim(), NN.num(),      
+  //    NN.row(), NN.num(),      
   //    tree.depth, n_nodes, tree.treelist.size() );
 
 
@@ -1459,7 +1459,7 @@ void NearNodes( TREE &tree )
       for ( size_t j = 0; j < node->lids.size(); j ++ )
       {
         size_t lid = node->lids[ j ];
-        for ( size_t i = 0; i < NN.dim(); i ++ )
+        for ( size_t i = 0; i < NN.row(); i ++ )
         {
           size_t neighbor_gid = NN( i, lid ).second;
           //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
@@ -1732,7 +1732,7 @@ void Evaluate
 
   if ( !SYMBOLIC ) // No potential evaluation.
   {
-    assert( potentials.size() == amap.size() * w.dim() );
+    assert( potentials.size() == amap.size() * w.row() );
   }
 
   if ( !data.isskel || node->ContainAny( nnandi ) )
@@ -1766,10 +1766,10 @@ void Evaluate
         xgemm
         (
           "N", "T",
-          Kab.dim(), wb.dim(), wb.num(),
-          1.0, Kab.data(),        Kab.dim(),
-          wb.data(),         wb.dim(),
-          1.0, potentials.data(), potentials.dim()
+          Kab.row(), wb.row(), wb.col(),
+          1.0, Kab.data(),        Kab.row(),
+          wb.data(),         wb.row(),
+          1.0, potentials.data(), potentials.row()
         );
       }
     }
@@ -1808,10 +1808,10 @@ void Evaluate
       xgemm
       (
         "N", "N",
-        Kab.dim(), w_skel.num(), w_skel.dim(),
-        1.0, Kab.data(),        Kab.dim(),
-        w_skel.data(),     w_skel.dim(),
-        1.0, potentials.data(), potentials.dim()
+        Kab.row(), w_skel.col(), w_skel.row(),
+        1.0, Kab.data(),        Kab.row(),
+        w_skel.data(),     w_skel.row(),
+        1.0, potentials.data(), potentials.row()
       );          
     }
   }
@@ -1834,16 +1834,16 @@ void Evaluate
   size_t lid = tree.Getlid( gid );
 
   potentials.clear();
-  potentials.resize( 1, w.dim(), 0.0 );
+  potentials.resize( 1, w.row(), 0.0 );
 
   if ( NNPRUNE )
   {
     auto &NN = *tree.setup.NN;
-    nnandi.reserve( NN.dim() + 1 );
+    nnandi.reserve( NN.row() + 1 );
     nnandi.push_back( lid );
-    for ( size_t i = 0; i < NN.dim(); i ++ )
+    for ( size_t i = 0; i < NN.row(); i ++ )
     {
-      nnandi.push_back( tree.Getlid( NN[ lid * NN.dim() + i ].second ) );
+      nnandi.push_back( tree.Getlid( NN[ lid * NN.row() + i ].second ) );
     }
 #ifdef DEBUG_SPDASKIT
     printf( "nnandi.size() %lu\n", nnandi.size() );
@@ -1868,7 +1868,7 @@ hmlp::Data<T> ComputeAll
 )
 {
   const bool AUTO_DEPENDENCY = true;
-  hmlp::Data<T> potentials( weights.dim(), weights.num() );
+  hmlp::Data<T> potentials( weights.row(), weights.col() );
 
   tree.setup.w = &weights;
   tree.setup.u = &potentials;
@@ -1920,26 +1920,26 @@ void ComputeError( NODE *node, hmlp::Data<T> potentials )
   auto &lids = node->lids;
 
   auto &amap = node->lids;
-  std::vector<size_t> bmap = std::vector<size_t>( K.num() );
+  std::vector<size_t> bmap = std::vector<size_t>( K.col() );
 
   for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
 
   auto Kab = K( amap, bmap );
 
-  auto nrm2 = hmlp_norm( potentials.dim(), potentials.num(), 
-                         potentials.data(), potentials.dim() ); 
+  auto nrm2 = hmlp_norm( potentials.row(), potentials.col(), 
+                         potentials.data(), potentials.row() ); 
 
   xgemm
   (
     "N", "T",
-    Kab.dim(), w.dim(), w.num(),
-    -1.0, Kab.data(),        Kab.dim(),
-          w.data(),          w.dim(),
-     1.0, potentials.data(), potentials.dim()
+    Kab.row(), w.row(), w.col(),
+    -1.0, Kab.data(),        Kab.row(),
+          w.data(),          w.row(),
+     1.0, potentials.data(), potentials.row()
   );          
 
-  auto err = hmlp_norm( potentials.dim(), potentials.num(), 
-                        potentials.data(), potentials.dim() ); 
+  auto err = hmlp_norm( potentials.row(), potentials.col(), 
+                        potentials.data(), potentials.row() ); 
   
   printf( "node relative error %E, nrm2 %E\n", err / nrm2, nrm2 );
 
@@ -1964,7 +1964,7 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
   auto lid = tree.Getlid( gid );
 
   auto amap = std::vector<size_t>( 1 );
-  auto bmap = std::vector<size_t>( K.num() );
+  auto bmap = std::vector<size_t>( K.col() );
   amap[ 0 ] = lid;
   for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
 
@@ -1974,27 +1974,27 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
   xgemm
   (
     "N", "T",
-    Kab.dim(), w.dim(), w.num(),
-    1.0, Kab.data(),        Kab.dim(),
-          w.data(),          w.dim(),
-    0.0, exact.data(), exact.dim()
+    Kab.row(), w.row(), w.col(),
+    1.0, Kab.data(),        Kab.row(),
+          w.data(),          w.row(),
+    0.0, exact.data(), exact.row()
   );          
 
 
-  auto nrm2 = hmlp_norm( exact.dim(),  exact.num(), 
-                         exact.data(), exact.dim() ); 
+  auto nrm2 = hmlp_norm( exact.row(),  exact.col(), 
+                         exact.data(), exact.row() ); 
 
   xgemm
   (
     "N", "T",
-    Kab.dim(), w.dim(), w.num(),
-    -1.0, Kab.data(),        Kab.dim(),
-          w.data(),          w.dim(),
-     1.0, potentials.data(), potentials.dim()
+    Kab.row(), w.row(), w.col(),
+    -1.0, Kab.data(),        Kab.row(),
+          w.data(),          w.row(),
+     1.0, potentials.data(), potentials.row()
   );          
 
-  auto err = hmlp_norm( potentials.dim(), potentials.num(), 
-                        potentials.data(), potentials.dim() ); 
+  auto err = hmlp_norm( potentials.row(), potentials.col(), 
+                        potentials.data(), potentials.row() ); 
 
   return err / nrm2;
 }; // end T ComputeError()

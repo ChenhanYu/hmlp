@@ -47,31 +47,31 @@ struct gaussian
 {
   inline hmlp::Data<T> operator()( hmlp::Data<T> &A, hmlp::Data<T> &B ) const 
   {
-    std::vector<T> A2( A.num(), 0.0 );
-    std::vector<T> B2( B.num(), 0.0 );
-    hmlp::Data<T> Kab( A.num(), B.num() );
+    std::vector<T> A2( A.col(), 0.0 );
+    std::vector<T> B2( B.col(), 0.0 );
+    hmlp::Data<T> Kab( A.col(), B.col() );
 
-    assert( A.dim() == B.dim() );
+    assert( A.row() == B.row() );
 
     #pragma omp parallel for
-    for ( int i = 0; i < A.num(); i ++ )
+    for ( int i = 0; i < A.col(); i ++ )
     {
       T nrm2 = 0.0;
-      for ( int p = 0; p < A.dim(); p ++ )
+      for ( int p = 0; p < A.row(); p ++ )
       {
-        T a = A[ i * A.dim() + p ];
+        T a = A[ i * A.row() + p ];
         nrm2 += a * a;
       }
       A2[ i ] = nrm2;
     }
 
     #pragma omp parallel for
-    for ( int j = 0; j < B.num(); j ++ )
+    for ( int j = 0; j < B.col(); j ++ )
     {
       T nrm2 = 0.0;
-      for ( int p = 0; p < B.dim(); p ++ )
+      for ( int p = 0; p < B.row(); p ++ )
       {
-        T b = B[ j * B.dim() + p ];
+        T b = B[ j * B.row() + p ];
         nrm2 += b * b;
       }
       B2[ j ] = nrm2;
@@ -80,19 +80,19 @@ struct gaussian
     hmlp::xgemm
     ( 
       "T", "N", 
-      A.num(), B.num(), A.dim(), 
-      -2.0, A.data(),   A.dim(),
-            B.data(),   B.dim(), 
-       0.0, Kab.data(), Kab.dim()
+      A.col(), B.col(), A.row(), 
+      -2.0, A.data(),   A.row(),
+            B.data(),   B.row(), 
+       0.0, Kab.data(), Kab.row()
     );
 
-    for ( int j = 0; j < B.num(); j ++ )
+    for ( int j = 0; j < B.col(); j ++ )
     {
-      for ( int i = 0; i < A.num(); i ++ )
+      for ( int i = 0; i < A.col(); i ++ )
       {
-        Kab[ j * Kab.dim() + i ] = Kab[ j * Kab.dim() + i ] + A2[ i ] + B2[ j ];
-        Kab[ j * Kab.dim() + i ] = Kab[ j * Kab.dim() + i ] / ( -2.0 * h * h );        
-        Kab[ j * Kab.dim() + i ] = std::exp( Kab[ j * Kab.dim() + i ] );        
+        Kab[ j * Kab.row() + i ] = Kab[ j * Kab.row() + i ] + A2[ i ] + B2[ j ];
+        Kab[ j * Kab.row() + i ] = Kab[ j * Kab.row() + i ] / ( -2.0 * h * h );        
+        Kab[ j * Kab.row() + i ] = std::exp( Kab[ j * Kab.row() + i ] );        
       }
     }
 
@@ -114,7 +114,7 @@ struct gaussian
  * @param  *kernel gsks data structure
  * @param  m       Number of target points
  * @param  n       Number of source points
- * @param  k       Data point dimension
+ * @param  k       Data point.rowension
  * --------------------------------------------------------------------------
  */
 template<typename T>

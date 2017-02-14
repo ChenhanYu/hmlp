@@ -45,23 +45,23 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 {
   public:
 
-    Data() : d( 0 ), n( 0 ) {};
+    Data() : m( 0 ), n( 0 ) {};
 
-    Data( std::size_t d, std::size_t n ) : std::vector<T, Allocator>( d * n )
+    Data( std::size_t m, std::size_t n ) : std::vector<T, Allocator>( m * n )
     { 
-      this->d = d;
+      this->m = m;
       this->n = n;
     };
 
-    Data( std::size_t d, std::size_t n, T initT ) : std::vector<T, Allocator>( d * n, initT )
+    Data( std::size_t m, std::size_t n, T initT ) : std::vector<T, Allocator>( m * n, initT )
     { 
-      this->d = d;
+      this->m = m;
       this->n = n;
     };
 
-    Data( std::size_t d, std::size_t n, std::string &filename ) : std::vector<T, Allocator>( d * n )
+    Data( std::size_t m, std::size_t n, std::string &filename ) : std::vector<T, Allocator>( m * n )
     {
-      this->d = d;
+      this->m = m;
       this->n = n;
 
       std::cout << filename << std::endl;
@@ -70,7 +70,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       if ( file.is_open() )
       {
         auto size = file.tellg();
-        assert( size == d * n * sizeof(T) );
+        assert( size == m * n * sizeof(T) );
         file.seekg( 0, std::ios::beg );
         file.read( (char*)this->data(), size );
         file.close();
@@ -79,30 +79,30 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     enum Pattern : int { STAR = -1 };
 
-    void resize( std::size_t d, std::size_t n )
+    void resize( std::size_t m, std::size_t n )
     { 
-      this->d = d;
+      this->m = m;
       this->n = n;
-      std::vector<T, Allocator>::resize( d * n );
+      std::vector<T, Allocator>::resize( m * n );
     };
 
-    void resize( std::size_t d, std::size_t n, T initT )
+    void resize( std::size_t m, std::size_t n, T initT )
     {
-      this->d = d;
+      this->m = m;
       this->n = n;
-      std::vector<T, Allocator>::resize( d * n, initT );
+      std::vector<T, Allocator>::resize( m * n, initT );
     };
 
-    void reserve( std::size_t d, std::size_t n ) 
+    void reserve( std::size_t m, std::size_t n ) 
     {
-      std::vector<T, Allocator>::reserve( d * n );
+      std::vector<T, Allocator>::reserve( m * n );
     };
 
-    void read( std::size_t d, std::size_t n, std::string &filename )
+    void read( std::size_t m, std::size_t n, std::string &filename )
     {
-      assert( this->d == d );
+      assert( this->m == m );
       assert( this->n == n );
-      assert( this->size() == d * n );
+      assert( this->size() == m * n );
 
       std::cout << filename << std::endl;
 
@@ -110,7 +110,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       if ( file.is_open() )
       {
         auto size = file.tellg();
-        assert( size == d * n * sizeof(T) );
+        assert( size == m * n * sizeof(T) );
         file.seekg( 0, std::ios::beg );
         file.read( (char*)this->data(), size );
         file.close();
@@ -119,13 +119,13 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     std::tuple<size_t, size_t> shape()
     {
-      return std::make_tuple( d, n );
+      return std::make_tuple( m, n );
     };
 
     template<typename TINDEX>
     inline T operator()( TINDEX i, TINDEX j )
     {
-      return (*this)[ d * j + i ];
+      return (*this)[ m * j + i ];
     };
 
 
@@ -138,7 +138,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       {
         for ( int i = 0; i < imap.size(); i ++ )
         {
-          submatrix[ j * imap.size() + i ] = (*this)[ d * jmap[ j ] + imap[ i ] ];
+          submatrix[ j * imap.size() + i ] = (*this)[ m * jmap[ j ] + imap[ i ] ];
         }
       }
 
@@ -148,13 +148,13 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     template<typename TINDEX>
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
     {
-      hmlp::Data<T> submatrix( d, jmap.size() );
+      hmlp::Data<T> submatrix( m, jmap.size() );
 
       for ( int j = 0; j < jmap.size(); j ++ )
       {
-        for ( int i = 0; i < d; i ++ )
+        for ( int i = 0; i < m; i ++ )
         {
-          submatrix[ j * d + i ] = (*this)[ d * jmap[ j ] + i ];
+          submatrix[ j * m + i ] = (*this)[ m * jmap[ j ] + i ];
         }
       }
 
@@ -167,22 +167,22 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       std::default_random_engine generator;
       std::uniform_real_distribution<T> distribution( a, b );
 
-      if ( SYMMETRIC ) assert( n == d );
+      if ( SYMMETRIC ) assert( m == n );
 
       for ( std::size_t j = 0; j < n; j ++ )
       {
-        for ( std::size_t i = 0; i < d; i ++ )
+        for ( std::size_t i = 0; i < m; i ++ )
         {
           if ( SYMMETRIC )
           {
             if ( i > j )
-              (*this)[ j * d + i ] = distribution( generator );
+              (*this)[ j * m + i ] = distribution( generator );
             else
-              (*this)[ j * d + i ] = (*this)[ i * d + j ];
+              (*this)[ j * m + i ] = (*this)[ i * m + j ];
           }
           else
           {
-            (*this)[ j * d + i ] = distribution( generator );
+            (*this)[ j * m + i ] = distribution( generator );
           }
         }
       }
@@ -195,9 +195,9 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     {
       std::default_random_engine generator;
       std::normal_distribution<T> distribution( mu, sd );
-      for ( std::size_t i = 0; i < d * n; i ++ )
+      for ( std::size_t i = 0; i < m * n; i ++ )
       {
-        (*this)[ i ] =  distribution( generator );
+        (*this)[ i ] = distribution( generator );
       }
     };
 
@@ -209,7 +209,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       std::default_random_engine generator;
       std::uniform_real_distribution<T> distribution( a, b );
 
-      assert( n == d );
+      assert( m == n );
 
       if ( USE_LOWRANK )
       {
@@ -218,25 +218,25 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
         xgemm
         (
           "T", "N",
-          n, n, X.dim(),
-          1.0, X.data(), X.dim(),
-               X.data(), X.dim(),
-          0.0, this->data(), this->dim()
+          n, n, X.row(),
+          1.0, X.data(), X.row(),
+               X.data(), X.row(),
+          0.0, this->data(), this->row()
         );
       }
       else // diagonal dominating
       {
         for ( std::size_t j = 0; j < n; j ++ )
         {
-          for ( std::size_t i = 0; i < d; i ++ )
+          for ( std::size_t i = 0; i < m; i ++ )
           {
             if ( i > j )
-              (*this)[ j * d + i ] = distribution( generator );
+              (*this)[ j * m + i ] = distribution( generator );
             else
-              (*this)[ j * d + i ] = (*this)[ i * d + j ];
+              (*this)[ j * m + i ] = (*this)[ i * m + j ];
 
             // Make sure diagonal dominated
-            (*this)[ j * d + j ] += std::abs( (*this)[ j * d + i ] );
+            (*this)[ j * m + j ] += std::abs( (*this)[ j * m + i ] );
           }
         }
       }
@@ -245,19 +245,19 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     template<bool USE_LOWRANK>
     void randspd() { randspd<USE_LOWRANK>( 0.0, 1.0 ); };
 
-    std::size_t dim() { return d; };
+    std::size_t row() { return m; };
 
-    std::size_t num() { return n; };
+    std::size_t col() { return n; };
 
     void Print()
     {
-      printf( "Data in %lu * %lu\n", d, n );
-      hmlp::hmlp_printmatrix( d, n, this->data(), d );
+      printf( "Data in %lu * %lu\n", m, n );
+      hmlp::hmlp_printmatrix( m, n, this->data(), m );
     };
 
   private:
 
-    std::size_t d;
+    std::size_t m;
 
     std::size_t n;
 
@@ -426,9 +426,9 @@ class CSC : public ReadWrite
     };
 
 
-    std::size_t dim() { return m; };
+    std::size_t row() { return m; };
 
-    std::size_t num() { return n; };
+    std::size_t col() { return n; };
 
   private:
 
@@ -504,9 +504,9 @@ class OOC : public ReadWrite
       return submatrix;
     }; 
 
-    std::size_t dim() { return m; };
+    std::size_t row() { return m; };
 
-    std::size_t num() { return n; };
+    std::size_t col() { return n; };
 
   private:
 

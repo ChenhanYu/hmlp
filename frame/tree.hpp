@@ -260,7 +260,7 @@ struct centersplit
     assert( N_SPLIT == 2 );
 
     hmlp::Data<T> &X = *Coordinate;
-    size_t d = X.dim();
+    size_t d = X.row();
     size_t n = lids.size();
 
     T rcx0 = 0.0, rx01 = 0.0;
@@ -930,7 +930,7 @@ class Tree
         treelist.clear();
 #ifdef DEBUG_TREE
         printf( "Iter %2d NN 0 ", t );
-        for ( size_t i = 0; i < NN.dim(); i ++ )
+        for ( size_t i = 0; i < NN.row(); i ++ )
         {
           printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
         }
@@ -950,13 +950,13 @@ class Tree
 
 
         #pragma omp parallel for
-        for ( size_t j = 0; j < NN.num(); j ++ )
+        for ( size_t j = 0; j < NN.col(); j ++ )
         {
-          std::sort( NN.data() + j * NN.dim(), NN.data() + ( j + 1 ) * NN.dim() );
+          std::sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row() );
         }
 #ifdef DEBUG_TREE
         printf( "Sorted  NN 0 " );
-        for ( size_t i = 0; i < NN.dim(); i ++ )
+        for ( size_t i = 0; i < NN.row(); i ++ )
         {
           printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
         }
@@ -966,11 +966,11 @@ class Tree
 
 
       #pragma omp parallel for
-      for ( size_t j = 0; j < NN.num(); j ++ )
+      for ( size_t j = 0; j < NN.col(); j ++ )
       {
-        for ( size_t i = 0; i < NN.dim(); i ++ )
+        for ( size_t i = 0; i < NN.row(); i ++ )
         {
-          if ( NN( i, j ).second >= NN.num() )
+          if ( NN( i, j ).second >= NN.col() )
           {
             printf( "NN bug ( %lu, %lu ) = %lf, %lu\n", i, j, NN( i, j ).first, NN( i, j ).second );
           }
