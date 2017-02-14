@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <vector>
 #include <deque>
+#include <map>
 #include <iostream>
 #include <fstream>
 #include <random>
@@ -17,8 +18,9 @@
 #include <hmlp_runtime.hpp>
 
 #ifdef HMLP_USE_CUDA
-#include <host_vector.h>
-#include <device_vector.h>
+#include <thrust/tuple.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 #endif // ifdef HMLP_USE_CUDA
 
 
@@ -28,18 +30,142 @@
 
 namespace hmlp
 {
-
+/*
 #ifdef HMLP_USE_CUDA
 template<class T>
-class Data : public ReadWrite
+class Data : public ReadWrite, public host_vector<T>
 {
   publuc:
 
+    Data() : m( 0 ), n( 0 ) {};
+
+    Data( std::size_t m, std::size_t n ) : host_vector<T>( m * n )
+    { 
+      this->m = m;
+      this->n = n;
+    };
+
+    Data( std::size_t m, std::size_t n, T initT ) : host_vector<T>( m * n, initT )
+    { 
+      this->m = m;
+      this->n = n;
+    };
+
+    Data( std::size_t m, std::size_t n, std::string &filename ) : host_vector<T>( m * n )
+    {
+      this->m = m;
+      this->n = n;
+
+      std::cout << filename << std::endl;
+
+      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
+      if ( file.is_open() )
+      {
+        auto size = file.tellg();
+        assert( size == m * n * sizeof(T) );
+        file.seekg( 0, std::ios::beg );
+        file.read( (char*)this->data(), size );
+        file.close();
+      }
+    };
+
+    void resize( std::size_t m, std::size_t n )
+    { 
+      this->m = m;
+      this->n = n;
+      host_vector<T>::resize( m * n );
+    };
+
+    void resize( std::size_t m, std::size_t n, T initT )
+    {
+      this->m = m;
+      this->n = n;
+      host_vector<T>::resize( m * n, initT );
+    };
+
+    void reserve( std::size_t m, std::size_t n ) 
+    {
+      host_vector<T>::reserve( m * n );
+    };
+
+    void read( std::size_t m, std::size_t n, std::string &filename )
+    {
+      assert( this->m == m );
+      assert( this->n == n );
+      assert( this->size() == m * n );
+
+      std::cout << filename << std::endl;
+
+      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
+      if ( file.is_open() )
+      {
+        auto size = file.tellg();
+        assert( size == m * n * sizeof(T) );
+        file.seekg( 0, std::ios::beg );
+        file.read( (char*)this->data(), size );
+        file.close();
+      }
+    };
+
+    thrust::tuple<size_t, size_t> shape()
+    {
+      return thrust::make_tuple( m, n );
+    };
+
+    template<typename TINDEX>
+    __host__ inline T operator()( TINDEX i, TINDEX j )
+    {
+      return (*this)[ m * j + i ];
+    };
+
+    template<typename TINDEX>
+    __host__ inline hmlp::Data<T> operator()( host_vector<TINDEX> &imap, host_vector<TINDEX> &jmap )
+    {
+      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+
+      for ( int j = 0; j < jmap.size(); j ++ )
+      {
+        for ( int i = 0; i < imap.size(); i ++ )
+        {
+          submatrix[ j * imap.size() + i ] = (*this)[ m * jmap[ j ] + imap[ i ] ];
+        }
+      }
+
+      return submatrix;
+    }; 
+
+    template<typename TINDEX>
+    inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
+    {
+      hmlp::Data<T> submatrix( m, jmap.size() );
+
+      for ( int j = 0; j < jmap.size(); j ++ )
+      {
+        for ( int i = 0; i < m; i ++ )
+        {
+          submatrix[ j * m + i ] = (*this)[ m * jmap[ j ] + i ];
+        }
+      }
+
+      return submatrix;
+    }; 
+
+
+
   private:
+
+    std::size_t m;
+
+    std::size_t n;
+
+    std::map<hmlp::Device*, T*> distribution;
 
 }; // end class Data
 
 #else
+*/
+
+
 template<class T, class Allocator = std::allocator<T> >
 class Data : public ReadWrite, public std::vector<T, Allocator>
 {
@@ -77,7 +203,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       }
     };
 
-    enum Pattern : int { STAR = -1 };
+    //enum Pattern : int { STAR = -1 };
 
     void resize( std::size_t m, std::size_t n )
     { 
@@ -262,7 +388,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     std::size_t n;
 
 };
-#endif // ifdef HMLP_USE_CUDA
+//#endif // ifdef HMLP_USE_CUDA
 
 
 template<class T, class Allocator = std::allocator<T> >

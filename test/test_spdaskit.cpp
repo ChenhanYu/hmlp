@@ -83,17 +83,6 @@ void test_spdaskit( SPDMATRIX &K, size_t n, size_t m, size_t k, size_t s, size_t
   auto NN = rkdt.template AllNearestNeighbor<SORTED>( n_iter, k, 10, gids, lids, initNN, knntask );
   ann_time = omp_get_wtime() - beg;
 
- /*print neighbors for checking 
-  int offset=20;
-  printf("For globalID %d nearest neighbors are:\n", offset);
-  for ( int ii = 0 ; ii < k ; ii++)
-  {
-    printf( "distance: %f node: %lu\n" ,
-      NN.data()[ offset*k + ii ].first ,
-      NN.data()[ offset*k + ii ].second );
-  }*/
-
-
   // ------------------------------------------------------------------------
   // Initialize Spd-Askit tree using approximate center split.
   // ------------------------------------------------------------------------
