@@ -153,7 +153,7 @@ void test_spdaskit( SPDMATRIX &K, size_t n, size_t m, size_t k, size_t s, size_t
 
 
   // Test evaluation with NN prunning.
-  for ( size_t i = 0; i < 10; i ++ )
+  for ( size_t i = 0; i < 20; i ++ )
   {
     hmlp::Data<T> potentials;
     // Use NN pruning
@@ -200,9 +200,11 @@ int main( int argc, char *argv[] )
   const bool LEVELRESTRICTION = false;
   const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
-  const bool DENSETESTSUIT = true;
+  const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = true;
-  const bool OOCTESTSUIT = true;
+  const bool OOCTESTSUIT = false;
+
+  std::string DATADIR( "/scratch/jlevitt/data/" );
 
   size_t n, m, k, s, nrhs;
 
@@ -236,20 +238,20 @@ int main( int argc, char *argv[] )
   {
     hmlp::spdaskit::SPDMatrix<T> K;
     K.resize( n, n );
-    K.template randspd<USE_LOWRANK>( 0.0, 1.0 );
+    K.randspd<USE_LOWRANK>( 0.0, 1.0 );
     test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
   }
   
   if ( DENSETESTSUIT )
   {
-    n = 1024;
+    n = 4096;
     hmlp::spdaskit::SPDMatrix<T> K;
     K.resize( n, n );
     for ( size_t id = 1; id < 14; id ++ )
     {
       std::ostringstream id_stream;
       id_stream << id;
-      std::string filename = std::string( "K" ) + id_stream.str()
+      std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
                                                 + std::string( ".dat" );
       K.read( n, n, filename );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
@@ -259,16 +261,23 @@ int main( int argc, char *argv[] )
   if ( SPARSETESTSUIT )
   {
     {
-      std::string filename( "bcsstk10/bcsstk10.mtx" );
+      std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
       n = 1086;
       hmlp::CSC<T> K( n, n, (size_t)11578 );
       K.readmtx<false>( filename );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
     }
     {
-      std::string filename( "msdoor/msdoor.mtx" );
+      std::string filename = DATADIR + std::string( "msdoor.mtx" );
       n = 415863;
       hmlp::CSC<T> K( n, n, (size_t)10328399 );
+      K.readmtx<false>( filename );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
+    }
+    {
+      std::string filename = DATADIR + std::string( "thermal2.mtx" );
+      n = 1228045;
+      hmlp::CSC<T> K( n, n, (size_t)4904179 );
       K.readmtx<false>( filename );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );
     }
@@ -276,12 +285,12 @@ int main( int argc, char *argv[] )
 
   if ( OOCTESTSUIT )
   {
-    n = 1024;
+    n = 4096;
     for ( size_t id = 1; id < 14; id ++ )
     {
       std::ostringstream id_stream;
       id_stream << id;
-      std::string filename = std::string( "K" ) + id_stream.str()
+      std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
                                                 + std::string( ".dat" );
       hmlp::OOC<T> K( n, n, filename );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, T>( K, n, m, k, s, nrhs );

@@ -49,8 +49,8 @@ export HMLP_MIC_AVX512=false
 
 ## Manually set the mkl path
 # export HMLP_MKL_DIR=$TACC_MKL_DIR
-export HMLP_MKL_DIR=/opt/intel/mkl
-# export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
+# export HMLP_MKL_DIR=/opt/intel/mkl
+export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
 
@@ -67,7 +67,7 @@ echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 ## Parallel options
 # export KMP_AFFINITY=compact
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=20
 export KS_JC_NT=1
 export KS_IC_NT=20
 export KS_JR_NT=1
