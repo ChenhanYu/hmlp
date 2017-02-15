@@ -120,10 +120,10 @@ class HFamily
     hmlp::Data<T> Sigma21;
 
     /** n1 * n2 */
-    hmlp::CSC<T> S12;
+    hmlp::CSC<false, T> S12;
 
     /** n2 * n1, if ( SYMMETRIC ) S21 = S12' */
-    hmlp::CSC<T> S21; 
+    hmlp::CSC<false, T> S21; 
 };
 
 

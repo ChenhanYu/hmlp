@@ -187,6 +187,60 @@ std::vector<T> Mean( int d, int n, std::vector<T> &X )
 }; // end Mean()
 
 
+
+/**
+ *  @brief Parallel prefix scan
+ */ 
+template<typename TA, typename TB>
+void Scan( std::vector<TA> &A, std::vector<TB> &B )
+{
+  size_t p = omp_get_max_threads();
+  size_t n = B.size();
+  size_t step_size = n / p;
+  std::vector<TB> sum( p );
+
+  assert( A.size() == n - 1 );
+
+  if ( n < 100 * p ) 
+  {
+	for ( size_t i = 1; i < n; i++ ) B[ i ] = B[ i - 1 ] + A[ i - 1 ];
+	return;
+  }
+
+  #pragma omp parallel for schedule( static )
+  for ( size_t i = 0; i < p; i ++ ) 
+  {
+	size_t start = i * step_size;
+	size_t end = start + step_size;
+	if ( i == p - 1 ) end = n;
+	if ( i != 0 ) B[ start ] = 0;
+	for ( size_t j = start + 1; j < end; j ++ ) 
+	{
+	  B[ j ] = B[ j - 1 ] + A[ j - 1 ];
+	}
+  }
+
+  sum[ 0 ] = 0;
+  for ( size_t i = 1; i < p; i ++ ) 
+  {
+	sum[ i ] = sum[ i - 1 ] + B[ i * step_size - 1 ] + A [ i * step_size - 1 ];
+  }
+
+  #pragma omp parallel for schedule( static )
+  for ( size_t i = 1; i < p; i ++ ) 
+  {
+	size_t start = i * step_size;
+	size_t end = start + step_size;
+	if ( i == p - 1 ) end = n;
+	TB sum_ = sum[ i ];
+	for ( size_t j = start; j < end; j ++ ) 
+	{
+	  B[ j ] += sum_;
+	}
+  }
+}; // end Scan()
+
+
 /**
  *  @brief Select the kth element in x in the increasing order.
  *
@@ -201,15 +255,44 @@ T Select( int n, int k, std::vector<T> &x )
   assert( k <= n && x.size() == n );
   std::vector<T> mean = Mean( 1, n, x );
   std::vector<T> lhs, rhs;
+
+  /*
   lhs.reserve( n );
   rhs.reserve( n );
-
-  // TODO: This splitter need to be parallelized.
   for ( int i = 0; i < n; i ++ )
   {
     if ( x[ i ] > mean[ 0 ] ) rhs.push_back( x[ i ] );
     else                      lhs.push_back( x[ i ] );
   }
+  */
+
+  std::vector<size_t> lflag( n, 0 );
+  std::vector<size_t> rflag( n, 0 );
+  std::vector<size_t> pscan( n + 1, 0 );
+
+  #pragma omp parallel for
+  for ( size_t i = 0; i < n; i ++ )
+  {
+    if ( x[ i ] > mean[ 0 ] ) rflag[ i ] = 1;
+	else                      lflag[ i ] = 1;
+  }
+  
+  Scan( lflag, pscan );
+  lhs.resize( pscan[ n ] );
+  #pragma omp parallel for 
+  for ( size_t i = 0; i < n; i ++ )
+  {
+	if ( lflag[ i ] ) lhs[ pscan[ i + 1 ] - 1 ] = x[ i ];
+  }
+
+  Scan( rflag, pscan );
+  rhs.resize( pscan[ n ] );
+  #pragma omp parallel for 
+  for ( size_t i = 0; i < n; i ++ )
+  {
+	if ( rflag[ i ] ) rhs[ pscan[ i + 1 ] - 1 ] = x[ i ];
+  }
+
 
 #ifdef DEBUG_TREE
   printf( "n %d k %d lhs %d rhs %d mean %lf\n", 
@@ -453,15 +536,25 @@ class Node
 
 
     template<bool PREALLOCATE>
-    //void Split( int m, int max_depth )
     void Split( int dummy )
     {
+      //int nthd_glb = omp_get_max_threads();
+	  //if ( l < 4 ) 
+	  //{
+	  //  omp_set_nested( 1 );
+	  //  omp_set_num_threads( 1 << ( 4 - l ) ); 
+      //  omp_set_max_active_levels( 2 );
+	  //}
+
       int m = setup->m;
       int max_depth = setup->max_depth;
 
       if ( n > m && l < max_depth || ( PREALLOCATE && kids[ 0 ] ) )
       {
+		double beg = omp_get_wtime();
         auto split = setup->splitter( gids, lids );
+		double splitter_time = omp_get_wtime() - beg;
+		//printf( "splitter %5.3lfs\n", splitter_time );
 
         if ( N_CHILDREN == 2 )
         {
@@ -471,6 +564,7 @@ class Node
             //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", split[ 0 ].size(), split[ 1 ].size() );
             split[ 0 ].resize( gids.size() / 2 );
             split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
+            #pragma omp parallel for
             for ( size_t i = 0; i < gids.size(); i ++ )
             {
               if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
@@ -499,6 +593,7 @@ class Node
           }
 
           // TODO: Can be parallelized
+          #pragma omp parallel for
           for ( int j = 0; j < nchild; j ++ )
           {
             kids[ i ]->gids[ j ] = gids[ split[ i ][ j ] ];
@@ -518,6 +613,10 @@ class Node
         if ( PREALLOCATE ) assert( kids[ 0 ] == NULL );
         isleaf = true;
       }
+	  
+	  //omp_set_num_threads( nthd_glb ); 
+	  //omp_set_nested( 0 );
+      //omp_set_max_active_levels( 1 );
     }; // end Split()
 
 
@@ -768,6 +867,8 @@ class Tree
     {
       assert( N_CHILDREN == 2 );
 
+	  double beg, alloc_time, split_time, morton_time, permute_time;
+
       n = lids.size();
       //m = leafsize;
       m = setup.m;
@@ -775,6 +876,8 @@ class Tree
 
       std::deque<NODE*> treequeue;
      
+      beg = omp_get_wtime();
+
       treelist.clear();
       treequeue.clear();
       treelist.reserve( ( n / m ) * N_CHILDREN );
@@ -831,12 +934,13 @@ class Tree
         treequeue.pop_front();
       }
 
+	  alloc_time = omp_get_wtime() - beg;
+
+	  
+      beg = omp_get_wtime();
       SplitTask<NODE> splittask;
       TraverseDown<false, false>( splittask );
-
-
-
-
+	  split_time = omp_get_wtime() - beg;
 
 
       // All tree nodes were created. Now decide tree depth.
@@ -848,7 +952,7 @@ class Tree
         //printf( "depth %lu number of tree nides %lu\n", depth, treelist.size() );
       }
 
-      double beg = omp_get_wtime();
+      beg = omp_get_wtime();
       if ( N_CHILDREN == 2 )
       {
         setup.morton.resize( n );
@@ -859,16 +963,17 @@ class Tree
       {
         printf( "No morton id available\n" );
       }
-      double morton_time = omp_get_wtime() - beg;
-      //printf( "morton time %5.3lfs\n", morton_time );
+      morton_time = omp_get_wtime() - beg;
 
 
       beg = omp_get_wtime();
       // Adgust lids and gids to the appropriate order.
       PermuteTask<NODE> permutetask;
       TraverseUp<false, false>( permutetask );
-      double permute_time = omp_get_wtime() - beg;
-      //printf( "permute time %5.3lfs\n", permute_time );
+      permute_time = omp_get_wtime() - beg;
+
+      printf( "alloc %5.3lfs split %5.3lfs morton %5.3lfs permute %5.3lfs\n", 
+		  alloc_time, split_time, morton_time, permute_time );
     };
 
     template<class TASK>
@@ -1193,15 +1298,44 @@ class Tree
 
         if ( !USE_RUNTIME )
         {
-          #pragma omp parallel for 
-          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
-          {
-            auto *node = *(level_beg + node_ind);
-            auto *task = new TASK();
-            task->Set( node );
-            task->Execute( NULL );
-            delete task;
-          }
+          int nthd_glb = omp_get_max_threads();
+          
+          if ( n_nodes >= nthd_glb || n_nodes == 1 )
+		  {
+            #pragma omp parallel for if ( n_nodes > nthd_glb / 2 )
+            for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+            {
+              auto *node = *(level_beg + node_ind);
+              auto *task = new TASK();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+            }
+		  }
+		  else
+		  {
+            int nthd_loc = nthd_glb / n_nodes;
+
+            mkl_set_dynamic( 0 );
+            mkl_set_num_threads( nthd_loc );
+            omp_set_nested( 1 );
+            omp_set_max_active_levels( 2 );
+            #pragma omp parallel for if ( n_nodes )
+            for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+            {
+              omp_set_num_threads( nthd_loc );
+              auto *node = *(level_beg + node_ind);
+              auto *task = new TASK();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+            }
+            mkl_set_dynamic( 1 );
+            mkl_set_num_threads( nthd_glb );
+            omp_set_num_threads( nthd_glb );
+            omp_set_nested( 0 );
+            omp_set_max_active_levels( 1 );
+		  }
         }
         else // using dynamic scheduling
         {

@@ -19,7 +19,7 @@
 
 #include <hmlp_thread.hpp>
 
-#define MAX_WORKER 24
+#define MAX_WORKER 40
 
 namespace hmlp
 {

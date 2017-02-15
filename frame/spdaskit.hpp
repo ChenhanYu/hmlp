@@ -220,51 +220,62 @@ struct centersplit
   {
     assert( N_SPLIT == 2 );
 
+	double beg, d2c_time, d2f_time, projection_time, max_time;
+
     SPDMATRIX &K = *Kptr;
-    //size_t N = K.row();
     size_t n = lids.size();
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
 
     std::vector<T> temp( n, 0.0 );
 
-
+    beg = omp_get_wtime();
     // Compute d2c (distance to center)
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
       temp[ i ] = K( lids[ i ], lids[ i ] );
-      for ( size_t j = 0; j < std::log( n ); j ++ )
+      for ( size_t j = 0; j < (size_t)std::log( n ); j ++ )
       {
-        size_t sample = rand() % n;
-        temp[ i ] -= 2.0 * K( lids[ i ], lids[ sample ] );
+        //size_t sample = rand() % n;
+        //temp[ i ] -= 2.0 * K( lids[ i ], lids[ sample ] );
+		temp[ i ] -= 2.0 * K.ImportantSample( lids[ i ] );
       }
     }
+	d2c_time = omp_get_wtime() - beg;
 
     // Find the f2c (far most to center)
     auto itf2c = std::max_element( temp.begin(), temp.end() );
     size_t idf2c = std::distance( temp.begin(), itf2c );
 
+    beg = omp_get_wtime();
     // Compute the d2f (distance to far most)
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
       temp[ i ] = K( lids[ i ], lids[ i ] ) - 2.0 * K( lids[ i ], lids[ idf2c ] );
     }
+	d2f_time = omp_get_wtime() - beg;
 
     // Find the f2f (far most to far most)
+    beg = omp_get_wtime();
     auto itf2f = std::max_element( temp.begin(), temp.end() );
+	max_time = omp_get_wtime() - beg;
     size_t idf2f = std::distance( temp.begin(), itf2f );
 
 #ifdef DEBUG_SPDASKIT
     printf( "idf2c %lu idf2f %lu\n", idf2c, idf2f );
 #endif
 
+    beg = omp_get_wtime();
     // Compute projection
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
       temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
     }
+	projection_time = omp_get_wtime() - beg;
+    //printf( "log(n) %lu d2c %5.3lfs d2f %5.3lfs proj %5.3lfs max %5.3lfs\n", 
+	//	(size_t)std::log( n ), d2c_time, d2f_time, projection_time, max_time );
 
     // Parallel median search
     T median = hmlp::tree::Select( n, n / 2, temp );
@@ -306,7 +317,6 @@ struct randomsplit
     assert( N_SPLIT == 2 );
 
     SPDMATRIX &K = *Kptr;
-    //size_t N = K.row();
     size_t n = lids.size();
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
     std::vector<T> temp( n, 0.0 );
@@ -330,15 +340,44 @@ struct randomsplit
     // Parallel median search
     T median = hmlp::tree::Select( n, n / 2, temp );
 
-    split[ 0 ].reserve( n / 2 + 1 );
-    split[ 1 ].reserve( n / 2 + 1 );
+//    split[ 0 ].reserve( n / 2 + 1 );
+//    split[ 1 ].reserve( n / 2 + 1 );
+//
+//    // TODO: Can be parallelized
+//    for ( size_t i = 0; i < n; i ++ )
+//    {
+//      if ( temp[ i ] > median ) split[ 1 ].push_back( i );
+//      else                      split[ 0 ].push_back( i );
+//    }
 
-    // TODO: Can be parallelized
+
+    std::vector<size_t> lflag( n, 0 );
+    std::vector<size_t> rflag( n, 0 );
+    std::vector<size_t> pscan( n + 1, 0 );
+
+    #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-      else                      split[ 0 ].push_back( i );
+      if ( temp[ i ] > median ) rflag[ i ] = 1;
+	  else                      lflag[ i ] = 1;
     }
+  
+	hmlp::tree::Scan( lflag, pscan );
+    split[ 0 ].resize( pscan[ n ] );
+    #pragma omp parallel for 
+    for ( size_t i = 0; i < n; i ++ )
+    {
+  	  if ( lflag[ i ] ) split[ 0 ][ pscan[ i + 1 ] - 1 ] = i;
+    }
+
+	hmlp::tree::Scan( rflag, pscan );
+    split[ 1 ].resize( pscan[ n ] );
+    #pragma omp parallel for 
+    for ( size_t i = 0; i < n; i ++ )
+    {
+	  if ( rflag[ i ] ) split[ 1 ][ pscan[ i + 1 ] - 1 ] = i;
+    }
+
 
     return split;
   };
@@ -381,7 +420,7 @@ class KNNTask : public hmlp::Task
       flops = lids.size();
       flops *= 4.0 * lids.size();
       // Heap select worst case
-      mops = std::log( NN.row() ) * lids.size();
+      mops = (size_t)std::log( NN.row() ) * lids.size();
       mops *= lids.size();
       // Access K
       mops += flops;
