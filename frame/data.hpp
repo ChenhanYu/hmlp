@@ -278,11 +278,14 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     }; 
 
 	template<typename TINDEX>
-	T ImportantSample( TINDEX j )
+	std::pair<T, TINDEX> ImportantSample( TINDEX j )
 	{
 	  TINDEX i = std::rand() % m;
-	  return (*this)( i, j ); 
+	  std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+	  return sample; 
 	};
+
+
 
     template<typename TINDEX>
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
@@ -404,7 +407,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 //#endif // ifdef HMLP_USE_CUDA
 
 
-template<bool SYMMETRIC, class T, class Allocator = std::allocator<T> >
+template<bool SYMMETRIC, typename T, class Allocator = std::allocator<T> >
 class CSC : public ReadWrite
 {
   public:
@@ -479,11 +482,30 @@ class CSC : public ReadWrite
       return submatrix;
     }; 
 
-	template<typename TINDEX>
-	T ImportantSample( TINDEX j )
+    template<typename TINDEX>
+	std::size_t ColPtr( TINDEX j )
 	{
-      size_t sample = rand() % ( col_ptr[ j + 1 ] - col_ptr[ j ] );
-	  return val[ col_ptr[ j ] + sample ]; 
+	  return col_ptr[ j ];
+	}
+
+    template<typename TINDEX>
+	std::size_t RowInd( TINDEX offset )
+	{
+	  return row_ind[ offset ];
+	};
+
+    template<typename TINDEX>
+	T Value( TINDEX offset )
+	{
+	  return val[ offset ];
+	};
+
+	template<typename TINDEX>
+	std::pair<T, TINDEX> ImportantSample( TINDEX j )
+	{
+      size_t offset = col_ptr[ j ] + rand() % ( col_ptr[ j + 1 ] - col_ptr[ j ] );
+	  std::pair<T, TINDEX> sample( val[ offset ], row_ind[ offset ] );
+	  return sample; 
 	};
 
     void Print()
@@ -508,7 +530,7 @@ class CSC : public ReadWrite
      *  @brief Read matrix market format (ijv) format. Only lower triangular
      *         part is stored
      */ 
-    template<bool LOWERTRIANGULAR, bool ISZEROBASE>
+    template<bool LOWERTRIANGULAR, bool ISZEROBASE, bool IJONLY = false>
     void readmtx( std::string &filename )
     {
       size_t m_mtx, n_mtx, nnz_mtx;
@@ -548,11 +570,23 @@ class CSC : public ReadWrite
 		  size_t i, j;
 		  T v;
 
-          if ( !( iss >> i >> j >> v ) )
-          {
-            printf( "line %lu has illegle format\n", nnz_count );
-            break;
-          }
+		  if ( IJONLY )
+		  {
+            if ( !( iss >> i >> j ) )
+            {
+              printf( "line %lu has illegle format\n", nnz_count );
+              break;
+            }
+			v = 1;
+		  }
+		  else
+		  {
+            if ( !( iss >> i >> j >> v ) )
+            {
+              printf( "line %lu has illegle format\n", nnz_count );
+              break;
+            }
+		  }
 
 		  if ( !ISZEROBASE )
 		  {
@@ -703,10 +737,11 @@ class OOC : public ReadWrite
     }; 
 
 	template<typename TINDEX>
-	T ImportantSample( TINDEX j )
+	std::pair<T, TINDEX> ImportantSample( TINDEX j )
 	{
 	  TINDEX i = std::rand() % m;
-	  return (*this)( i, j ); 
+	  std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+	  return sample; 
 	};
 
     std::size_t row() { return m; };

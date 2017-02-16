@@ -972,8 +972,8 @@ class Tree
       TraverseUp<false, false>( permutetask );
       permute_time = omp_get_wtime() - beg;
 
-      printf( "alloc %5.3lfs split %5.3lfs morton %5.3lfs permute %5.3lfs\n", 
-		  alloc_time, split_time, morton_time, permute_time );
+      //printf( "alloc %5.3lfs split %5.3lfs morton %5.3lfs permute %5.3lfs\n", 
+		//  alloc_time, split_time, morton_time, permute_time );
     };
 
     template<class TASK>

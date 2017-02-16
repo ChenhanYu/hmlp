@@ -165,6 +165,7 @@ class Summary
       skeletonize[ node->l ].Update( node->data.skeletonize.GetDuration() );
       updateweight[ node->l ].Update( node->data.updateweight.GetDuration() );
 
+#ifdef DUMP_ANALYSIS_DATA
       if ( node->parent )
       {
         auto *parent = node->parent;
@@ -181,6 +182,7 @@ class Summary
             node->treelist_id, node->data.skels.size(), 
             node->data.skels.size(), node->l );
       }
+#endif
     };
 
     void Print()
@@ -188,8 +190,8 @@ class Summary
       for ( size_t l = 0; l < rank.size(); l ++ )
       {
         printf( "@SUMMARY\n" );
-        //rank[ l ].Print();
-        skeletonize[ l ].Print();
+        rank[ l ].Print();
+        //skeletonize[ l ].Print();
       }
     };
 
@@ -236,9 +238,9 @@ struct centersplit
       temp[ i ] = K( lids[ i ], lids[ i ] );
       for ( size_t j = 0; j < (size_t)std::log( n ); j ++ )
       {
-        //size_t sample = rand() % n;
+		std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
         //temp[ i ] -= 2.0 * K( lids[ i ], lids[ sample ] );
-		temp[ i ] -= 2.0 * K.ImportantSample( lids[ i ] );
+		temp[ i ] -= 2.0 * sample.first;
       }
     }
 	d2c_time = omp_get_wtime() - beg;
@@ -466,6 +468,91 @@ class KNNTask : public hmlp::Task
 }; // end class KNNTask
 
 
+template<bool SORTED, typename T, typename CSCMATRIX>
+hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATRIX &K )
+{
+  std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
+  hmlp::Data<std::pair<T, std::size_t>> NN( k, n, initNN );
+
+  //printf( "SparsePattern k %lu n %lu, NN.row %lu NN.col %lu\n", k, n, NN.row(), NN.col() );
+
+  #pragma omp parallel for
+  for ( size_t j = 0; j < n; j ++ )
+  {
+    std::set<size_t> NNset;
+    size_t nnz = K.ColPtr( j + 1 ) - K.ColPtr( j );
+
+    //printf( "j %lu nnz %lu\n", j, nnz );
+
+	for ( size_t i = 0; i < nnz; i ++ )
+	{
+	  // TODO: this is lid. Need to be gid.
+	  auto row_ind = K.RowInd( K.ColPtr( j ) + i );
+	  auto val     = K.Value( K.ColPtr( j ) + i );
+
+	  if ( val ) val = 1.0 / std::abs( val );
+	  else       val = std::numeric_limits<T>::max() - 1.0;
+
+      NNset.insert( row_ind );
+	  std::pair<T, std::size_t> query( val, row_ind );
+	  if ( nnz < k ) // not enough candidates
+	  {
+        NN[ j * k + i  ] = query;
+	  }
+	  else
+	  {
+        hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + j * NN.row() );
+	  }
+	}
+
+	while ( nnz < k )
+	{
+      std::size_t row_ind = rand() % n;
+      if ( !NNset.count( row_ind ) )
+	  {
+	    T val = std::numeric_limits<T>::max() - 1.0;
+	    std::pair<T, std::size_t> query( val, row_ind );
+		NNset.insert( row_ind );
+        NN[ j * k + nnz ] = query;
+		nnz ++;
+	  }
+	}
+  }
+
+  //printf( "Finish SparsePattern\n" );
+
+  if ( SORTED )
+  {
+	struct 
+	{
+	  bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
+	  {   
+		return a.first < b.first;
+	  }   
+	} ANNLess;
+
+    //printf( "SparsePattern k %lu n %lu, NN.row %lu NN.col %lu\n", k, n, NN.row(), NN.col() );
+
+    #pragma omp parallel for
+	for ( size_t j = 0; j < NN.col(); j ++ )
+	{
+	  std::sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row(), ANNLess );
+	}
+  }
+  
+//  for ( size_t j = 0; j < NN.col(); j ++ )
+//  {
+//	for ( size_t i = 0; i < NN.row(); i ++ )
+//	{
+//	  printf( "%4lu ", NN[ j * k + i ].second );
+//	}
+//	printf( "\n" );
+//  }
+
+
+  return NN;
+};
+
 
 /*
  * @brief Helper functions for sorting sampling neighbors.
@@ -672,7 +759,18 @@ void Skeletonize( NODE *node )
     {
       while ( amap.size() < nsamples )
       {
-        size_t sample = rand() % K.col();
+		size_t sample;
+
+		if ( rand() % 5 ) // 80% chances to use important sample
+		{
+		  auto importantsample = K.ImportantSample( bmap[ rand() % bmap.size() ] );
+		  sample = importantsample.second;
+		}
+		else
+		{
+          sample = rand() % K.col();
+		}
+		
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
              std::find( lids.begin(), lids.end(), sample ) == lids.end() )
         {
@@ -1907,6 +2005,9 @@ hmlp::Data<T> ComputeAll
 )
 {
   const bool AUTO_DEPENDENCY = true;
+
+  double beg, computeall_time, overhead_time;
+
   hmlp::Data<T> potentials( weights.row(), weights.col() );
 
   tree.setup.w = &weights;
@@ -1922,6 +2023,7 @@ hmlp::Data<T> ComputeAll
     SKELTOSKELTASK skeltoskeltask;
     SKELTONODETASK skeltonodetask;
 
+    beg = omp_get_wtime();	
     tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
     //if ( USE_RUNTIME ) hmlp_run();
     //printf( "UpdateWeights\n" );
@@ -1929,10 +2031,13 @@ hmlp::Data<T> ComputeAll
     //if ( USE_RUNTIME ) hmlp_run();
     //printf( "Skel2Skel\n" );
     tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+	overhead_time = omp_get_wtime() - beg;
     if ( USE_RUNTIME ) hmlp_run();
-    //printf( "Skel2Node\n" );
+    computeall_time = omp_get_wtime() - beg;
+
+    printf( "ComputeAll %5.2lfs (overhead %5.2lfs)\n", computeall_time, overhead_time );
   }
-  else
+  else // TODO: implement unsymmetric prunning
   {
     using NODETOSKELTASK = UpdateWeightsTask<NODE>;
 
