@@ -152,7 +152,7 @@ void id
 
 
 
-template<typename T>
+template<typename T, bool STRICTERRORTOL>
 void id
 (
   int m, int n, int maxs, T stol,
@@ -188,8 +188,20 @@ void id
     if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol ) break;
   }
 
-  // Failed to skeletonize
-  if ( s > maxs ) s = maxs;
+  // Failed to satisfy error tolerance
+  if ( s > maxs )
+  {
+    // Abort
+    if ( STRICTERRORTOL )
+    {
+      skels.clear();
+      proj.resize( 0, 0 );
+      return;
+    }
+    // Continue with rank maxs
+    else
+      s = maxs;
+  }
  
   jpvt.resize( s );
   skels.resize( s );

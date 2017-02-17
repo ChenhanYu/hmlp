@@ -814,17 +814,8 @@ void Skeletonize( NODE *node )
 
   if ( ADAPTIVE )
   {
-    hmlp::skel::id( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
-    if ( skels.size() == maxs && LEVELRESTRICTION )
-    {
-      skels.clear();
-      proj.resize( 0, 0 );
-      data.isskel = false;
-    }
-    else
-    {
-      data.isskel = true;
-    }
+    hmlp::skel::id<T, LEVELRESTRICTION>( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
+    data.isskel = (skels.size() != 0);
   }
   else
   {
