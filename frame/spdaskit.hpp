@@ -76,6 +76,10 @@ class Data
 {
   public:
 
+    Data() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 )
+	{
+	};
+
     Lock lock;
 
 	/** whether the node can be compressed */
@@ -161,6 +165,10 @@ class Summary
 
     std::deque<hmlp::Statistic> rank;
 
+    std::deque<hmlp::Statistic> kij_skel;
+
+    std::deque<hmlp::Statistic> kij_skel_time;
+
     std::deque<hmlp::Statistic> skeletonize;
 
     std::deque<hmlp::Statistic> updateweight;
@@ -170,11 +178,15 @@ class Summary
       if ( rank.size() <= node->l )
       {
         rank.push_back( hmlp::Statistic() );
+        kij_skel.push_back( hmlp::Statistic() );
+        kij_skel_time.push_back( hmlp::Statistic() );
         skeletonize.push_back( hmlp::Statistic() );
         updateweight.push_back( hmlp::Statistic() );
       }
 
       rank[ node->l ].Update( (double)node->data.skels.size() );
+      kij_skel[ node->l ].Update( (double)node->data.kij_skel.second );
+      kij_skel_time[ node->l ].Update( (double)node->data.kij_skel.first );
       skeletonize[ node->l ].Update( node->data.skeletonize.GetDuration() );
       updateweight[ node->l ].Update( node->data.updateweight.GetDuration() );
 
@@ -203,8 +215,10 @@ class Summary
       for ( size_t l = 0; l < rank.size(); l ++ )
       {
         printf( "@SUMMARY\n" );
-        rank[ l ].Print();
-        //skeletonize[ l ].Print();
+        printf( "rank:       " ); rank[ l ].Print();
+		printf( "kij_skel_n: " ); kij_skel[ l ].Print();
+		printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
+        printf( "skel_t:     " ); skeletonize[ l ].Print();
       }
     };
 
@@ -808,9 +822,15 @@ void Skeletonize( NODE *node )
     }
   }
 
+  /** get submatrix Kab from K */
   beg = omp_get_wtime();
   auto Kab = K( amap, bmap );
   kij_skel_time = omp_get_wtime() - beg;
+
+  /** update kij counter */
+  data.kij_skel.first  += kij_skel_time;
+  data.kij_skel.second += amap.size() * bmap.size();
+
 
   if ( ADAPTIVE )
   {
@@ -1120,11 +1140,14 @@ void SkeletonsToSkeletons( NODE *node )
 
   if ( !node->parent || !node->data.isskel ) return;
 
+  double beg, kij_s2s_time = 0.0;
+
   std::set<NODE*> *FarNodes;
   if ( NNPRUNE ) FarNodes = &node->NNFarNodes;
   else           FarNodes = &node->FarNodes;
 
   auto &K = *node->setup->K;
+  auto &data = node->data;
   auto &amap = node->data.skels;
   auto &u_skel = node->data.u_skel;
 
@@ -1137,7 +1160,16 @@ void SkeletonsToSkeletons( NODE *node )
   {
     auto &bmap = (*it)->data.skels;
     auto &w_skel = (*it)->data.w_skel;
+
+	/** get submatrix Kad from K */
+	beg = omp_get_wtime();
     auto Kab = K( amap, bmap );
+	kij_s2s_time = omp_get_wtime() - beg;
+
+	/** update kij counter */
+    data.kij_s2s.first  += kij_s2s_time;
+    data.kij_s2s.second += amap.size() * bmap.size();
+
     //printf( "%lu (%lu, %lu), ", (*it)->treelist_id, w_skel.row(), w_skel.num() );
     //fflush( stdout );
     assert( w_skel.col() == u_skel.col() );
