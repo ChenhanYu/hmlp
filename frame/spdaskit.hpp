@@ -408,7 +408,7 @@ class KNNTask : public hmlp::Task
     {
       std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "neighbor search" );
+      name = std::string( "nn" );
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
@@ -426,7 +426,7 @@ class KNNTask : public hmlp::Task
       mops *= lids.size();
       // Access K
       mops += flops;
-      event.Set( flops, mops );
+      event.Set( name + label, flops, mops );
       //--------------------------------------
     };
 
@@ -844,7 +844,7 @@ class SkeletonizeTask : public hmlp::Task
     {
       std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "Skeletonization" );
+      name = std::string( "sk" );
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
@@ -872,7 +872,7 @@ class SkeletonizeTask : public hmlp::Task
       flops += ( 1.0 / 3.0 ) * k * k * n;
       mops += 2.0 * ( k * k + k * n );
 
-      event.Set( flops, mops );
+      event.Set( label + name, flops, mops );
       arg->data.skeletonize = event;
     };
 
@@ -974,7 +974,7 @@ class UpdateWeightsTask : public hmlp::Task
     {
       std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "UpdateWeights" );
+      name = std::string( "n2s" );
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
@@ -1004,8 +1004,9 @@ class UpdateWeightsTask : public hmlp::Task
         flops = 2.0 * m * n * k;
         mops = 2.0 * ( m * n + m * k + k * n );
       }
-      event.Set( flops, mops );
+      event.Set( label + name, flops, mops );
       //--------------------------------------
+	  cost = flops / 1E+9;
     };
 
     void GetEventRecord()
@@ -1116,17 +1117,10 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
     {
       std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "SkeletonsToSkeletons" );
+      name = std::string( "s2s" );
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
-      // Need an accurate cost model.
-      cost = 1.0;
-    };
-
-    void GetEventRecord()
-    {
-      //arg->data.updateweight = event;
 
       //--------------------------------------
       double flops = 0.0, mops = 0.0;
@@ -1144,7 +1138,33 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
         mops += m * k; // cost of Kab
         mops += 2.0 * ( m * n + n * k + k * n );
       }
-      event.Set( flops, mops );
+      event.Set( label + name, flops, mops );
+
+      // Need an accurate cost model.
+      cost = flops / 1E+9;
+    };
+
+    void GetEventRecord()
+    {
+      //arg->data.updateweight = event;
+
+      //--------------------------------------
+      //double flops = 0.0, mops = 0.0;
+      //size_t m = arg->data.skels.size();
+
+      //std::set<NODE*> *FarNodes;
+      //if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
+      //else           FarNodes = &arg->FarNodes;
+
+      //for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+      //{
+      //  size_t n = (*it)->data.w_skel.col();
+      //  size_t k = (*it)->data.w_skel.row();
+      //  flops += 2.0 * m * n * k;
+      //  mops += m * k; // cost of Kab
+      //  mops += 2.0 * ( m * n + n * k + k * n );
+      //}
+      //event.Set( flops, mops );
     };
 
     void DependencyAnalysis()
@@ -1284,7 +1304,7 @@ class SkeletonsToNodesTask : public hmlp::Task
     {
       std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "SkeletonsToNodes" );
+      name = std::string( "s2n" );
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
@@ -1332,7 +1352,10 @@ class SkeletonsToNodesTask : public hmlp::Task
           mops += 2.0 * ( m * n + n * k + m * k );
         }
       }
-      event.Set( flops, mops );
+      event.Set( label + name, flops, mops );
+
+      // Use flops as cost.
+      cost = flops / 1E+9;
     };
 
     void GetEventRecord()

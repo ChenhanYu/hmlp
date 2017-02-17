@@ -179,10 +179,11 @@ Event::Event() : flops( 0.0 ), mops( 0.0 ), beg( 0.0 ), end( 0.0 ), sec( 0.0 ) {
 //};
 
 
-void Event::Set( double _flops, double _mops )
+void Event::Set( std::string _label, double _flops, double _mops )
 {
   flops = _flops;
   mops = _mops;
+  label = _label;
 };
 
 void Event::Begin( size_t _tid )
@@ -237,7 +238,7 @@ void Event::Print()
 
 void Event::Timeline( bool isbeg, size_t tag )
 {
-  double gflops_peak = 15.0;
+  double gflops_peak = 30.0;
   double flops_efficiency = flops / ( gflops_peak * sec * 1E+9 );
   if ( isbeg )
   {
@@ -258,7 +259,21 @@ void Event::Timeline( bool isbeg, size_t tag )
     printf( "worker%lu, %lu, %E, %lf\n", tid, tag, end, (double)tid + 0.0 );
   }
 
-}
+};
+
+void Event::MatlabTimeline( FILE *pFile )
+{
+  double gflops_peak = 30.0;
+  double flops_efficiency = 0.0;
+  if ( sec * 1E+9 > 0.1 )
+  {
+	flops_efficiency = flops / ( gflops_peak * sec * 1E+9 );
+  }
+  fprintf( pFile, "rectangle('position',[%lf %lu %lf %d],'facecolor',[1.0,%lf,%lf]);\n",
+      beg, tid, ( end - beg ), 1, 
+      flops_efficiency, flops_efficiency );
+  fprintf( pFile, "text( %lf,%lf,'%s');\n", beg, (double)tid + 0.5, label.data() );
+};
 
 
 
@@ -315,7 +330,7 @@ void Task::DependenciesUpdate()
 
       if ( !child->n_dependencies_remaining && child->status == NOTREADY )
       {
-        child->Enqueue();
+        child->Enqueue( worker->tid );
       }
     }
     child->task_lock.Release();
@@ -334,18 +349,26 @@ void Task::GetEventRecord() {};
 
 void Task::DependencyAnalysis() {};
 
+
+void Task::Enqueue()
+{
+  Enqueue( 0 );
+};
+
+
 /**
  *  @brief 
  */ 
-void Task::Enqueue()
+void Task::Enqueue( size_t tid )
 {
   float cost = 0.0;
   float earliest_t = -1.0;
   int assignment = -1;
 
   // Determine which work the task should go to using HEFT policy.
-  for ( int i = 0; i < rt.n_worker; i ++ )
+  for ( int p = 0; p < rt.n_worker; p ++ )
   {
+	int i = ( tid + p ) % rt.n_worker;
     float terminate_t = rt.scheduler->time_remaining[ i ];
     float cost = rt.workers[ i ].EstimateCost( this );
     if ( earliest_t == -1.0 || terminate_t + cost < earliest_t )
@@ -360,8 +383,8 @@ void Task::Enqueue()
     status = QUEUED;
     rt.scheduler->time_remaining[ assignment ] += 
       rt.workers[ assignment ].EstimateCost( this );
-    //rt.scheduler->ready_queue[ assignment ].push_back( this );
-    rt.scheduler->ready_queue[ assignment ].push_front( this );
+    rt.scheduler->ready_queue[ assignment ].push_back( this );
+    //rt.scheduler->ready_queue[ assignment ].push_front( this );
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
@@ -578,6 +601,7 @@ void* Scheduler::EntryPoint( void* arg )
 {
   Worker *me = reinterpret_cast<Worker*>( arg );
   Scheduler *scheduler = me->scheduler;
+  size_t idle = 0;
 
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler::EntryPoint()\n" );
@@ -600,6 +624,7 @@ void* Scheduler::EntryPoint( void* arg )
 
     if ( task )
     {
+	  idle = 0;
       task->SetStatus( RUNNING );
       if ( me->Execute( task ) )
       {
@@ -621,12 +646,53 @@ void* Scheduler::EntryPoint( void* arg )
     }
     else // No task in my ready_queue. Steal from others.
     {
-      //scheduler->time_remaining[ me->tid ] = 0.0;
+	  idle ++;
+
+      if ( idle > 100 )
+	  {
+        scheduler->ready_queue_lock[ me->tid ].Acquire();
+        {
+          scheduler->time_remaining[ me->tid ] = 0.0;
+        }
+        scheduler->ready_queue_lock[ me->tid ].Release();
+	  
      
-      //for ( int p = 0; p < scheduler->n_worker; p ++ )
-      //{
-      //  printf( "worker %d try to steal from worker %d\n", me->tid, p );  
-      //}
+	  float max_remaining_time = 0.0;
+	  int target = -1;
+      for ( int p = 0; p < scheduler->n_worker; p ++ )
+      {
+        //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
+        if ( scheduler->time_remaining[ p ] > max_remaining_time )
+		{
+          max_remaining_time = scheduler->time_remaining[ p ];
+          target = p;
+		}
+      }
+
+	  if ( target >= 0 && target != me->tid )
+	  {
+		Task *target_task = NULL;
+        scheduler->ready_queue_lock[ target ].Acquire();
+		{
+          if ( scheduler->ready_queue[ target ].size() ) 
+		  {
+			target_task = scheduler->ready_queue[ target ].back();
+		    if ( target_task ) scheduler->ready_queue[ target ].pop_back();
+            scheduler->time_remaining[ target ] -= target_task->cost;
+		  }
+		}
+        scheduler->ready_queue_lock[ target ].Release();
+		if ( target_task )
+		{
+          scheduler->ready_queue_lock[ me->tid ].Acquire();
+		  {
+            scheduler->ready_queue[ me->tid ].push_back( target_task );
+            scheduler->time_remaining[ me->tid ] += target_task->cost;
+		  }
+          scheduler->ready_queue_lock[ me->tid ].Release();
+		}
+	  }
+	  }
     }
 
     if ( scheduler->n_task >= scheduler->tasklist.size() ) 
@@ -666,6 +732,13 @@ void Scheduler::Summary()
 
   if ( tasklist.size() )
   {
+    std::string filename = std::string( "timeline" ) + 
+	  std::to_string( tasklist.size() ) + std::string( ".m" ); 
+    FILE *pFile = fopen( filename.data(), "w" );
+
+    fprintf( pFile, "figure('Position',[100,100,800,800]);" );
+    fprintf( pFile, "hold on;" );
+
     for ( size_t i = 0; i < tasklist.size(); i ++ )
     {
       tasklist[ i ]->event.Normalize( timeline_beg );
@@ -685,7 +758,10 @@ void Scheduler::Summary()
       auto &data = timeline[ i ];
       auto &event = tasklist[ std::get<2>( data ) ]->event;  
       event.Timeline( std::get<0>( data ), i + timeline_tag );
+	  event.MatlabTimeline( pFile );
     }
+
+	fclose( pFile );
 
     timeline_tag += timeline.size();
   }

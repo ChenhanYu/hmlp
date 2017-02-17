@@ -102,8 +102,8 @@ void test_spdaskit(
   using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE, T>;
  
   // All timers.
-  double beg, dynamic_time, omptask_time, ref_time, ann_time, tree_time, overhead_time;
-  double nneval_time, nonneval_time, symbolic_evaluation_time;
+  double beg, dynamic_time, omptask45_time, omptask_time, ref_time, ann_time, tree_time, overhead_time;
+  double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
 
   // Dummy instances for each task.
   SKELTASK skeltask;
@@ -165,20 +165,30 @@ void test_spdaskit(
   overhead_time = omp_get_wtime() - beg;
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
-  printf( "dynamic %5.2lfs (overhead %5.2lfs) level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
-      dynamic_time, overhead_time, ref_time, omptask_time );
+  printf( "finish runtime\n" );
+
+  // Parallel level-by-level traversal.
+  beg = omp_get_wtime();
+  tree.template TraverseUp<false, false, SKELTASK>( skeltask );
+  ref_time = omp_get_wtime() - beg;
+  printf( "finish level-by-level\n" );
+
+  // Sekeletonization with omp task.
+  beg = omp_get_wtime();
+  tree.PostOrder<true>( tree.treelist[ 0 ], skeltask );
+  omptask_time = omp_get_wtime() - beg;
+  printf( "finish omp task\n" );
+
+  // Sekeletonization with omp task.
+  beg = omp_get_wtime();
+  tree.PostOrder<false>( tree.treelist[ 0 ], skeltask );
+  omptask45_time = omp_get_wtime() - beg;
+  printf( "finish omp task 4.5\n" );
+
+  printf( "Sekeltonization dynamic %5.2lfs (overhead %5.2lfs) level-by-level %5.2lfs OpenMP task %5.2lfs OpenMP task 4.5 %5.2lfs\n", 
+      dynamic_time, overhead_time, ref_time, omptask_time, omptask45_time );
   // ------------------------------------------------------------------------
  
-
-//  beg = omp_get_wtime();
-//  // Sekeletonization with level-by-level traversal.
-//  tree.TraverseUp<true>( skeltask );
-//  ref_time = omp_get_wtime() - beg;
-//  beg = omp_get_wtime();
-//  // Sekeletonization with omp task.
-//  tree.PostOrder( tree.treelist[ 0 ], skeltask );
-//  omptask_time = omp_get_wtime() - beg;
-  
 
 
 
@@ -203,13 +213,26 @@ void test_spdaskit(
   beg = omp_get_wtime();
   auto u = hmlp::spdaskit::ComputeAll<true, true, true, NODE>( tree, w );
   dynamic_time = omp_get_wtime() - beg;
-  printf( "dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
+  fmm_evaluation_time = dynamic_time;
+
+  beg = omp_get_wtime();
+  u = hmlp::spdaskit::ComputeAll<false, true, true, NODE>( tree, w );
+  ref_time = omp_get_wtime() - beg;
+
+  printf( "ComputeAll dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
       dynamic_time, ref_time, omptask_time );
   // ------------------------------------------------------------------------
 
 
+  // ------------------------------------------------------------------------
   // Test evaluation with NN prunning.
-  for ( size_t i = 0; i < 20; i ++ )
+  // ------------------------------------------------------------------------
+  std::size_t ntest = 100;
+  T nnerr_avg = 0.0;
+  T nonnerr_avg = 0.0;
+  T fmmerr_avg = 0.0;
+  printf( "================================================================\n" );
+  for ( size_t i = 0; i < ntest; i ++ )
   {
     hmlp::Data<T> potentials;
     // Use NN pruning
@@ -229,21 +252,34 @@ void test_spdaskit(
     }
     auto fmmerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
 
+	// Only print 10 values.
+	if ( i < 10 )
+	{
 #ifdef DUMP_ANALYSIS_DATA
-    printf( "@DATA\n" );
-    printf( "%5lu, %E, %E\n", i, nnerr, nonnerr );
+      printf( "@DATA\n" );
+      printf( "%5lu, %E, %E\n", i, nnerr, nonnerr );
 #endif
-    printf( "gid %5lu relative error (NN) %E, relative error %E fmm error %E\n", i, nnerr, nonnerr, fmmerr );
+      printf( "gid %5lu relative error (NN) %E, relative error %E fmm error %E\n", 
+	  	i, nnerr, nonnerr, fmmerr );
+	}
+	nnerr_avg += nnerr;
+	nonnerr_avg += nonnerr;
+	fmmerr_avg += fmmerr;
   }
+  printf( "================================================================\n" );
+  printf( "          relative error (NN) %E, relative error %E fmm error %E\n", 
+	  	nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
+  printf( "================================================================\n" );
+  // ------------------------------------------------------------------------
 
 //#ifdef DUMP_ANALYSIS_DATA
   hmlp::spdaskit::Summary<NODE> summary;
   tree.Summary( summary );
   summary.Print();
 //#endif
-  printf( "n %5lu k %4lu s %4lu nrhs %4lu ANN %5.3lf CONSTRUCT %5.3lf EVAL(NN) %5.3lf EVAL %5.3lf SYMBOLIC EVAL %5.3lf\n", 
-      n, k, s, nrhs, tree_time, ann_time,
-      nneval_time, nonneval_time, symbolic_evaluation_time );
+  printf( "n %5lu k %4lu s %4lu nrhs %4lu ANN %5.3lf CONSTRUCT %5.3lf EVAL(NN) %5.3lf EVAL %5.3lf EVAL(FMM) %5.3lf SYMBOLIC(FMM) %5.3lf\n", 
+      n, k, s, nrhs, ann_time, tree_time,
+      nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time );
 
 };
 
@@ -257,8 +293,8 @@ int main( int argc, char *argv[] )
   const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
-  const bool SPARSETESTSUIT = true;
-  const bool GRAPHTESTSUIT = false;
+  const bool SPARSETESTSUIT = false;
+  const bool GRAPHTESTSUIT = true;
   const bool OOCTESTSUIT = false;
 
   std::string DATADIR( "/scratch/jlevitt/data/" );
@@ -363,14 +399,30 @@ int main( int argc, char *argv[] )
 	const bool IJONLY = true;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
+	//{
+    //  std::string filename = std::string( "ca-AstroPh.mtx" );
+    //  n = 18772;
+    //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
+    //  K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, T>( n, k, K );
+    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+	//}
 	{
-      std::string filename = std::string( "as-Skitter.mtx" );
-      n = 1696415;
-      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
+      std::string filename = std::string( "email-Enron.mtx" );
+      n = 36692;
+      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	}
+	//{
+    //  std::string filename = std::string( "as-Skitter.mtx" );
+    //  n = 1696415;
+    //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
+    //  K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, T>( n, k, K );
+    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+	//}
   }
 
   if ( OOCTESTSUIT )

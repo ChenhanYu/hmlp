@@ -107,7 +107,7 @@ class Event
     
     //~Event();
 
-    void Set( double, double );
+    void Set( std::string, double, double );
 
     void Begin( size_t );
 
@@ -129,9 +129,13 @@ class Event
 
     void Timeline( bool isbeg, size_t tag );
 
+    void MatlabTimeline( FILE *pFile );
+
   private:
 
     size_t tid;
+
+	std::string label;
 
     double flops;
 
@@ -177,6 +181,8 @@ class Task
     virtual void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
 
     void Enqueue();
+
+    void Enqueue( size_t tid );
 
     virtual void Execute( Worker* );
 

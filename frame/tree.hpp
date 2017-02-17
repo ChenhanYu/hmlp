@@ -976,29 +976,71 @@ class Tree
 		//  alloc_time, split_time, morton_time, permute_time );
     };
 
-    template<class TASK>
+    template<bool RECURSIVE, class TASK>
     void PostOrder( NODE *node, TASK &dummy )
     {
-      #pragma omp parallel
-      #pragma omp single nowait
-      {
-        for ( int i = 0; i < N_CHILDREN; i ++ )
+	  if ( RECURSIVE )
+	  {
+        #pragma omp parallel
+        #pragma omp single nowait
         {
-          if ( node->kids[ i ] )
+          for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            #pragma omp task
-            PostOrder( node->kids[ i ], dummy );
+            if ( node->kids[ i ] )
+            {
+              #pragma omp task
+              PostOrder<RECURSIVE>( node->kids[ i ], dummy );
+            }
           }
-        }
-        #pragma omp taskwait
-        {
-          auto *task = new TASK();
-          task->Set( node );
-          task->Execute( NULL );
-          delete task;
-        }
-      }
-    };
+          #pragma omp taskwait
+          {
+            auto *task = new TASK();
+            task->Set( node );
+	        task->Execute( NULL );
+	        delete task;
+	      }
+	    }
+	  }
+	  else
+	  {
+		size_t dep[ 1 << 16 ];
+		for ( int l = depth; l >= 0; l -- )
+		{
+		  std::size_t n_nodes = 1 << l;
+		  auto level_beg = treelist.begin() + n_nodes - 1;
+		  for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+		  {
+			auto *node = *(level_beg + node_ind);
+			if ( node->parent )
+			{
+              size_t me = n_nodes - 1 + node_ind;
+			  size_t parent = ( me - 1 ) / 2;
+              #pragma omp task depend(in:dep[me]) depend(out:dep[parent])
+			  {
+				auto *task = new TASK();
+				task->Set( node );
+				task->Execute( NULL );
+				delete task;
+				dep[ me ] = 1;
+				//printf( "node->treelist_id %lu\n", node->treelist_id );
+			  }
+			}
+			else
+			{
+              #pragma omp task depend(in:dep[0])
+			  {
+				auto *task = new TASK();
+				task->Set( node );
+				task->Execute( NULL );
+				delete task;
+				dep[ 0 ] = 1;
+				//printf( "node->treelist_id %lu\n", node->treelist_id );
+			  }
+			}
+		  }
+		}
+	  }
+	};
 
     template<bool SORTED, typename KNNTASK>
     hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
@@ -1208,7 +1250,7 @@ class Tree
           
           if ( n_nodes >= nthd_glb || n_nodes == 1 )
           {
-            #pragma omp parallel for if ( n_nodes > nthd_glb / 2 )
+            #pragma omp parallel for if ( n_nodes > nthd_glb / 2 ) schedule( dynamic )
             for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
             {
               auto *node = *(level_beg + node_ind);
@@ -1226,7 +1268,7 @@ class Tree
             mkl_set_num_threads( nthd_loc );
             omp_set_nested( 1 );
             omp_set_max_active_levels( 2 );
-            #pragma omp parallel for if ( n_nodes )
+            #pragma omp parallel for if ( n_nodes ) schedule( dynamic )
             for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
             {
               omp_set_num_threads( nthd_loc );
