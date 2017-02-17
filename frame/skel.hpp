@@ -42,6 +42,19 @@ void id
   std::vector<T> S, Z;
   std::vector<T> A_tmp = A;
 
+  // Early return
+  if ( n <= maxs )
+  {
+    skels.resize( n );
+    proj.resize( n, n, 0.0 );
+    for ( int i = 0; i < n; i ++ )
+    {
+      skels[i] = i;
+      proj[ i * proj.row() + i ] = 1.0;
+    }
+    return;
+  }
+
   // Initilize jpvt to zeros. Otherwise, GEQP3 will permute A.
   std::vector<int> jpvt( n, 0 );
 
@@ -139,7 +152,7 @@ void id
 
 
 
-template<typename T>
+template<typename T, bool STRICTERRORTOL>
 void id
 (
   int m, int n, int maxs, T stol,
@@ -175,8 +188,20 @@ void id
     if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol ) break;
   }
 
-  // Failed to skeletonize
-  if ( s > maxs ) s = maxs;
+  // Failed to satisfy error tolerance
+  if ( s > maxs )
+  {
+    // Abort
+    if ( STRICTERRORTOL )
+    {
+      skels.clear();
+      proj.resize( 0, 0 );
+      return;
+    }
+    // Continue with rank maxs
+    else
+      s = maxs;
+  }
  
   jpvt.resize( s );
   skels.resize( s );
