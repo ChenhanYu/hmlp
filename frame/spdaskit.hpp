@@ -47,22 +47,22 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
 {
   public:
 
-    // Number of neighbors
+    /** humber of neighbors */
     size_t k;
 
-    // Maximum rank 
+    /** maximum rank */
     size_t s;
 
-    // Relative error for rank-revealed QR
+    /** relative error for rank-revealed QR */
     T stol;
 
-    // The SPDMATRIX
+    /** the SPDMATRIX (dense, CSC or OOC) */
     SPDMATRIX *K;
 
-    // Weights
+    /** rhs-by-n all weights */
     hmlp::Data<T> *w;
 
-    // Potentials
+    /** rhs-by-n all potentials */
     hmlp::Data<T> *u;
 
 }; // end class Setup
@@ -78,32 +78,45 @@ class Data
 
     Lock lock;
 
+	/** whether the node can be compressed */
     bool isskel = false;
 
-    std::vector<size_t> skels;
+	/** whether the coefficient mathx has been computed */
+	bool hasproj = false;
 
+	/** my skeletons */
+    std::vector<size_t> skels;
+	  
+	/** (buffer) s-by-s upper trianguler for xtrsm( R11, proj ) */
+	hmlp::Data<T> R11; 
+
+	/** s-by-2s */
     hmlp::Data<T> proj;
 
-    // Neighbors
-    std::map<std::size_t, T> snids; // sampling neighbors ids
+	/** sampling neighbors ids */
+    std::map<std::size_t, T> snids; 
 
-    std::unordered_set<std::size_t> pnids; // pruning neighbors ids
+	/* pruning neighbors ids */
+    std::unordered_set<std::size_t> pnids; 
 
-    // Weights
+    /** skeleton weights */
     hmlp::Data<T> w_skel;
 
+    /** skeleton potentials */
     hmlp::Data<T> u_skel;
 
     // Potential
     // T u;
 
-    // Events (from HMLP Runtime)
+	/** Kij evaluation counter counters */
+	std::pair<double, std::size_t> kij_skel;
+	std::pair<double, std::size_t> kij_s2s;
+	std::pair<double, std::size_t> kij_s2n;
+
+    /** recorded events (for HMLP Runtime) */
     hmlp::Event skeletonize;
-
     hmlp::Event updateweight;
-
     hmlp::Event skeltoskel;
-
     hmlp::Event skeltonode;
 
 }; // end class Data
@@ -211,7 +224,7 @@ class Summary
 template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct centersplit
 {
-  // closure
+  /** closure */
   SPDMATRIX *Kptr;
 
   inline std::vector<std::vector<std::size_t> > operator()
@@ -307,7 +320,7 @@ struct centersplit
 template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct randomsplit
 {
-  // closure
+  /** closure */
   SPDMATRIX *Kptr;
 
   inline std::vector<std::vector<std::size_t> > operator()
@@ -468,19 +481,21 @@ class KNNTask : public hmlp::Task
 }; // end class KNNTask
 
 
-template<bool SORTED, typename T, typename CSCMATRIX>
+template<bool DOAPPROXIMATE, bool SORTED, typename T, typename CSCMATRIX>
 hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATRIX &K )
 {
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
   hmlp::Data<std::pair<T, std::size_t>> NN( k, n, initNN );
 
-  //printf( "SparsePattern k %lu n %lu, NN.row %lu NN.col %lu\n", k, n, NN.row(), NN.col() );
+  printf( "SparsePattern k %lu n %lu, NN.row %lu NN.col %lu ...", 
+	  k, n, NN.row(), NN.col() ); fflush( stdout );
 
-  #pragma omp parallel for
+  #pragma omp parallel for schedule( dynamic )
   for ( size_t j = 0; j < n; j ++ )
   {
     std::set<size_t> NNset;
     size_t nnz = K.ColPtr( j + 1 ) - K.ColPtr( j );
+	if ( DOAPPROXIMATE && nnz > 2 * k ) nnz = 2 * k;
 
     //printf( "j %lu nnz %lu\n", j, nnz );
 
@@ -518,11 +533,11 @@ hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATR
 	  }
 	}
   }
-
-  //printf( "Finish SparsePattern\n" );
+  printf( "Done.\n" ); fflush( stdout );
 
   if ( SORTED )
   {
+	printf( "Sorting ... " ); fflush( stdout );
 	struct 
 	{
 	  bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
@@ -538,6 +553,7 @@ hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATR
 	{
 	  std::sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row(), ANNLess );
 	}
+    printf( "Done.\n" ); fflush( stdout );
   }
   
 //  for ( size_t j = 0; j < NN.col(); j ++ )
@@ -691,6 +707,8 @@ void Skeletonize( NODE *node )
   // Early return if we do not need to skeletonize
   if ( !node->parent ) return;
 
+  double beg = 0.0, kij_skel_time = 0.0;
+
   // Gather shared data and create reference
   auto &K = *node->setup->K;
   auto maxs = node->setup->s;
@@ -790,7 +808,10 @@ void Skeletonize( NODE *node )
     }
   }
 
+  beg = omp_get_wtime();
   auto Kab = K( amap, bmap );
+  kij_skel_time = omp_get_wtime() - beg;
+
   if ( ADAPTIVE )
   {
     hmlp::skel::id( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
@@ -881,6 +902,44 @@ class SkeletonizeTask : public hmlp::Task
       Skeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
     };
 }; // end class SkeletonizeTask
+
+
+/**
+ *  @brief Compute the cofficient matrix by R11^{-1} * proj.
+ *
+ */ 
+template<typename NODE, typename T>
+void Interpolate( NODE *node )
+{
+  /** early return */
+  if ( !node ) return;
+
+  auto &data = *node->data;
+  auto s = data->skels.size();
+  auto n = data->proj.col();
+
+  if ( data->isskel )
+  {
+	assert( !data->hasproj );
+	assert( s );
+	assert( data->R11.size() == s * s );
+	assert( data->proj.size() );
+  }
+  else
+  {
+	return;
+  }
+
+  //xtrsm
+  //(
+  //  "L", "U", "N", "N", 
+  //  s, n, 
+  //  1.0, R11.data(),  s, 
+  //       proj.data(), s
+  //);
+  
+}; // end Interpolate()
+
 
 
 

@@ -27,6 +27,8 @@
 
 using namespace hmlp::tree;
 
+#define OMPCOMPARISON 0
+
 // By default, we use binary tree.
 #define N_CHILDREN 2
 
@@ -151,46 +153,50 @@ void test_spdaskit(
   tree.setup.stol = 1E-3;
   // ------------------------------------------------------------------------
 
+  printf( "TreePartition ..." ); fflush( stdout );
   beg = omp_get_wtime();
   tree.TreePartition( gids, lids );
   tree_time = omp_get_wtime() - beg;
+  printf( "Done.\n" ); fflush( stdout );
 
 
 
   // ------------------------------------------------------------------------
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
+  printf( "Skeletonization (HMLP Runtime) ..." ); fflush( stdout );
   beg = omp_get_wtime();
   tree.template TraverseUp<false, true, SKELTASK>( skeltask );
   overhead_time = omp_get_wtime() - beg;
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
-  printf( "finish runtime\n" );
+  printf( "Done.\n" ); fflush( stdout );
 
   // Parallel level-by-level traversal.
+  printf( "Skeletonization (Level-By-Level) ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  tree.template TraverseUp<false, false, SKELTASK>( skeltask );
+  if ( OMPCOMPARISON ) tree.template TraverseUp<false, false, SKELTASK>( skeltask );
   ref_time = omp_get_wtime() - beg;
-  printf( "finish level-by-level\n" );
+  printf( "Done.\n" ); fflush( stdout );
 
   // Sekeletonization with omp task.
+  printf( "Skeletonization (Recursive OpenMP tasks) ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  tree.PostOrder<true>( tree.treelist[ 0 ], skeltask );
+  if ( OMPCOMPARISON ) tree.PostOrder<true>( tree.treelist[ 0 ], skeltask );
   omptask_time = omp_get_wtime() - beg;
-  printf( "finish omp task\n" );
+  printf( "Done.\n" ); fflush( stdout );
 
   // Sekeletonization with omp task.
+  printf( "Skeletonization (OpenMP-4.5 Dependency tasks) ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  tree.PostOrder<false>( tree.treelist[ 0 ], skeltask );
+  if ( OMPCOMPARISON ) tree.PostOrder<false>( tree.treelist[ 0 ], skeltask );
   omptask45_time = omp_get_wtime() - beg;
-  printf( "finish omp task 4.5\n" );
+  printf( "Done.\n" ); fflush( stdout );
 
-  printf( "Sekeltonization dynamic %5.2lfs (overhead %5.2lfs) level-by-level %5.2lfs OpenMP task %5.2lfs OpenMP task 4.5 %5.2lfs\n", 
-      dynamic_time, overhead_time, ref_time, omptask_time, omptask45_time );
+  printf( "Runtime %5.2lfs (overhead %5.2lfs) level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
+      dynamic_time, overhead_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
   // ------------------------------------------------------------------------
  
-
-
 
   // ------------------------------------------------------------------------
   // NearFarNodes
@@ -198,9 +204,11 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
   const bool SYMMETRIC_PRUNE = true;
   const bool NNPRUNE = true;
+  printf( "NearFarNodes ..." ); fflush( stdout );
   beg = omp_get_wtime();
   hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNE, NNPRUNE>( tree );
   symbolic_evaluation_time = omp_get_wtime() - beg;
+  printf( "Done.\n" ); fflush( stdout );
   hmlp::spdaskit::DrawInteraction<true>( tree );
   // ------------------------------------------------------------------------
 
@@ -208,19 +216,29 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
   // ComputeAll
   // ------------------------------------------------------------------------
+  printf( "ComputeAll (HMLP Runtime) ..." ); fflush( stdout );
   hmlp::Data<T> w( nrhs, n );
   w.rand();
   beg = omp_get_wtime();
   auto u = hmlp::spdaskit::ComputeAll<true, true, true, NODE>( tree, w );
   dynamic_time = omp_get_wtime() - beg;
   fmm_evaluation_time = dynamic_time;
+  printf( "Done.\n" ); fflush( stdout );
+
+  printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
+  beg = omp_get_wtime();
+  if ( OMPCOMPARISON ) u = hmlp::spdaskit::ComputeAll<false, true, true, NODE>( tree, w );
+  ref_time = omp_get_wtime() - beg;
+  printf( "Done.\n" ); fflush( stdout );
 
   beg = omp_get_wtime();
-  u = hmlp::spdaskit::ComputeAll<false, true, true, NODE>( tree, w );
-  ref_time = omp_get_wtime() - beg;
+  omptask_time = omp_get_wtime() - beg;
 
-  printf( "ComputeAll dynamic %5.2lfs level-by-level %5.2lfs OpenMP task %5.2lfs\n", 
-      dynamic_time, ref_time, omptask_time );
+  beg = omp_get_wtime();
+  omptask45_time = omp_get_wtime() - beg;
+
+  printf( "Runtime %5.2lfs level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
+      dynamic_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
   // ------------------------------------------------------------------------
 
 
@@ -293,7 +311,7 @@ int main( int argc, char *argv[] )
   const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
-  const bool SPARSETESTSUIT = false;
+  const bool SPARSETESTSUIT = true;
   const bool GRAPHTESTSUIT = true;
   const bool OOCTESTSUIT = false;
 
@@ -364,13 +382,22 @@ int main( int argc, char *argv[] )
 	const bool LOWERTRIANGULAR = true;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
+    //{
+    //  std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
+    //  n = 1086;
+    //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11578 );
+    //  K.readmtx<LOWERTRIANGULAR, false>( filename );
+    //  //hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+    //}
     {
-      std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
-      n = 1086;
-      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11578 );
+      std::string filename = DATADIR + std::string( "inline_1.mtx" );
+      n = 503712;
+      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)18660027 );
       K.readmtx<LOWERTRIANGULAR, false>( filename );
       //hmlp::Data<std::pair<T, std::size_t>> NN;
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, T>( n, k, K );
+      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
     {
@@ -379,17 +406,18 @@ int main( int argc, char *argv[] )
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)10328399 );
       K.readmtx<LOWERTRIANGULAR, false>( filename );
       //hmlp::Data<std::pair<T, std::size_t>> NN;
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, T>( n, k, K );
+      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
-    {
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      std::string filename = DATADIR + std::string( "thermal2.mtx" );
-      n = 1228045;
-      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)4904179 );
-      K.readmtx<LOWERTRIANGULAR, false>( filename );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
-    }
+    //{
+    //  std::string filename = DATADIR + std::string( "thermal2.mtx" );
+    //  n = 1228045;
+    //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)4904179 );
+    //  K.readmtx<LOWERTRIANGULAR, false>( filename );
+    //  //hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+    //}
   }
 
   if ( GRAPHTESTSUIT )
@@ -399,20 +427,20 @@ int main( int argc, char *argv[] )
 	const bool IJONLY = true;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
-	//{
-    //  std::string filename = std::string( "ca-AstroPh.mtx" );
-    //  n = 18772;
-    //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
-    //  K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, T>( n, k, K );
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
-	//}
+	{
+      std::string filename = std::string( "ca-AstroPh.mtx" );
+      n = 18772;
+      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
+      K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+	}
 	{
       std::string filename = std::string( "email-Enron.mtx" );
       n = 36692;
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, T>( n, k, K );
+      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	}
 	//{
@@ -420,7 +448,7 @@ int main( int argc, char *argv[] )
     //  n = 1696415;
     //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
     //  K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, T>( n, k, K );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
     //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	//}
   }

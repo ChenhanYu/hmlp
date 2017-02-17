@@ -66,6 +66,17 @@ void id
     skels[ j ] = jpvt[ j ];
   }
 
+  // TODO: Here we only need several things to get rid of xgels.
+  //
+  // 0. R11 = zeros( s )
+  // 1. get R11 = up_tiangular( A_tmp( 1:s, 1:s ) )
+  // 2. get proj( 1:s, jpvt( 1:n ) ) = A_tmp( 1:s 1:n )
+  // 3. xtrsm( "L", "U", "N", "N", s, n, 1.0, R11.data(), s, proj.data(), s )
+  
+
+
+
+
   Z.resize( m * jpvt.size() );
   
   for ( int j = 0; j < jpvt.size(); j ++ )

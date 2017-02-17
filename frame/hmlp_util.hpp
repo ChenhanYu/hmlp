@@ -530,7 +530,7 @@ class Statistic
       _avg = _num * _avg;
       _num += 1;
       _max = std::max( _max, query );
-      _min = std::min( _max, query );
+      _min = std::min( _min, query );
       _avg += query;
       _avg /= _num;
     };

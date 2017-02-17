@@ -538,9 +538,8 @@ class CSC : public ReadWrite
 	  std::vector<std::deque<size_t>> full_row_ind( n );
 	  std::vector<std::deque<T>> full_val( n );
 
-
       // Read all tuples.
-      std::cout << filename << std::endl;
+	  printf( "%s ", filename.data() ); fflush( stdout );
       std::ifstream file( filename.data() );
       std::string line;
       if ( file.is_open() )
@@ -565,6 +564,11 @@ class CSC : public ReadWrite
 
         while ( std::getline( file, line ) )
         {
+		  if ( nnz_count % ( nnz / 10 ) == 0 )
+		  {
+			printf( "%lu%% ", ( nnz_count * 100 ) / nnz ); fflush( stdout );
+		  }
+
           std::istringstream iss( line );
 
 		  size_t i, j;
@@ -609,6 +613,7 @@ class CSC : public ReadWrite
         }
 		assert( nnz_count == nnz );
       }
+	  printf( "Done.\n" ); fflush( stdout );
       // Close the file.
       file.close();
 
@@ -628,18 +633,30 @@ class CSC : public ReadWrite
 
 	  //printf( "Here nnz %lu\n", nnz );
 
-      full_nnz = 0;
+      //full_nnz = 0;
+      //for ( size_t j = 0; j < n; j ++ )
+      //{
+	  //  for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
+	  //  {
+      //    row_ind[ full_nnz ] = full_row_ind[ j ][ i ];
+      //    val[ full_nnz ] = full_val[ j ][ i ];
+	  //    full_nnz ++;
+	  //  }
+      //}
+
+	  //printf( "Close the file. Reformat.\n" );
+
+      #pragma omp parallel for
       for ( size_t j = 0; j < n; j ++ )
       {
 		for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
 		{
-          row_ind[ full_nnz ] = full_row_ind[ j ][ i ];
-          val[ full_nnz ] = full_val[ j ][ i ];
-		  full_nnz ++;
+          row_ind[ col_ptr[ j ] + i ] = full_row_ind[ j ][ i ];
+          val[ col_ptr[ j ] + i ] = full_val[ j ][ i ];
 		}
       }
 
-      printf( "finish readmatrix %s\n", filename.data() );
+      printf( "finish readmatrix %s\n", filename.data() ); fflush( stdout );
     };
 
 
