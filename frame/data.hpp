@@ -854,7 +854,7 @@ class Kernel : public ReadWrite
       sources.read( d, n, sourcefilename );
 
       targets.resize( d, m );
-      sources.read( d, m, targetfilename );
+      targets.read( d, m, targetfilename );
     }
 
     template<typename TINDEX>

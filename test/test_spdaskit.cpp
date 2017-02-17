@@ -131,6 +131,7 @@ void test_spdaskit(
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
   // ------------------------------------------------------------------------
 
+  printf( "AllNearestNeighbors ..." ); fflush( stdout );
   const size_t n_iter = 20;
   const bool SORTED = true;
   beg = omp_get_wtime();
@@ -138,7 +139,12 @@ void test_spdaskit(
   {
     NN = rkdt.template AllNearestNeighbor<SORTED>( n_iter, k, 10, gids, lids, initNN, knntask );
   }
+  else
+  {
+	printf( "not performed (precomputed) ..." ); fflush( stdout );
+  }
   ann_time = omp_get_wtime() - beg;
+  printf( "Done.\n" ); fflush( stdout );
 
   // ------------------------------------------------------------------------
   // Initialize Spd-Askit tree using approximate center split.
@@ -311,8 +317,8 @@ int main( int argc, char *argv[] )
   const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
-  const bool SPARSETESTSUIT = true;
-  const bool GRAPHTESTSUIT = true;
+  const bool SPARSETESTSUIT = false;
+  const bool GRAPHTESTSUIT = false;
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 
