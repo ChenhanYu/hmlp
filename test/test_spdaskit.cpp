@@ -314,10 +314,11 @@ int main( int argc, char *argv[] )
   const bool SPARSETESTSUIT = true;
   const bool GRAPHTESTSUIT = true;
   const bool OOCTESTSUIT = false;
+  const bool KERNELTESTSUIT = true;
 
   std::string DATADIR( "/scratch/jlevitt/data/" );
 
-  size_t n, m, k, s, nrhs;
+  size_t n, m, d, k, s, nrhs;
 
   using T = double;
   //using SPLITTER = hmlp::spdaskit::centersplit<SPDMATRIX, N_CHILDREN, T>;
@@ -466,6 +467,25 @@ int main( int argc, char *argv[] )
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
                                                 + std::string( ".dat" );
       hmlp::OOC<T> K( n, n, filename );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+    }
+  }
+
+  if ( KERNELTESTSUIT )
+  {
+    const bool SYMMETRIC = true;
+    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T>;
+    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T>;
+    {
+      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+      n = 100000;
+      d = 54;
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5;
+      hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
+      K.read( n, d, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
   }

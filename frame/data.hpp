@@ -813,6 +813,140 @@ class OOC : public ReadWrite
 
 }; // end class OOC
 
+
+template<bool SYMMETRIC, typename T, class Allocator = std::allocator<T> >
+class Kernel : public ReadWrite
+{
+  public:
+
+    template<typename TINDEX>
+    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel )
+    {
+      this->m = m;
+      this->n = n;
+      this->d = d;
+      this->kernel = kernel;
+
+      if ( SYMMETRIC ) assert( m == n );
+    };
+
+    ~Kernel() {};
+
+    void read( std::size_t n, std::size_t d, std::string &filename )
+    {
+      assert( SYMMETRIC );
+      assert( this->n == n );
+      assert( this->d == d );
+
+      sources.resize( d, n );
+      sources.read( d, n, filename );
+    }
+
+    void read( std::size_t m, std::size_t n, std::size_t d,
+               std::string &sourcefilename, std::string &targetfilename )
+    {
+      assert( !SYMMETRIC );
+      assert( this->m == m );
+      assert( this->n == n );
+      assert( this->d == d )
+
+      sources.resize( d, n );
+      sources.read( d, n, sourcefilename );
+
+      targets.resize( d, m );
+      sources.read( d, m, targetfilename );
+    }
+
+    template<typename TINDEX>
+    inline T operator()( TINDEX i, TINDEX j )
+    {
+      T Kij = 0;
+
+      switch ( this->kernel.type )
+      {
+        case KS_GAUSSIAN:
+          {
+            for ( TINDEX k = 0; k < this->d; k++ )
+            {
+              if ( SYMMETRIC )
+              {
+                Kij += sources[ i * this->d + k] * sources[ j * this->d + k ];
+              }
+              else
+              {
+                Kij += targets[ i * this->d + k] * sources[ j * this->d + k ];
+              }
+            }
+            Kij = exp( this->kernel.scal * Kij );
+            break;
+          }
+      }
+
+      return Kij;
+    };
+
+    template<typename TINDEX>
+    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    {
+      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+      for ( int j = 0; j < jmap.size(); j ++ )
+      {
+        for ( int i = 0; i < imap.size(); i ++ )
+        {
+          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
+        }
+      }
+      return submatrix;
+    }; 
+
+    template<typename TINDEX>
+    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    {
+      TINDEX i = std::rand() % m;
+      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+      return sample; 
+    };
+
+    void Print()
+    {
+      for ( size_t j = 0; j < n; j ++ )
+      {
+        printf( "%8lu ", j );
+      }
+      printf( "\n" );
+      for ( size_t i = 0; i < m; i ++ )
+      {
+        for ( size_t j = 0; j < n; j ++ )
+        {
+          printf( "% 3.1E ", (*this)( i, j ) );
+        }
+        printf( "\n" );
+      }
+    }; // end Print()
+
+    std::size_t row() { return m; };
+
+    std::size_t col() { return n; };
+
+    std::size_t dim() { return d; };
+
+
+  private:
+
+    std::size_t m;
+
+    std::size_t n;
+
+    std::size_t d;
+
+    Data<T> sources;
+
+    Data<T> targets;
+
+    kernel_s<T> kernel;
+
+}; // end class Kernel
+
 }; // end namespace hmlp
 
 #endif //define DATA_HPP
