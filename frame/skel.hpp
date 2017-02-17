@@ -42,6 +42,19 @@ void id
   std::vector<T> S, Z;
   std::vector<T> A_tmp = A;
 
+  // Early return
+  if ( n <= maxs )
+  {
+    skels.resize( n );
+    proj.resize( n, n, 0.0 );
+    for ( int i = 0; i < n; i ++ )
+    {
+      skels[i] = i;
+      proj[ i * proj.row() + i ] = 1.0;
+    }
+    return;
+  }
+
   // Initilize jpvt to zeros. Otherwise, GEQP3 will permute A.
   std::vector<int> jpvt( n, 0 );
 
