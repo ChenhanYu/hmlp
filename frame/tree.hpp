@@ -870,7 +870,6 @@ class Tree
 	  double beg, alloc_time, split_time, morton_time, permute_time;
 
       n = lids.size();
-      //m = leafsize;
       m = setup.m;
       int max_depth = setup.max_depth;
 

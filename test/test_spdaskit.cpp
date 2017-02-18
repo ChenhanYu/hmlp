@@ -215,7 +215,7 @@ void test_spdaskit(
   hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNE, NNPRUNE>( tree );
   symbolic_evaluation_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
-  hmlp::spdaskit::DrawInteraction<true>( tree );
+  auto exact_ratio = hmlp::spdaskit::DrawInteraction<true>( tree );
   // ------------------------------------------------------------------------
 
 
@@ -243,8 +243,8 @@ void test_spdaskit(
   beg = omp_get_wtime();
   omptask45_time = omp_get_wtime() - beg;
 
-  printf( "Runtime %5.2lfs level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
-      dynamic_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
+  printf( "Exact ratio %5.2lf Runtime %5.2lfs level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
+      exact_ratio, dynamic_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
   // ------------------------------------------------------------------------
 
 

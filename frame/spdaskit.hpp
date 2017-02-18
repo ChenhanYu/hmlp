@@ -117,6 +117,10 @@ class Data
 	std::pair<double, std::size_t> kij_s2s;
 	std::pair<double, std::size_t> kij_s2n;
 
+	/** many timers */
+	double merge_neighbors_time = 0.0;
+	double id_time = 0.0;
+
     /** recorded events (for HMLP Runtime) */
     hmlp::Event skeletonize;
     hmlp::Event updateweight;
@@ -165,9 +169,13 @@ class Summary
 
     std::deque<hmlp::Statistic> rank;
 
+    std::deque<hmlp::Statistic> merge_neighbors_time;
+
     std::deque<hmlp::Statistic> kij_skel;
 
     std::deque<hmlp::Statistic> kij_skel_time;
+
+    std::deque<hmlp::Statistic> id_time;
 
     std::deque<hmlp::Statistic> skeletonize;
 
@@ -178,15 +186,19 @@ class Summary
       if ( rank.size() <= node->l )
       {
         rank.push_back( hmlp::Statistic() );
+        merge_neighbors_time.push_back( hmlp::Statistic() );
         kij_skel.push_back( hmlp::Statistic() );
         kij_skel_time.push_back( hmlp::Statistic() );
+        id_time.push_back( hmlp::Statistic() );
         skeletonize.push_back( hmlp::Statistic() );
         updateweight.push_back( hmlp::Statistic() );
       }
 
       rank[ node->l ].Update( (double)node->data.skels.size() );
+      merge_neighbors_time[ node->l ].Update( node->data.merge_neighbors_time );
       kij_skel[ node->l ].Update( (double)node->data.kij_skel.second );
-      kij_skel_time[ node->l ].Update( (double)node->data.kij_skel.first );
+      kij_skel_time[ node->l ].Update( node->data.kij_skel.first );
+      id_time[ node->l ].Update( node->data.id_time );
       skeletonize[ node->l ].Update( node->data.skeletonize.GetDuration() );
       updateweight[ node->l ].Update( node->data.updateweight.GetDuration() );
 
@@ -212,12 +224,14 @@ class Summary
 
     void Print()
     {
-      for ( size_t l = 0; l < rank.size(); l ++ )
+      for ( size_t l = 1; l < rank.size(); l ++ )
       {
         printf( "@SUMMARY\n" );
         printf( "rank:       " ); rank[ l ].Print();
+        printf( "merge_neig: " ); merge_neighbors_time[ l ].Print();
 		printf( "kij_skel_n: " ); kij_skel[ l ].Print();
 		printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
+		printf( "id_t:       " ); id_time[ l ].Print();
         printf( "skel_t:     " ); skeletonize[ l ].Print();
       }
     };
@@ -651,7 +665,7 @@ void BuildNeighbors( NODE *node , size_t nsamples)
     {
       for ( int jj = 0; jj < n; jj ++ )
       {
-        tmp [ (ii-(k+1)/2) * n + jj ] = NN->data()[  jj * k + ii ];
+        tmp [ (ii-(k+1)/2) * n + jj ] = NN->data()[ lids[ jj ] * k + ii ];
       }
     }
     std::sort( tmp.begin() , tmp.end() );
@@ -714,28 +728,31 @@ void BuildNeighbors( NODE *node , size_t nsamples)
 
 
 
- 
+/**
+ *  @brief Skeletonization with interpolative decomposition.
+ */ 
 template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
 void Skeletonize( NODE *node )
 {
-  // Early return if we do not need to skeletonize
+  /** early return if we do not need to skeletonize */
   if ( !node->parent ) return;
 
-  double beg = 0.0, kij_skel_time = 0.0;
+  double beg = 0.0, kij_skel_time = 0.0, merge_neighbors_time = 0.0, id_time = 0.0;
 
-  // Gather shared data and create reference
+  /** gather shared data and create reference */
   auto &K = *node->setup->K;
   auto maxs = node->setup->s;
   auto stol = node->setup->stol;
   auto &NN = *node->setup->NN;
 
-  // Gather per node data and create reference
+  /** gather per node data and create reference */
   auto &data = node->data;
   auto &skels = data.skels;
   auto &proj = data.proj;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
+  /** early return if fail to skeletonize. */
   if ( LEVELRESTRICTION )
   {
     assert( ADAPTIVE );
@@ -753,12 +770,13 @@ void Skeletonize( NODE *node )
     //proj.resize( )
   }
 
-  // random sampling or importance sampling for rows.
+  /** random sampling or importance sampling for rows. */
   std::vector<size_t> amap;
   std::vector<size_t> bmap;
   std::vector<size_t> &lids = node->lids;
 
 
+  /** merge children's skeletons */
   if ( node->isleaf )
   {
     bmap = node->lids;
@@ -773,9 +791,15 @@ void Skeletonize( NODE *node )
 
   auto nsamples = 2 * bmap.size();
 
-  // Build Node Neighbors from all nearest neighbors
+  /** Build Node Neighbors from all nearest neighbors */
+  beg = omp_get_wtime();
   BuildNeighbors<NODE, T>( node, nsamples );
+  merge_neighbors_time = omp_get_wtime() - beg;
   
+  /** update merge_neighbors timer */
+  data.merge_neighbors_time  += merge_neighbors_time;
+
+
   auto &snids = data.snids;
   // Order snids by distance
   std::multimap<T, size_t > ordered_snids = flip_map( snids );
@@ -827,30 +851,38 @@ void Skeletonize( NODE *node )
   auto Kab = K( amap, bmap );
   kij_skel_time = omp_get_wtime() - beg;
 
+
   /** update kij counter */
   data.kij_skel.first  += kij_skel_time;
   data.kij_skel.second += amap.size() * bmap.size();
 
 
+  /** interpolative decomposition */
+  beg = omp_get_wtime();
   if ( ADAPTIVE )
   {
     hmlp::skel::id<T, LEVELRESTRICTION>( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
-    data.isskel = (skels.size() != 0);
+    data.isskel = ( skels.size() != 0 );
   }
   else
   {
     hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
     data.isskel = true;
   }
+  id_time = omp_get_wtime() - beg;
 
-  // Relabel skels with the real lids
+  /** update id timer */
+  data.id_time += id_time;
+
+
+  /** relabel skeletions with the real lids */
   for ( size_t i = 0; i < skels.size(); i ++ )
   {
     skels[ i ] = bmap[ skels[ i ] ];
   }
 
 
-  // Update Pruning neighbor list
+  /** update Pruning neighbor list */
   data.pnids.clear();
   for ( int ii = 0 ; ii < skels.size() ; ii ++ )
   {
@@ -897,6 +929,7 @@ class SkeletonizeTask : public hmlp::Task
       mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
 
       // GELS
+	  // TODO: we seem to underestimate GELS here.
       flops += ( 2.0 / 3.0 ) * k * k * ( 3 * m - k );
       mops += 2.0 * m * k;
       flops += 2.0 * m * n * k;
@@ -1694,24 +1727,37 @@ void NearNodes( TREE &tree )
 
     if ( NNPRUNE )
     {
-      // Add myself to the list.
+      /** add myself to the list. */
       node->NNNearNodes.insert( node );
-      // Traverse all points and their neighbors. NN is stored in k-by-N.
-      // NN 
-      for ( size_t j = 0; j < node->lids.size(); j ++ )
-      {
-        size_t lid = node->lids[ j ];
-        for ( size_t i = 0; i < NN.row(); i ++ )
-        {
-          size_t neighbor_gid = NN( i, lid ).second;
-          //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
-          size_t neighbor_lid = tree.Getlid( neighbor_gid );
-          size_t neighbor_morton = setup.morton[ neighbor_lid ];
-          //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
 
+	  /** TODO: have some consensus on the interaction list */
+	  if ( false )
+	  {
+		for ( auto it = node->data.snids.begin(); it != node->data.snids.end(); it ++ )
+		{
+          size_t neighbor_lid = tree.Getlid( (*it).second );
+          size_t neighbor_morton = setup.morton[ neighbor_lid ];
           node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
+		}
+	  }
+	  else
+	  {
+        /** Traverse all points and their neighbors. NN is stored as k-by-N */
+        for ( size_t j = 0; j < node->lids.size(); j ++ )
+        {
+          size_t lid = node->lids[ j ];
+          for ( size_t i = 0; i < NN.row(); i ++ )
+          {
+            size_t neighbor_gid = NN( i, lid ).second;
+            //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
+            size_t neighbor_lid = tree.Getlid( neighbor_gid );
+            size_t neighbor_morton = setup.morton[ neighbor_lid ];
+            //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
+
+            node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
+          }
         }
-      }
+	  }
     }
     else
     {
@@ -1891,14 +1937,14 @@ void NearFarNodes( TREE &tree )
 
 
 template<bool NNPRUNE, typename TREE>
-void DrawInteraction( TREE &tree )
+double DrawInteraction( TREE &tree )
 {
+  double exact_ratio = 0.0;
   FILE * pFile;
-  int n;
+  //int n;
   char name [100];
 
   pFile = fopen ( "interaction.m", "w" );
-
 
   fprintf( pFile, "figure('Position',[100,100,800,800]);" );
   fprintf( pFile, "hold on;" );
@@ -1932,6 +1978,9 @@ void DrawInteraction( TREE &tree )
           fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[0.2,0.4,1.0]);\n",
               node->offset,      (*it)->offset,
               node->lids.size(), (*it)->lids.size() );
+
+		  /** accumulate exact evaluation */
+		  exact_ratio += node->lids.size() * (*it)->lids.size();
         }  
       }
       else
@@ -1941,7 +1990,9 @@ void DrawInteraction( TREE &tree )
   }
   fprintf( pFile, "hold off;" );
   fclose( pFile );
-};
+
+  return exact_ratio / ( tree.n * tree.n );
+}; // end DrawInteration()
 
 
 
