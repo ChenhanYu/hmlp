@@ -27,57 +27,45 @@
 
 using namespace hmlp::tree;
 
-#define OMPCOMPARISON 0
+//#define OMPCOMPARISON 0
+#define OMPLEVEL 0
+#define OMPRECTASK 0
+#define OMPDAGTASK 0
 
 // By default, we use binary tree.
 #define N_CHILDREN 2
 
 
+/** This function tests for omp task depend.  */
+void OpenMP45()
+{
+  #pragma omp parallel
+  #pragma omp single
+  {
+    int a[3];
+    #pragma omp task shared(a) depend(out:a[1])
+	{
+	  a[1] = 1;
+	  printf( "me %d\n", 1 );
+	}
 
-//template<bool ADAPTIVE, bool LEVELRESTRICTION, 
-//  typename SPLITTER, typename RKDTSPLITTER, typename T,
-//  typename SPDMATRIX>
-//void test_spdaskit( SPDMATRIX &K, size_t n, size_t m, size_t k, size_t s, size_t nrhs )
-//{
-//  using DATA = hmlp::spdaskit::Data<T>;
-//  using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX, RKDTSPLITTER, T>;
-//  using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-//  using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE, T>;
-//
-//  double beg, ann_time;
-//
-//  KNNTASK knntask;
-//
-//  // ------------------------------------------------------------------------
-//  // Initialize randomized Spd-Askit tree.
-//  // ------------------------------------------------------------------------
-//  Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
-//  rkdt.setup.K = &K;
-//  rkdt.setup.splitter.Kptr = rkdt.setup.K;
-//  std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
-//  // ------------------------------------------------------------------------
-//
-//  // ------------------------------------------------------------------------
-//  std::vector<std::size_t> gids( n ), lids( n );
-//  for ( auto i = 0; i < n; i ++ ) 
-//  {
-//    gids[ i ] = i;
-//    lids[ i ] = i;
-//  }
-//  // ------------------------------------------------------------------------
-//
-//  const size_t n_iter = 20;
-//  const bool SORTED = true;
-//  beg = omp_get_wtime();
-//  hmlp::Data<std::pair<T, std::size_t>> NN;
-//  NN = rkdt.template AllNearestNeighbor<SORTED>( n_iter, k, 10, gids, lids, initNN, knntask );
-//  ann_time = omp_get_wtime() - beg;
-//  printf( "ANN %5.3lfs\n", ann_time );
-//
-//  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, T>( K, NN, n, m, k, s, nrhs );
-//  //test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, T>
-////	( K, NN, n, m, k, s, nrhs );
-//};
+    #pragma omp task shared(a) depend(out:a[2])
+	{
+	  a[2] = 2;
+	  printf( "me %d\n", 2 );
+	}
+
+    #pragma omp task shared(a) depend(in:a[1],a[2]) depend(out:a[0])
+	{
+	  a[0] = 0;
+	  printf( "me %d\n", 0 );
+	}
+	printf( "prepare to terminate\n" );
+  }
+  printf( "now  terminate\n" );
+};
+
+
 
 
 
@@ -96,6 +84,7 @@ void test_spdaskit(
   using DATA = hmlp::spdaskit::Data<T>;
   using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
   using SKELTASK = hmlp::spdaskit::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
+  using PROJTASK = hmlp::spdaskit::InterpolateTask<NODE, T>;
 
   // Instantiation for the randomisze Spd-Askit tree.
   //using RKDTSPLITTER = hmlp::spdaskit::randomsplit<SPDMATRIX, N_CHILDREN, T>;
@@ -109,6 +98,7 @@ void test_spdaskit(
 
   // Dummy instances for each task.
   SKELTASK skeltask;
+  PROJTASK projtask;
   KNNTASK knntask;
 
   // ------------------------------------------------------------------------
@@ -121,6 +111,10 @@ void test_spdaskit(
     lids[ i ] = i;
   }
   // ------------------------------------------------------------------------
+
+
+  //OpenMP45();
+
 
   // ------------------------------------------------------------------------
   // Initialize randomized Spd-Askit tree.
@@ -146,6 +140,11 @@ void test_spdaskit(
   ann_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
+
+
+  //OpenMP45();
+
+
   // ------------------------------------------------------------------------
   // Initialize Spd-Askit tree using approximate center split.
   // ------------------------------------------------------------------------
@@ -166,13 +165,16 @@ void test_spdaskit(
   printf( "Done.\n" ); fflush( stdout );
 
 
+  //OpenMP45();
 
   // ------------------------------------------------------------------------
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
   printf( "Skeletonization (HMLP Runtime) ..." ); fflush( stdout );
+  const bool AUTODEPENDENCY = true;
   beg = omp_get_wtime();
-  tree.template TraverseUp<false, true, SKELTASK>( skeltask );
+  tree.template TraverseUp<AUTODEPENDENCY, true, SKELTASK>( skeltask );
+  tree.template TraverseUnOrdered<AUTODEPENDENCY, true, PROJTASK>( projtask );
   overhead_time = omp_get_wtime() - beg;
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
@@ -181,21 +183,42 @@ void test_spdaskit(
   // Parallel level-by-level traversal.
   printf( "Skeletonization (Level-By-Level) ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  if ( OMPCOMPARISON ) tree.template TraverseUp<false, false, SKELTASK>( skeltask );
+  if ( OMPLEVEL ) 
+  {
+	tree.template TraverseUp<false, false, SKELTASK>( skeltask );
+	tree.template TraverseUnOrdered<false, false, PROJTASK>( projtask );
+  }
   ref_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
-  // Sekeletonization with omp task.
+  /** sekeletonization with omp task. */
   printf( "Skeletonization (Recursive OpenMP tasks) ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  if ( OMPCOMPARISON ) tree.PostOrder<true>( tree.treelist[ 0 ], skeltask );
+  if ( OMPRECTASK ) 
+  {
+	tree.template PostOrder<true>( tree.treelist[ 0 ], skeltask );
+	/** the interpolation part has no depednencies */
+	tree.template TraverseUp<false, false, PROJTASK>( projtask );
+  }
   omptask_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
   // Sekeletonization with omp task.
   printf( "Skeletonization (OpenMP-4.5 Dependency tasks) ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  if ( OMPCOMPARISON ) tree.PostOrder<false>( tree.treelist[ 0 ], skeltask );
+  if ( OMPDAGTASK ) 
+  {
+	//tree.PostOrder<false>( tree.treelist[ 0 ], skeltask );
+	tree. template UpDown<true, true, false>( skeltask, projtask, projtask );
+  }
+
+  //#pragma omp parallel
+  //#pragma omp single
+  //{
+  //  tree.template OMPTraverseUp( skeltask );
+  //}
+
+
   omptask45_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
@@ -219,6 +242,13 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
 
 
+
+
+  //OpenMP45();
+
+
+
+
   // ------------------------------------------------------------------------
   // ComputeAll
   // ------------------------------------------------------------------------
@@ -226,14 +256,14 @@ void test_spdaskit(
   hmlp::Data<T> w( nrhs, n );
   w.rand();
   beg = omp_get_wtime();
-  auto u = hmlp::spdaskit::ComputeAll<true, true, true, NODE>( tree, w );
+  auto u = hmlp::spdaskit::ComputeAll<true, false, true, true, NODE>( tree, w );
   dynamic_time = omp_get_wtime() - beg;
   fmm_evaluation_time = dynamic_time;
   printf( "Done.\n" ); fflush( stdout );
 
   printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  if ( OMPCOMPARISON ) u = hmlp::spdaskit::ComputeAll<false, true, true, NODE>( tree, w );
+  if ( OMPLEVEL ) u = hmlp::spdaskit::ComputeAll<false, false, true, true, NODE>( tree, w );
   ref_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
@@ -241,6 +271,7 @@ void test_spdaskit(
   omptask_time = omp_get_wtime() - beg;
 
   beg = omp_get_wtime();
+  if ( OMPDAGTASK ) u = hmlp::spdaskit::ComputeAll<false, true, true, true, NODE>( tree, w );
   omptask45_time = omp_get_wtime() - beg;
 
   printf( "Exact ratio %5.2lf Runtime %5.2lfs level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
@@ -309,16 +340,23 @@ void test_spdaskit(
 
 
 
+template<typename TMATRIX, typename SPLITTER, typename T>
+//void OpenMP45Site( TMATRIX &K, T &dummy )
+void OpenMP45Site( T &dummy )
+{
+  OpenMP45();
+};
+
 
 int main( int argc, char *argv[] )
 {
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
-  const bool RANDOMMATRIX = false;
+  const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
-  const bool SPARSETESTSUIT = false;
-  const bool GRAPHTESTSUIT = false;
+  const bool SPARSETESTSUIT = true;
+  const bool GRAPHTESTSUIT = true;
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 
@@ -347,6 +385,25 @@ int main( int argc, char *argv[] )
   //LF10.readmtx<false>( filename );
   //LF10.Print();
 
+
+  //printf( "Not from a template function\n" );
+  //OpenMP45();
+  //printf( "template<typename float> function\n" );
+  //{
+  //  float dummy1;
+  //  using TMATRIX = hmlp::spdaskit::SPDMatrix<T>;
+  //  using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
+  //  hmlp::spdaskit::SPDMatrix<T> K;
+  //  OpenMP45Site<TMATRIX, SPLITTER>( dummy1 );
+  //}
+  //printf( "template<typename double> function\n" );
+  //{
+  //  double dummy2;
+  //  using TMATRIX = hmlp::spdaskit::SPDMatrix<T>;
+  //  using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
+  //  hmlp::spdaskit::SPDMatrix<T> K;
+  //  OpenMP45Site<TMATRIX, SPLITTER>( dummy2 );
+  //}
 
 
 

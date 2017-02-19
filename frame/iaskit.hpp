@@ -192,6 +192,7 @@ void Skeletonize( NODE *node )
   auto &data = node->data;
   auto &skels = data.skels;
   auto &proj = data.proj;
+  //auto &R11 = data.R11;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
@@ -247,7 +248,7 @@ void Skeletonize( NODE *node )
     auto A = X( amap );
     auto B = X( bmap );
     auto Kab = kernel( A, B );
-    hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
+    //hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj, R11 );
   }
   else
   {

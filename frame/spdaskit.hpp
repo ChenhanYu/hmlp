@@ -92,7 +92,10 @@ class Data
     std::vector<size_t> skels;
 	  
 	/** (buffer) s-by-s upper trianguler for xtrsm( R11, proj ) */
-	hmlp::Data<T> R11; 
+	//hmlp::Data<T> R11; 
+
+    /** 2s, pivoting order of GEQP3 */
+    std::vector<int> jpvt;
 
 	/** s-by-2s */
     hmlp::Data<T> proj;
@@ -729,6 +732,127 @@ void BuildNeighbors( NODE *node , size_t nsamples)
 
 
 /**
+ *  @brief Compute the cofficient matrix by R11^{-1} * proj.
+ *
+ */ 
+template<typename NODE, typename T>
+void Interpolate( NODE *node )
+{
+  /** early return */
+  if ( !node ) return;
+
+  auto &data = node->data;
+  auto &skels = data.skels;
+  auto &proj = data.proj;
+  auto &jpvt = data.jpvt;
+  auto s = proj.row();
+  auto n = proj.col();
+
+  /** proceed if the node can be compressed */
+  if ( data.isskel )
+  {
+	assert( s );
+	assert( s <= n );
+	assert( jpvt.size() == n );
+  }
+  else
+  {
+	return;
+  }
+
+  /** early return if ( s == n ) */
+  //if ( s == n )
+  //{
+  //  for ( int i = 0; i < s; i ++ ) skels[ i ] = i;
+  //  for ( int j = 0; j < s; j ++ )
+  //  {
+  //    for ( int i = 0; i < s; i ++ )
+  //    {
+  //      if ( i == j ) proj[ j * s + i ] = 1.0;
+  //  	else          proj[ j * s + i ] = 0.0;
+  //    }
+  //  }
+  //  return;
+  //}
+
+  /** fill in R11 */
+  hmlp::Data<T> R1( s, s, 0.0 );
+
+  for ( int j = 0; j < s; j ++ )
+  {
+	for ( int i = 0; i < s; i ++ )
+	{
+	  if ( i <= j ) R1[ j * s + i ] = proj[ j * s + i ];
+	}
+  }
+
+  /** copy proj to tmp */
+  hmlp::Data<T> tmp = proj;
+
+  /** proj = inv( R1 ) * proj */
+  hmlp::xtrsm( "L", "U", "N", "N", s, n, 1.0, R1.data(), s, tmp.data(), s );
+
+  /** Fill in proj */
+  for ( int j = 0; j < n; j ++ )
+  {
+    for ( int i = 0; i < s; i ++ )
+    {
+  	  proj[ jpvt[ j ] * s + i ] = tmp[ j * s + i ];
+    }
+  }
+  
+}; // end Interpolate()
+
+
+/**
+ *  @brief
+ */ 
+template<typename NODE, typename T>
+class InterpolateTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "it" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+      // Need an accurate cost model.
+      cost = 1.0;
+    };
+
+    void GetEventRecord()
+    {
+      double flops = 0.0, mops = 0.0;
+      event.Set( label + name, flops, mops );
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+	}
+
+    void Execute( Worker* user_worker )
+    {
+      Interpolate<NODE, T>( arg );
+    };
+
+}; // end class InterpolateTask
+
+
+
+
+
+
+
+
+
+/**
  *  @brief Skeletonization with interpolative decomposition.
  */ 
 template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
@@ -749,6 +873,7 @@ void Skeletonize( NODE *node )
   auto &data = node->data;
   auto &skels = data.skels;
   auto &proj = data.proj;
+  auto &jpvt = data.jpvt;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
@@ -797,7 +922,7 @@ void Skeletonize( NODE *node )
   merge_neighbors_time = omp_get_wtime() - beg;
   
   /** update merge_neighbors timer */
-  data.merge_neighbors_time  += merge_neighbors_time;
+  data.merge_neighbors_time = merge_neighbors_time;
 
 
   auto &snids = data.snids;
@@ -853,36 +978,48 @@ void Skeletonize( NODE *node )
 
 
   /** update kij counter */
-  data.kij_skel.first  += kij_skel_time;
-  data.kij_skel.second += amap.size() * bmap.size();
+  data.kij_skel.first  = kij_skel_time;
+  data.kij_skel.second = amap.size() * bmap.size();
 
 
   /** interpolative decomposition */
   beg = omp_get_wtime();
-  if ( ADAPTIVE )
-  {
-    hmlp::skel::id<T, LEVELRESTRICTION>( amap.size(), bmap.size(), maxs, stol, Kab, skels, proj );
-    data.isskel = ( skels.size() != 0 );
-  }
-  else
-  {
-    hmlp::skel::id( amap.size(), bmap.size(), maxs, Kab, skels, proj );
-    data.isskel = true;
-  }
+  hmlp::skel::id<ADAPTIVE, LEVELRESTRICTION>
+  ( 
+    amap.size(), bmap.size(), maxs, stol, /** ignore if !ADAPTIVE */
+    Kab, skels, proj, jpvt
+  );
   id_time = omp_get_wtime() - beg;
 
   /** update id timer */
-  data.id_time += id_time;
+  data.id_time = id_time;
 
-
+  /** depending on the flag, decide isskel or not */
+  if ( LEVELRESTRICTION )
+  {
+	assert( !skels.size() );
+	assert( !proj.size() );
+	assert( !jpvt.size() );
+    data.isskel = false;
+  }
+  else
+  {
+	assert( skels.size() );
+	assert( proj.size() );
+	assert( jpvt.size() );
+    data.isskel = true;
+  }
+  
   /** relabel skeletions with the real lids */
   for ( size_t i = 0; i < skels.size(); i ++ )
   {
     skels[ i ] = bmap[ skels[ i ] ];
   }
 
+  /** separate interpolation of proj */
+  //Interpolate<NODE, T>( node );
 
-  /** update Pruning neighbor list */
+  /** update Pruning neighbor list, TODO: not sure what is this  */
   data.pnids.clear();
   for ( int ii = 0 ; ii < skels.size() ; ii ++ )
   {
@@ -924,22 +1061,39 @@ class SkeletonizeTask : public hmlp::Task
       size_t m = 2 * n;
       size_t k = arg->data.proj.row();
 
-      // GEQP3
-      flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+      /** GEQP3 */
+      flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
       mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
 
-      // GELS
-	  // TODO: we seem to underestimate GELS here.
-      flops += ( 2.0 / 3.0 ) * k * k * ( 3 * m - k );
-      mops += 2.0 * m * k;
-      flops += 2.0 * m * n * k;
-      mops += 2.0 * ( m * k + k * n + m * n );
-      flops += ( 1.0 / 3.0 ) * k * k * n;
-      mops += 2.0 * ( k * k + k * n );
+      /* TRSM */
+	  flops += k * ( k - 1 ) * ( n + 1 );
+	  mops += 2.0 * ( k * k + k * n );
+
+      //flops += ( 2.0 / 3.0 ) * k * k * ( 3 * m - k );
+      //mops += 2.0 * m * k;
+      //flops += 2.0 * m * n * k;
+      //mops += 2.0 * ( m * k + k * n + m * n );
+      //flops += ( 1.0 / 3.0 ) * k * k * n;
+      //mops += 2.0 * ( k * k + k * n );
 
       event.Set( label + name, flops, mops );
       arg->data.skeletonize = event;
     };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      
+      if ( !arg->isleaf )
+      {
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+      else
+      {
+        this->Enqueue();
+      }
+	};
 
     void Execute( Worker* user_worker )
     {
@@ -948,41 +1102,7 @@ class SkeletonizeTask : public hmlp::Task
 }; // end class SkeletonizeTask
 
 
-/**
- *  @brief Compute the cofficient matrix by R11^{-1} * proj.
- *
- */ 
-template<typename NODE, typename T>
-void Interpolate( NODE *node )
-{
-  /** early return */
-  if ( !node ) return;
 
-  auto &data = *node->data;
-  auto s = data->skels.size();
-  auto n = data->proj.col();
-
-  if ( data->isskel )
-  {
-	assert( !data->hasproj );
-	assert( s );
-	assert( data->R11.size() == s * s );
-	assert( data->proj.size() );
-  }
-  else
-  {
-	return;
-  }
-
-  //xtrsm
-  //(
-  //  "L", "U", "N", "N", 
-  //  s, n, 
-  //  1.0, R11.data(),  s, 
-  //       proj.data(), s
-  //);
-  
-}; // end Interpolate()
 
 
 
@@ -2153,7 +2273,10 @@ void Evaluate
 }; // end Evaluate()
 
 
-template<bool USE_RUNTIME, bool SYMMETRIC_PRUNE, bool NNPRUNE, typename NODE, typename TREE, typename T>
+template<
+bool USE_RUNTIME, bool USE_OMP_TASK, 
+bool SYMMETRIC_PRUNE, bool NNPRUNE, 
+typename NODE, typename TREE, typename T>
 hmlp::Data<T> ComputeAll
 ( 
   TREE &tree,
@@ -2162,7 +2285,7 @@ hmlp::Data<T> ComputeAll
 {
   const bool AUTO_DEPENDENCY = true;
 
-  double beg, computeall_time, overhead_time;
+  double beg, computeall_time = 0.0, overhead_time = 0.0;
 
   hmlp::Data<T> potentials( weights.row(), weights.col() );
 
@@ -2179,19 +2302,28 @@ hmlp::Data<T> ComputeAll
     SKELTOSKELTASK skeltoskeltask;
     SKELTONODETASK skeltonodetask;
 
-    beg = omp_get_wtime();	
-    tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
-    //if ( USE_RUNTIME ) hmlp_run();
-    //printf( "UpdateWeights\n" );
-    tree.template TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
-    //if ( USE_RUNTIME ) hmlp_run();
-    //printf( "Skel2Skel\n" );
-    tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
-	overhead_time = omp_get_wtime() - beg;
-    if ( USE_RUNTIME ) hmlp_run();
+    beg = omp_get_wtime();
+	if ( USE_OMP_TASK )
+	{
+	  assert( !USE_RUNTIME );
+	  tree.template UpDown( nodetoskeltask, skeltoskeltask, skeltonodetask );
+	}
+	else
+	{
+	  assert( !USE_OMP_TASK );
+      tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
+      //if ( USE_RUNTIME ) hmlp_run();
+      //printf( "UpdateWeights\n" );
+      tree.template TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
+      //if ( USE_RUNTIME ) hmlp_run();
+      //printf( "Skel2Skel\n" );
+      tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+	  overhead_time = omp_get_wtime() - beg;
+      if ( USE_RUNTIME ) hmlp_run();
+	}
     computeall_time = omp_get_wtime() - beg;
 
-    printf( "ComputeAll %5.2lfs (overhead %5.2lfs)\n", computeall_time, overhead_time );
+    printf( "ComputeAll %5.2lfs (overhead %5.2lfs)\n", computeall_time, overhead_time ); fflush( stdout );
   }
   else // TODO: implement unsymmetric prunning
   {

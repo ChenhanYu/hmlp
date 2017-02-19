@@ -22,6 +22,18 @@ extern "C"
       float *A, int *lda, 
       float *B, int *ldb, float *beta, 
       float *C, int *ldc );
+  void dtrsm_( const char *side, const char *uplo,
+	  const char *transA, const char *diag,
+	  int *m, int *n,
+	  double *alpha,
+	  double *A, int *lda,
+	  double *B, int *ldb );
+  void strsm_( const char *side, const char *uplo,
+	  const char *transA, const char *diag,
+	  int *m, int *n,
+	  float *alpha,
+	  float *A, int *lda,
+	  float *B, int *ldb );
   void dgetrf_(
       int *m, int *n, 
       double *A, int *lda, int *ipiv, int *info );
@@ -217,6 +229,64 @@ void xgemm
     }
     printf( "\n" );
   }
+#endif
+};
+
+
+/**
+ *  @brief DTRSM wrapper
+ */ 
+void xtrsm
+( 
+  const char *side, const char *uplo,
+  const char *transA, const char *diag,
+  int m, int n,
+  double alpha,
+  double *A, int lda,
+  double *B, int ldb 
+)
+{
+#ifdef USE_BLAS
+  dtrsm_
+  (
+    side, uplo,
+	transA, diag,
+	&m, &n,
+	&alpha,
+	A, &lda,
+	B, &ldb
+  );
+#else
+  printf( "xtrsm must enables USE_BLAS.\n" );
+#endif
+};
+
+
+/**
+ *  @brief STRSM wrapper
+ */ 
+void xtrsm
+( 
+  const char *side, const char *uplo,
+  const char *transA, const char *diag,
+  int m, int n,
+  float alpha,
+  float *A, int lda,
+  float *B, int ldb 
+)
+{
+#ifdef USE_BLAS
+  strsm_
+  (
+    side, uplo,
+	transA, diag,
+	&m, &n,
+	&alpha,
+	A, &lda,
+	B, &ldb
+  );
+#else
+  printf( "xtrsm must enables USE_BLAS.\n" );
 #endif
 };
 

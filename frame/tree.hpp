@@ -475,7 +475,7 @@ struct centersplit
  *  @brief 
  */ 
 template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
-class Node
+class Node : public ReadWrite
 {
   public:
 
@@ -773,6 +773,9 @@ class Tree
 
     std::deque<NODE*> treequeue;
 
+	/** for omp dependent task */
+	char omptasklist[ 1 << 16 ];
+
     Tree() : n( 0 ), m( 0 ), depth( 0 )
     {};
 
@@ -881,66 +884,66 @@ class Tree
       treequeue.clear();
       treelist.reserve( ( n / m ) * N_CHILDREN );
 
-//      auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
-//   
-//      treequeue.push_back( root );
-//    
-//      // TODO: there is parallelism to be exploited here.
-//      while ( auto *node = treequeue.front() )
-//      {
-//        node->treelist_id = treelist.size();
-//        //node->Split<false>( m, max_depth );
-//        node->Split<false>( 0 );
-//        for ( int i = 0; i < N_CHILDREN; i ++ )
-//        {
-//          treequeue.push_back( node->kids[ i ] );
-//        }
-//
-//        treelist.push_back( node );
-//        treequeue.pop_front();
-//      }
-
-      // Assume complete tree, compute the tree level first.
-      depth = 0;
-      size_t n_per_node = n;
-      while ( n_per_node > m && depth < max_depth )
-      {
-        n_per_node = ( n_per_node + 1 ) / N_CHILDREN;
-        depth ++;
-      }
-      size_t n_node = ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
-      //printf( "n %lu m %lu n_per_node %lu depth %lu n_nodes %lu\n", 
-      //    n, m, n_per_node, depth, n_node );
-
       auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
+   
       treequeue.push_back( root );
+    
+      // TODO: there is parallelism to be exploited here.
       while ( auto *node = treequeue.front() )
       {
         node->treelist_id = treelist.size();
-        if ( node->l < depth )
+        //node->Split<false>( m, max_depth );
+        node->Split<false>( 0 );
+        for ( int i = 0; i < N_CHILDREN; i ++ )
         {
-          for ( int i = 0; i < N_CHILDREN; i ++ )
-          {
-            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
-            treequeue.push_back( node->kids[ i ] );
-          }
+          treequeue.push_back( node->kids[ i ] );
         }
-        else
-        {
-          treequeue.push_back( NULL );
-        }
+
         treelist.push_back( node );
         treequeue.pop_front();
       }
 
-	  alloc_time = omp_get_wtime() - beg;
-
-	  
-      beg = omp_get_wtime();
-      SplitTask<NODE> splittask;
-      TraverseDown<false, false>( splittask );
-	  split_time = omp_get_wtime() - beg;
-
+      // Assume complete tree, compute the tree level first.
+//      depth = 0;
+//      size_t n_per_node = n;
+//      while ( n_per_node > m && depth < max_depth )
+//      {
+//        n_per_node = ( n_per_node + 1 ) / N_CHILDREN;
+//        depth ++;
+//      }
+//      size_t n_node = ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
+//      //printf( "n %lu m %lu n_per_node %lu depth %lu n_nodes %lu\n", 
+//      //    n, m, n_per_node, depth, n_node );
+//
+//      auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
+//      treequeue.push_back( root );
+//      while ( auto *node = treequeue.front() )
+//      {
+//        node->treelist_id = treelist.size();
+//        if ( node->l < depth )
+//        {
+//          for ( int i = 0; i < N_CHILDREN; i ++ )
+//          {
+//            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
+//            treequeue.push_back( node->kids[ i ] );
+//          }
+//        }
+//        else
+//        {
+//          treequeue.push_back( NULL );
+//        }
+//        treelist.push_back( node );
+//        treequeue.pop_front();
+//      }
+//
+//	  alloc_time = omp_get_wtime() - beg;
+//
+//	  
+//      beg = omp_get_wtime();
+//      SplitTask<NODE> splittask;
+//      TraverseDown<false, false>( splittask );
+//	  split_time = omp_get_wtime() - beg;
+//
 
       // All tree nodes were created. Now decide tree depth.
       if ( treelist.size() )
@@ -975,6 +978,121 @@ class Tree
 		//  alloc_time, split_time, morton_time, permute_time );
     };
 
+
+	template<bool UPWARD = true, bool UNORDERED = true, bool DOWNWARD = true, class TASK1, class TASK2, class TASK3>
+	void UpDown( TASK1 &dummy1, TASK2 &dummy2, TASK3 &dummy3 )
+	{
+      #pragma omp parallel
+      #pragma omp single
+	  {
+		if ( UPWARD )
+		{
+          for ( int me = treelist.size(); me >= 1; me -- )
+	      {
+	        int lchild = me * 2;
+	        int rchild = lchild + 1;
+            #pragma omp task depend(in:omptasklist[lchild],omptasklist[rchild]) depend(out:omptasklist[me])
+	        {
+              auto *node = treelist[ me - 1 ];
+	      	auto *task = new TASK1();
+	      	task->Set( node );
+	      	task->Execute( NULL );
+	      	delete task;
+	        }
+	      }
+		}
+		if ( UNORDERED )
+		{
+          for ( int me = treelist.size(); me >= 1; me -- )
+	      {
+            #pragma omp task depend(inout:omptasklist[me])
+	        {
+              auto *node = treelist[ me - 1 ];
+	      	auto *task = new TASK2();
+	      	task->Set( node );
+	      	task->Execute( NULL );
+	      	delete task;
+	        }
+	      }
+		}
+		if ( DOWNWARD )
+		{
+          for ( int me = 1; me <= treelist.size(); me ++ )
+	      {
+	        int parent = me / 2;
+            #pragma omp task depend(in:omptasklist[parent]) depend(out:omptasklist[me])
+	        {
+              auto *node = treelist[ me - 1 ];
+	    	  auto *task = new TASK3();
+	    	  task->Set( node );
+	    	  task->Execute( NULL );
+	    	  delete task;
+	        }
+	      }
+		}
+	  }
+	};
+
+    template<class TASK>
+    inline void OMPTraverseUp( TASK &dummy )
+	{
+      for ( int me = treelist.size(); me >= 1; me -- )
+	  {
+	    int lchild = me * 2;
+	    int rchild = lchild + 1;
+        #pragma omp task depend(in:omptasklist[lchild],omptasklist[rchild]) depend(out:omptasklist[me])
+	    {
+          auto *node = treelist[ me - 1 ];
+	  	  auto *task = new TASK();
+	  	  task->Set( node );
+	  	  task->Execute( NULL );
+	  	  delete task;
+	      //printf( "me %d\n", me );
+	    }
+	  }
+	}; // end OMPTraverseUp()
+
+
+    template<class TASK>
+    void OMPTraverseDown( TASK &dummy )
+	{
+      for ( int me = 1; me <= treelist.size(); me ++ )
+	  {
+	    int parent = me / 2;
+        #pragma omp task depend(in:omptasklist[parent]) depend(out:omptasklist[me])
+	    {
+          auto *node = treelist[ me - 1 ];
+	  	  auto *task = new TASK();
+	  	  task->Set( node );
+	  	  task->Execute( NULL );
+	  	  delete task;
+	      //printf( "me %d\n", me );
+	    }
+	  }
+	}; // end OMPTraverseUp()
+
+
+    template<class TASK>
+    void OMPUnordered( TASK &dummy )
+	{
+      for ( int me = treelist.size(); me >= 1; me -- )
+	  {
+        #pragma omp task depend(inout:omptasklist[me])
+	    {
+          auto *node = treelist[ me - 1 ];
+	  	  auto *task = new TASK();
+	  	  task->Set( node );
+	  	  task->Execute( NULL );
+	  	  delete task;
+	      //printf( "me %d\n", me );
+	    }
+	  }
+	}; // end OMPUnordered()
+
+
+
+
+
     template<bool RECURSIVE, class TASK>
     void PostOrder( NODE *node, TASK &dummy )
     {
@@ -1002,43 +1120,28 @@ class Tree
 	  }
 	  else
 	  {
-		size_t dep[ 1 << 16 ];
-		for ( int l = depth; l >= 0; l -- )
+        #pragma omp parallel
+        #pragma omp single
 		{
-		  std::size_t n_nodes = 1 << l;
-		  auto level_beg = treelist.begin() + n_nodes - 1;
-		  for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+		  //int dep[ 1 << 16 ];
+          for ( int me = treelist.size(); me >= 1; me -- )
 		  {
-			auto *node = *(level_beg + node_ind);
-			if ( node->parent )
-			{
-              size_t me = n_nodes - 1 + node_ind;
-			  size_t parent = ( me - 1 ) / 2;
-              #pragma omp task depend(in:dep[me]) depend(out:dep[parent])
-			  {
-				auto *task = new TASK();
-				task->Set( node );
-				task->Execute( NULL );
-				delete task;
-				dep[ me ] = 1;
-				//printf( "node->treelist_id %lu\n", node->treelist_id );
-			  }
-			}
-			else
-			{
-              #pragma omp task depend(in:dep[0])
-			  {
-				auto *task = new TASK();
-				task->Set( node );
-				task->Execute( NULL );
-				delete task;
-				dep[ 0 ] = 1;
-				//printf( "node->treelist_id %lu\n", node->treelist_id );
-			  }
-			}
+		    int lchild = me * 2;
+		    int rchild = lchild + 1;
+            #pragma omp task depend(in:omptasklist[lchild],omptasklist[rchild]) depend(out:omptasklist[me])
+		    {
+              auto *node = treelist[ me - 1 ];
+		  	  auto *task = new TASK();
+		  	  task->Set( node );
+		  	  task->Execute( NULL );
+		  	  delete task;
+		      //printf( "me %d\n", me );
+		    }
 		  }
 		}
+		//printf( "finish omp parallel region\n" ); fflush( stdout );
 	  }
+      //printf( "finish PostOrder\n" ); fflush( stdout );
 	};
 
     template<bool SORTED, typename KNNTASK>
@@ -1267,7 +1370,7 @@ class Tree
             mkl_set_num_threads( nthd_loc );
             omp_set_nested( 1 );
             omp_set_max_active_levels( 2 );
-            #pragma omp parallel for if ( n_nodes ) schedule( dynamic )
+            #pragma omp parallel for schedule( dynamic )
             for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
             {
               omp_set_num_threads( nthd_loc );
@@ -1355,27 +1458,27 @@ class Tree
 		  }
 		  else
 		  {
-            int nthd_loc = nthd_glb / n_nodes;
+            //int nthd_loc = nthd_glb / n_nodes;
 
-            mkl_set_dynamic( 0 );
-            mkl_set_num_threads( nthd_loc );
-            omp_set_nested( 1 );
-            omp_set_max_active_levels( 2 );
-            #pragma omp parallel for if ( n_nodes )
+            //mkl_set_dynamic( 0 );
+            //mkl_set_num_threads( nthd_loc );
+            //omp_set_nested( 1 );
+            //omp_set_max_active_levels( 2 );
+            #pragma omp parallel for schedule( dynamic )
             for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
             {
-              omp_set_num_threads( nthd_loc );
+              //omp_set_num_threads( nthd_loc );
               auto *node = *(level_beg + node_ind);
               auto *task = new TASK();
               task->Set( node );
               task->Execute( NULL );
               delete task;
             }
-            mkl_set_dynamic( 1 );
-            mkl_set_num_threads( nthd_glb );
-            omp_set_num_threads( nthd_glb );
-            omp_set_nested( 0 );
-            omp_set_max_active_levels( 1 );
+            //mkl_set_dynamic( 1 );
+            //mkl_set_num_threads( nthd_glb );
+            //omp_set_num_threads( nthd_glb );
+            //omp_set_nested( 0 );
+            //omp_set_max_active_levels( 1 );
 		  }
         }
         else // using dynamic scheduling
@@ -1437,10 +1540,6 @@ class Tree
     }; // end void Summary()
 
 };
-
-
-
-
 
 }; // end namespace tree 
 }; // end namespace hmlp

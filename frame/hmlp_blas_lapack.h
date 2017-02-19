@@ -30,6 +30,26 @@ void xgemm
   double *C, int ldc
 );
 
+void xtrsm
+( 
+  const char *side, const char *uplo,
+  const char *transA, const char *diag,
+  int m, int n,
+  float alpha,
+  float *A, int lda,
+  float *B, int ldb 
+);
+
+void xtrsm
+( 
+  const char *side, const char *uplo,
+  const char *transA, const char *diag,
+  int m, int n,
+  double alpha,
+  double *A, int lda,
+  double *B, int ldb 
+);
+
 void xgetrf
 (
   int m, int n, 
