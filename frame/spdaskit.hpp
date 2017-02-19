@@ -2306,7 +2306,7 @@ hmlp::Data<T> ComputeAll
 	if ( USE_OMP_TASK )
 	{
 	  assert( !USE_RUNTIME );
-	  tree.template UpDown( nodetoskeltask, skeltoskeltask, skeltonodetask );
+	  tree.template UpDown<true, true, true>( nodetoskeltask, skeltoskeltask, skeltonodetask );
 	}
 	else
 	{

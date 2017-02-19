@@ -30,7 +30,7 @@ using namespace hmlp::tree;
 //#define OMPCOMPARISON 0
 #define OMPLEVEL 0
 #define OMPRECTASK 0
-#define OMPDAGTASK 0
+#define OMPDAGTASK 1
 
 // By default, we use binary tree.
 #define N_CHILDREN 2
@@ -508,14 +508,14 @@ int main( int argc, char *argv[] )
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	}
-	//{
-    //  std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
-    //  n = 1696415;
-    //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
-    //  K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
-	//}
+	{
+      std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
+      n = 1696415;
+      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
+      K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+	}
   }
 
   if ( OOCTESTSUIT )
