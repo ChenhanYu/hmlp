@@ -355,12 +355,13 @@ int main( int argc, char *argv[] )
   const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
-  const bool SPARSETESTSUIT = true;
+  const bool SPARSETESTSUIT = false;
   const bool GRAPHTESTSUIT = true;
   const bool OOCTESTSUIT = false;
-  const bool KERNELTESTSUIT = true;
+  const bool KERNELTESTSUIT = false;
 
-  std::string DATADIR( "/scratch/jlevitt/data/" );
+  //std::string DATADIR( "/scratch/jlevitt/data/" );
+  std::string DATADIR( "/work/02794/ych/data/" );
 
   size_t n, m, d, k, s, nrhs;
 
@@ -492,7 +493,7 @@ int main( int argc, char *argv[] )
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
 	{
-      std::string filename = std::string( "ca-AstroPh.mtx" );
+      std::string filename = DATADIR + std::string( "ca-AstroPh.mtx" );
       n = 18772;
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
@@ -500,7 +501,7 @@ int main( int argc, char *argv[] )
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	}
 	{
-      std::string filename = std::string( "email-Enron.mtx" );
+      std::string filename = DATADIR + std::string( "email-Enron.mtx" );
       n = 36692;
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
@@ -508,7 +509,7 @@ int main( int argc, char *argv[] )
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	}
 	//{
-    //  std::string filename = std::string( "as-Skitter.mtx" );
+    //  std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
     //  n = 1696415;
     //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
     //  K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
