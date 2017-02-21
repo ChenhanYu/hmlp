@@ -186,6 +186,13 @@ void Event::Set( std::string _label, double _flops, double _mops )
   label = _label;
 };
 
+void Event::AddFlopsMops( double _flops, double _mops )
+{
+  flops += _flops; //Possible concurrent write
+  mops += _mops;
+};
+
+
 void Event::Begin( size_t _tid )
 {
   tid = _tid;

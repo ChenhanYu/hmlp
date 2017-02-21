@@ -137,6 +137,7 @@ void test_spdaskit(
   {
 	printf( "not performed (precomputed) ..." ); fflush( stdout );
   }
+  //hmlp_run();
   ann_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
@@ -352,11 +353,11 @@ int main( int argc, char *argv[] )
 {
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
-  const bool RANDOMMATRIX = true;
-  const bool USE_LOWRANK = true;
-  const bool DENSETESTSUIT = false;
+  const bool RANDOMMATRIX = false;
+  const bool USE_LOWRANK = false;
+  const bool DENSETESTSUIT = true;
   const bool SPARSETESTSUIT = false;
-  const bool GRAPHTESTSUIT = true;
+  const bool GRAPHTESTSUIT = false;
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = false;
 
@@ -365,7 +366,7 @@ int main( int argc, char *argv[] )
 
   size_t n, m, d, k, s, nrhs;
 
-  using T = double;
+  using T = float;
   //using SPLITTER = hmlp::spdaskit::centersplit<SPDMATRIX, N_CHILDREN, T>;
 
   sscanf( argv[ 1 ], "%lu", &n );
@@ -424,14 +425,15 @@ int main( int argc, char *argv[] )
   
   if ( DENSETESTSUIT )
   {
-    n = 4096;
+    std::string DATADIR( "/scratch/sreiz/65536/" );
+    n = 65536;
     hmlp::spdaskit::SPDMatrix<T> K;
-    hmlp::Data<std::pair<T, std::size_t>> NN;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
     K.resize( n, n );
-    for ( size_t id = 1; id < 14; id ++ )
+    for ( size_t id = 11; id < 14; id ++ )
     {
+      hmlp::Data<std::pair<T, std::size_t>> NN;
       std::ostringstream id_stream;
       id_stream << id;
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
