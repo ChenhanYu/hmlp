@@ -179,6 +179,7 @@ Worker::Worker( thread_communicator *comm ) :
 bool Worker::Execute( Task *task )
 {
   current_task = task;
+  task->worker = this;
 
   // Fetching data from GPU memory or from other processes.
   // Fetch( task );

@@ -530,14 +530,14 @@ class Statistic
       _avg = _num * _avg;
       _num += 1;
       _max = std::max( _max, query );
-      _min = std::min( _max, query );
+      _min = std::min( _min, query );
       _avg += query;
       _avg /= _num;
     };
 
     void Print()
     {
-      printf( "%lu, %lf, %lf, %lf\n", _num, _min, _max, _avg );
+      printf( "num %5lu min %.2E max %.2E avg %.2E\n", _num, _min, _max, _avg );
     };
   
 }; // end class Statistic

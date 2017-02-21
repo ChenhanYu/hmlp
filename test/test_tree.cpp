@@ -192,7 +192,7 @@ void test_tree( int d, int n )
   ref_time = omp_get_wtime() - beg;
   beg = omp_get_wtime();
   // Sekeletonization with omp task.
-  tree.PostOrder( tree.treelist[ 0 ], skeltask );
+  tree.PostOrder<true>( tree.treelist[ 0 ], skeltask );
   omptask_time = omp_get_wtime() - beg;
   
 

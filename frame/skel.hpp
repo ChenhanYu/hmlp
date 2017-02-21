@@ -26,114 +26,141 @@ namespace skel
 
 
   
+/** TODO: this fixed rank id will be deprecated */ 
+//template<typename T>
+//void id
+//(
+//  int m, int n, int maxs,
+//  std::vector<T> A,
+//  std::vector<size_t> &skels, hmlp::Data<T> &proj, std::vector<int> &jpvt
+//)
+//{
+//  int nb = 512;
+//  int lwork = 2 * n  + ( n + 1 ) * nb;
+//  std::vector<T> work( lwork );
+//  std::vector<T> tau( std::min( m, n ) );
+//  std::vector<T> S, Z;
+//  std::vector<T> A_tmp = A;
+//
+//  // Early return
+//  if ( n <= maxs )
+//  {
+//    skels.resize( n );
+//    proj.resize( n, n, 0.0 );
+//    for ( int i = 0; i < n; i ++ )
+//    {
+//      skels[i] = i;
+//      proj[ i * proj.row() + i ] = 1.0;
+//    }
+//    return;
+//  }
+//
+//  // Initilize jpvt to zeros. Otherwise, GEQP3 will permute A.
+//  jpvt.resize( n, 0 );
+//
+//  // Traditional pivoting QR (GEQP3)
+//  hmlp::xgeqp3
+//  (
+//    m, n, 
+//    A_tmp.data(), m,
+//    jpvt.data(), 
+//    tau.data(),
+//    work.data(), lwork
+//  );
+//  //printf( "end xgeqp3\n" );
+//
+//  jpvt.resize( maxs );
+//  skels.resize( maxs );
+//
+//  // Now shift jpvt from 1-base to 0-base index.
+//  for ( int j = 0; j < jpvt.size(); j ++ ) 
+//  {
+//    jpvt[ j ] = jpvt[ j ] - 1;
+//    skels[ j ] = jpvt[ j ];
+//  }
+//
+//  // TODO: Here we only need several things to get rid of xgels.
+//  //
+//  // 0. R11 = zeros( s )
+//  // 1. get R11 = up_tiangular( A_tmp( 1:s, 1:s ) )
+//  // 2. get proj( 1:s, jpvt( 1:n ) ) = A_tmp( 1:s 1:n )
+//  // 3. xtrsm( "L", "U", "N", "N", s, n, 1.0, R11.data(), s, proj.data(), s )
+//  
+//
+//
+//
+//
+//  Z.resize( m * jpvt.size() );
+//  
+//  for ( int j = 0; j < jpvt.size(); j ++ )
+//  {
+//    // reuse Z
+//    for ( int i = 0; i < m; i ++ )
+//    {
+//      Z[ j * m + i ] = A[ jpvt[ j ] * m + i ];
+//    }
+//  }
+//  auto A_skel = Z;
+//
+//
+//  S = A;
+//  // P (overwrite S) = pseudo-inverse( Z ) * S
+//  hmlp::xgels
+//  ( 
+//    "N", 
+//    m, jpvt.size(), n, 
+//       Z.data(), m, 
+//       S.data(), m, 
+//    work.data(), lwork 
+//  );
+//
+//  
+//  // Fill in proj
+//  proj.resize( jpvt.size(), n );
+//  for ( int j = 0; j < n; j ++ )
+//  {
+//    for ( int i = 0; i < jpvt.size(); i ++ )
+//    {
+//      proj[ j * jpvt.size() + i ] = S[ j * m + i ];
+//    }
+//  }
+//
+//  
+//
+//#ifdef DEBUG_SKEL
+//  double nrm = hmlp_norm( m, n, A.data(), m );
+//
+//  hmlp::xgemm
+//  ( 
+//    "N", "N", 
+//    m, n, jpvt.size(), 
+//    -1.0,  A_skel.data(), m, 
+//                S.data(), m, 
+//     1.0,       A.data(), m 
+//   );
+//
+//  double err = hmlp_norm( m, n, A.data(), m );
+//  printf( "m %d n %d k %lu absolute l2 error %E related l2 error %E\n", 
+//      m, n, jpvt.size(),
+//      err, err / nrm );
+//#endif
+//
+//}; // end id()
+//
 
-template<typename T>
-void id
-(
-  int m, int n, int maxs,
-  std::vector<T> A,
-  std::vector<size_t> &skels, hmlp::Data<T> &proj
-)
-{
-  int nb = 512;
-  int lwork = 2 * n  + ( n + 1 ) * nb;
-  std::vector<T> work( lwork );
-  std::vector<T> tau( std::min( m, n ) );
-  std::vector<T> S, Z;
-  std::vector<T> A_tmp = A;
-
-  // Initilize jpvt to zeros. Otherwise, GEQP3 will permute A.
-  std::vector<int> jpvt( n, 0 );
-
-  // Traditional pivoting QR (GEQP3)
-  hmlp::xgeqp3
-  (
-    m, n, 
-    A_tmp.data(), m,
-    jpvt.data(), 
-    tau.data(),
-    work.data(), lwork
-  );
-  //printf( "end xgeqp3\n" );
-
-  jpvt.resize( maxs );
-  skels.resize( maxs );
-
-  // Now shift jpvt from 1-base to 0-base index.
-  for ( int j = 0; j < jpvt.size(); j ++ ) 
-  {
-    jpvt[ j ] = jpvt[ j ] - 1;
-    skels[ j ] = jpvt[ j ];
-  }
-
-  Z.resize( m * jpvt.size() );
-  
-  for ( int j = 0; j < jpvt.size(); j ++ )
-  {
-    // reuse Z
-    for ( int i = 0; i < m; i ++ )
-    {
-      Z[ j * m + i ] = A[ jpvt[ j ] * m + i ];
-    }
-  }
-  auto A_skel = Z;
-
-
-  S = A;
-  // P (overwrite S) = pseudo-inverse( Z ) * S
-  hmlp::xgels
-  ( 
-    "N", 
-    m, jpvt.size(), n, 
-       Z.data(), m, 
-       S.data(), m, 
-    work.data(), lwork 
-  );
-
-  
-  // Fill in proj
-  proj.resize( jpvt.size(), n );
-  for ( int j = 0; j < n; j ++ )
-  {
-    for ( int i = 0; i < jpvt.size(); i ++ )
-    {
-      proj[ j * jpvt.size() + i ] = S[ j * m + i ];
-    }
-  }
-
-  
-
-#ifdef DEBUG_SKEL
-  double nrm = hmlp_norm( m, n, A.data(), m );
-
-  hmlp::xgemm
-  ( 
-    "N", "N", 
-    m, n, jpvt.size(), 
-    -1.0,  A_skel.data(), m, 
-                S.data(), m, 
-     1.0,       A.data(), m 
-   );
-
-  double err = hmlp_norm( m, n, A.data(), m );
-  printf( "m %d n %d k %lu absolute l2 error %E related l2 error %E\n", 
-      m, n, jpvt.size(),
-      err, err / nrm );
-#endif
-
-}; // end id()
 
 
 
-
-
-
-template<typename T>
+/**
+ *
+ *
+ */ 
+template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T>
 void id
 (
   int m, int n, int maxs, T stol,
   std::vector<T> A,
-  std::vector<size_t> &skels, hmlp::Data<T> &proj
+  std::vector<size_t> &skels, hmlp::Data<T> &proj, std::vector<int> &jpvt
 )
 {
   int s;
@@ -144,10 +171,14 @@ void id
   std::vector<T> S, Z;
   std::vector<T> A_tmp = A;
 
-  // Initilize jpvt to zeros. Otherwise, GEQP3 will permute A.
-  std::vector<int> jpvt( n, 0 );
+  /** sample rows must be larger than columns */
+  assert( m >= n );
 
-  // Traditional pivoting QR (GEQP3)
+  // Initilize jpvt to zeros. Otherwise, GEQP3 will permute A.
+  jpvt.clear();
+  jpvt.resize( n, 0 );
+
+  /** Traditional pivoting QR (GEQP3) */
   hmlp::xgeqp3
   (
     m, n, 
@@ -158,60 +189,103 @@ void id
   );
   //printf( "end xgeqp3\n" );
 
-  // Search for rank 1 <= s <= maxs that satisfies the error tolerance
+  /** shift jpvt from 1-base to 0-base index. */
+  for ( int j = 0; j < jpvt.size(); j ++ ) jpvt[ j ] = jpvt[ j ] - 1;
+
+  /** search for rank 1 <= s <= maxs that satisfies the error tolerance */
   for ( s = 1; s < n; s ++ )
   {
     if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol ) break;
   }
 
-  // Failed to skeletonize
-  if ( s > maxs ) s = maxs;
- 
-  jpvt.resize( s );
+  /** if using fixed rank */
+  if ( !ADAPTIVE ) s = std::min( maxs, n );
+
+  /** failed to satisfy error tolerance */
+  if ( s > maxs )
+  {
+    if ( LEVELRESTRICTION ) /** abort */
+    {
+      skels.clear();
+      proj.resize( 0, 0 );
+	  jpvt.resize( 0 );
+      return;
+    }
+    else /** Continue with rank maxs */
+	{
+      s = maxs;
+	}
+  }
+
+  /** now #skeleton has been decided, resize skels to fit */
   skels.resize( s );
+  for ( int j = 0; j < skels.size(); j ++ ) skels[ j ] = jpvt[ j ]; 
 
-  // Now shift jpvt from 1-base to 0-base index.
-  for ( int j = 0; j < jpvt.size(); j ++ ) 
+
+  // TODO: Here we only need several things to get rid of xgels.
+  //
+  // 0. R11 = zeros( s )
+  // 1. get R11 = up_tiangular( A_tmp( 1:s, 1:s ) )
+  // 2. get proj( 1:s, jpvt( 1:n ) ) = A_tmp( 1:s 1:n )
+  // 3. xtrsm( "L", "U", "N", "N", s, n, 1.0, R11.data(), s, proj.data(), s )
+
+
+  /** extract proj. It will be computed in Interpolate. */
+  if ( true ) 
   {
-    jpvt[ j ] = jpvt[ j ] - 1;
-    skels[ j ] = jpvt[ j ];
+    /** fill in proj */
+	proj.clear();
+    proj.resize( s, n, 0.0 );
+
+	for ( int j = 0; j < n; j ++ )
+	{
+	  for ( int i = 0; i < s; i ++ )
+	  {
+		if ( j < s )
+	    {
+	  	  if ( j >= i ) proj[ j * s + i ] = A_tmp[ j * m + i ];
+		  else          proj[ j * s + i ] = 0.0;
+	    }
+	    else
+	    {
+	      proj[ j * s + i ] = A_tmp[ j * m + i ];
+	    }
+	  }
+	}
   }
-
-  Z.resize( m * jpvt.size() );
- 
-  for ( int j = 0; j < jpvt.size(); j ++ )
+  else /** in the old version we use xgels, which is expensive */
   {
-    // reuse Z
-    for ( int i = 0; i < m; i ++ )
+    Z.resize( m * skels.size() );
+ 
+    for ( int j = 0; j < skels.size(); j ++ )
     {
-      Z[ j * m + i ] = A[ jpvt[ j ] * m + i ];
+      for ( int i = 0; i < m; i ++ )
+      {
+        Z[ j * m + i ] = A[ skels[ j ] * m + i ];
+      }
     }
-  }
-  auto A_skel = Z;
+    auto A_skel = Z;
 
-  S = A;
-  // P (overwrite S) = pseudo-inverse( Z ) * S
-  hmlp::xgels
-  ( 
-    "N", 
-    m, jpvt.size(), n, 
-       Z.data(), m, 
-       S.data(), m, 
-    work.data(), lwork 
-  );
-
+    S = A;
+    // P (overwrite S) = pseudo-inverse( Z ) * S
+    hmlp::xgels
+    ( 
+      "N", 
+      m, skels.size(), n, 
+         Z.data(), m, 
+         S.data(), m, 
+      work.data(), lwork 
+    );
  
-  // Fill in proj
-  proj.resize( jpvt.size(), n );
-  for ( int j = 0; j < n; j ++ )
-  {
-    for ( int i = 0; i < jpvt.size(); i ++ )
+    // Fill in proj
+    proj.resize( skels.size(), n );
+    for ( int j = 0; j < n; j ++ )
     {
-      proj[ j * jpvt.size() + i ] = S[ j * m + i ];
+      for ( int i = 0; i < skels.size(); i ++ )
+      {
+        proj[ j * skels.size() + i ] = S[ j * m + i ];
+      }
     }
-  }
-
- 
 
 #ifdef DEBUG_SKEL
   double nrm = hmlp_norm( m, n, A.data(), m );
@@ -219,7 +293,7 @@ void id
   hmlp::xgemm
   ( 
     "N", "N", 
-    m, n, jpvt.size(), 
+    m, n, skels.size(), 
     -1.0,  A_skel.data(), m, 
                 S.data(), m, 
      1.0,       A.data(), m 
@@ -227,9 +301,11 @@ void id
 
   double err = hmlp_norm( m, n, A.data(), m );
   printf( "m %d n %d k %lu absolute l2 error %E related l2 error %E\n", 
-      m, n, jpvt.size(),
+      m, n, skels.size(),
       err, err / nrm );
 #endif
+
+  }
 
 }; // end id()
   
