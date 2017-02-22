@@ -17,11 +17,11 @@
 #include <fstream>
 #include <random>
 
-#include <hmlp.h>
-
-#include <hmlp_blas_lapack.h>
-#include <hmlp_util.hpp>
-#include <hmlp_runtime.hpp>
+/** -lmemkind */
+#ifdef HMLP_MIC_AVX512
+#include <hbwmalloc.h>
+#include <hbw_allocator.h>
+#endif // ifdef HMLP}_MIC_AVX512
 
 #ifdef HMLP_USE_CUDA
 #include <thrust/tuple.h>
@@ -31,6 +31,10 @@
 
 
 
+#include <hmlp.h>
+#include <hmlp_blas_lapack.h>
+#include <hmlp_util.hpp>
+#include <hmlp_runtime.hpp>
 
 #define DEBUG_DATA 1
 
@@ -171,8 +175,11 @@ class Data : public ReadWrite, public host_vector<T>
 #else
 */
 
-
+#ifdef HMLP_MIC_AVX512
+template<class T, class Allocator = hbw::allocator<T> >
+#else
 template<class T, class Allocator = std::allocator<T> >
+#endif
 class Data : public ReadWrite, public std::vector<T, Allocator>
 {
   public:
@@ -407,7 +414,11 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 //#endif // ifdef HMLP_USE_CUDA
 
 
+#ifdef HMLP_MIC_AVX512
+template<bool SYMMETRIC, typename T, class Allocator = hbw::allocator<T> >
+#else
 template<bool SYMMETRIC, typename T, class Allocator = std::allocator<T> >
+#endif
 class CSC : public ReadWrite
 {
   public:
@@ -427,10 +438,10 @@ class CSC : public ReadWrite
     // val[ nnz ]
     // row_ind[ nnz ]
     // col_ptr[ n + 1 ]
-	// TODO: setup full_row_ind
+    // TODO: setup full_row_ind
     template<typename TINDEX>
     CSC( TINDEX m, TINDEX n, TINDEX nnz, T *val, TINDEX *row_ind, TINDEX *col_ptr ) 
-      : CSC( m, n, nnz )
+    : CSC( m, n, nnz )
     {
       assert( val ); assert( row_ind ); assert( col_ptr );
       for ( size_t i = 0; i < nnz; i ++ )
@@ -672,16 +683,21 @@ class CSC : public ReadWrite
 
     std::size_t nnz;
 
-    std::vector<T> val;
+    std::vector<T, Allocator> val;
 
-    std::vector<std::size_t> row_ind;
+    std::vector<std::size_t, Allocator> row_ind;
    
-    std::vector<std::size_t> col_ptr;
+    std::vector<std::size_t, Allocator> col_ptr;
 
 }; // end class CSC
 
 
+
+#ifdef HMLP_MIC_AVX512
+template<class T, class Allocator = hbw::allocator<T> >
+#else
 template<class T, class Allocator = std::allocator<T> >
+#endif
 class OOC : public ReadWrite
 {
   public:
@@ -814,7 +830,11 @@ class OOC : public ReadWrite
 }; // end class OOC
 
 
+#ifdef HMLP_MIC_AVX512
+template<bool SYMMETRIC, typename T, class Allocator = hbw::allocator<T> >
+#else
 template<bool SYMMETRIC, typename T, class Allocator = std::allocator<T> >
+#endif
 class Kernel : public ReadWrite
 {
   public:
