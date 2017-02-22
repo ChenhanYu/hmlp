@@ -10,6 +10,8 @@
 #include <assert.h>
 #include <typeinfo>
 #include <algorithm>
+#include <set>
+#include <map>
 #include <vector>
 #include <deque>
 #include <map>
@@ -21,6 +23,7 @@
 
 #include <hmlp_blas_lapack.h>
 #include <hmlp_util.hpp>
+#include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
 #ifdef HMLP_USE_CUDA
@@ -397,12 +400,65 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       hmlp::hmlp_printmatrix( m, n, this->data(), m );
     };
 
+
+    void prefetch( hmlp::Device *dev )
+    {
+      if ( !distribution.count( dev ) )
+      {
+        auto it = device_map.find( dev );
+        if ( it != device_map.end() )
+        {
+          //dev->prefetch( data(), *it, m * n * sizeof(T) );
+        }
+        else
+        {
+          //T *device_ptr = dev->allocate( m * n * sizeof(T) );
+          //device_map[ dev ] = device_ptr; 
+          //dev->prefetch( data(), device_ptr, m * n * sizeof(T) );
+        }
+      }
+      else /** the device has the latest copy */
+      {
+        assert( device_map.find( dev ) != device_map.end() );
+      }
+    };
+
+    void wait( hmlp::Device *dev )
+    {
+      //dev->wait();
+    };
+
+    void fetch( hmlp::Device *dev )
+    {
+      prefetch( dev );
+      wait( dev );
+    };
+
+    T* device_data( hmlp::Device *dev )
+    {
+      auto it = device_map.find( dev );
+      if ( it != device_map.end() )
+      {
+        return *it;
+      }
+      else
+      {
+        printf( "no device pointer for the target device\n" );
+      }
+    };
+
+
   private:
 
     std::size_t m;
 
     std::size_t n;
 
+    /** map a device to its data pointer */
+    std::map<hmlp::Device*, T*> device_map;
+   
+    /** distribution */
+    std::set<hmlp::Device*> distribution;
 };
 //#endif // ifdef HMLP_USE_CUDA
 
