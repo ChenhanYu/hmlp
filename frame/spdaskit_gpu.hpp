@@ -31,10 +31,6 @@ void UpdateWeights( NODE *node )
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
-  /** get the device id */
-  // cuda_set_device();
-
-
   /** s-by-nrhs, TODO: need a way to only allocate GPU memory */
   w_skel.clear();
   w_skel.resize( skels.size(), w.row() );

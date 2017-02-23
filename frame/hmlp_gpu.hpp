@@ -150,7 +150,22 @@ class DeviceMemory
       {
         assert( device_map.find( dev ) != device_map.end() );
       }
+      /** TODO: maybe update the distribution here? */
     };
+
+    /** if host does not have the latest copy */
+    void prefetchd2h( size_t size, T* ptr_h )
+    {
+      if ( !distribution.count( &host ) )
+      {
+        /** loop over the distribution */
+      }
+      else /** the host has the latest copy */
+      {
+        assert( device_map.find( &host ) != device_map.end() );
+      }
+    };
+
 
     /** */
     void wait( hmlp::Device *dev )
