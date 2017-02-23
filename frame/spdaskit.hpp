@@ -27,7 +27,7 @@
 #include <data.hpp>
 
 //#define DEBUG_SPDASKIT 1
-
+//#define CONE 1 
 
 namespace hmlp
 {
@@ -252,7 +252,7 @@ class Summary
  *         the matrix is sparse.
  *
  */ 
-template<typename SPDMATRIX, int N_SPLIT, typename T>
+template<typename SPDMATRIX, int N_SPLIT, typename T, bool CONE>
 struct centersplit
 {
   /** closure */
@@ -317,7 +317,8 @@ struct centersplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+      if ( ! CONE) temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+      else temp[ i ] = std::abs((K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] )) / K( lids[ i ], lids[ i ] ));
     }
 	projection_time = omp_get_wtime() - beg;
     //printf( "log(n) %lu d2c %5.3lfs d2f %5.3lfs proj %5.3lfs max %5.3lfs\n", 
@@ -348,7 +349,7 @@ struct centersplit
  *         the matrix is sparse.
  *
  */ 
-template<typename SPDMATRIX, int N_SPLIT, typename T>
+template<typename SPDMATRIX, int N_SPLIT, typename T, bool CONE>
 struct randomsplit
 {
   /** closure */
@@ -380,8 +381,9 @@ struct randomsplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
-    }
+      if ( ! CONE) temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+      else temp[ i ] = std::abs((K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] )) / K( lids[ i ], lids[ i ] ));
+   }
 
     // Parallel median search
     T median = hmlp::tree::Select( n, n / 2, temp );
@@ -430,6 +432,7 @@ struct randomsplit
 }; // end struct randomsplit
 
 
+
 /**
  *  @brief This is the task wrapper of the exact KNN search we
  *         perform in the leaf node of the randomized tree.
@@ -441,7 +444,7 @@ struct randomsplit
  *  @TODO  Improve the heap to deal with unique id.
  *
  */ 
-template<class NODE, typename T>
+template<class NODE, typename T, bool CONE>
 class KNNTask : public hmlp::Task
 {
   public:
@@ -498,7 +501,9 @@ class KNNTask : public hmlp::Task
 
           if ( !NNset.count( ilid ) )
           {
-            T dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
+	    T dist;
+	    if (! CONE)  dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
+	    else  dist = 1 - std::abs(K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
             std::pair<T, size_t> query( dist, ilid );
             hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
           }

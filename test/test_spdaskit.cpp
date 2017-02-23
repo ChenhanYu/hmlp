@@ -70,7 +70,7 @@ void OpenMP45()
 
 
 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, 
+template<bool ADAPTIVE, bool LEVELRESTRICTION, bool CONE, 
   typename SPLITTER, typename RKDTSPLITTER, 
   typename T,
   typename SPDMATRIX>
@@ -90,7 +90,7 @@ void test_spdaskit(
   //using RKDTSPLITTER = hmlp::spdaskit::randomsplit<SPDMATRIX, N_CHILDREN, T>;
   using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE, T>;
+  using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE, T, CONE>;
  
   // All timers.
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time, ann_time, tree_time, overhead_time;
@@ -131,7 +131,7 @@ void test_spdaskit(
   beg = omp_get_wtime();
   if ( NN.size() != n * k )
   {
-    NN = rkdt.template AllNearestNeighbor<SORTED>( n_iter, k, 10, gids, lids, initNN, knntask );
+    NN = rkdt.template AllNearestNeighbor<SORTED, CONE>( n_iter, k, 10, gids, lids, initNN, knntask );
   }
   else
   {
@@ -352,6 +352,7 @@ void OpenMP45Site( T &dummy )
 int main( int argc, char *argv[] )
 {
   const bool ADAPTIVE = true;
+  const bool CONE = false;
   const bool LEVELRESTRICTION = false;
   const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = false;
@@ -416,11 +417,11 @@ int main( int argc, char *argv[] )
   {
     hmlp::spdaskit::SPDMatrix<T> K;
     hmlp::Data<std::pair<T, std::size_t>> NN;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
+    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T, CONE>;
+    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T, CONE>;
     K.resize( n, n );
     K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
   }
   
   if ( DENSETESTSUIT )
@@ -428,8 +429,8 @@ int main( int argc, char *argv[] )
     std::string DATADIR( "/scratch/sreiz/65536/" );
     n = 65536;
     hmlp::spdaskit::SPDMatrix<T> K;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
+    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T, CONE>;
+    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T, CONE>;
     K.resize( n, n );
     for ( size_t id = 11; id < 14; id ++ )
     {
@@ -439,7 +440,7 @@ int main( int argc, char *argv[] )
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
                                                 + std::string( ".dat" );
       K.read( n, n, filename );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
   }
 
@@ -447,8 +448,8 @@ int main( int argc, char *argv[] )
   {
 	const bool SYMMETRIC = false;
 	const bool LOWERTRIANGULAR = true;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
+    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
+    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
     //{
     //  std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
     //  n = 1086;
@@ -465,7 +466,7 @@ int main( int argc, char *argv[] )
       K.readmtx<LOWERTRIANGULAR, false>( filename );
       //hmlp::Data<std::pair<T, std::size_t>> NN;
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
     {
       std::string filename = DATADIR + std::string( "msdoor.mtx" );
@@ -474,7 +475,7 @@ int main( int argc, char *argv[] )
       K.readmtx<LOWERTRIANGULAR, false>( filename );
       //hmlp::Data<std::pair<T, std::size_t>> NN;
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
     //{
     //  std::string filename = DATADIR + std::string( "thermal2.mtx" );
@@ -492,15 +493,15 @@ int main( int argc, char *argv[] )
 	const bool SYMMETRIC = false;
 	const bool LOWERTRIANGULAR = true;
 	const bool IJONLY = true;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
+    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
+    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
 	{
       std::string filename = DATADIR + std::string( "ca-AstroPh.mtx" );
       n = 18772;
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	}
 	{
       std::string filename = DATADIR + std::string( "email-Enron.mtx" );
@@ -508,7 +509,7 @@ int main( int argc, char *argv[] )
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	}
 	{
       std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
@@ -516,14 +517,14 @@ int main( int argc, char *argv[] )
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
 	}
   }
 
   if ( OOCTESTSUIT )
   {
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::OOC<T>, N_CHILDREN, T>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::OOC<T>, N_CHILDREN, T>;
+    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::OOC<T>, N_CHILDREN, T, CONE>;
+    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::OOC<T>, N_CHILDREN, T, CONE>;
     n = 4096;
     for ( size_t id = 1; id < 14; id ++ )
     {
@@ -533,15 +534,15 @@ int main( int argc, char *argv[] )
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
                                                 + std::string( ".dat" );
       hmlp::OOC<T> K( n, n, filename );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
   }
 
   if ( KERNELTESTSUIT )
   {
     const bool SYMMETRIC = true;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T>;
+    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
+    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
     {
       std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
       n = 100000;
@@ -552,7 +553,7 @@ int main( int argc, char *argv[] )
       hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
       K.read( n, d, filename );
       hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
   }
 

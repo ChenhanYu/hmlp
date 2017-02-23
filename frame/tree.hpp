@@ -1144,7 +1144,7 @@ class Tree
       //printf( "finish PostOrder\n" ); fflush( stdout );
 	};
 
-    template<bool SORTED, typename KNNTASK>
+    template<bool SORTED, bool CONE, typename KNNTASK>
     hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
     (
       std::size_t n_tree,
@@ -1166,8 +1166,15 @@ class Tree
       #pragma omp parallel for
       for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
       treelist.clear();
+/*
+      #pragma omp parallel for
+      for ( int t = 0; t < n_tree; t ++ )
+      {
+        TreePartition( gids, lids );
 
-      double flops= 0.0; 
+      }
+*/ 
+     double flops= 0.0; 
       double mops= 0.0;
       // This loop has to be sequential to prevent from race condiditon on NN.
       for ( int t = 0; t < n_tree; t ++ )      
