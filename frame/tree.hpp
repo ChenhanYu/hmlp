@@ -171,13 +171,43 @@ std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &
   return mean;
 }; // end Mean()
 
+template<typename T>
+std::vector<T> Mean( int d, int n, hmlp::Data<T> &X, std::vector<std::size_t> &lids )
+{
+  assert( lids.size() == n );
+  int n_split = omp_get_max_threads();
+  std::vector<T> mean( d, 0.0 );
+  std::vector<T> temp( d * n_split, 0.0 );
 
+  #pragma omp parallel for num_threads( n_split )
+  for ( int j = 0; j < n_split; j ++ )
+    for ( int i = j; i < n; i += n_split )
+      for ( int p = 0; p < d; p ++ )
+        temp[ j * d + p ] += X[ lids[ i ] * d + p ];
+
+  /** reduce all temporary buffers */
+  for ( int j = 0; j < n_split; j ++ )
+    for ( int p = 0; p < d; p ++ )
+      mean[ p ] += temp[ j * d + p ];
+
+  for ( int p = 0; p < d; p ++ ) mean[ p ] /= n;
+
+  return mean;
+}; // end Mean()
 
 
 /**
  *  @brief Compute the mean values. (alternative interface)
  *  
  */ 
+template<typename T>
+std::vector<T> Mean( int d, int n, hmlp::Data<T> &X )
+{
+  std::vector<std::size_t> lids( n );
+  for ( int i = 0; i < n; i ++ ) lids[ i ] = i;
+  return Mean( d, n, X, lids );
+}; // end Mean()
+
 template<typename T>
 std::vector<T> Mean( int d, int n, std::vector<T> &X )
 {

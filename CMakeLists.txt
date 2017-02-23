@@ -97,6 +97,7 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   list (APPEND CUDA_NVCC_FLAGS "-std=c++11 -O3")
   list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_35,code=sm_35)
   list (APPEND CUDA_NVCC_FLAGS -DHMLP_USE_CUDA)
+  set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DHMLP_USE_CUDA")
   set (CUDA_PROPAGATE_HOST_FLAGS "false")
   set (CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
 endif ()
@@ -281,6 +282,8 @@ target_link_libraries(test_skel.x hmlp)
 add_executable (test_spdaskit.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit.cpp)
 target_link_libraries(test_spdaskit.x hmlp)
 
+
+
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)
 # target_link_libraries(test_dgsks_list.x gsks)
 
@@ -294,6 +297,9 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   cuda_add_executable (test_strassen_gpu.x ${CMAKE_SOURCE_DIR}/test/test_strassen_gpu.cu)
   target_link_libraries(test_strassen_gpu.x hmlp)
   cuda_add_cublas_to_target(test_strassen_gpu.x)
+  # add_executable (test_spdaskit_gpu.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit_gpu.cu)
+  # target_link_libraries(test_spdaskit_gpu.x hmlp)
+  # cuda_add_cublas_to_target(test_spdaskit_gpu.x)
 endif ()
 
 

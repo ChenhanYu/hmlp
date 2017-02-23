@@ -28,7 +28,7 @@ export HMLP_USE_INTEL=true
 echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 
 ## GPU compiler options (if true, compile the gpu library as well)
-export HMLP_USE_CUDA=false
+export HMLP_USE_CUDA=true
 echo "HMLP_USE_CUDA = $HMLP_USE_CUDA"
 
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it)
@@ -45,7 +45,7 @@ export HMLP_USE_VML=true
 echo "HMLP_USE_VML = $HMLP_USE_VML"
 
 ## Compile with KNL -xMIC-AVX512
-export HMLP_MIC_AVX512=true
+export HMLP_MIC_AVX512=false
 
 ## Manually set the mkl path
 export HMLP_MKL_DIR=$TACC_MKL_DIR

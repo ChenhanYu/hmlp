@@ -14,6 +14,10 @@
 #include <tree.hpp>
 #include <spdaskit.hpp>
 
+#ifdef HMLP_USE_CUDA
+#include <hmlp_gpu.hpp>
+#endif
+
 #ifdef HMLP_MIC_AVX512
 /** this is for hbw_malloc() and hnw_free */
 #include <hbwmalloc.h>
@@ -359,7 +363,7 @@ int main( int argc, char *argv[] )
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
-  const bool GRAPHTESTSUIT = true;
+  const bool GRAPHTESTSUIT = false;
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 
@@ -408,6 +412,17 @@ int main( int argc, char *argv[] )
   //  hmlp::spdaskit::SPDMatrix<T> K;
   //  OpenMP45Site<TMATRIX, SPLITTER>( dummy2 );
   //}
+
+  auto gpu = hmlp::gpu::Nvidia( 0 );
+
+  hmlp::Data<T> tmp( 10, 10 );
+
+  /** test device_data() */
+  auto *ptr_d = tmp.device_data( &gpu );
+
+  /** */
+  tmp.prefetchh2d( &gpu );
+  tmp.waitprefetch( &gpu );
 
 
 

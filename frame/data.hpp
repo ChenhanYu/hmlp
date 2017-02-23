@@ -33,12 +33,12 @@
 #endif // ifdef HMLP}_MIC_AVX512
 
 #ifdef HMLP_USE_CUDA
+#include <hmlp_gpu.hpp>
 #include <thrust/tuple.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <thrust/system/cuda/experimental/pinned_allocator.h>
 #endif // ifdef HMLP_USE_CUDA
-
-
 
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
@@ -49,150 +49,23 @@
 
 namespace hmlp
 {
-/*
-#ifdef HMLP_USE_CUDA
-template<class T>
-class Data : public ReadWrite, public host_vector<T>
-{
-  publuc:
-
-    Data() : m( 0 ), n( 0 ) {};
-
-    Data( std::size_t m, std::size_t n ) : host_vector<T>( m * n )
-    { 
-      this->m = m;
-      this->n = n;
-    };
-
-    Data( std::size_t m, std::size_t n, T initT ) : host_vector<T>( m * n, initT )
-    { 
-      this->m = m;
-      this->n = n;
-    };
-
-    Data( std::size_t m, std::size_t n, std::string &filename ) : host_vector<T>( m * n )
-    {
-      this->m = m;
-      this->n = n;
-
-      std::cout << filename << std::endl;
-
-      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
-      if ( file.is_open() )
-      {
-        auto size = file.tellg();
-        assert( size == m * n * sizeof(T) );
-        file.seekg( 0, std::ios::beg );
-        file.read( (char*)this->data(), size );
-        file.close();
-      }
-    };
-
-    void resize( std::size_t m, std::size_t n )
-    { 
-      this->m = m;
-      this->n = n;
-      host_vector<T>::resize( m * n );
-    };
-
-    void resize( std::size_t m, std::size_t n, T initT )
-    {
-      this->m = m;
-      this->n = n;
-      host_vector<T>::resize( m * n, initT );
-    };
-
-    void reserve( std::size_t m, std::size_t n ) 
-    {
-      host_vector<T>::reserve( m * n );
-    };
-
-    void read( std::size_t m, std::size_t n, std::string &filename )
-    {
-      assert( this->m == m );
-      assert( this->n == n );
-      assert( this->size() == m * n );
-
-      std::cout << filename << std::endl;
-
-      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
-      if ( file.is_open() )
-      {
-        auto size = file.tellg();
-        assert( size == m * n * sizeof(T) );
-        file.seekg( 0, std::ios::beg );
-        file.read( (char*)this->data(), size );
-        file.close();
-      }
-    };
-
-    thrust::tuple<size_t, size_t> shape()
-    {
-      return thrust::make_tuple( m, n );
-    };
-
-    template<typename TINDEX>
-    __host__ inline T operator()( TINDEX i, TINDEX j )
-    {
-      return (*this)[ m * j + i ];
-    };
-
-    template<typename TINDEX>
-    __host__ inline hmlp::Data<T> operator()( host_vector<TINDEX> &imap, host_vector<TINDEX> &jmap )
-    {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-
-      for ( int j = 0; j < jmap.size(); j ++ )
-      {
-        for ( int i = 0; i < imap.size(); i ++ )
-        {
-          submatrix[ j * imap.size() + i ] = (*this)[ m * jmap[ j ] + imap[ i ] ];
-        }
-      }
-
-      return submatrix;
-    }; 
-
-    template<typename TINDEX>
-    inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
-    {
-      hmlp::Data<T> submatrix( m, jmap.size() );
-
-      for ( int j = 0; j < jmap.size(); j ++ )
-      {
-        for ( int i = 0; i < m; i ++ )
-        {
-          submatrix[ j * m + i ] = (*this)[ m * jmap[ j ] + i ];
-        }
-      }
-
-      return submatrix;
-    }; 
-
-
-
-  private:
-
-    std::size_t m;
-
-    std::size_t n;
-
-    std::map<hmlp::Device*, T*> distribution;
-
-}; // end class Data
-
-#else
-*/
 
 #ifdef HMLP_MIC_AVX512
 template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
 template<class T, class Allocator = std::allocator<T> >
 #endif
 class Data : public ReadWrite, public std::vector<T, Allocator>
+#ifdef HMLP_USE_CUDA
+/** inheritate the interface fot the host-device model. */
+, public hmlp::gpu::DeviceMemory<T>
+#endif
 {
   public:
 
+    /** the default constructor */
     Data() : m( 0 ), n( 0 ) {};
 
     Data( std::size_t m, std::size_t n ) : std::vector<T, Allocator>( m * n )
@@ -413,52 +286,22 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       hmlp::hmlp_printmatrix( m, n, this->data(), m );
     };
 
-
-    void prefetch( hmlp::Device *dev )
+#ifdef HMLP_USE_CUDA
+    void prefetchh2d( hmlp::Device *dev )
     {
-      if ( !distribution.count( dev ) )
-      {
-        auto it = device_map.find( dev );
-        if ( it != device_map.end() )
-        {
-          //dev->prefetch( data(), *it, m * n * sizeof(T) );
-        }
-        else
-        {
-          //T *device_ptr = dev->allocate( m * n * sizeof(T) );
-          //device_map[ dev ] = device_ptr; 
-          //dev->prefetch( data(), device_ptr, m * n * sizeof(T) );
-        }
-      }
-      else /** the device has the latest copy */
-      {
-        assert( device_map.find( dev ) != device_map.end() );
-      }
+      gpu::DeviceMemory<T>::prefetchh2d( dev, m * n, this->data() );
     };
 
-    void wait( hmlp::Device *dev )
+    void prefetchd2h( hmlp::Device *dev )
     {
-      //dev->wait();
+      gpu::DeviceMemory<T>::prefetchd2h( dev, m * n, this->data() );
     };
 
-    void fetch( hmlp::Device *dev )
+    void waitprefetch( hmlp::Device *dev )
     {
-      prefetch( dev );
-      wait( dev );
+      gpu::DeviceMemory<T>::wait( dev );
     };
-
-    T* device_data( hmlp::Device *dev )
-    {
-      auto it = device_map.find( dev );
-      if ( it != device_map.end() )
-      {
-        return *it;
-      }
-      else
-      {
-        printf( "no device pointer for the target device\n" );
-      }
-    };
+#endif
 
 
   private:
@@ -467,13 +310,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     std::size_t n;
 
-    /** map a device to its data pointer */
-    std::map<hmlp::Device*, T*> device_map;
-   
-    /** distribution */
-    std::set<hmlp::Device*> distribution;
-};
-//#endif // ifdef HMLP_USE_CUDA
+}; // end class Data
 
 
 #ifdef HMLP_MIC_AVX512

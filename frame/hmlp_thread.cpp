@@ -118,7 +118,22 @@ void thread_communicator::Print()
  *  @brief Device implementation
  */
 Device::Device()
-{};
+{
+  name = std::string( "Host CPU" );
+  devicetype = hmlp::DeviceType::HOST;
+};
+
+void Device::prefetchd2h( void *ptr_h, void *ptr_d, size_t size ) {};
+
+void Device::prefetchh2d( void *ptr_d, void *ptr_h, size_t size ) {};
+
+void Device::wait() {};
+
+void* Device::malloc( size_t size ) { return NULL; };
+
+void Device::free( void *ptr_d ) {};
+
+
 
 
 /**

@@ -12,6 +12,7 @@
 #include <hmlp_util.hpp>
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
+#include <data.hpp>
 
 //#define DEBUG_SKEL 1
 
@@ -159,7 +160,7 @@ template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T>
 void id
 (
   int m, int n, int maxs, T stol,
-  std::vector<T> A,
+  hmlp::Data<T> A,
   std::vector<size_t> &skels, hmlp::Data<T> &proj, std::vector<int> &jpvt
 )
 {
@@ -168,8 +169,8 @@ void id
   int lwork = 2 * n  + ( n + 1 ) * nb;
   std::vector<T> work( lwork );
   std::vector<T> tau( std::min( m, n ) );
-  std::vector<T> S, Z;
-  std::vector<T> A_tmp = A;
+  hmlp::Data<T> S, Z;
+  hmlp::Data<T> A_tmp = A;
 
   /** sample rows must be larger than columns */
   assert( m >= n );
@@ -255,7 +256,7 @@ void id
   }
   else /** in the old version we use xgels, which is expensive */
   {
-    Z.resize( m * skels.size() );
+    Z.resize( m, skels.size() );
  
     for ( int j = 0; j < skels.size(); j ++ )
     {

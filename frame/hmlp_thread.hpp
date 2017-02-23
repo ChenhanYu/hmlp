@@ -14,6 +14,7 @@ namespace hmlp
 
 typedef enum 
 {
+  HOST,
   NVIDIA_GPU,
   OTHER_GPU,
   TI_DSP
@@ -74,6 +75,16 @@ class Device
   public:
 
     Device();
+
+    virtual void prefetchd2h( void *ptr_h, void *ptr_d, size_t size );
+
+    virtual void prefetchh2d( void *ptr_d, void *ptr_h, size_t size );
+
+    virtual void wait();
+
+    virtual void* malloc( size_t size );
+
+    virtual void free( void *ptr_d );
 
     DeviceType devicetype;
 
