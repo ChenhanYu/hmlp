@@ -1,6 +1,7 @@
 #ifndef SPDASKIT_HPP
 #define SPDASKIT_HPP
 
+/** stl and omp */
 #include <set>
 #include <vector>
 #include <map>
@@ -17,6 +18,7 @@
 #include <stdio.h>
 #include <omp.h>
 
+/** hmlp */
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
 #include <hmlp_util.hpp>
@@ -26,6 +28,7 @@
 #include <skel.hpp>
 #include <data.hpp>
 
+/** gpu related */
 #ifdef HMLP_USE_CUDA
 #include <spdaskit_gpu.hpp>
 #endif
@@ -79,34 +82,32 @@ class Data
 {
   public:
 
-    Data() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 )
-	{
-	};
+    Data() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
 
     Lock lock;
 
-	/** whether the node can be compressed */
+    /** whether the node can be compressed */
     bool isskel = false;
 
-	/** whether the coefficient mathx has been computed */
-	bool hasproj = false;
+    /** whether the coefficient mathx has been computed */
+    bool hasproj = false;
 
-	/** my skeletons */
+    /** my skeletons */
     std::vector<size_t> skels;
-	  
-	/** (buffer) s-by-s upper trianguler for xtrsm( R11, proj ) */
-	//hmlp::Data<T> R11; 
+
+    /** (buffer) s-by-s upper trianguler for xtrsm( R11, proj ) */
+    //hmlp::Data<T> R11; 
 
     /** 2s, pivoting order of GEQP3 */
     std::vector<int> jpvt;
 
-	/** s-by-2s */
+    /** s-by-2s */
     hmlp::Data<T> proj;
 
-	/** sampling neighbors ids */
+    /** sampling neighbors ids */
     std::map<std::size_t, T> snids; 
 
-	/* pruning neighbors ids */
+    /* pruning neighbors ids */
     std::unordered_set<std::size_t> pnids; 
 
     /** skeleton weights */
@@ -118,14 +119,14 @@ class Data
     // Potential
     // T u;
 
-	/** Kij evaluation counter counters */
-	std::pair<double, std::size_t> kij_skel;
-	std::pair<double, std::size_t> kij_s2s;
-	std::pair<double, std::size_t> kij_s2n;
+    /** Kij evaluation counter counters */
+    std::pair<double, std::size_t> kij_skel;
+    std::pair<double, std::size_t> kij_s2s;
+    std::pair<double, std::size_t> kij_s2n;
 
-	/** many timers */
-	double merge_neighbors_time = 0.0;
-	double id_time = 0.0;
+    /** many timers */
+    double merge_neighbors_time = 0.0;
+    double id_time = 0.0;
 
     /** recorded events (for HMLP Runtime) */
     hmlp::Event skeletonize;
@@ -147,21 +148,7 @@ template<typename T>
 class SPDMatrix : public hmlp::Data<T>
 {
   public:
-
-    //template<typename TINDEX>
-    //std::vector<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
-    //{
-    //  std::vector<T> submatrix( imap.size() * jmap.size() );
-    //  for ( TINDEX j = 0; j < jmap.size(); j ++ )
-    //  {
-    //    for ( TINDEX i = 0; i < imap.size(); i ++ )
-    //    {
-    //      submatrix[ j * imap.size() + i ] = (*this)[ d * jmap[ j ] + imap[ i ] ];
-    //    }
-    //  }
-    //  return submatrix;
-    //}; 
-
+  private:
 }; // end class SPDMatrix
 
 
@@ -266,9 +253,9 @@ class Summary
         printf( "@SUMMARY\n" );
         printf( "rank:       " ); rank[ l ].Print();
         printf( "merge_neig: " ); merge_neighbors_time[ l ].Print();
-		printf( "kij_skel_n: " ); kij_skel[ l ].Print();
-		printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
-		printf( "id_t:       " ); id_time[ l ].Print();
+        printf( "kij_skel_n: " ); kij_skel[ l ].Print();
+        printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
+        printf( "id_t:       " ); id_time[ l ].Print();
         printf( "skel_t:     " ); skeletonize[ l ].Print();
         printf( "===\n" );
         printf( "n2s_t:      " ); updateweight[ l ].Print();
@@ -309,7 +296,7 @@ struct centersplit
   {
     assert( N_SPLIT == 2 );
 
-	double beg, d2c_time, d2f_time, projection_time, max_time;
+    double beg, d2c_time, d2f_time, projection_time, max_time;
 
     SPDMATRIX &K = *Kptr;
     size_t n = lids.size();
@@ -325,12 +312,12 @@ struct centersplit
       temp[ i ] = K( lids[ i ], lids[ i ] );
       for ( size_t j = 0; j < (size_t)std::log( n ); j ++ )
       {
-		std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
+        std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
         //temp[ i ] -= 2.0 * K( lids[ i ], lids[ sample ] );
-		temp[ i ] -= 2.0 * sample.first;
+        temp[ i ] -= 2.0 * sample.first;
       }
     }
-	d2c_time = omp_get_wtime() - beg;
+    d2c_time = omp_get_wtime() - beg;
 
     // Find the f2c (far most to center)
     auto itf2c = std::max_element( temp.begin(), temp.end() );
@@ -343,12 +330,12 @@ struct centersplit
     {
       temp[ i ] = K( lids[ i ], lids[ i ] ) - 2.0 * K( lids[ i ], lids[ idf2c ] );
     }
-	d2f_time = omp_get_wtime() - beg;
+    d2f_time = omp_get_wtime() - beg;
 
     // Find the f2f (far most to far most)
     beg = omp_get_wtime();
     auto itf2f = std::max_element( temp.begin(), temp.end() );
-	max_time = omp_get_wtime() - beg;
+    max_time = omp_get_wtime() - beg;
     size_t idf2f = std::distance( temp.begin(), itf2f );
 
 #ifdef DEBUG_SPDASKIT
@@ -362,17 +349,17 @@ struct centersplit
     {
       temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
     }
-	projection_time = omp_get_wtime() - beg;
+    projection_time = omp_get_wtime() - beg;
     //printf( "log(n) %lu d2c %5.3lfs d2f %5.3lfs proj %5.3lfs max %5.3lfs\n", 
-	//	(size_t)std::log( n ), d2c_time, d2f_time, projection_time, max_time );
+    //	(size_t)std::log( n ), d2c_time, d2f_time, projection_time, max_time );
 
-    // Parallel median search
+    /** parallel median search */
     T median = hmlp::tree::Select( n, n / 2, temp );
 
     split[ 0 ].reserve( n / 2 + 1 );
     split[ 1 ].reserve( n / 2 + 1 );
 
-    // TODO: Can be parallelized
+    /** TODO: Can be parallelized */
     for ( size_t i = 0; i < n; i ++ )
     {
       if ( temp[ i ] > median ) split[ 1 ].push_back( i );
@@ -448,23 +435,23 @@ struct randomsplit
     for ( size_t i = 0; i < n; i ++ )
     {
       if ( temp[ i ] > median ) rflag[ i ] = 1;
-	  else                      lflag[ i ] = 1;
+      else                      lflag[ i ] = 1;
     }
-  
-	hmlp::tree::Scan( lflag, pscan );
+
+    hmlp::tree::Scan( lflag, pscan );
     split[ 0 ].resize( pscan[ n ] );
     #pragma omp parallel for 
     for ( size_t i = 0; i < n; i ++ )
     {
-  	  if ( lflag[ i ] ) split[ 0 ][ pscan[ i + 1 ] - 1 ] = i;
+      if ( lflag[ i ] ) split[ 0 ][ pscan[ i + 1 ] - 1 ] = i;
     }
 
-	hmlp::tree::Scan( rflag, pscan );
+    hmlp::tree::Scan( rflag, pscan );
     split[ 1 ].resize( pscan[ n ] );
     #pragma omp parallel for 
     for ( size_t i = 0; i < n; i ++ )
     {
-	  if ( rflag[ i ] ) split[ 1 ][ pscan[ i + 1 ] - 1 ] = i;
+      if ( rflag[ i ] ) split[ 1 ][ pscan[ i + 1 ] - 1 ] = i;
     }
 
 
@@ -562,71 +549,71 @@ hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATR
   hmlp::Data<std::pair<T, std::size_t>> NN( k, n, initNN );
 
   printf( "SparsePattern k %lu n %lu, NN.row %lu NN.col %lu ...", 
-	  k, n, NN.row(), NN.col() ); fflush( stdout );
+      k, n, NN.row(), NN.col() ); fflush( stdout );
 
   #pragma omp parallel for schedule( dynamic )
   for ( size_t j = 0; j < n; j ++ )
   {
     std::set<size_t> NNset;
     size_t nnz = K.ColPtr( j + 1 ) - K.ColPtr( j );
-	if ( DOAPPROXIMATE && nnz > 2 * k ) nnz = 2 * k;
+    if ( DOAPPROXIMATE && nnz > 2 * k ) nnz = 2 * k;
 
     //printf( "j %lu nnz %lu\n", j, nnz );
 
-	for ( size_t i = 0; i < nnz; i ++ )
-	{
-	  // TODO: this is lid. Need to be gid.
-	  auto row_ind = K.RowInd( K.ColPtr( j ) + i );
-	  auto val     = K.Value( K.ColPtr( j ) + i );
+    for ( size_t i = 0; i < nnz; i ++ )
+    {
+      // TODO: this is lid. Need to be gid.
+      auto row_ind = K.RowInd( K.ColPtr( j ) + i );
+      auto val     = K.Value( K.ColPtr( j ) + i );
 
-	  if ( val ) val = 1.0 / std::abs( val );
-	  else       val = std::numeric_limits<T>::max() - 1.0;
+      if ( val ) val = 1.0 / std::abs( val );
+      else       val = std::numeric_limits<T>::max() - 1.0;
 
       NNset.insert( row_ind );
-	  std::pair<T, std::size_t> query( val, row_ind );
-	  if ( nnz < k ) // not enough candidates
-	  {
+      std::pair<T, std::size_t> query( val, row_ind );
+      if ( nnz < k ) // not enough candidates
+      {
         NN[ j * k + i  ] = query;
-	  }
-	  else
-	  {
+      }
+      else
+      {
         hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + j * NN.row() );
-	  }
-	}
+      }
+    }
 
-	while ( nnz < k )
-	{
+    while ( nnz < k )
+    {
       std::size_t row_ind = rand() % n;
       if ( !NNset.count( row_ind ) )
-	  {
-	    T val = std::numeric_limits<T>::max() - 1.0;
-	    std::pair<T, std::size_t> query( val, row_ind );
-		NNset.insert( row_ind );
+      {
+        T val = std::numeric_limits<T>::max() - 1.0;
+        std::pair<T, std::size_t> query( val, row_ind );
+        NNset.insert( row_ind );
         NN[ j * k + nnz ] = query;
-		nnz ++;
-	  }
-	}
+        nnz ++;
+      }
+    }
   }
   printf( "Done.\n" ); fflush( stdout );
 
   if ( SORTED )
   {
-	printf( "Sorting ... " ); fflush( stdout );
-	struct 
-	{
-	  bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
-	  {   
-		return a.first < b.first;
-	  }   
-	} ANNLess;
+    printf( "Sorting ... " ); fflush( stdout );
+    struct 
+    {
+      bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
+      {   
+        return a.first < b.first;
+      }   
+    } ANNLess;
 
     //printf( "SparsePattern k %lu n %lu, NN.row %lu NN.col %lu\n", k, n, NN.row(), NN.col() );
 
     #pragma omp parallel for
-	for ( size_t j = 0; j < NN.col(); j ++ )
-	{
-	  std::sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row(), ANNLess );
-	}
+    for ( size_t j = 0; j < NN.col(); j ++ )
+    {
+      std::sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row(), ANNLess );
+    }
     printf( "Done.\n" ); fflush( stdout );
   }
   
@@ -662,12 +649,14 @@ std::multimap<TB, TA> flip_map( const std::map<TA, TB> &src )
                  flip_pair<TA, TB> );
   return dst;
 }; // end flip_map()
+
 /*template<typename TA, typename TB>
 bool compare_pair ( std::pair<TA, TB> a , std::pair<TA, TB> b ) 
 {
   return (a.first < b.first); 
 }
 */
+
 /**
  *  @brief Building neighbors for each tree node.
  */ 
@@ -794,13 +783,13 @@ void Interpolate( NODE *node )
   /** proceed if the node can be compressed */
   if ( data.isskel )
   {
-	assert( s );
-	assert( s <= n );
-	assert( jpvt.size() == n );
+    assert( s );
+    assert( s <= n );
+    assert( jpvt.size() == n );
   }
   else
   {
-	return;
+    return;
   }
 
   /** early return if ( s == n ) */
@@ -823,10 +812,10 @@ void Interpolate( NODE *node )
 
   for ( int j = 0; j < s; j ++ )
   {
-	for ( int i = 0; i < s; i ++ )
-	{
-	  if ( i <= j ) R1[ j * s + i ] = proj[ j * s + i ];
-	}
+    for ( int i = 0; i < s; i ++ )
+    {
+      if ( i <= j ) R1[ j * s + i ] = proj[ j * s + i ];
+    }
   }
 
   /** copy proj to tmp */
@@ -878,7 +867,7 @@ class InterpolateTask : public hmlp::Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-	}
+    }
 
     void Execute( Worker* user_worker )
     {
@@ -1040,16 +1029,16 @@ void Skeletonize( NODE *node )
   /** depending on the flag, decide isskel or not */
   if ( LEVELRESTRICTION )
   {
-	assert( !skels.size() );
-	assert( !proj.size() );
-	assert( !jpvt.size() );
+    assert( !skels.size() );
+    assert( !proj.size() );
+    assert( !jpvt.size() );
     data.isskel = false;
   }
   else
   {
-	assert( skels.size() );
-	assert( proj.size() );
-	assert( jpvt.size() );
+    assert( skels.size() );
+    assert( proj.size() );
+    assert( jpvt.size() );
     data.isskel = true;
   }
   
@@ -1106,11 +1095,11 @@ class SkeletonizeTask : public hmlp::Task
 
       /** GEQP3 */
       flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
-      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+      mops  += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
 
       /* TRSM */
-	  flops += k * ( k - 1 ) * ( n + 1 );
-	  mops += 2.0 * ( k * k + k * n );
+      flops += k * ( k - 1 ) * ( n + 1 );
+      mops  += 2.0 * ( k * k + k * n );
 
       //flops += ( 2.0 / 3.0 ) * k * k * ( 3 * m - k );
       //mops += 2.0 * m * k;
@@ -1126,7 +1115,7 @@ class SkeletonizeTask : public hmlp::Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-      
+
       if ( !arg->isleaf )
       {
         arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
@@ -1136,12 +1125,13 @@ class SkeletonizeTask : public hmlp::Task
       {
         this->Enqueue();
       }
-	};
+    };
 
     void Execute( Worker* user_worker )
     {
       Skeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
     };
+
 }; // end class SkeletonizeTask
 
 
@@ -1274,7 +1264,7 @@ class UpdateWeightsTask : public hmlp::Task
       event.Set( label + name, flops, mops );
 
       /** assume computation bound */
-	  cost = flops / 1E+9;
+      cost = flops / 1E+9;
     };
 
     void GetEventRecord()
@@ -1358,12 +1348,12 @@ void SkeletonsToSkeletons( NODE *node )
     auto &bmap = (*it)->data.skels;
     auto &w_skel = (*it)->data.w_skel;
 
-	/** get submatrix Kad from K */
-	beg = omp_get_wtime();
+    /** get submatrix Kad from K */
+    beg = omp_get_wtime();
     auto Kab = K( amap, bmap );
-	kij_s2s_time = omp_get_wtime() - beg;
+    kij_s2s_time = omp_get_wtime() - beg;
 
-	/** update kij counter */
+    /** update kij counter */
     data.kij_s2s.first  += kij_s2s_time;
     data.kij_s2s.second += amap.size() * bmap.size();
 
@@ -1527,7 +1517,7 @@ void SkeletonsToNodes( NODE *node )
       auto Kab = K( amap, bmap );
       kij_s2n_time = omp_get_wtime() - beg;
 
-	  /** update kij counter */
+      /** update kij counter */
       data.kij_s2n.first  += kij_s2n_time;
       data.kij_s2n.second += amap.size() * bmap.size();
 
@@ -1871,18 +1861,18 @@ void NearNodes( TREE &tree )
       /** add myself to the list. */
       node->NNNearNodes.insert( node );
 
-	  /** TODO: have some consensus on the interaction list */
-	  if ( false )
-	  {
-		for ( auto it = node->data.snids.begin(); it != node->data.snids.end(); it ++ )
-		{
+      /** TODO: have some consensus on the interaction list */
+      if ( false )
+      {
+        for ( auto it = node->data.snids.begin(); it != node->data.snids.end(); it ++ )
+        {
           size_t neighbor_lid = tree.Getlid( (*it).second );
           size_t neighbor_morton = setup.morton[ neighbor_lid ];
           node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
-		}
-	  }
-	  else
-	  {
+        }
+      }
+      else
+      {
         /** Traverse all points and their neighbors. NN is stored as k-by-N */
         for ( size_t j = 0; j < node->lids.size(); j ++ )
         {
@@ -1898,7 +1888,7 @@ void NearNodes( TREE &tree )
             node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
           }
         }
-	  }
+      }
     }
     else
     {
@@ -2120,8 +2110,8 @@ double DrawInteraction( TREE &tree )
               node->offset,      (*it)->offset,
               node->lids.size(), (*it)->lids.size() );
 
-		  /** accumulate exact evaluation */
-		  exact_ratio += node->lids.size() * (*it)->lids.size();
+          /** accumulate exact evaluation */
+          exact_ratio += node->lids.size() * (*it)->lids.size();
         }  
       }
       else

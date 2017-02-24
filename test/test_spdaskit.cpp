@@ -461,8 +461,8 @@ int main( int argc, char *argv[] )
 
   if ( SPARSETESTSUIT )
   {
-	const bool SYMMETRIC = false;
-	const bool LOWERTRIANGULAR = true;
+    const bool SYMMETRIC = false;
+    const bool LOWERTRIANGULAR = true;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T>;
     //{

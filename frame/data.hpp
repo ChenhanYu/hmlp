@@ -1,12 +1,14 @@
 #ifndef DATA_HPP
 #define DATA_HPP
 
-#include <sys/mman.h>
+/** mmap */
 #include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 
+/** stl */
 #include <assert.h>
 #include <typeinfo>
 #include <algorithm>
@@ -19,8 +21,8 @@
 #include <fstream>
 #include <random>
 
+/** hmlp */
 #include <hmlp.h>
-
 #include <hmlp_blas_lapack.h>
 #include <hmlp_util.hpp>
 #include <hmlp_thread.hpp>
@@ -32,6 +34,7 @@
 #include <hbw_allocator.h>
 #endif // ifdef HMLP}_MIC_AVX512
 
+/** gpu related */
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>
 #include <thrust/tuple.h>
@@ -40,12 +43,10 @@
 #include <thrust/system/cuda/experimental/pinned_allocator.h>
 #endif // ifdef HMLP_USE_CUDA
 
-#include <hmlp.h>
-#include <hmlp_blas_lapack.h>
-#include <hmlp_util.hpp>
-#include <hmlp_runtime.hpp>
-
+/** debug flag */
 #define DEBUG_DATA 1
+
+
 
 namespace hmlp
 {
@@ -313,7 +314,6 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       PrefetchD2H( dev );
       WaitPrefetch( dev );
     };
-
 #endif
 
 
@@ -406,37 +406,25 @@ class CSC : public ReadWrite
     }; 
 
     template<typename TINDEX>
-	std::size_t ColPtr( TINDEX j )
-	{
-	  return col_ptr[ j ];
-	}
+    std::size_t ColPtr( TINDEX j ) { return col_ptr[ j ]; };
 
     template<typename TINDEX>
-	std::size_t RowInd( TINDEX offset )
-	{
-	  return row_ind[ offset ];
-	};
+    std::size_t RowInd( TINDEX offset ) { return row_ind[ offset ]; };
 
     template<typename TINDEX>
-	T Value( TINDEX offset )
-	{
-	  return val[ offset ];
-	};
+    T Value( TINDEX offset ) { return val[ offset ]; };
 
-	template<typename TINDEX>
-	std::pair<T, TINDEX> ImportantSample( TINDEX j )
-	{
+    template<typename TINDEX>
+    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    {
       size_t offset = col_ptr[ j ] + rand() % ( col_ptr[ j + 1 ] - col_ptr[ j ] );
-	  std::pair<T, TINDEX> sample( val[ offset ], row_ind[ offset ] );
-	  return sample; 
-	};
+      std::pair<T, TINDEX> sample( val[ offset ], row_ind[ offset ] );
+      return sample; 
+    };
 
     void Print()
     {
-      for ( size_t j = 0; j < n; j ++ )
-      {
-        printf( "%8lu ", j );
-      }
+      for ( size_t j = 0; j < n; j ++ ) printf( "%8lu ", j );
       printf( "\n" );
       for ( size_t i = 0; i < m; i ++ )
       {
@@ -458,11 +446,11 @@ class CSC : public ReadWrite
     {
       size_t m_mtx, n_mtx, nnz_mtx;
 
-	  std::vector<std::deque<size_t>> full_row_ind( n );
-	  std::vector<std::deque<T>> full_val( n );
+      std::vector<std::deque<size_t>> full_row_ind( n );
+      std::vector<std::deque<T>> full_val( n );
 
       // Read all tuples.
-	  printf( "%s ", filename.data() ); fflush( stdout );
+      printf( "%s ", filename.data() ); fflush( stdout );
       std::ifstream file( filename.data() );
       std::string line;
       if ( file.is_open() )
@@ -487,96 +475,96 @@ class CSC : public ReadWrite
 
         while ( std::getline( file, line ) )
         {
-		  if ( nnz_count % ( nnz / 10 ) == 0 )
-		  {
-			printf( "%lu%% ", ( nnz_count * 100 ) / nnz ); fflush( stdout );
-		  }
+          if ( nnz_count % ( nnz / 10 ) == 0 )
+          {
+            printf( "%lu%% ", ( nnz_count * 100 ) / nnz ); fflush( stdout );
+          }
 
           std::istringstream iss( line );
 
-		  size_t i, j;
-		  T v;
+          size_t i, j;
+          T v;
 
-		  if ( IJONLY )
-		  {
+          if ( IJONLY )
+          {
             if ( !( iss >> i >> j ) )
             {
               printf( "line %lu has illegle format\n", nnz_count );
               break;
             }
-			v = 1;
-		  }
-		  else
-		  {
+            v = 1;
+          }
+          else
+          {
             if ( !( iss >> i >> j >> v ) )
             {
               printf( "line %lu has illegle format\n", nnz_count );
               break;
             }
-		  }
+          }
 
-		  if ( !ISZEROBASE )
-		  {
-			i -= 1;
-			j -= 1;
-		  }
+          if ( !ISZEROBASE )
+          {
+            i -= 1;
+            j -= 1;
+          }
 
-		  if ( v != 0.0 )
-		  {
+          if ( v != 0.0 )
+          {
             full_row_ind[ j ].push_back( i );
-	        full_val[ j ].push_back( v );
+            full_val[ j ].push_back( v );
 
-		    if ( !SYMMETRIC && LOWERTRIANGULAR && i > j  )
-		    {
-			  full_row_ind[ i ].push_back( j );
-			  full_val[ i ].push_back( v );
-		    }
-		  }
+            if ( !SYMMETRIC && LOWERTRIANGULAR && i > j  )
+            {
+              full_row_ind[ i ].push_back( j );
+              full_val[ i ].push_back( v );
+            }
+          }
           nnz_count ++;
         }
-		assert( nnz_count == nnz );
+        assert( nnz_count == nnz );
       }
-	  printf( "Done.\n" ); fflush( stdout );
+      printf( "Done.\n" ); fflush( stdout );
       // Close the file.
       file.close();
 
-	  //printf( "Here nnz %lu\n", nnz );
+      //printf( "Here nnz %lu\n", nnz );
 
-	  // Recount nnz for the full storage.
-	  size_t full_nnz = 0;
-	  for ( size_t j = 0; j < n; j ++ )
-	  {
-		col_ptr[ j ] = full_nnz;
-		full_nnz += full_row_ind[ j ].size();
-	  }
-	  nnz = full_nnz;
-	  col_ptr[ n ] = full_nnz;
-	  row_ind.resize( full_nnz );
-	  val.resize( full_nnz );
+      // Recount nnz for the full storage.
+      size_t full_nnz = 0;
+      for ( size_t j = 0; j < n; j ++ )
+      {
+        col_ptr[ j ] = full_nnz;
+        full_nnz += full_row_ind[ j ].size();
+      }
+      nnz = full_nnz;
+      col_ptr[ n ] = full_nnz;
+      row_ind.resize( full_nnz );
+      val.resize( full_nnz );
 
-	  //printf( "Here nnz %lu\n", nnz );
+      //printf( "Here nnz %lu\n", nnz );
 
       //full_nnz = 0;
       //for ( size_t j = 0; j < n; j ++ )
       //{
-	  //  for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
-	  //  {
+      //  for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
+      //  {
       //    row_ind[ full_nnz ] = full_row_ind[ j ][ i ];
       //    val[ full_nnz ] = full_val[ j ][ i ];
-	  //    full_nnz ++;
-	  //  }
+      //    full_nnz ++;
+      //  }
       //}
 
-	  //printf( "Close the file. Reformat.\n" );
+      //printf( "Close the file. Reformat.\n" );
 
       #pragma omp parallel for
       for ( size_t j = 0; j < n; j ++ )
       {
-		for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
-		{
+        for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
+        {
           row_ind[ col_ptr[ j ] + i ] = full_row_ind[ j ][ i ];
           val[ col_ptr[ j ] + i ] = full_val[ j ][ i ];
-		}
+        }
       }
 
       printf( "finish readmatrix %s\n", filename.data() ); fflush( stdout );
@@ -597,9 +585,11 @@ class CSC : public ReadWrite
 
     std::vector<T, Allocator> val;
 
-    std::vector<std::size_t, Allocator> row_ind;
+    //std::vector<std::size_t, Allocator> row_ind;
+    std::vector<std::size_t> row_ind;
    
-    std::vector<std::size_t, Allocator> col_ptr;
+    //std::vector<std::size_t, Allocator> col_ptr;
+    std::vector<std::size_t> col_ptr;
 
 }; // end class CSC
 
@@ -628,9 +618,14 @@ class OOC : public ReadWrite
       //  assert( size == m * n * sizeof(T) );
       //}
 
-	  fd = open( filename.data(), O_RDONLY, 0 );
-	  assert( fd != -1 );
-	  mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
+      fd = open( filename.data(), O_RDONLY, 0 );
+      assert( fd != -1 );
+#ifdef __APPLE__
+      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE, fd, 0 );
+#else /** assume linux */
+      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
+#endif
+
       assert( mmappedData != MAP_FAILED );
 
       std::cout << filename << std::endl;
@@ -639,11 +634,10 @@ class OOC : public ReadWrite
     ~OOC()
     {
       //if ( file.is_open() ) file.close();
-
-	  int rc = munmap( mmappedData, m * n * sizeof(T) );
+      /** unmap */
+      int rc = munmap( mmappedData, m * n * sizeof(T) );
       assert( rc == 0 );
-	  close( fd );
-
+      close( fd );
       printf( "finish readmatrix %s\n", filename.data() );
     };
 
@@ -662,7 +656,7 @@ class OOC : public ReadWrite
       //  }
       //}
 
-	  Kij = mmappedData[ j * m + i ];
+      Kij = mmappedData[ j * m + i ];
 
       return Kij;
     };
@@ -681,13 +675,13 @@ class OOC : public ReadWrite
       return submatrix;
     }; 
 
-	template<typename TINDEX>
-	std::pair<T, TINDEX> ImportantSample( TINDEX j )
-	{
-	  TINDEX i = std::rand() % m;
-	  std::pair<T, TINDEX> sample( (*this)( i, j ), i );
-	  return sample; 
-	};
+    template<typename TINDEX>
+    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    {
+      TINDEX i = std::rand() % m;
+      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+      return sample; 
+    };
 
     std::size_t row() { return m; };
 
@@ -734,10 +728,10 @@ class OOC : public ReadWrite
 
     std::ifstream file;
 
-	// Use mmp
-	T *mmappedData;
+    // Use mmp
+    T *mmappedData;
 
-	int fd;
+    int fd;
 
 }; // end class OOC
 
