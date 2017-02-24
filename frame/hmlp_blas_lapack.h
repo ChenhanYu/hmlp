@@ -164,6 +164,21 @@ void xgels
   double *work, int lwork 
 );
 
+double xdot
+(
+  int n,
+  double *dx, int incx,
+  double *dy, int incy
+);
+
+float xdot
+(
+  int n,
+  float *dx, int incx,
+  float *dy, int incy
+);
+
+
 #ifdef HMLP_USE_CUDA
 // cublasSgemm wrapper
 void xgemm
