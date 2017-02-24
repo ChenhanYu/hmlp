@@ -121,6 +121,8 @@ class Event
 
     double GetMops();
 
+    double GflopsPerSecond();
+
     void Normalize( double shift );
 
     void Terminate();

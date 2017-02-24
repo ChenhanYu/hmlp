@@ -28,7 +28,7 @@ export HMLP_USE_INTEL=true
 echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 
 ## GPU compiler options (if true, compile the gpu library as well)
-export HMLP_USE_CUDA=true
+export HMLP_USE_CUDA=false
 echo "HMLP_USE_CUDA = $HMLP_USE_CUDA"
 
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it)
@@ -53,8 +53,7 @@ export HMLP_MKL_DIR=$TACC_MKL_DIR
 # export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
-
-## Manually set the mkl path
+## Manually set the qsml path
 export HMLP_QSML_DIR=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
 
@@ -68,7 +67,7 @@ echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 # export KMP_AFFINITY=compact
 export OMP_NESTED=false
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=68
+export OMP_NUM_THREADS=20
 export KS_JC_NT=1
 export KS_IC_NT=20
 export KS_JR_NT=1

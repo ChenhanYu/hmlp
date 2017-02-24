@@ -2,9 +2,12 @@
 #define HMLP_GPU_HPP
 
 #include <cassert>
+#include <set>
+#include <map>
 
 /** CUDA header files */
 #include <cuda_runtime.h>
+#include <cublas_v2.h>
 #include <thrust/system/cuda/experimental/pinned_allocator.h>
 
 namespace hmlp
@@ -42,12 +45,24 @@ class Nvidia : public hmlp::Device
         {
           printf( "cudaStreamCreate(), fail on device %d\n", device_id );
         }
+        if ( cublasCreate( &handle ) )
+        {
+          printf( "cublasCreate(), fail on device %d\n", device_id );
+        }
+        if ( cublasSetStream( handle, stream[ 0 ] ) )
+        {
+          printf( "cublasSetStream(), fail on device %d\n", device_id );
+        }
         std::cout << name << std::endl;
       }
     };
 
     ~Nvidia()
     {
+      if ( cublasDestroy( handle ) )
+      {
+        printf( "cublasDestroy(), fail on device %d\n", device_id );
+      }
     };
 
 
@@ -57,7 +72,7 @@ class Nvidia : public hmlp::Device
       {
         exit( 1 );
       }
-      if ( cudaMemcpyAsync( ptr_h, ptr_d, size, cudaMemcpyDeviceToHost, stream[ 0 ] ) )
+      if ( cudaMemcpyAsync( ptr_h, ptr_d, size, cudaMemcpyDeviceToHost, stream[ 1 ] ) )
       {
         exit( 1 );
       }
@@ -67,26 +82,46 @@ class Nvidia : public hmlp::Device
     {
       if ( cudaSetDevice( device_id ) )
       {
+        printf( "cudaSetDevice(), fail to set device %d\n", device_id );
         exit( 1 );
       }
-      if ( cudaMemcpyAsync( ptr_d, ptr_h, size, cudaMemcpyHostToDevice, stream[ 0 ] ) )
+      //if ( cudaMemcpyAsync( ptr_d, ptr_h, size, cudaMemcpyHostToDevice, stream[ 1 ] ) )
+      if ( cudaMemcpy( ptr_d, ptr_h, size, cudaMemcpyHostToDevice ) )
       {
+        printf( "cudaMemcpyAsync(), %lu bytes fail to device %d\n", size, device_id );
         exit( 1 );
       }
     };
 
     void wait()
     {
+      if ( cudaSetDevice( device_id ) )
+      {
+        exit( 1 );
+      }
+      if ( cudaStreamSynchronize( stream[ 1 ] ) )
+      {
+        exit( 1 );
+      }
+    };
+
+    void waitexecute()
+    {
+      if ( cudaSetDevice( device_id ) )
+      {
+        exit( 1 );
+      }
       if ( cudaStreamSynchronize( stream[ 0 ] ) )
       {
         exit( 1 );
       }
     };
 
+
     template<typename T>
     T* malloc( size_t size )
     {
-      T *ptr_d;
+      T *ptr_d = NULL;
       if ( cudaSetDevice( device_id ) )
       {
         exit( 1 );
@@ -97,6 +132,20 @@ class Nvidia : public hmlp::Device
       }
       return ptr_d;
     };
+
+    template<typename T>
+    void malloc( T *ptr_d, size_t size )
+    {
+      if ( cudaSetDevice( device_id ) )
+      {
+        exit( 1 );
+      }
+      if ( cudaMalloc( (void**)&ptr_d, size ) )
+      {
+        exit( 1 );
+      }
+    };
+
 
     template<typename T>
     void free( T *ptr_d )
@@ -113,13 +162,21 @@ class Nvidia : public hmlp::Device
         }
       }
     };
-   
+  
+    cublasHandle_t &gethandle()
+    {
+      return handle;
+    };
+
   private:
 
     int device_id;
 
     /** use 2 device stream for asynchronous execution */
     cudaStream_t stream[ 2 ];
+
+    /** cublas handle */
+    cublasHandle_t handle;
 };
 
 /**
@@ -134,49 +191,67 @@ class DeviceMemory
     DeviceMemory() {};
 
     /** */
-    void prefetchh2d( hmlp::Device *dev, size_t size, T* ptr_h )
+    void PrefetchH2D( hmlp::Device *dev, size_t size, T* ptr_h )
     {
+      size *= sizeof(T);
+
       if ( !distribution.count( dev ) )
       {
-        auto it = device_map.find( dev );
-        if ( it == device_map.end() )
+        printf( "target device does not have the latest copy.\n" );
+        if ( !device_map.count( dev ) )
         {
-          T *ptr_d = reinterpret_cast<T*>( dev->malloc( size ) );
+          printf( "allocate %lu bytes on %s\n", size, dev->name.data() );
+          T *ptr_d;
+          
+          cudaMalloc( (void**)&ptr_d, size );
+          //dev->malloc( ptr_d, size );
+
           device_map[ dev ] = ptr_d; 
         }
+        printf( "memcpy H2D\n" );
         dev->prefetchh2d( device_map[ dev ], ptr_h, size );
+        /** TODO: maybe update the distribution here? */
+        printf( "redistribute\n" );
+        Redistribute<false>( dev );
       }
       else /** the device has the latest copy */
       {
         assert( device_map.find( dev ) != device_map.end() );
       }
-      /** TODO: maybe update the distribution here? */
     };
 
     /** if host does not have the latest copy */
-    void prefetchd2h( size_t size, T* ptr_h )
+    void PrefetchD2H( hmlp::Device *dev, size_t size, T* ptr_h )
     {
+      size *= sizeof(T);
+
       if ( !distribution.count( &host ) )
       {
-        /** loop over the distribution */
+        assert( device_map.count( dev ) );
+        dev->prefetchd2h( ptr_h, device_map[ dev ], size );
+        Redistribute<false>( &host );
       }
       else /** the host has the latest copy */
       {
-        assert( device_map.find( &host ) != device_map.end() );
+        assert( device_map.count( &host ) );
       }
     };
 
 
     /** */
-    void wait( hmlp::Device *dev )
+    void Wait( hmlp::Device *dev )
     {
+      printf( "wait %s\n", dev->name.data() );
       dev->wait();
     };
 
-    void fetch( hmlp::Device *dev )
+    /** */
+    template<bool OVERWRITE>
+    void Redistribute( hmlp::Device *dev )
     {
-      prefetch( dev );
-      wait( dev );
+      assert( dev );
+      if ( OVERWRITE ) distribution.clear();
+      distribution.insert( dev );
     };
 
     T* device_data( hmlp::Device *dev )

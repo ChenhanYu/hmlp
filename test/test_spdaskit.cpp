@@ -363,9 +363,9 @@ int main( int argc, char *argv[] )
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
-  const bool GRAPHTESTSUIT = false;
+  const bool GRAPHTESTSUIT = true;
   const bool OOCTESTSUIT = false;
-  const bool KERNELTESTSUIT = true;
+  const bool KERNELTESTSUIT = false;
 
   //std::string DATADIR( "/scratch/jlevitt/data/" );
   std::string DATADIR( "/work/02794/ych/data/" );
@@ -413,16 +413,16 @@ int main( int argc, char *argv[] )
   //  OpenMP45Site<TMATRIX, SPLITTER>( dummy2 );
   //}
 
-  auto gpu = hmlp::gpu::Nvidia( 0 );
-
-  hmlp::Data<T> tmp( 10, 10 );
-
-  /** test device_data() */
-  auto *ptr_d = tmp.device_data( &gpu );
-
-  /** */
-  tmp.prefetchh2d( &gpu );
-  tmp.waitprefetch( &gpu );
+//  auto gpu = hmlp::gpu::Nvidia( 0 );
+//
+//  hmlp::Data<T> tmp( 10, 10 );
+//
+//  /** test device_data() */
+//  auto *ptr_d = tmp.device_data( &gpu );
+//
+//  /** */
+//  tmp.PrefetchH2D( &gpu );
+//  tmp.WaitPrefetch( &gpu );
 
 
 

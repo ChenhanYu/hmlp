@@ -82,7 +82,9 @@ class Device
 
     virtual void wait();
 
-    virtual void* malloc( size_t size );
+    virtual void waitexecute();
+
+    virtual void malloc( void *ptr_d, size_t size );
 
     virtual void free( void *ptr_d );
 
@@ -105,6 +107,10 @@ class Worker
 	  //worker( int jc_nt, int pc_nt, int ic_nt, int jr_nt );
    
     Worker( thread_communicator *my_comm );
+
+    void SetDevice( class Device *device );
+
+    class Device *GetDevice();
 
     bool Execute( class Task *task );
 

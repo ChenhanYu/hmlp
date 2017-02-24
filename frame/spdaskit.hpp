@@ -26,8 +26,11 @@
 #include <skel.hpp>
 #include <data.hpp>
 
-//#define DEBUG_SPDASKIT 1
+#ifdef HMLP_USE_CUDA
+#include <spdaskit_gpu.hpp>
+#endif
 
+//#define DEBUG_SPDASKIT 1
 
 namespace hmlp
 {
@@ -130,6 +133,9 @@ class Data
     hmlp::Event skeltoskel;
     hmlp::Event skeltonode;
 
+    hmlp::Event s2s;
+    hmlp::Event s2n;
+
 }; // end class Data
 
 
@@ -182,7 +188,19 @@ class Summary
 
     std::deque<hmlp::Statistic> skeletonize;
 
+    /** n2s */
     std::deque<hmlp::Statistic> updateweight;
+
+    /** s2s */
+    std::deque<hmlp::Statistic> s2s_kij_t;
+    std::deque<hmlp::Statistic> s2s_t;
+    std::deque<hmlp::Statistic> s2s_gfp;
+
+    /** s2n */
+    std::deque<hmlp::Statistic> s2n_kij_t;
+    std::deque<hmlp::Statistic> s2n_t;
+    std::deque<hmlp::Statistic> s2n_gfp;
+
 
     void operator() ( NODE *node )
     {
@@ -195,6 +213,14 @@ class Summary
         id_time.push_back( hmlp::Statistic() );
         skeletonize.push_back( hmlp::Statistic() );
         updateweight.push_back( hmlp::Statistic() );
+        /** s2s */
+        s2s_kij_t.push_back( hmlp::Statistic() );
+        s2s_t.push_back( hmlp::Statistic() );
+        s2s_gfp.push_back( hmlp::Statistic() );
+        /** s2n */
+        s2n_kij_t.push_back( hmlp::Statistic() );
+        s2n_t.push_back( hmlp::Statistic() );
+        s2n_gfp.push_back( hmlp::Statistic() );
       }
 
       rank[ node->l ].Update( (double)node->data.skels.size() );
@@ -204,6 +230,14 @@ class Summary
       id_time[ node->l ].Update( node->data.id_time );
       skeletonize[ node->l ].Update( node->data.skeletonize.GetDuration() );
       updateweight[ node->l ].Update( node->data.updateweight.GetDuration() );
+
+      s2s_kij_t[ node->l ].Update( node->data.kij_s2s.first         );
+      s2s_t    [ node->l ].Update( node->data.s2s.GetDuration()     );
+      s2s_gfp  [ node->l ].Update( node->data.s2s.GflopsPerSecond() );
+
+      s2n_kij_t[ node->l ].Update( node->data.kij_s2n.first         );
+      s2n_t    [ node->l ].Update( node->data.s2s.GetDuration()     );
+      s2n_gfp  [ node->l ].Update( node->data.s2s.GflopsPerSecond() );
 
 #ifdef DUMP_ANALYSIS_DATA
       if ( node->parent )
@@ -236,6 +270,15 @@ class Summary
 		printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
 		printf( "id_t:       " ); id_time[ l ].Print();
         printf( "skel_t:     " ); skeletonize[ l ].Print();
+        printf( "===\n" );
+        printf( "n2s_t:      " ); updateweight[ l ].Print();
+        printf( "s2s_kij_t:  " ); s2s_kij_t[ l ].Print();
+        printf( "s2s_t:      " ); s2s_t[ l ].Print();
+        printf( "s2s_gfp:    " ); s2s_gfp[ l ].Print();
+        printf( "s2n_kij_t:  " ); s2n_kij_t[ l ].Print();
+        printf( "s2n_t:      " ); s2n_t[ l ].Print();
+        printf( "s2n_gfp:    " ); s2n_gfp[ l ].Print();
+        printf( "===\n" );
       }
     };
 
@@ -1128,7 +1171,6 @@ void UpdateWeights( NODE *node )
   auto *rchild = node->rchild;
 
 
-
   // w_skel is s-by-nrhs
   w_skel.clear();
   w_skel.resize( skels.size(), w.row() );
@@ -1195,16 +1237,16 @@ class UpdateWeightsTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
       name = std::string( "n2s" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-      // Need an accurate cost model.
-      cost = 1.0;
+      {
+        //label = std::to_string( arg->treelist_id );
+        std::ostringstream ss;
+        ss << arg->treelist_id;
+        label = ss.str();
+      }
 
-      //--------------------------------------
+      /** compute flops and mops */
       double flops, mops;
       auto &lids = arg->lids;
       auto &skels = arg->data.skels;
@@ -1225,10 +1267,13 @@ class UpdateWeightsTask : public hmlp::Task
         auto n = w.row();
         auto k = lskels.size() + rskels.size();
         flops = 2.0 * m * n * k;
-        mops = 2.0 * ( m * n + m * k + k * n );
+        mops  = 2.0 * ( m * n + m * k + k * n );
       }
+
+      /** setup the event */
       event.Set( label + name, flops, mops );
-      //--------------------------------------
+
+      /** assume computation bound */
 	  cost = flops / 1E+9;
     };
 
@@ -1263,8 +1308,16 @@ class UpdateWeightsTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+#ifdef HMLP_USE_CUDA 
+      hmlp::Device *device = NULL;
+      if ( user_worker ) device = user_worker->GetDevice();
+      if ( device ) gpu::UpdateWeights( device, arg );
+      else               UpdateWeights( arg );
+#else
       UpdateWeights( arg );
+#endif
     };
+
 }; // end class SetWeights
 
 
@@ -1350,16 +1403,20 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
       name = std::string( "s2s" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
+      {
+        //label = std::to_string( arg->treelist_id );
+        std::ostringstream ss;
+        ss << arg->treelist_id;
+        label = ss.str();
+      }
 
-      //--------------------------------------
+      /** compute flops and mops */
       double flops = 0.0, mops = 0.0;
+      auto &w = *arg->setup->w;
       size_t m = arg->data.skels.size();
+      size_t n = w.row();
 
       std::set<NODE*> *FarNodes;
       if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
@@ -1367,39 +1424,22 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
       for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
       {
-        size_t n = (*it)->data.w_skel.col();
-        size_t k = (*it)->data.w_skel.row();
+        size_t k = (*it)->data.skels.size();
         flops += 2.0 * m * n * k;
-        mops += m * k; // cost of Kab
-        mops += 2.0 * ( m * n + n * k + k * n );
+        mops  += m * k; // cost of Kab
+        mops  += 2.0 * ( m * n + n * k + k * n );
       }
+
+      /** setup the event */
       event.Set( label + name, flops, mops );
 
-      // Need an accurate cost model.
+      /** assume computation bound */
       cost = flops / 1E+9;
     };
 
     void GetEventRecord()
     {
-      //arg->data.updateweight = event;
-
-      //--------------------------------------
-      //double flops = 0.0, mops = 0.0;
-      //size_t m = arg->data.skels.size();
-
-      //std::set<NODE*> *FarNodes;
-      //if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
-      //else           FarNodes = &arg->FarNodes;
-
-      //for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
-      //{
-      //  size_t n = (*it)->data.w_skel.col();
-      //  size_t k = (*it)->data.w_skel.row();
-      //  flops += 2.0 * m * n * k;
-      //  mops += m * k; // cost of Kab
-      //  mops += 2.0 * ( m * n + n * k + k * n );
-      //}
-      //event.Set( flops, mops );
+      arg->data.s2s = event;
     };
 
     void DependencyAnalysis()
@@ -1440,12 +1480,14 @@ void SkeletonsToNodes( NODE *node )
   printf( "%lu Skel2Node u_skel.row() %lu\n", node->treelist_id, node->data.u_skel.row() ); fflush( stdout );
 #endif
 
-  // Gather shared data and create reference
+  double beg, kij_s2n_time = 0.0;
+
+  /** gather shared data and create reference */
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
   auto &u = *node->setup->u;
 
-  // Gather per node data and create reference
+  /** Gather per node data and create reference */
   auto &lids = node->lids;
   auto &data = node->data;
   auto &proj = data.proj;
@@ -1478,8 +1520,17 @@ void SkeletonsToNodes( NODE *node )
     {
       //printf( "%lu, ", (*it)->treelist_id );
       auto &bmap = (*it)->lids;
-      auto Kab = K( amap, bmap );
       auto wb = w( bmap );
+
+      /** evaluate the submatrix */
+      beg = omp_get_wtime();
+      auto Kab = K( amap, bmap );
+      kij_s2n_time = omp_get_wtime() - beg;
+
+	  /** update kij counter */
+      data.kij_s2n.first  += kij_s2n_time;
+      data.kij_s2n.second += amap.size() * bmap.size();
+
       xgemm
       (
         "N", "T",
@@ -1537,14 +1588,14 @@ class SkeletonsToNodesTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
       name = std::string( "s2n" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-      // Need an accurate cost model.
-      cost = 1.0;
+      {
+        //label = std::to_string( arg->treelist_id );
+        std::ostringstream ss;
+        ss << arg->treelist_id;
+        label = ss.str();
+      }
 
       //--------------------------------------
       double flops = 0.0, mops = 0.0;
@@ -1553,17 +1604,19 @@ class SkeletonsToNodesTask : public hmlp::Task
       auto &proj = data.proj;
       auto &skels = data.skels;
       auto &w = *arg->setup->w;
+
       if ( arg->isleaf )
       {
         size_t m = proj.col();
         size_t n = w.row();
         size_t k = proj.row();
+
         std::set<NODE*> *NearNodes;
         if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
         else           NearNodes = &arg->NearNodes;
 
         flops += 2.0 * m * n * k;
-        mops += 2.0 * ( m * n + n * k + m * k );
+        mops  += 2.0 * ( m * n + n * k + m * k );
         for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
         {
           k = (*it)->lids.size();
@@ -1584,18 +1637,20 @@ class SkeletonsToNodesTask : public hmlp::Task
           size_t n = w.row();
           size_t k = proj.row();
           flops += 2.0 * m * n * k;
-          mops += 2.0 * ( m * n + n * k + m * k );
+          mops  += 2.0 * ( m * n + n * k + m * k );
         }
       }
+
+      /** setup the event */
       event.Set( label + name, flops, mops );
 
-      // Use flops as cost.
+      /** asuume computation bound */
       cost = flops / 1E+9;
     };
 
     void GetEventRecord()
     {
-      //arg->data.updateweight = event;
+      arg->data.s2n = event;
     };
 
     void DependencyAnalysis()
@@ -1621,43 +1676,9 @@ class SkeletonsToNodesTask : public hmlp::Task
     {
       SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
     };
+
 }; // end class SkeletonsToNodesTask
 
-
-//template<typename NODE, typename T>
-//void LeavesToLeaves( NODE *node )
-//{
-//  assert( node->isleaf );
-//
-//
-//}; // end void LeavesToLeaves()
-
-
-//template<bool NNPRUNE, typename NODE, typename T>
-//class LeavesToLeavesTask : public hmlp::Task
-//{
-//  public:
-//
-//    NODE *arg;
-//
-//    void Set( NODE *user_arg )
-//    {
-//      name = std::string( "LeavesToLeaves" );
-//      arg = user_arg;
-//      // Need an accurate cost model.
-//      cost = 1.0;
-//    };
-//
-//    void GetEventRecord()
-//    {
-//      //arg->data.updateweight = event;
-//    };
-//
-//    void Execute( Worker* user_worker )
-//    {
-//      LeavesToLeaves<NNPRUNE, NODE, T>( arg );
-//    };
-//}; // end class SkeletonsToNodesTask
 
 
 

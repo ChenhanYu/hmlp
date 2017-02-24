@@ -287,20 +287,33 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     };
 
 #ifdef HMLP_USE_CUDA
-    void prefetchh2d( hmlp::Device *dev )
+    void PrefetchH2D( hmlp::Device *dev )
     {
-      gpu::DeviceMemory<T>::prefetchh2d( dev, m * n, this->data() );
+      gpu::DeviceMemory<T>::PrefetchH2D( dev, m * n, this->data() );
     };
 
-    void prefetchd2h( hmlp::Device *dev )
+    void PrefetchD2H( hmlp::Device *dev )
     {
-      gpu::DeviceMemory<T>::prefetchd2h( dev, m * n, this->data() );
+      gpu::DeviceMemory<T>::PrefetchD2H( dev, m * n, this->data() );
     };
 
-    void waitprefetch( hmlp::Device *dev )
+    void WaitPrefetch( hmlp::Device *dev )
     {
-      gpu::DeviceMemory<T>::wait( dev );
+      gpu::DeviceMemory<T>::Wait( dev );
     };
+
+    void FetchH2D( hmlp::Device *dev )
+    {
+      PrefetchH2D( dev );
+      WaitPrefetch( dev );
+    };
+
+    void FetchD2H( hmlp::Device *dev )
+    {
+      PrefetchD2H( dev );
+      WaitPrefetch( dev );
+    };
+
 #endif
 
 
