@@ -752,6 +752,7 @@ class Kernel : public ReadWrite
       this->n = n;
       this->d = d;
       this->kernel = kernel;
+      this->flopcount = 0.0;
 
       if ( SYMMETRIC ) assert( m == n );
     };
@@ -788,22 +789,29 @@ class Kernel : public ReadWrite
     {
       T Kij = 0;
 
-      switch ( this->kernel.type )
+      switch ( kernel.type )
       {
         case KS_GAUSSIAN:
           {
-            for ( TINDEX k = 0; k < this->d; k++ )
+            for ( TINDEX k = 0; k < d; k++ )
             {
               if ( SYMMETRIC )
               {
-                Kij += sources[ i * this->d + k] * sources[ j * this->d + k ];
+                Kij += std::pow( sources[ i * d + k] - sources[ j * d + k ], 2 );
               }
               else
               {
-                Kij += targets[ i * this->d + k] * sources[ j * this->d + k ];
+                Kij += std::pow( targets[ i * d + k] - sources[ j * d + k ], 2 );
               }
             }
-            Kij = exp( this->kernel.scal * Kij );
+            Kij = exp( kernel.scal * Kij );
+            flopcount += 3 * d;
+            break;
+          }
+        default:
+          {
+            printf( "invalid kernel type\n" );
+            exit( 1 );
             break;
           }
       }
@@ -815,13 +823,80 @@ class Kernel : public ReadWrite
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-      for ( int j = 0; j < jmap.size(); j ++ )
+
+      // Get coordinates of sources and targets
+      std::vector<TINDEX> dmap( d );
+      std::iota( dmap.begin(), dmap.end(), TINDEX(0) );
+      hmlp::Data<T> itargets = SYMMETRIC ? sources( dmap, imap ) : targets( dmap, imap );
+      hmlp::Data<T> jsources = sources( dmap, jmap );
+
+      // Compute inner products
+      xgemm
+      (
+        "T", "N",
+        imap.size(), jmap.size(), d,
+        -2.0, itargets.data(), itargets.row(),
+              jsources.data(), jsources.row(),
+        0.0, submatrix.data(), submatrix.row()
+      );
+
+      // Compute square norms
+      std::vector<T> target_sqnorms( imap.size() );
+      std::vector<T> source_sqnorms( jmap.size() );
+      for ( TINDEX i = 0; i < imap.size(); i ++ )
       {
-        for ( int i = 0; i < imap.size(); i ++ )
+        target_sqnorms[ i ] = xdot
+                              (
+                                d,
+                                itargets.data(), 1,
+                                itargets.data(), 1
+                              );
+      }
+      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+      {
+        source_sqnorms[ j ] = xdot
+                              (
+                                d,
+                                jsources.data(), 1,
+                                jsources.data(), 1
+                              );
+      }
+
+      // Add square norms to inner products to get pairwise square distances
+      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+      {
+        for ( TINDEX i = 0; i < imap.size(); i ++ )
         {
-          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
+          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
         }
       }
+
+      switch ( kernel.type )
+      {
+        case KS_GAUSSIAN:
+          {
+            // Apply the scaling factor and exponentiate
+            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
+            {
+                submatrix[ i ] = exp( kernel.scal * submatrix[ i ] );
+            }
+
+            // gemm: 2 * i * j * d
+            // compute sqnorms: 2 * ( i + j ) * d
+            // add sqnorms: 2 * i * j
+            // scale and exponentiate: 2 * i * j
+            flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
+                       + 4 * imap.size() * jmap.size();
+            break;
+          }
+        default:
+          {
+            printf( "invalid kernel type\n" );
+            exit( 1 );
+            break;
+          }
+      }
+
       return submatrix;
     }; 
 
@@ -856,6 +931,8 @@ class Kernel : public ReadWrite
 
     std::size_t dim() { return d; };
 
+    double flops() { return flopcount; };
+
 
   private:
 
@@ -864,6 +941,8 @@ class Kernel : public ReadWrite
     std::size_t n;
 
     std::size_t d;
+
+    double flopcount;
 
     Data<T> sources;
 

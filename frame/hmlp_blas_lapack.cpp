@@ -106,6 +106,14 @@ extern "C"
       float *A, int *lda,
       float *B, int *ldb,
       float *work, int *lwork, int *info );
+  double ddot_(
+      int *n,
+      double *dx, int *incx,
+      double *dy, int *incy );
+  float sdot_(
+      int *n,
+      float *dx, int *incx,
+      float *dy, int *incy );
 };
 
 
@@ -705,6 +713,56 @@ void xgels
 #else
   printf( "xgels must enables USE_BLAS.\n" );
 #endif
+};
+
+
+/**
+ *  @brief DDOT wrapper
+ */ 
+double xdot
+(
+  int n,
+  double *dx, int incx,
+  double *dy, int incy
+)
+{
+  double ret_val;
+#ifdef USE_BLAS
+  ret_val =  ddot_
+             (
+               &n,
+               dx, &incx,
+               dy, &incy
+             );
+#else
+  printf( "xdot must enables USE_BLAS.\n" );
+#endif
+  return ret_val;
+};
+
+
+/**
+ *  @brief SDOT wrapper
+ */ 
+float xdot
+(
+  int n,
+  float *dx, int incx,
+  float *dy, int incy
+)
+{
+  float ret_val;
+#ifdef USE_BLAS
+  ret_val =  sdot_
+             (
+               &n,
+               dx, &incx,
+               dy, &incy
+             );
+#else
+  printf( "xdot must enables USE_BLAS.\n" );
+#endif
+  return ret_val;
 };
 
 

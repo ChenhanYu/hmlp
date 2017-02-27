@@ -444,7 +444,6 @@ int main( int argc, char *argv[] )
   {
     n = 4096;
     hmlp::spdaskit::SPDMatrix<T> K;
-    hmlp::Data<std::pair<T, std::size_t>> NN;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T>;
     K.resize( n, n );
@@ -455,6 +454,7 @@ int main( int argc, char *argv[] )
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
                                                 + std::string( ".dat" );
       K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
   }
