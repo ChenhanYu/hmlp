@@ -311,12 +311,13 @@ struct centersplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
+      size_t n_samples = std::log( n );
       temp[ i ] = K( lids[ i ], lids[ i ] );
-      for ( size_t j = 0; j < (size_t)std::log( n ); j ++ )
+      for ( size_t j = 0; j < n_samples; j ++ )
       {
         std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
         //temp[ i ] -= 2.0 * K( lids[ i ], lids[ sample ] );
-        temp[ i ] -= 2.0 * sample.first;
+        temp[ i ] -= 2.0 / n_samples * sample.first;
       }
     }
     d2c_time = omp_get_wtime() - beg;
@@ -1031,10 +1032,7 @@ void Skeletonize( NODE *node )
   /** depending on the flag, decide isskel or not */
   if ( LEVELRESTRICTION )
   {
-    assert( !skels.size() );
-    assert( !proj.size() );
-    assert( !jpvt.size() );
-    data.isskel = false;
+    data.isskel = (skels.size() != 0);
   }
   else
   {
@@ -1104,8 +1102,8 @@ class SkeletonizeTask : public hmlp::Task
       size_t k = arg->data.proj.row();
 
       /** GEQP3 */
-      flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
-      mops  += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+      flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
 
       /* TRSM */
       flops += k * ( k - 1 ) * ( n + 1 );
@@ -1767,8 +1765,9 @@ void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
 
   assert( target->isleaf );
 
-  if ( node->isleaf ) // direct evaluation
+  if ( ( node == target ) || ( node->isleaf && !node->isskel ) )
   {
+    // direct evaluation
 #ifdef DEBUG_SPDASKIT
     printf( "level %lu direct evaluation\n", node->l );
 #endif
