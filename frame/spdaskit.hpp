@@ -116,8 +116,9 @@ class Data
     /** skeleton potentials */
     hmlp::Data<T> u_skel;
 
-    // Potential
-    // T u;
+    /** cached Kab */
+    hmlp::Data<T> NearKab;
+    hmlp::Data<T> FarKab;
 
     /** Kij evaluation counter counters */
     std::pair<double, std::size_t> kij_skel;
@@ -250,6 +251,7 @@ class Summary
     {
       for ( size_t l = 1; l < rank.size(); l ++ )
       {
+        printf( "===\n" );
         printf( "@SUMMARY\n" );
         printf( "rank:       " ); rank[ l ].Print();
         printf( "merge_neig: " ); merge_neighbors_time[ l ].Print();
@@ -257,12 +259,12 @@ class Summary
         printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
         printf( "id_t:       " ); id_time[ l ].Print();
         printf( "skel_t:     " ); skeletonize[ l ].Print();
-        printf( "===\n" );
+        printf( "... ... ...\n" );
         printf( "n2s_t:      " ); updateweight[ l ].Print();
-        printf( "s2s_kij_t:  " ); s2s_kij_t[ l ].Print();
+        //printf( "s2s_kij_t:  " ); s2s_kij_t[ l ].Print();
         printf( "s2s_t:      " ); s2s_t[ l ].Print();
         printf( "s2s_gfp:    " ); s2s_gfp[ l ].Print();
-        printf( "s2n_kij_t:  " ); s2n_kij_t[ l ].Print();
+        //printf( "s2n_kij_t:  " ); s2n_kij_t[ l ].Print();
         printf( "s2n_t:      " ); s2n_t[ l ].Print();
         printf( "s2n_gfp:    " ); s2n_gfp[ l ].Print();
         printf( "===\n" );
@@ -1051,6 +1053,14 @@ void Skeletonize( NODE *node )
   /** separate interpolation of proj */
   //Interpolate<NODE, T>( node );
 
+
+  /** if is skeletonized, reserve space for w_skel and u_skel */
+  if ( data.isskel )
+  {
+    data.w_skel.reserve( skels.size(), 1024 );
+    data.u_skel.reserve( skels.size(), 1024 );
+  }
+
   /** update Pruning neighbor list, TODO: not sure what is this  */
   data.pnids.clear();
   for ( int ii = 0 ; ii < skels.size() ; ii ++ )
@@ -1161,8 +1171,8 @@ void UpdateWeights( NODE *node )
   auto *rchild = node->rchild;
 
 
-  // w_skel is s-by-nrhs
-  w_skel.clear();
+  /** w_skel is s-by-nrhs, initial values are not important */
+  //w_skel.clear();
   w_skel.resize( skels.size(), w.row() );
 
 
@@ -1170,7 +1180,9 @@ void UpdateWeights( NODE *node )
 
   if ( node->isleaf )
   {
+    double beg = omp_get_wtime();
     auto w_leaf = w( node->lids );
+    double w_leaf_time = omp_get_wtime() - beg;
 
 #ifdef DEBUG_SPDASKIT
     printf( "m %lu n %lu k %lu\n", 
@@ -1187,6 +1199,10 @@ void UpdateWeights( NODE *node )
            w_leaf.data(), w_leaf.row(),
       0.0, w_skel.data(), w_skel.row()
     );
+    double update_leaf_time = omp_get_wtime() - beg;
+    //printf( "m %lu n %lu k %lu, w_leaf %.3E total %.3E\n", 
+    //  w_skel.row(), w_skel.col(), w_leaf.col(),
+    //  w_leaf_time, update_leaf_time );
   }
   else
   {
@@ -1327,7 +1343,7 @@ void SkeletonsToSkeletons( NODE *node )
 
   if ( !node->parent || !node->data.isskel ) return;
 
-  double beg, kij_s2s_time = 0.0;
+  double beg, kij_s2s_time = 0.0, u_skel_time, s2s_time;
 
   std::set<NODE*> *FarNodes;
   if ( NNPRUNE ) FarNodes = &node->NNFarNodes;
@@ -1337,39 +1353,63 @@ void SkeletonsToSkeletons( NODE *node )
   auto &data = node->data;
   auto &amap = node->data.skels;
   auto &u_skel = node->data.u_skel;
+  auto &FarKab = node->data.FarKab;
 
-  // Initilize u_skel to be zeros( s, nrhs ).
+  /** initilize u_skel to be zeros( s, nrhs ). */
+  beg = omp_get_wtime();
   u_skel.clear();
   u_skel.resize( amap.size(), node->setup->w->row(), 0.0 );
+  u_skel_time = omp_get_wtime() - beg;
 
-  // Reduce all u_skel.
+  size_t offset = 0;
+
+  /** reduce all u_skel */
   for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
   {
     auto &bmap = (*it)->data.skels;
     auto &w_skel = (*it)->data.w_skel;
-
-    /** get submatrix Kad from K */
-    beg = omp_get_wtime();
-    auto Kab = K( amap, bmap );
-    kij_s2s_time = omp_get_wtime() - beg;
-
-    /** update kij counter */
-    data.kij_s2s.first  += kij_s2s_time;
-    data.kij_s2s.second += amap.size() * bmap.size();
-
-    //printf( "%lu (%lu, %lu), ", (*it)->treelist_id, w_skel.row(), w_skel.num() );
-    //fflush( stdout );
     assert( w_skel.col() == u_skel.col() );
-    xgemm
-    (
-      "N", "N",
-      u_skel.row(), u_skel.col(), Kab.col(),
-      1.0, Kab.data(),    Kab.row(),
-           w_skel.data(), w_skel.row(),
-      1.0, u_skel.data(), u_skel.row()
-    );
+
+    if ( FarKab.size() ) /** Kab is cached */
+    {
+      xgemm
+      (
+        "N", "N",
+        u_skel.row(), u_skel.col(), w_skel.row(),
+        1.0, FarKab.data() + offset, FarKab.row(),
+             w_skel.data(),          w_skel.row(),
+        1.0, u_skel.data(),          u_skel.row()
+      );
+      /** move to the next submatrix Kab */
+      offset += u_skel.row() * w_skel.row();
+    }
+    else
+    {
+      /** get submatrix Kad from K */
+      beg = omp_get_wtime();
+      auto Kab = K( amap, bmap );
+      kij_s2s_time = omp_get_wtime() - beg;
+
+      /** update kij counter */
+      data.kij_s2s.first  += kij_s2s_time;
+      data.kij_s2s.second += amap.size() * bmap.size();
+
+      //printf( "%lu (%lu, %lu), ", (*it)->treelist_id, w_skel.row(), w_skel.num() );
+      //fflush( stdout );
+      xgemm
+      (
+        "N", "N",
+        u_skel.row(), u_skel.col(), w_skel.row(),
+        1.0, Kab.data(),       Kab.row(),
+             w_skel.data(), w_skel.row(),
+        1.0, u_skel.data(), u_skel.row()
+      );
+    }
   }
-  //printf( "\n" );
+  s2s_time = omp_get_wtime() - beg;
+
+  //printf( "u_skel %.3E s2s %.3E\n", u_skel_time, s2s_time );
+
 }; // end void SkeletonsToSkeletons()
 
 
@@ -1470,7 +1510,7 @@ void SkeletonsToNodes( NODE *node )
   printf( "%lu Skel2Node u_skel.row() %lu\n", node->treelist_id, node->data.u_skel.row() ); fflush( stdout );
 #endif
 
-  double beg, kij_s2n_time = 0.0;
+  double beg, kij_s2n_time = 0.0, u_leaf_time, before_writeback_time, after_writeback_time;
 
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
@@ -1492,7 +1532,10 @@ void SkeletonsToNodes( NODE *node )
     if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
     else           NearNodes = &node->NearNodes;
     auto &amap = node->lids;
+    auto &NearKab = node->data.NearKab;
+    beg = omp_get_wtime();
     hmlp::Data<T> u_leaf( w.row(), lids.size(), 0.0 );
+    u_leaf_time = omp_get_wtime() - beg;
 
     if ( data.isskel )
     {
@@ -1506,31 +1549,59 @@ void SkeletonsToNodes( NODE *node )
       );
     }
 
-    for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+
+    if ( NearKab.size() ) /** Kab is cached */
     {
-      //printf( "%lu, ", (*it)->treelist_id );
-      auto &bmap = (*it)->lids;
+      std::vector<size_t> bmap;
+
+      for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+      {
+        bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
+      }
+
       auto wb = w( bmap );
 
-      /** evaluate the submatrix */
-      beg = omp_get_wtime();
-      auto Kab = K( amap, bmap );
-      kij_s2n_time = omp_get_wtime() - beg;
-
-      /** update kij counter */
-      data.kij_s2n.first  += kij_s2n_time;
-      data.kij_s2n.second += amap.size() * bmap.size();
-
+      /** ( Kab * wb' )' = wb * Kab' */
       xgemm
       (
         "N", "T",
         u_leaf.row(), u_leaf.col(), wb.col(),
-        1.0, wb.data(),     wb.row(),
-             Kab.data(),    Kab.row(),
-        1.0, u_leaf.data(), u_leaf.row()
+        1.0, wb.data(),           wb.row(),
+             NearKab.data(), NearKab.row(),
+        1.0, u_leaf.data(),   u_leaf.row()
       );
     }
+    else /** Kab is not cached */
+    {
+      for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+      {
+        //printf( "%lu, ", (*it)->treelist_id );
+        auto &bmap = (*it)->lids;
+        auto wb = w( bmap );
 
+        /** evaluate the submatrix */
+        beg = omp_get_wtime();
+        auto Kab = K( amap, bmap );
+        kij_s2n_time = omp_get_wtime() - beg;
+
+        /** update kij counter */
+        data.kij_s2n.first  += kij_s2n_time;
+        data.kij_s2n.second += amap.size() * bmap.size();
+
+        /** ( Kab * wb )' = wb' * Kab' */
+        xgemm
+          (
+           "N", "T",
+           u_leaf.row(), u_leaf.col(), wb.col(),
+           1.0, wb.data(),     wb.row(),
+           Kab.data(),    Kab.row(),
+           1.0, u_leaf.data(), u_leaf.row()
+          );
+      }
+    }
+    before_writeback_time = omp_get_wtime() - beg;
+
+    /** assemble u_leaf back to u */
     for ( size_t j = 0; j < amap.size(); j ++ )
     {
       for ( size_t i = 0; i < u.row(); i ++ )
@@ -1538,6 +1609,10 @@ void SkeletonsToNodes( NODE *node )
         u[ amap[ j ] * u.row() + i ] = u_leaf[ j * u.row() + i ];
       }
     }
+    after_writeback_time = omp_get_wtime() - beg;
+
+    //printf( "u_leaf %.3E before %.3E after %.3E\n",
+    //    u_leaf_time, before_writeback_time, after_writeback_time );
   }
   else
   {
@@ -2057,14 +2132,56 @@ void FarNodes( TREE &tree )
  *                          NearNodes and FarNodes.
  *        
  */ 
-template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
+template<bool SYMMETRIC, bool NNPRUNE, bool CACHE = true, typename TREE>
 void NearFarNodes( TREE &tree )
 {
   //printf( "Enter NearNodes\n" );
   NearNodes<SYMMETRIC, NNPRUNE>( tree );
   //printf( "Finish NearNodes\n" );
   FarNodes<SYMMETRIC, NNPRUNE>( tree );
-};
+
+  /** cache Kab by request */
+  if ( CACHE )
+  {
+    /** cache FarKab */
+    #pragma omp parallel for schedule( dynamic )
+    for ( size_t i = 0; i < tree.treelist.size(); i ++ )
+    {
+      auto *node = tree.treelist[ i ];
+      auto *FarNodes = &node->FarNodes;
+      if ( NNPRUNE ) FarNodes = &node->NNFarNodes;
+      auto &K = *node->setup->K;
+      auto &data = node->data;
+      auto &amap = data.skels;
+      std::vector<size_t> bmap;
+      for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+      {
+        bmap.insert( bmap.end(), (*it)->data.skels.begin(), 
+                                 (*it)->data.skels.end() );
+      }
+      data.FarKab = K( amap, bmap );
+    }
+
+    /** cache NearKab */
+    #pragma omp parallel for schedule( dynamic )
+    for ( size_t i = 0; i < tree.treelist.size(); i ++ )
+    {
+      auto *node = tree.treelist[ i ];
+      auto *NearNodes = &node->NearNodes;
+      if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
+      auto &K = *node->setup->K;
+      auto &data = node->data;
+      auto &amap = node->lids;
+      std::vector<size_t> bmap;
+      for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+      {
+        bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
+      }
+      data.NearKab = K( amap, bmap );
+    }
+  }
+
+}; // end void NearFarNodes()
 
 
 template<bool NNPRUNE, typename TREE>
@@ -2073,7 +2190,7 @@ double DrawInteraction( TREE &tree )
   double exact_ratio = 0.0;
   FILE * pFile;
   //int n;
-  char name [100];
+  char name[ 100 ];
 
   pFile = fopen ( "interaction.m", "w" );
 
@@ -2124,8 +2241,6 @@ double DrawInteraction( TREE &tree )
 
   return exact_ratio / ( tree.n * tree.n );
 }; // end DrawInteration()
-
-
 
 
 /**

@@ -672,7 +672,8 @@ void* Scheduler::EntryPoint( void* arg )
         /** only steal jobs within the numa node */
         int numa_beg = ( me->tid / 2 ) * ( scheduler->n_worker / 2 );
         int numa_end = numa_beg + ( scheduler->n_worker / 2 );
-        for ( int p = numa_beg; p < numa_end; p ++ )
+        //for ( int p = numa_beg; p < numa_end; p ++ )
+        for ( int p = 0; p < scheduler->n_worker; p ++ )
         {
           //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
           if ( scheduler->time_remaining[ p ] > max_remaining_time )

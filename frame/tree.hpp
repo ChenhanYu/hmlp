@@ -1031,37 +1031,50 @@ class Tree
 	        }
 	      }
 		}
-		if ( UNORDERED )
-		{
+        if ( UNORDERED )
+        {
           for ( int me = treelist.size(); me >= 1; me -- )
-	      {
-            #pragma omp task depend(inout:omptasklist[me])
-	        {
+          {
+            //#pragma omp task depend(inout:omptasklist[me])
+            //{
+            //  auto *node = treelist[ me - 1 ];
+            //  auto *task = new TASK2();
+            //  task->Set( node );
+            //  task->Execute( NULL );
+            //  delete task;
+            //}
+
+            #pragma omp task depend(out:omptasklist[me])
+            {
               auto *node = treelist[ me - 1 ];
-	      	auto *task = new TASK2();
-	      	task->Set( node );
-	      	task->Execute( NULL );
-	      	delete task;
-	        }
-	      }
-		}
-		if ( DOWNWARD )
-		{
+              #pragma omp task depend(in:omptasklist[me])
+              {
+              }
+              auto *task = new TASK2();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+            }
+
+          }
+        }
+        if ( DOWNWARD )
+        {
           for ( int me = 1; me <= treelist.size(); me ++ )
-	      {
-	        int parent = me / 2;
-            #pragma omp task depend(in:omptasklist[parent]) depend(out:omptasklist[me])
-	        {
+          {
+            int parent = me / 2;
+#pragma omp task depend(in:omptasklist[parent]) depend(out:omptasklist[me])
+            {
               auto *node = treelist[ me - 1 ];
-	    	  auto *task = new TASK3();
-	    	  task->Set( node );
-	    	  task->Execute( NULL );
-	    	  delete task;
-	        }
-	      }
-		}
-	  }
-	};
+              auto *task = new TASK3();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+            }
+          }
+        }
+      }
+    };
 
     template<class TASK>
     inline void OMPTraverseUp( TASK &dummy )

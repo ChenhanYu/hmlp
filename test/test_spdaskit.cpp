@@ -35,9 +35,9 @@
 using namespace hmlp::tree;
 
 //#define OMPCOMPARISON 0
-#define OMPLEVEL 1
-#define OMPRECTASK 1
-#define OMPDAGTASK 1
+#define OMPLEVEL 0
+#define OMPRECTASK 0
+#define OMPDAGTASK 0
 
 // By default, we use binary tree.
 #define N_CHILDREN 2
@@ -359,13 +359,13 @@ int main( int argc, char *argv[] )
 {
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
-  const bool RANDOMMATRIX = true;
+  const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
-  const bool GRAPHTESTSUIT = true;
+  const bool GRAPHTESTSUIT = false;
   const bool OOCTESTSUIT = false;
-  const bool KERNELTESTSUIT = false;
+  const bool KERNELTESTSUIT = true;
 
   //std::string DATADIR( "/scratch/jlevitt/data/" );
   std::string DATADIR( "/work/02794/ych/data/" );
