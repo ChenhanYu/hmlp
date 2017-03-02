@@ -1226,7 +1226,7 @@ class Tree
 	mops += std::log( gids.size() / setup.m ) * gids.size();
         
 	TreePartition( gids, lids );
-        TraverseLeafs<false>( dummy );
+        TraverseLeafs<false, false>( dummy );
         //printf("%f \n", dummy.event.GetFlops());
         flops += dummy.event.GetFlops();
         mops += dummy.event.GetMops();

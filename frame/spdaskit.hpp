@@ -1540,6 +1540,7 @@ void SkeletonsToNodes( NODE *node )
     else           NearNodes = &node->NearNodes;
     auto &amap = node->lids;
     auto &NearKab = node->data.NearKab;
+	auto &u_leaf = node->data.u_leaf;
     beg = omp_get_wtime();
     u_leaf.resize( w.row(), lids.size(), 0.0 );
     u_leaf_time = omp_get_wtime() - beg;
@@ -1761,6 +1762,8 @@ template<bool NNPRUNE, typename NODE, typename T>
 void LeavesToLeaves( NODE *node )
 {
   assert( node->isleaf );
+
+  double beg, kij_s2n_time = 0.0, u_leaf_time, before_writeback_time, after_writeback_time;
 
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
