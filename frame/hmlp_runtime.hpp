@@ -109,6 +109,8 @@ class Event
 
     void Set( std::string, double, double );
 
+    void AddFlopsMops( double, double );
+
     void Begin( size_t );
 
     double GetBegin();

@@ -1184,7 +1184,7 @@ class Tree
       //printf( "finish PostOrder\n" ); fflush( stdout );
 	};
 
-    template<bool SORTED, typename KNNTASK>
+    template<bool SORTED, bool CONE, typename KNNTASK>
     hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
     (
       std::size_t n_tree,
@@ -1206,15 +1206,32 @@ class Tree
       #pragma omp parallel for
       for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
       treelist.clear();
+/*
+      #pragma omp parallel for
+      for ( int t = 0; t < n_tree; t ++ )
+      {
+        TreePartition( gids, lids );
 
+      }
+*/ 
+     double flops= 0.0; 
+      double mops= 0.0;
       // This loop has to be sequential to prevent from race condiditon on NN.
       for ( int t = 0; t < n_tree; t ++ )      
       {
         //TreePartition( 2 * k, max_depth, gids, lids );
-        TreePartition( gids, lids );
-        TraverseLeafs<false>( dummy );
 
-        #pragma omp parallel for
+        //Flops/Mops for tree partitioning
+        flops += std::log( gids.size() / setup.m ) * gids.size();
+	mops += std::log( gids.size() / setup.m ) * gids.size();
+        
+	TreePartition( gids, lids );
+        TraverseLeafs<false>( dummy );
+        //printf("%f \n", dummy.event.GetFlops());
+        flops += dummy.event.GetFlops();
+        mops += dummy.event.GetMops();
+        
+	#pragma omp parallel for
         for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
         treelist.clear();
 #ifdef DEBUG_TREE
@@ -1237,6 +1254,10 @@ class Tree
           }   
         } ANNLess;
 
+	// Assuming O(N) sorting
+	flops += NN.col() * NN.row();
+	// Worst case (2* for swaps, 1* for loads)
+	mops += 3* NN.col() * NN.row() ;
 
         #pragma omp parallel for
         for ( size_t j = 0; j < NN.col(); j ++ )
@@ -1265,7 +1286,7 @@ class Tree
           }
         }
       }
-
+      printf("flops: %E, mops: %E \n", flops, mops);
       return NN;
     }; // end AllNearestNeighbor
 
@@ -1329,6 +1350,7 @@ class Tree
       std::vector<TASK*> tasklist;
       int n_nodes = 1 << depth;
       auto level_beg = treelist.begin() + n_nodes - 1;
+      dummy.event = Event();
 
       tasklist.resize( n_nodes );
 
@@ -1341,6 +1363,7 @@ class Tree
            auto *task = new TASK();
            task->Set( node );
            task->Execute( NULL );
+           dummy.event.AddFlopsMops( task->event.GetFlops(), task->event.GetMops());
            delete task;
          }
       }
@@ -1363,7 +1386,7 @@ class Tree
           {
             task->Enqueue();
           }
-          node->recent_task = task;
+          //node->recent_task = task;
         }
       }
     };
