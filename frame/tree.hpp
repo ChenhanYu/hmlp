@@ -1337,12 +1337,11 @@ class Tree
         }
       }
 
-    }; // end TraverseUnOrdered()
+    }; /** end TraverseUnOrdered() */
 
 
 
-
-    template<bool USE_RUNTIME, class TASK>
+    template<bool AUTO_DEPENDENCY, bool USE_RUNTIME, typename TASK>
     void TraverseLeafs( TASK &dummy )
     {
       assert( N_CHILDREN == 2 );
@@ -1373,23 +1372,23 @@ class Tree
         for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
           auto *node = *(level_beg + node_ind);
-          // Create tasks
           tasklist[ node->treelist_id ] = new TASK();
           auto *task = tasklist[ node->treelist_id ];
           task->Submit();
           task->Set( node );
+
           if ( node->kids[ 0 ] )
           {
             printf( "There should not be inner nodes in TraverseLeafs.\n" );
           }
           else
           {
-            task->Enqueue();
+            if ( AUTO_DEPENDENCY ) task->DependencyAnalysis();
+            else                   task->Enqueue();
           }
-          //node->recent_task = task;
         }
       }
-    };
+    }; /** end TraverseLeafs() */
 
 
     template<bool AUTO_DEPENDENCY, bool USE_RUNTIME, typename TASK>
@@ -1490,8 +1489,11 @@ class Tree
 #ifdef DEBUG_TREE
       printf( "end TraverseUp()\n" );
 #endif
-    }; // end TraverseUp()
+    }; /** end TraverseUp() */
 
+
+    /** 
+     */
     template<bool AUTO_DEPENDENCY, bool USE_RUNTIME, typename TASK>
     void TraverseDown( TASK &dummy )
     {
@@ -1578,7 +1580,7 @@ class Tree
           }
         }
       }
-    }; // end TraverseDown()
+    }; /** end TraverseDown() */
 
 
     /**

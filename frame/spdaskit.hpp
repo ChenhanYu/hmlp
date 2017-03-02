@@ -117,6 +117,9 @@ class Data
     /** skeleton potentials */
     hmlp::Data<T> u_skel;
 
+    /** permuted potentials (buffer) */
+    hmlp::Data<T> u_leaf;
+
     /** cached Kab */
     hmlp::Data<T> NearKab;
     hmlp::Data<T> FarKab;
@@ -1538,7 +1541,7 @@ void SkeletonsToNodes( NODE *node )
     auto &amap = node->lids;
     auto &NearKab = node->data.NearKab;
     beg = omp_get_wtime();
-    hmlp::Data<T> u_leaf( w.row(), lids.size(), 0.0 );
+    u_leaf.resize( w.row(), lids.size(), 0.0 );
     u_leaf_time = omp_get_wtime() - beg;
 
     if ( data.isskel )
@@ -1729,6 +1732,10 @@ class SkeletonsToNodesTask : public hmlp::Task
 #endif
       //if ( !arg->parent )  this->Enqueue();
 
+      /** TODO: may have multiple copies */
+      auto &u_leaf = arg->data.u_leaf;
+      u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+
       auto &u_skel = arg->data.u_skel;
       u_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
 
@@ -1750,6 +1757,134 @@ class SkeletonsToNodesTask : public hmlp::Task
 
 
 
+template<bool NNPRUNE, typename NODE, typename T>
+void LeavesToLeaves( NODE *node )
+{
+  assert( node->isleaf );
+
+  /** gather shared data and create reference */
+  auto &K = *node->setup->K;
+  auto &w = *node->setup->w;
+  auto &u = *node->setup->u;
+
+  auto &lids = node->lids;
+  auto &data = node->data;
+
+  std::set<NODE*> *NearNodes;
+  if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
+  else           NearNodes = &node->NearNodes;
+  auto &amap = node->lids;
+  auto &NearKab = data.NearKab;
+
+  /** TODO: here we may create up to 4 copies to increase parallelism */
+  auto &u_leaf = data.u_leaf;
+  u_leaf.clear();
+  u_leaf.resize( w.row(), lids.size(), 0.0 );
+
+
+  if ( NearKab.size() ) /** Kab is cached */
+  {
+    std::vector<size_t> bmap;
+
+    for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+    {
+      bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
+    }
+
+    auto wb = w( bmap );
+
+    /** ( Kab * wb' )' = wb * Kab' */
+    xgemm
+    (
+      "N", "T",
+      u_leaf.row(), u_leaf.col(), wb.col(),
+      1.0, wb.data(),           wb.row(),
+           NearKab.data(), NearKab.row(),
+      1.0, u_leaf.data(),   u_leaf.row()
+    );
+  }
+  else /** Kab is not cached */
+  {
+    for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+    {
+      //printf( "%lu, ", (*it)->treelist_id );
+      auto &bmap = (*it)->lids;
+      auto wb = w( bmap );
+
+      /** evaluate the submatrix */
+      beg = omp_get_wtime();
+      auto Kab = K( amap, bmap );
+      kij_s2n_time = omp_get_wtime() - beg;
+
+      /** update kij counter */
+      data.kij_s2n.first  += kij_s2n_time;
+      data.kij_s2n.second += amap.size() * bmap.size();
+
+      /** ( Kab * wb )' = wb' * Kab' */
+      xgemm
+      (
+       "N", "T",
+       u_leaf.row(), u_leaf.col(), wb.col(),
+       1.0,     wb.data(),     wb.row(),
+               Kab.data(),    Kab.row(),
+       1.0, u_leaf.data(), u_leaf.row()
+      );
+    }
+  }
+  before_writeback_time = omp_get_wtime() - beg;
+
+}; /** end LeavesToLeaves() */
+
+
+template<bool NNPRUNE, typename NODE, typename T>
+class LeavesToLeavesTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      arg = user_arg;
+      name = std::string( "s2n" );
+      {
+        //label = std::to_string( arg->treelist_id );
+        std::ostringstream ss;
+        ss << arg->treelist_id;
+        label = ss.str();
+      }
+
+      /** TODO: fill in flops and mops */
+      //--------------------------------------
+      double flops = 0.0, mops = 0.0;
+
+      /** setup the event */
+      event.Set( label + name, flops, mops );
+
+      /** asuume computation bound */
+      cost = flops / 1E+9;
+    };
+
+    void GetEventRecord()
+    {
+      /** create l2l event */
+      //arg->data.s2n = event;
+    };
+
+    void DependencyAnalysis()
+    {
+      /** TODO: may have multiple copies */
+      this->Enqueue();
+      auto &u_leaf = arg->data.u_leaf;
+      u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      LeavesToLeaves<NNPRUNE, NODE, T>( arg );
+    };
+
+}; /** end class LeavesToLeaves */
 
 
 template<typename NODE, typename T>
@@ -2425,23 +2560,28 @@ hmlp::Data<T> ComputeAll
 
   if ( SYMMETRIC_PRUNE )
   {
+    using LEAFTOLEAFTASK = LeavesToLeavesTask<NNPRUNE, NODE, T>;
     using NODETOSKELTASK = UpdateWeightsTask<NODE>;
     using SKELTOSKELTASK = SkeletonsToSkeletonsTask<NNPRUNE, NODE>;
     using SKELTONODETASK = SkeletonsToNodesTask<NNPRUNE, NODE, T>;
 
+    LEAFTOLEAFTASK leaftoleaftask;
     NODETOSKELTASK nodetoskeltask;
     SKELTOSKELTASK skeltoskeltask;
     SKELTONODETASK skeltonodetask;
 
     beg = omp_get_wtime();
-	if ( USE_OMP_TASK )
-	{
-	  assert( !USE_RUNTIME );
-	  tree.template UpDown<true, true, true>( nodetoskeltask, skeltoskeltask, skeltonodetask );
-	}
-	else
-	{
-	  assert( !USE_OMP_TASK );
+    if ( USE_OMP_TASK )
+    {
+      assert( !USE_RUNTIME );
+      /** TODO: traverse leaf here */
+      tree.template UpDown<true, true, true>( nodetoskeltask, skeltoskeltask, skeltonodetask );
+    }
+    else
+    {
+      assert( !USE_OMP_TASK );
+      /** TODO: traverse leaf here */
+
       tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
       //if ( USE_RUNTIME ) hmlp_run();
       //printf( "UpdateWeights\n" );
@@ -2449,9 +2589,9 @@ hmlp::Data<T> ComputeAll
       //if ( USE_RUNTIME ) hmlp_run();
       //printf( "Skel2Skel\n" );
       tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
-	  overhead_time = omp_get_wtime() - beg;
+      overhead_time = omp_get_wtime() - beg;
       if ( USE_RUNTIME ) hmlp_run();
-	}
+    }
     computeall_time = omp_get_wtime() - beg;
 
     printf( "ComputeAll %5.2lfs (overhead %5.2lfs)\n", computeall_time, overhead_time ); fflush( stdout );
