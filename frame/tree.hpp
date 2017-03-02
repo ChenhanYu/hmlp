@@ -1012,58 +1012,55 @@ class Tree
 	template<bool UPWARD = true, bool UNORDERED = true, bool DOWNWARD = true, class TASK1, class TASK2, class TASK3>
 	void UpDown( TASK1 &dummy1, TASK2 &dummy2, TASK3 &dummy3 )
 	{
-      #pragma omp parallel
-      #pragma omp single
-	  {
-		if ( UPWARD )
-		{
-          for ( int me = treelist.size(); me >= 1; me -- )
-	      {
-	        int lchild = me * 2;
-	        int rchild = lchild + 1;
-            #pragma omp task depend(in:omptasklist[lchild],omptasklist[rchild]) depend(out:omptasklist[me])
-	        {
-              auto *node = treelist[ me - 1 ];
-	      	auto *task = new TASK1();
-	      	task->Set( node );
-	      	task->Execute( NULL );
-	      	delete task;
-	        }
-	      }
-		}
-        if ( UNORDERED )
+      if ( UPWARD )
+      {
+        #pragma omp parallel
+        #pragma omp single
         {
           for ( int me = treelist.size(); me >= 1; me -- )
           {
-            //#pragma omp task depend(inout:omptasklist[me])
-            //{
-            //  auto *node = treelist[ me - 1 ];
-            //  auto *task = new TASK2();
-            //  task->Set( node );
-            //  task->Execute( NULL );
-            //  delete task;
-            //}
-
-            #pragma omp task depend(out:omptasklist[me])
+            int lchild = me * 2;
+            int rchild = lchild + 1;
+            #pragma omp task depend(in:omptasklist[lchild],omptasklist[rchild]) depend(out:omptasklist[me])
             {
               auto *node = treelist[ me - 1 ];
-              #pragma omp task depend(in:omptasklist[me])
-              {
-              }
+              auto *task = new TASK1();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+            }
+          }
+        } /** end pragma omp */
+      }
+
+      if ( UNORDERED )
+      {
+        #pragma omp parallel
+        #pragma omp single
+        {
+          for ( int me = treelist.size(); me >= 1; me -- )
+          {
+            #pragma omp task depend(inout:omptasklist[me])
+            {
+              auto *node = treelist[ me - 1 ];
               auto *task = new TASK2();
               task->Set( node );
               task->Execute( NULL );
               delete task;
             }
-
           }
-        }
-        if ( DOWNWARD )
+        } /** end pragma omp */
+      }
+
+      if ( DOWNWARD )
+      {
+        #pragma omp parallel
+        #pragma omp single
         {
           for ( int me = 1; me <= treelist.size(); me ++ )
           {
             int parent = me / 2;
-#pragma omp task depend(in:omptasklist[parent]) depend(out:omptasklist[me])
+            #pragma omp task depend(in:omptasklist[parent]) depend(out:omptasklist[me])
             {
               auto *node = treelist[ me - 1 ];
               auto *task = new TASK3();
@@ -1072,7 +1069,7 @@ class Tree
               delete task;
             }
           }
-        }
+        } /** end pragma omp */
       }
     };
 

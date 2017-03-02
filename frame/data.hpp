@@ -819,86 +819,108 @@ class Kernel : public ReadWrite
       return Kij;
     };
 
+
     template<typename TINDEX>
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-
-      // Get coordinates of sources and targets
-      std::vector<TINDEX> dmap( d );
-      std::iota( dmap.begin(), dmap.end(), TINDEX(0) );
-      hmlp::Data<T> itargets = SYMMETRIC ? sources( dmap, imap ) : targets( dmap, imap );
-      hmlp::Data<T> jsources = sources( dmap, jmap );
-
-      // Compute inner products
-      xgemm
-      (
-        "T", "N",
-        imap.size(), jmap.size(), d,
-        -2.0, itargets.data(), itargets.row(),
-              jsources.data(), jsources.row(),
-        0.0, submatrix.data(), submatrix.row()
-      );
-
-      // Compute square norms
-      std::vector<T> target_sqnorms( imap.size() );
-      std::vector<T> source_sqnorms( jmap.size() );
-      for ( TINDEX i = 0; i < imap.size(); i ++ )
+      for ( int j = 0; j < jmap.size(); j ++ )
       {
-        target_sqnorms[ i ] = xdot
-                              (
-                                d,
-                                itargets.data(), 1,
-                                itargets.data(), 1
-                              );
-      }
-      for ( TINDEX j = 0; j < jmap.size(); j ++ )
-      {
-        source_sqnorms[ j ] = xdot
-                              (
-                                d,
-                                jsources.data(), 1,
-                                jsources.data(), 1
-                              );
-      }
-
-      // Add square norms to inner products to get pairwise square distances
-      for ( TINDEX j = 0; j < jmap.size(); j ++ )
-      {
-        for ( TINDEX i = 0; i < imap.size(); i ++ )
+        for ( int i = 0; i < imap.size(); i ++ )
         {
-          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
+          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
         }
       }
-
-      switch ( kernel.type )
-      {
-        case KS_GAUSSIAN:
-          {
-            // Apply the scaling factor and exponentiate
-            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
-            {
-                submatrix[ i ] = exp( kernel.scal * submatrix[ i ] );
-            }
-
-            // gemm: 2 * i * j * d
-            // compute sqnorms: 2 * ( i + j ) * d
-            // add sqnorms: 2 * i * j
-            // scale and exponentiate: 2 * i * j
-            flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
-                       + 4 * imap.size() * jmap.size();
-            break;
-          }
-        default:
-          {
-            printf( "invalid kernel type\n" );
-            exit( 1 );
-            break;
-          }
-      }
-
       return submatrix;
-    }; 
+    };
+
+
+//    template<typename TINDEX>
+//    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+//    {
+//      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+//
+//      // Get coordinates of sources and targets
+//      //std::vector<TINDEX> dmap( d );
+//      //std::iota( dmap.begin(), dmap.end(), TINDEX(0) );
+//      //hmlp::Data<T> itargets = SYMMETRIC ? sources( dmap, imap ) : targets( dmap, imap );
+//      //hmlp::Data<T> jsources = sources( dmap, jmap );
+//
+//      hmlp::Data<T> itargets = SYMMETRIC ? sources( imap ) : targets( imap );
+//      hmlp::Data<T> jsources = sources( jmap );
+//
+//      assert( itargets.col() == submatrix.row() );
+//      assert( itargets.col() == imap.size() );
+//
+//      // Compute inner products
+//      xgemm
+//      (
+//        "T", "N",
+//        imap.size(), jmap.size(), d,
+//        -2.0, itargets.data(),   itargets.row(),
+//              jsources.data(),   jsources.row(),
+//         0.0, submatrix.data(), submatrix.row()
+//      );
+//
+//      // Compute square norms
+//      std::vector<T> target_sqnorms( imap.size() );
+//      std::vector<T> source_sqnorms( jmap.size() );
+//      for ( TINDEX i = 0; i < imap.size(); i ++ )
+//      {
+//        target_sqnorms[ i ] = xdot
+//                              (
+//                                d,
+//                                itargets.data(), 1,
+//                                itargets.data(), 1
+//                              );
+//      }
+//      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+//      {
+//        source_sqnorms[ j ] = xdot
+//                              (
+//                                d,
+//                                jsources.data(), 1,
+//                                jsources.data(), 1
+//                              );
+//      }
+//
+//      // Add square norms to inner products to get pairwise square distances
+//      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+//      {
+//        for ( TINDEX i = 0; i < imap.size(); i ++ )
+//        {
+//          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
+//        }
+//      }
+//
+//      switch ( kernel.type )
+//      {
+//        case KS_GAUSSIAN:
+//          {
+//            // Apply the scaling factor and exponentiate
+//            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
+//            {
+//                submatrix[ i ] = exp( kernel.scal * submatrix[ i ] );
+//            }
+//
+//            // gemm: 2 * i * j * d
+//            // compute sqnorms: 2 * ( i + j ) * d
+//            // add sqnorms: 2 * i * j
+//            // scale and exponentiate: 2 * i * j
+//            flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
+//                       + 4 * imap.size() * jmap.size();
+//            break;
+//          }
+//        default:
+//          {
+//            printf( "invalid kernel type\n" );
+//            exit( 1 );
+//            break;
+//          }
+//      }
+//
+//      return submatrix;
+//    }; 
 
     template<typename TINDEX>
     std::pair<T, TINDEX> ImportantSample( TINDEX j )
