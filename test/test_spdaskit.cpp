@@ -374,7 +374,7 @@ int main( int argc, char *argv[] )
 
   size_t n, m, d, k, s, nrhs;
 
-  using T = float;
+  using T = double;
   //using SPLITTER = hmlp::spdaskit::centersplit<SPDMATRIX, N_CHILDREN, T>;
 
   sscanf( argv[ 1 ], "%lu", &n );
@@ -458,7 +458,6 @@ int main( int argc, char *argv[] )
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
                                                 + std::string( ".dat" );
       K.read( n, n, filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN;      
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
   }
