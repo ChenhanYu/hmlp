@@ -118,7 +118,24 @@ void thread_communicator::Print()
  *  @brief Device implementation
  */
 Device::Device()
-{};
+{
+  name = std::string( "Host CPU" );
+  devicetype = hmlp::DeviceType::HOST;
+};
+
+void Device::prefetchd2h( void *ptr_h, void *ptr_d, size_t size ) {};
+
+void Device::prefetchh2d( void *ptr_d, void *ptr_h, size_t size ) {};
+
+void Device::wait() {};
+
+void Device::waitexecute() {};
+
+void Device::malloc( void *ptr_d, size_t size ) {};
+
+void Device::free( void *ptr_d ) {};
+
+
 
 
 /**
@@ -167,6 +184,18 @@ Worker::Worker( thread_communicator *comm ) :
   //    tid, jc_id, pc_id, ic_id, jr_id, ic_jr );
 };
 
+
+void Worker::SetDevice( class Device *device )
+{
+  this->device = device;
+};
+
+class Device* Worker::GetDevice()
+{
+  return device;
+};
+
+
 /**
  *  @brief The work executes the task in the runtime system. I left some
  *         code commented out because there is no GPU support now.
@@ -211,7 +240,7 @@ bool Worker::Execute( Task *task )
  */ 
 void Worker::WaitExecute()
 {
-  // Synchroize device
+  if ( device ) device->waitexecute();
 };
 
 float Worker::EstimateCost( class Task * task )

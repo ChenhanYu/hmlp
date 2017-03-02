@@ -14,8 +14,15 @@
 #include <tree.hpp>
 #include <spdaskit.hpp>
 
+#ifdef HMLP_USE_CUDA
+#include <hmlp_gpu.hpp>
+#endif
+
 #ifdef HMLP_MIC_AVX512
+/** this is for hbw_malloc() and hnw_free */
 #include <hbwmalloc.h>
+/** we need hbw::allocator<T> to replace std::allocator<T> */
+#include <hbw_allocator.h>
 #endif
 
 #define GFLOPS 1073741824 
@@ -30,7 +37,7 @@ using namespace hmlp::tree;
 //#define OMPCOMPARISON 0
 #define OMPLEVEL 0
 #define OMPRECTASK 0
-#define OMPDAGTASK 1
+#define OMPDAGTASK 0
 
 // By default, we use binary tree.
 #define N_CHILDREN 2
@@ -355,12 +362,12 @@ int main( int argc, char *argv[] )
   const bool CONE = false;
   const bool LEVELRESTRICTION = false;
   const bool RANDOMMATRIX = false;
-  const bool USE_LOWRANK = false;
-  const bool DENSETESTSUIT = true;
+  const bool USE_LOWRANK = true;
+  const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
   const bool GRAPHTESTSUIT = false;
   const bool OOCTESTSUIT = false;
-  const bool KERNELTESTSUIT = false;
+  const bool KERNELTESTSUIT = true;
 
   //std::string DATADIR( "/scratch/jlevitt/data/" );
   std::string DATADIR( "/work/02794/ych/data/" );
@@ -408,6 +415,17 @@ int main( int argc, char *argv[] )
   //  OpenMP45Site<TMATRIX, SPLITTER>( dummy2 );
   //}
 
+//  auto gpu = hmlp::gpu::Nvidia( 0 );
+//
+//  hmlp::Data<T> tmp( 10, 10 );
+//
+//  /** test device_data() */
+//  auto *ptr_d = tmp.device_data( &gpu );
+//
+//  /** */
+//  tmp.PrefetchH2D( &gpu );
+//  tmp.WaitPrefetch( &gpu );
+
 
 
 
@@ -440,16 +458,18 @@ int main( int argc, char *argv[] )
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
                                                 + std::string( ".dat" );
       K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;      
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
   }
 
   if ( SPARSETESTSUIT )
   {
-	const bool SYMMETRIC = false;
-	const bool LOWERTRIANGULAR = true;
+	  const bool SYMMETRIC = false;
+	  const bool LOWERTRIANGULAR = true;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
+
     //{
     //  std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
     //  n = 1086;
@@ -490,35 +510,35 @@ int main( int argc, char *argv[] )
 
   if ( GRAPHTESTSUIT )
   {
-	const bool SYMMETRIC = false;
-	const bool LOWERTRIANGULAR = true;
-	const bool IJONLY = true;
+	  const bool SYMMETRIC = false;
+	  const bool LOWERTRIANGULAR = true;
+	  const bool IJONLY = true;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
-	{
+	  {
       std::string filename = DATADIR + std::string( "ca-AstroPh.mtx" );
       n = 18772;
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
-	}
-	{
+	  }
+	  {
       std::string filename = DATADIR + std::string( "email-Enron.mtx" );
       n = 36692;
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
-	}
-	{
+	  }
+	  {
       std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
       n = 1696415;
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
-	}
+	  }
   }
 
   if ( OOCTESTSUIT )
@@ -532,7 +552,7 @@ int main( int argc, char *argv[] )
       std::ostringstream id_stream;
       id_stream << id;
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
-                                                + std::string( ".dat" );
+        + std::string( ".dat" );
       hmlp::OOC<T> K( n, n, filename );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>( K, NN, n, m, k, s, nrhs );
     }
@@ -558,6 +578,6 @@ int main( int argc, char *argv[] )
   }
 
   hmlp_finalize();
- 
+
   return 0;
 };

@@ -1,15 +1,19 @@
 #ifndef DATA_HPP
 #define DATA_HPP
 
-#include <sys/mman.h>
+/** mmap */
 #include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 
+/** stl */
 #include <assert.h>
 #include <typeinfo>
 #include <algorithm>
+#include <set>
+#include <map>
 #include <vector>
 #include <deque>
 #include <map>
@@ -17,166 +21,52 @@
 #include <fstream>
 #include <random>
 
+/** hmlp */
 #include <hmlp.h>
-
 #include <hmlp_blas_lapack.h>
 #include <hmlp_util.hpp>
+#include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
+/** -lmemkind */
+#ifdef HMLP_MIC_AVX512
+#include <hbwmalloc.h>
+#include <hbw_allocator.h>
+#endif // ifdef HMLP}_MIC_AVX512
+
+/** gpu related */
 #ifdef HMLP_USE_CUDA
+#include <hmlp_gpu.hpp>
 #include <thrust/tuple.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <thrust/system/cuda/experimental/pinned_allocator.h>
 #endif // ifdef HMLP_USE_CUDA
 
-
-
-
+/** debug flag */
 #define DEBUG_DATA 1
+
+
 
 namespace hmlp
 {
-/*
-#ifdef HMLP_USE_CUDA
-template<class T>
-class Data : public ReadWrite, public host_vector<T>
-{
-  publuc:
 
-    Data() : m( 0 ), n( 0 ) {};
-
-    Data( std::size_t m, std::size_t n ) : host_vector<T>( m * n )
-    { 
-      this->m = m;
-      this->n = n;
-    };
-
-    Data( std::size_t m, std::size_t n, T initT ) : host_vector<T>( m * n, initT )
-    { 
-      this->m = m;
-      this->n = n;
-    };
-
-    Data( std::size_t m, std::size_t n, std::string &filename ) : host_vector<T>( m * n )
-    {
-      this->m = m;
-      this->n = n;
-
-      std::cout << filename << std::endl;
-
-      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
-      if ( file.is_open() )
-      {
-        auto size = file.tellg();
-        assert( size == m * n * sizeof(T) );
-        file.seekg( 0, std::ios::beg );
-        file.read( (char*)this->data(), size );
-        file.close();
-      }
-    };
-
-    void resize( std::size_t m, std::size_t n )
-    { 
-      this->m = m;
-      this->n = n;
-      host_vector<T>::resize( m * n );
-    };
-
-    void resize( std::size_t m, std::size_t n, T initT )
-    {
-      this->m = m;
-      this->n = n;
-      host_vector<T>::resize( m * n, initT );
-    };
-
-    void reserve( std::size_t m, std::size_t n ) 
-    {
-      host_vector<T>::reserve( m * n );
-    };
-
-    void read( std::size_t m, std::size_t n, std::string &filename )
-    {
-      assert( this->m == m );
-      assert( this->n == n );
-      assert( this->size() == m * n );
-
-      std::cout << filename << std::endl;
-
-      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
-      if ( file.is_open() )
-      {
-        auto size = file.tellg();
-        assert( size == m * n * sizeof(T) );
-        file.seekg( 0, std::ios::beg );
-        file.read( (char*)this->data(), size );
-        file.close();
-      }
-    };
-
-    thrust::tuple<size_t, size_t> shape()
-    {
-      return thrust::make_tuple( m, n );
-    };
-
-    template<typename TINDEX>
-    __host__ inline T operator()( TINDEX i, TINDEX j )
-    {
-      return (*this)[ m * j + i ];
-    };
-
-    template<typename TINDEX>
-    __host__ inline hmlp::Data<T> operator()( host_vector<TINDEX> &imap, host_vector<TINDEX> &jmap )
-    {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-
-      for ( int j = 0; j < jmap.size(); j ++ )
-      {
-        for ( int i = 0; i < imap.size(); i ++ )
-        {
-          submatrix[ j * imap.size() + i ] = (*this)[ m * jmap[ j ] + imap[ i ] ];
-        }
-      }
-
-      return submatrix;
-    }; 
-
-    template<typename TINDEX>
-    inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
-    {
-      hmlp::Data<T> submatrix( m, jmap.size() );
-
-      for ( int j = 0; j < jmap.size(); j ++ )
-      {
-        for ( int i = 0; i < m; i ++ )
-        {
-          submatrix[ j * m + i ] = (*this)[ m * jmap[ j ] + i ];
-        }
-      }
-
-      return submatrix;
-    }; 
-
-
-
-  private:
-
-    std::size_t m;
-
-    std::size_t n;
-
-    std::map<hmlp::Device*, T*> distribution;
-
-}; // end class Data
-
+#ifdef HMLP_MIC_AVX512
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
-*/
-
-
 template<class T, class Allocator = std::allocator<T> >
+#endif
 class Data : public ReadWrite, public std::vector<T, Allocator>
+#ifdef HMLP_USE_CUDA
+/** inheritate the interface fot the host-device model. */
+, public hmlp::gpu::DeviceMemory<T>
+#endif
 {
   public:
 
+    /** the default constructor */
     Data() : m( 0 ), n( 0 ) {};
 
     Data( std::size_t m, std::size_t n ) : std::vector<T, Allocator>( m * n )
@@ -397,17 +287,50 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       hmlp::hmlp_printmatrix( m, n, this->data(), m );
     };
 
+#ifdef HMLP_USE_CUDA
+    void PrefetchH2D( hmlp::Device *dev )
+    {
+      gpu::DeviceMemory<T>::PrefetchH2D( dev, m * n, this->data() );
+    };
+
+    void PrefetchD2H( hmlp::Device *dev )
+    {
+      gpu::DeviceMemory<T>::PrefetchD2H( dev, m * n, this->data() );
+    };
+
+    void WaitPrefetch( hmlp::Device *dev )
+    {
+      gpu::DeviceMemory<T>::Wait( dev );
+    };
+
+    void FetchH2D( hmlp::Device *dev )
+    {
+      PrefetchH2D( dev );
+      WaitPrefetch( dev );
+    };
+
+    void FetchD2H( hmlp::Device *dev )
+    {
+      PrefetchD2H( dev );
+      WaitPrefetch( dev );
+    };
+#endif
+
+
   private:
 
     std::size_t m;
 
     std::size_t n;
 
-};
-//#endif // ifdef HMLP_USE_CUDA
+}; // end class Data
 
 
+#ifdef HMLP_MIC_AVX512
+template<bool SYMMETRIC, typename T, class Allocator = hbw::allocator<T> >
+#else
 template<bool SYMMETRIC, typename T, class Allocator = std::allocator<T> >
+#endif
 class CSC : public ReadWrite
 {
   public:
@@ -427,10 +350,10 @@ class CSC : public ReadWrite
     // val[ nnz ]
     // row_ind[ nnz ]
     // col_ptr[ n + 1 ]
-	// TODO: setup full_row_ind
+    // TODO: setup full_row_ind
     template<typename TINDEX>
     CSC( TINDEX m, TINDEX n, TINDEX nnz, T *val, TINDEX *row_ind, TINDEX *col_ptr ) 
-      : CSC( m, n, nnz )
+    : CSC( m, n, nnz )
     {
       assert( val ); assert( row_ind ); assert( col_ptr );
       for ( size_t i = 0; i < nnz; i ++ )
@@ -483,37 +406,25 @@ class CSC : public ReadWrite
     }; 
 
     template<typename TINDEX>
-	std::size_t ColPtr( TINDEX j )
-	{
-	  return col_ptr[ j ];
-	}
+    std::size_t ColPtr( TINDEX j ) { return col_ptr[ j ]; };
 
     template<typename TINDEX>
-	std::size_t RowInd( TINDEX offset )
-	{
-	  return row_ind[ offset ];
-	};
+    std::size_t RowInd( TINDEX offset ) { return row_ind[ offset ]; };
 
     template<typename TINDEX>
-	T Value( TINDEX offset )
-	{
-	  return val[ offset ];
-	};
+    T Value( TINDEX offset ) { return val[ offset ]; };
 
-	template<typename TINDEX>
-	std::pair<T, TINDEX> ImportantSample( TINDEX j )
-	{
+    template<typename TINDEX>
+    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    {
       size_t offset = col_ptr[ j ] + rand() % ( col_ptr[ j + 1 ] - col_ptr[ j ] );
-	  std::pair<T, TINDEX> sample( val[ offset ], row_ind[ offset ] );
-	  return sample; 
-	};
+      std::pair<T, TINDEX> sample( val[ offset ], row_ind[ offset ] );
+      return sample; 
+    };
 
     void Print()
     {
-      for ( size_t j = 0; j < n; j ++ )
-      {
-        printf( "%8lu ", j );
-      }
+      for ( size_t j = 0; j < n; j ++ ) printf( "%8lu ", j );
       printf( "\n" );
       for ( size_t i = 0; i < m; i ++ )
       {
@@ -535,11 +446,11 @@ class CSC : public ReadWrite
     {
       size_t m_mtx, n_mtx, nnz_mtx;
 
-	  std::vector<std::deque<size_t>> full_row_ind( n );
-	  std::vector<std::deque<T>> full_val( n );
+      std::vector<std::deque<size_t>> full_row_ind( n );
+      std::vector<std::deque<T>> full_val( n );
 
       // Read all tuples.
-	  printf( "%s ", filename.data() ); fflush( stdout );
+      printf( "%s ", filename.data() ); fflush( stdout );
       std::ifstream file( filename.data() );
       std::string line;
       if ( file.is_open() )
@@ -564,96 +475,96 @@ class CSC : public ReadWrite
 
         while ( std::getline( file, line ) )
         {
-		  if ( nnz_count % ( nnz / 10 ) == 0 )
-		  {
-			printf( "%lu%% ", ( nnz_count * 100 ) / nnz ); fflush( stdout );
-		  }
+          if ( nnz_count % ( nnz / 10 ) == 0 )
+          {
+            printf( "%lu%% ", ( nnz_count * 100 ) / nnz ); fflush( stdout );
+          }
 
           std::istringstream iss( line );
 
-		  size_t i, j;
-		  T v;
+          size_t i, j;
+          T v;
 
-		  if ( IJONLY )
-		  {
+          if ( IJONLY )
+          {
             if ( !( iss >> i >> j ) )
             {
               printf( "line %lu has illegle format\n", nnz_count );
               break;
             }
-			v = 1;
-		  }
-		  else
-		  {
+            v = 1;
+          }
+          else
+          {
             if ( !( iss >> i >> j >> v ) )
             {
               printf( "line %lu has illegle format\n", nnz_count );
               break;
             }
-		  }
+          }
 
-		  if ( !ISZEROBASE )
-		  {
-			i -= 1;
-			j -= 1;
-		  }
+          if ( !ISZEROBASE )
+          {
+            i -= 1;
+            j -= 1;
+          }
 
-		  if ( v != 0.0 )
-		  {
+          if ( v != 0.0 )
+          {
             full_row_ind[ j ].push_back( i );
-	        full_val[ j ].push_back( v );
+            full_val[ j ].push_back( v );
 
-		    if ( !SYMMETRIC && LOWERTRIANGULAR && i > j  )
-		    {
-			  full_row_ind[ i ].push_back( j );
-			  full_val[ i ].push_back( v );
-		    }
-		  }
+            if ( !SYMMETRIC && LOWERTRIANGULAR && i > j  )
+            {
+              full_row_ind[ i ].push_back( j );
+              full_val[ i ].push_back( v );
+            }
+          }
           nnz_count ++;
         }
-		assert( nnz_count == nnz );
+        assert( nnz_count == nnz );
       }
-	  printf( "Done.\n" ); fflush( stdout );
+      printf( "Done.\n" ); fflush( stdout );
       // Close the file.
       file.close();
 
-	  //printf( "Here nnz %lu\n", nnz );
+      //printf( "Here nnz %lu\n", nnz );
 
-	  // Recount nnz for the full storage.
-	  size_t full_nnz = 0;
-	  for ( size_t j = 0; j < n; j ++ )
-	  {
-		col_ptr[ j ] = full_nnz;
-		full_nnz += full_row_ind[ j ].size();
-	  }
-	  nnz = full_nnz;
-	  col_ptr[ n ] = full_nnz;
-	  row_ind.resize( full_nnz );
-	  val.resize( full_nnz );
+      // Recount nnz for the full storage.
+      size_t full_nnz = 0;
+      for ( size_t j = 0; j < n; j ++ )
+      {
+        col_ptr[ j ] = full_nnz;
+        full_nnz += full_row_ind[ j ].size();
+      }
+      nnz = full_nnz;
+      col_ptr[ n ] = full_nnz;
+      row_ind.resize( full_nnz );
+      val.resize( full_nnz );
 
-	  //printf( "Here nnz %lu\n", nnz );
+      //printf( "Here nnz %lu\n", nnz );
 
       //full_nnz = 0;
       //for ( size_t j = 0; j < n; j ++ )
       //{
-	  //  for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
-	  //  {
+      //  for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
+      //  {
       //    row_ind[ full_nnz ] = full_row_ind[ j ][ i ];
       //    val[ full_nnz ] = full_val[ j ][ i ];
-	  //    full_nnz ++;
-	  //  }
+      //    full_nnz ++;
+      //  }
       //}
 
-	  //printf( "Close the file. Reformat.\n" );
+      //printf( "Close the file. Reformat.\n" );
 
       #pragma omp parallel for
       for ( size_t j = 0; j < n; j ++ )
       {
-		for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
-		{
+        for ( size_t i = 0; i < full_row_ind[ j ].size(); i ++ )
+        {
           row_ind[ col_ptr[ j ] + i ] = full_row_ind[ j ][ i ];
           val[ col_ptr[ j ] + i ] = full_val[ j ][ i ];
-		}
+        }
       }
 
       printf( "finish readmatrix %s\n", filename.data() ); fflush( stdout );
@@ -672,16 +583,23 @@ class CSC : public ReadWrite
 
     std::size_t nnz;
 
-    std::vector<T> val;
+    std::vector<T, Allocator> val;
 
+    //std::vector<std::size_t, Allocator> row_ind;
     std::vector<std::size_t> row_ind;
    
+    //std::vector<std::size_t, Allocator> col_ptr;
     std::vector<std::size_t> col_ptr;
 
 }; // end class CSC
 
 
+
+#ifdef HMLP_MIC_AVX512
+template<class T, class Allocator = hbw::allocator<T> >
+#else
 template<class T, class Allocator = std::allocator<T> >
+#endif
 class OOC : public ReadWrite
 {
   public:
@@ -700,9 +618,14 @@ class OOC : public ReadWrite
       //  assert( size == m * n * sizeof(T) );
       //}
 
-	  fd = open( filename.data(), O_RDONLY, 0 );
-	  assert( fd != -1 );
-	  mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
+      fd = open( filename.data(), O_RDONLY, 0 );
+      assert( fd != -1 );
+#ifdef __APPLE__
+      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE, fd, 0 );
+#else /** assume linux */
+      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
+#endif
+
       assert( mmappedData != MAP_FAILED );
 
       std::cout << filename << std::endl;
@@ -711,11 +634,10 @@ class OOC : public ReadWrite
     ~OOC()
     {
       //if ( file.is_open() ) file.close();
-
-	  int rc = munmap( mmappedData, m * n * sizeof(T) );
+      /** unmap */
+      int rc = munmap( mmappedData, m * n * sizeof(T) );
       assert( rc == 0 );
-	  close( fd );
-
+      close( fd );
       printf( "finish readmatrix %s\n", filename.data() );
     };
 
@@ -734,7 +656,7 @@ class OOC : public ReadWrite
       //  }
       //}
 
-	  Kij = mmappedData[ j * m + i ];
+      Kij = mmappedData[ j * m + i ];
 
       return Kij;
     };
@@ -753,13 +675,13 @@ class OOC : public ReadWrite
       return submatrix;
     }; 
 
-	template<typename TINDEX>
-	std::pair<T, TINDEX> ImportantSample( TINDEX j )
-	{
-	  TINDEX i = std::rand() % m;
-	  std::pair<T, TINDEX> sample( (*this)( i, j ), i );
-	  return sample; 
-	};
+    template<typename TINDEX>
+    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    {
+      TINDEX i = std::rand() % m;
+      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+      return sample; 
+    };
 
     std::size_t row() { return m; };
 
@@ -806,15 +728,19 @@ class OOC : public ReadWrite
 
     std::ifstream file;
 
-	// Use mmp
-	T *mmappedData;
+    // Use mmp
+    T *mmappedData;
 
-	int fd;
+    int fd;
 
 }; // end class OOC
 
 
+#ifdef HMLP_MIC_AVX512
+template<bool SYMMETRIC, typename T, class Allocator = hbw::allocator<T> >
+#else
 template<bool SYMMETRIC, typename T, class Allocator = std::allocator<T> >
+#endif
 class Kernel : public ReadWrite
 {
   public:
@@ -826,6 +752,7 @@ class Kernel : public ReadWrite
       this->n = n;
       this->d = d;
       this->kernel = kernel;
+      this->flopcount = 0.0;
 
       if ( SYMMETRIC ) assert( m == n );
     };
@@ -862,22 +789,29 @@ class Kernel : public ReadWrite
     {
       T Kij = 0;
 
-      switch ( this->kernel.type )
+      switch ( kernel.type )
       {
         case KS_GAUSSIAN:
           {
-            for ( TINDEX k = 0; k < this->d; k++ )
+            for ( TINDEX k = 0; k < d; k++ )
             {
               if ( SYMMETRIC )
               {
-                Kij += sources[ i * this->d + k] * sources[ j * this->d + k ];
+                Kij += std::pow( sources[ i * d + k] - sources[ j * d + k ], 2 );
               }
               else
               {
-                Kij += targets[ i * this->d + k] * sources[ j * this->d + k ];
+                Kij += std::pow( targets[ i * d + k] - sources[ j * d + k ], 2 );
               }
             }
-            Kij = exp( this->kernel.scal * Kij );
+            Kij = exp( kernel.scal * Kij );
+            flopcount += 3 * d;
+            break;
+          }
+        default:
+          {
+            printf( "invalid kernel type\n" );
+            exit( 1 );
             break;
           }
       }
@@ -889,13 +823,80 @@ class Kernel : public ReadWrite
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-      for ( int j = 0; j < jmap.size(); j ++ )
+
+      // Get coordinates of sources and targets
+      std::vector<TINDEX> dmap( d );
+      std::iota( dmap.begin(), dmap.end(), TINDEX(0) );
+      hmlp::Data<T> itargets = SYMMETRIC ? sources( dmap, imap ) : targets( dmap, imap );
+      hmlp::Data<T> jsources = sources( dmap, jmap );
+
+      // Compute inner products
+      xgemm
+      (
+        "T", "N",
+        imap.size(), jmap.size(), d,
+        -2.0, itargets.data(), itargets.row(),
+              jsources.data(), jsources.row(),
+        0.0, submatrix.data(), submatrix.row()
+      );
+
+      // Compute square norms
+      std::vector<T> target_sqnorms( imap.size() );
+      std::vector<T> source_sqnorms( jmap.size() );
+      for ( TINDEX i = 0; i < imap.size(); i ++ )
       {
-        for ( int i = 0; i < imap.size(); i ++ )
+        target_sqnorms[ i ] = xdot
+                              (
+                                d,
+                                itargets.data(), 1,
+                                itargets.data(), 1
+                              );
+      }
+      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+      {
+        source_sqnorms[ j ] = xdot
+                              (
+                                d,
+                                jsources.data(), 1,
+                                jsources.data(), 1
+                              );
+      }
+
+      // Add square norms to inner products to get pairwise square distances
+      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+      {
+        for ( TINDEX i = 0; i < imap.size(); i ++ )
         {
-          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
+          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
         }
       }
+
+      switch ( kernel.type )
+      {
+        case KS_GAUSSIAN:
+          {
+            // Apply the scaling factor and exponentiate
+            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
+            {
+                submatrix[ i ] = exp( kernel.scal * submatrix[ i ] );
+            }
+
+            // gemm: 2 * i * j * d
+            // compute sqnorms: 2 * ( i + j ) * d
+            // add sqnorms: 2 * i * j
+            // scale and exponentiate: 2 * i * j
+            flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
+                       + 4 * imap.size() * jmap.size();
+            break;
+          }
+        default:
+          {
+            printf( "invalid kernel type\n" );
+            exit( 1 );
+            break;
+          }
+      }
+
       return submatrix;
     }; 
 
@@ -930,6 +931,8 @@ class Kernel : public ReadWrite
 
     std::size_t dim() { return d; };
 
+    double flops() { return flopcount; };
+
 
   private:
 
@@ -938,6 +941,8 @@ class Kernel : public ReadWrite
     std::size_t n;
 
     std::size_t d;
+
+    double flopcount;
 
     Data<T> sources;
 

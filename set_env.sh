@@ -53,8 +53,7 @@ export HMLP_MKL_DIR=$TACC_MKL_DIR
 # export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
-
-## Manually set the mkl path
+## Manually set the qsml path
 export HMLP_QSML_DIR=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
 

@@ -1,5 +1,9 @@
 #include <hmlp_runtime.hpp>
 
+#ifdef HMLP_USE_CUDA
+#include <hmlp_gpu.hpp>
+#endif
+
 // #define DEBUG_RUNTIME 1
 // #define DEBUG_SCHEDULER 1
 
@@ -182,7 +186,7 @@ Event::Event() : flops( 0.0 ), mops( 0.0 ), beg( 0.0 ), end( 0.0 ), sec( 0.0 ) {
 void Event::Set( std::string _label, double _flops, double _mops )
 {
   flops = _flops;
-  mops = _mops;
+  mops  = _mops;
   label = _label;
 };
 
@@ -234,6 +238,11 @@ double Event::GetFlops()
 double Event::GetMops()
 {
   return mops;
+};
+
+double Event::GflopsPerSecond()
+{
+  return ( flops / sec ) / 1E+9;
 };
 
 
@@ -653,53 +662,58 @@ void* Scheduler::EntryPoint( void* arg )
     }
     else // No task in my ready_queue. Steal from others.
     {
-	  idle ++;
+      idle ++;
 
       if ( idle > 100 )
-	  {
+      {
         scheduler->ready_queue_lock[ me->tid ].Acquire();
         {
           scheduler->time_remaining[ me->tid ] = 0.0;
         }
         scheduler->ready_queue_lock[ me->tid ].Release();
-	  
-     
-	  float max_remaining_time = 0.0;
-	  int target = -1;
-      for ( int p = 0; p < scheduler->n_worker; p ++ )
-      {
-        //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
-        if ( scheduler->time_remaining[ p ] > max_remaining_time )
-		{
-          max_remaining_time = scheduler->time_remaining[ p ];
-          target = p;
-		}
-      }
 
-	  if ( target >= 0 && target != me->tid )
-	  {
-		Task *target_task = NULL;
-        scheduler->ready_queue_lock[ target ].Acquire();
-		{
-          if ( scheduler->ready_queue[ target ].size() ) 
-		  {
-			target_task = scheduler->ready_queue[ target ].back();
-		    if ( target_task ) scheduler->ready_queue[ target ].pop_back();
-            scheduler->time_remaining[ target ] -= target_task->cost;
-		  }
-		}
-        scheduler->ready_queue_lock[ target ].Release();
-		if ( target_task )
-		{
-          scheduler->ready_queue_lock[ me->tid ].Acquire();
-		  {
-            scheduler->ready_queue[ me->tid ].push_back( target_task );
-            scheduler->time_remaining[ me->tid ] += target_task->cost;
-		  }
-          scheduler->ready_queue_lock[ me->tid ].Release();
-		}
-	  }
-	  }
+
+        float max_remaining_time = 0.0;
+        int target = -1;
+
+        /** only steal jobs within the numa node */
+        int numa_beg = ( me->tid / 2 ) * ( scheduler->n_worker / 2 );
+        int numa_end = numa_beg + ( scheduler->n_worker / 2 );
+        //for ( int p = numa_beg; p < numa_end; p ++ )
+        for ( int p = 0; p < scheduler->n_worker; p ++ )
+        {
+          //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
+          if ( scheduler->time_remaining[ p ] > max_remaining_time )
+          {
+            max_remaining_time = scheduler->time_remaining[ p ];
+            target = p;
+          }
+        }
+
+        if ( target >= 0 && target != me->tid )
+        {
+          Task *target_task = NULL;
+          scheduler->ready_queue_lock[ target ].Acquire();
+          {
+            if ( scheduler->ready_queue[ target ].size() ) 
+            {
+              target_task = scheduler->ready_queue[ target ].back();
+              if ( target_task ) scheduler->ready_queue[ target ].pop_back();
+              scheduler->time_remaining[ target ] -= target_task->cost;
+            }
+          }
+          scheduler->ready_queue_lock[ target ].Release();
+          if ( target_task )
+          {
+            scheduler->ready_queue_lock[ me->tid ].Acquire();
+            {
+              scheduler->ready_queue[ me->tid ].push_back( target_task );
+              scheduler->time_remaining[ me->tid ] += target_task->cost;
+            }
+            scheduler->ready_queue_lock[ me->tid ].Release();
+          }
+        }
+      }
     }
 
     if ( scheduler->n_task >= scheduler->tasklist.size() ) 
@@ -800,9 +814,17 @@ void RunTime::Init()
   {
     if ( !is_init )
     {
-      //n_worker = 4;
       n_worker = omp_get_max_threads();
       scheduler = new Scheduler();
+
+#ifdef HMLP_USE_CUDA
+      /** TODO: detect devices */
+      if ( n_worker )
+      {
+        workers[ 0 ].SetDevice( new hmlp::gpu::Nvidia( 0 ) );
+      }
+#endif
+
       is_init = true;
     }
   }

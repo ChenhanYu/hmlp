@@ -14,6 +14,7 @@ namespace hmlp
 
 typedef enum 
 {
+  HOST,
   NVIDIA_GPU,
   OTHER_GPU,
   TI_DSP
@@ -75,6 +76,18 @@ class Device
 
     Device();
 
+    virtual void prefetchd2h( void *ptr_h, void *ptr_d, size_t size );
+
+    virtual void prefetchh2d( void *ptr_d, void *ptr_h, size_t size );
+
+    virtual void wait();
+
+    virtual void waitexecute();
+
+    virtual void malloc( void *ptr_d, size_t size );
+
+    virtual void free( void *ptr_d );
+
     DeviceType devicetype;
 
     std::string name;
@@ -94,6 +107,10 @@ class Worker
 	  //worker( int jc_nt, int pc_nt, int ic_nt, int jr_nt );
    
     Worker( thread_communicator *my_comm );
+
+    void SetDevice( class Device *device );
+
+    class Device *GetDevice();
 
     bool Execute( class Task *task );
 

@@ -97,6 +97,7 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   list (APPEND CUDA_NVCC_FLAGS "-std=c++11 -O3")
   list (APPEND CUDA_NVCC_FLAGS -gencode arch=compute_35,code=sm_35)
   list (APPEND CUDA_NVCC_FLAGS -DHMLP_USE_CUDA)
+  set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DHMLP_USE_CUDA")
   set (CUDA_PROPAGATE_HOST_FLAGS "false")
   set (CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
 endif ()
@@ -183,7 +184,7 @@ include_directories ("include" "frame")
 include_directories ( "kernel/reference" "kernel/${HMLP_ARCH}" )
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  include_directories ("/usr/local/cuda/include" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_GPU_ARCH}")
+  include_directories ( "${CUDA_TOOLKIT_ROOT_DIR}/include" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_GPU_ARCH}")
 endif ()
 
 file (GLOB HMLP_HDRS ${CMAKE_SOURCE_DIR}/include/*)
@@ -235,6 +236,10 @@ endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/conv2d.cpp)
   add_executable (test_conv2d.x ${CMAKE_SOURCE_DIR}/test/test_conv2d.cpp)
   target_link_libraries(test_conv2d.x hmlp)
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_conv2d.x cuda)
+    cuda_add_cublas_to_target(test_conv2d.x)
+  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ()
 
 
@@ -242,44 +247,80 @@ endif ()
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsks.cpp)
   add_executable (test_gsks.x ${CMAKE_SOURCE_DIR}/test/test_gsks.cpp)
   target_link_libraries(test_gsks.x hmlp)
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_gsks.x cuda)
+    cuda_add_cublas_to_target(test_gsks.x)
+  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ()
 
 # Build GKMX test suit
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gkmx.cpp)
   add_executable (test_gkmx.x ${CMAKE_SOURCE_DIR}/test/test_gkmx.cpp)
   target_link_libraries(test_gkmx.x hmlp)
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_gkmx.x cuda)
+    cuda_add_cublas_to_target(test_gkmx.x)
+  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ()
 
 # Build STRASSEN test suit
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/strassen.cpp)
   add_executable (test_strassen.x ${CMAKE_SOURCE_DIR}/test/test_strassen.cpp)
   target_link_libraries(test_strassen.x hmlp)
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_strassen.x cuda)
+    cuda_add_cublas_to_target(test_strassen.x)
+  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ()
 
 # Build CONV_RELU_POOL test suit
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/conv_relu_pool.cpp)
   add_executable (test_conv_relu_pool.x ${CMAKE_SOURCE_DIR}/test/test_conv_relu_pool.cpp)
   target_link_libraries(test_conv_relu_pool.x hmlp)
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_conv_relu_pool.x cuda)
+    cuda_add_cublas_to_target(test_conv_relu_pool.x)
+  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ()
 
 # Build GSKNN test suit
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsknn.cpp)
   add_executable (test_gsknn.x ${CMAKE_SOURCE_DIR}/test/test_gsknn.cpp)
   target_link_libraries(test_gsknn.x hmlp)
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_gsknn.x cuda)
+    cuda_add_cublas_to_target(test_gsknn.x)
+  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ()
 
 # Build TREE test suit
 if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/tree.cpp)
   add_executable (test_tree.x ${CMAKE_SOURCE_DIR}/test/test_tree.cpp)
   target_link_libraries(test_tree.x hmlp)
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_tree.x cuda)
+    cuda_add_cublas_to_target(test_tree.x)
+  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 endif ()
 
 # Build SKEL test suit
 add_executable (test_skel.x ${CMAKE_SOURCE_DIR}/test/test_skel.cpp)
 target_link_libraries(test_skel.x hmlp)
+if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  target_link_libraries(test_skel.x cuda)
+  cuda_add_cublas_to_target(test_skel.x)
+endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
+# Build SPDASKIT test suit
 add_executable (test_spdaskit.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit.cpp)
 target_link_libraries(test_spdaskit.x hmlp)
+if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  target_link_libraries(test_spdaskit.x cuda)
+  cuda_add_cublas_to_target(test_spdaskit.x)
+endif ()
+
+
+
 
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)
 # target_link_libraries(test_dgsks_list.x gsks)
@@ -294,6 +335,9 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   cuda_add_executable (test_strassen_gpu.x ${CMAKE_SOURCE_DIR}/test/test_strassen_gpu.cu)
   target_link_libraries(test_strassen_gpu.x hmlp)
   cuda_add_cublas_to_target(test_strassen_gpu.x)
+  # add_executable (test_spdaskit_gpu.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit_gpu.cu)
+  # target_link_libraries(test_spdaskit_gpu.x hmlp)
+  # cuda_add_cublas_to_target(test_spdaskit_gpu.x)
 endif ()
 
 

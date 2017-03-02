@@ -106,6 +106,14 @@ extern "C"
       float *A, int *lda,
       float *B, int *ldb,
       float *work, int *lwork, int *info );
+  double ddot_(
+      int *n,
+      double *dx, int *incx,
+      double *dy, int *incy );
+  float sdot_(
+      int *n,
+      float *dx, int *incx,
+      float *dy, int *incy );
 };
 
 
@@ -125,6 +133,9 @@ void xgemm
   double *C, int ldc
 )
 {
+  double beg, xgemm_time = 0.0;
+  double gflops = (double)( m ) * n * ( 2 * k ) / 1E+9;
+  beg = omp_get_wtime();
 #ifdef USE_BLAS
   dgemm_
   (
@@ -159,6 +170,12 @@ void xgemm
     }
   }
 #endif
+  xgemm_time = omp_get_wtime() - beg;
+#ifdef DEBUG_XGEMM
+  printf( "dgemm m %d n %d k %d, %5.2lf GFLOPS %5.2lf s\n", 
+      m, n, k, gflops / xgemm_time, xgemm_time );
+#endif
+
 #ifdef DEBUG_XGEMM
   printf( "hmlp::xgemm debug\n" );
   for ( int i = 0; i < m; i ++ )
@@ -246,6 +263,10 @@ void xtrsm
   double *B, int ldb 
 )
 {
+  double beg, xtrsm_time = 0.0;
+  double gflops = (double)( m ) * ( m - 1 ) * n / 1E+9;
+  beg = omp_get_wtime();
+
 #ifdef USE_BLAS
   dtrsm_
   (
@@ -258,6 +279,12 @@ void xtrsm
   );
 #else
   printf( "xtrsm must enables USE_BLAS.\n" );
+#endif
+  
+  xtrsm_time = omp_get_wtime() - beg;
+#ifdef DEBUG_XTRSM
+  printf( "dtrsm m %d n %d, %5.2lf GFLOPS, %5.2lf s\n", 
+      m, n, gflops / xtrsm_time, xtrsm_time );
 #endif
 };
 
@@ -686,6 +713,56 @@ void xgels
 #else
   printf( "xgels must enables USE_BLAS.\n" );
 #endif
+};
+
+
+/**
+ *  @brief DDOT wrapper
+ */ 
+double xdot
+(
+  int n,
+  double *dx, int incx,
+  double *dy, int incy
+)
+{
+  double ret_val;
+#ifdef USE_BLAS
+  ret_val =  ddot_
+             (
+               &n,
+               dx, &incx,
+               dy, &incy
+             );
+#else
+  printf( "xdot must enables USE_BLAS.\n" );
+#endif
+  return ret_val;
+};
+
+
+/**
+ *  @brief SDOT wrapper
+ */ 
+float xdot
+(
+  int n,
+  float *dx, int incx,
+  float *dy, int incy
+)
+{
+  float ret_val;
+#ifdef USE_BLAS
+  ret_val =  sdot_
+             (
+               &n,
+               dx, &incx,
+               dy, &incy
+             );
+#else
+  printf( "xdot must enables USE_BLAS.\n" );
+#endif
+  return ret_val;
 };
 
 
