@@ -361,7 +361,7 @@ int main( int argc, char *argv[] )
   const bool ADAPTIVE = true;
   const bool CONE = false;
   const bool LEVELRESTRICTION = false;
-  const bool RANDOMMATRIX = true;
+  const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;

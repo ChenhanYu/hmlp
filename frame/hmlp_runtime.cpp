@@ -254,7 +254,7 @@ void Event::Print()
 
 void Event::Timeline( bool isbeg, size_t tag )
 {
-  double gflops_peak = 30.0;
+  double gflops_peak = 45.0;
   double flops_efficiency = flops / ( gflops_peak * sec * 1E+9 );
   if ( isbeg )
   {
@@ -279,7 +279,7 @@ void Event::Timeline( bool isbeg, size_t tag )
 
 void Event::MatlabTimeline( FILE *pFile )
 {
-  double gflops_peak = 30.0;
+  double gflops_peak = 45.0;
   double flops_efficiency = 0.0;
   if ( sec * 1E+9 > 0.1 )
   {
