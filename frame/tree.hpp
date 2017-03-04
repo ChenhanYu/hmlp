@@ -1199,7 +1199,7 @@ class Tree
       hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
 
       setup.m = 2 * k;
-      if ( setup.m < 16 ) setup.m = 16;
+      if ( setup.m < 64 ) setup.m = 64;
       setup.NN = &NN;
 
       // Clean the treelist.
@@ -1214,65 +1214,83 @@ class Tree
 
       }
 */ 
-     double flops= 0.0; 
-      double mops= 0.0;
-      // This loop has to be sequential to prevent from race condiditon on NN.
-      for ( int t = 0; t < n_tree; t ++ )      
-      {
-        //TreePartition( 2 * k, max_depth, gids, lids );
+	  double flops= 0.0; 
+	  double mops= 0.0;
+	  // This loop has to be sequential to prevent from race condiditon on NN.
+	  for ( int t = 0; t < n_tree; t ++ )      
+	  {
+		//TreePartition( 2 * k, max_depth, gids, lids );
 
-        //Flops/Mops for tree partitioning
-        flops += std::log( gids.size() / setup.m ) * gids.size();
-	mops += std::log( gids.size() / setup.m ) * gids.size();
-        
-	TreePartition( gids, lids );
-        TraverseLeafs<false, false>( dummy );
-        //printf("%f \n", dummy.event.GetFlops());
-        flops += dummy.event.GetFlops();
-        mops += dummy.event.GetMops();
-        
-	#pragma omp parallel for
-        for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
-        treelist.clear();
-#ifdef DEBUG_TREE
-        printf( "Iter %2d NN 0 ", t );
-        for ( size_t i = 0; i < NN.row(); i ++ )
+		//Flops/Mops for tree partitioning
+		flops += std::log( gids.size() / setup.m ) * gids.size();
+		mops  += std::log( gids.size() / setup.m ) * gids.size();
+
+		TreePartition( gids, lids );
+		TraverseLeafs<false, false>( dummy );
+
+		/** TODO: need to redo the way without using dummy */
+		flops += dummy.event.GetFlops();
+		mops  += dummy.event.GetMops();
+
+		/** Report accuracy */
+		double knn_acc = 0.0;
+		size_t num_acc = 0;
+
+        std::size_t n_nodes = 1 << depth;
+        auto level_beg = treelist.begin() + n_nodes - 1;
+        for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
-          printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
+          auto *node = *(level_beg + node_ind);
+		  knn_acc += node->data.knn_acc;
+		  num_acc += node->data.num_acc;
         }
-        printf( "\n" );
+		printf( "ANN iter %2d average accuracy %.2lf%% over %4lu samples\n", 
+			t, knn_acc / num_acc, num_acc );
+
+		/** clean up for the new iteration */
+        #pragma omp parallel for
+		for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
+		treelist.clear();
+
+#ifdef DEBUG_TREE
+		printf( "Iter %2d NN 0 ", t );
+		for ( size_t i = 0; i < NN.row(); i ++ )
+		{
+		  printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
+		}
+		printf( "\n" );
 #endif
-      }
+	  }
 
-      if ( SORTED )
-      {
-        struct 
-        {
-          bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
-          {   
-            return a.first < b.first;
-          }   
-        } ANNLess;
+	  if ( SORTED )
+	  {
+		struct 
+		{
+		  bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
+		  {   
+			return a.first < b.first;
+		  }   
+		} ANNLess;
 
-	// Assuming O(N) sorting
-	flops += NN.col() * NN.row();
-	// Worst case (2* for swaps, 1* for loads)
-	mops += 3* NN.col() * NN.row() ;
+		// Assuming O(N) sorting
+		flops += NN.col() * NN.row();
+		// Worst case (2* for swaps, 1* for loads)
+		mops += 3* NN.col() * NN.row() ;
 
         #pragma omp parallel for
-        for ( size_t j = 0; j < NN.col(); j ++ )
-        {
-          std::sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row() );
-        }
+		for ( size_t j = 0; j < NN.col(); j ++ )
+		{
+		  std::sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row() );
+		}
 #ifdef DEBUG_TREE
-        printf( "Sorted  NN 0 " );
-        for ( size_t i = 0; i < NN.row(); i ++ )
-        {
-          printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
-        }
-        printf( "\n" );
+		printf( "Sorted  NN 0 " );
+		for ( size_t i = 0; i < NN.row(); i ++ )
+		{
+		  printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
+		}
+		printf( "\n" );
 #endif
-      }
+	  }
 
 
       #pragma omp parallel for
@@ -1349,9 +1367,10 @@ class Tree
       std::vector<TASK*> tasklist;
       int n_nodes = 1 << depth;
       auto level_beg = treelist.begin() + n_nodes - 1;
-      dummy.event = Event();
+	  /** this will result in seg fault due to double free. */
+      //dummy.event = Event();
 
-      tasklist.resize( n_nodes );
+      if ( USE_RUNTIME ) tasklist.resize( treelist.size() );
 
       if ( !USE_RUNTIME )
       {
@@ -1362,7 +1381,7 @@ class Tree
            auto *task = new TASK();
            task->Set( node );
            task->Execute( NULL );
-           dummy.event.AddFlopsMops( task->event.GetFlops(), task->event.GetMops());
+           //dummy.event.AddFlopsMops( task->event.GetFlops(), task->event.GetMops());
            delete task;
          }
       }
@@ -1377,6 +1396,8 @@ class Tree
           task->Submit();
           task->Set( node );
 
+		  //printf( "node->treelist_id %lu\n", node->treelist_id ); fflush( stdout );
+
           if ( node->kids[ 0 ] )
           {
             printf( "There should not be inner nodes in TraverseLeafs.\n" );
@@ -1386,6 +1407,8 @@ class Tree
             if ( AUTO_DEPENDENCY ) task->DependencyAnalysis();
             else                   task->Enqueue();
           }
+		  
+		  //printf( "end node->treelist_id %lu\n", node->treelist_id ); fflush( stdout );
         }
       }
     }; /** end TraverseLeafs() */

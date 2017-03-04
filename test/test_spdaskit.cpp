@@ -97,7 +97,7 @@ void test_spdaskit(
   //using RKDTSPLITTER = hmlp::spdaskit::randomsplit<SPDMATRIX, N_CHILDREN, T>;
   using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK = hmlp::spdaskit::KNNTask<RKDTNODE, T, CONE>;
+  using KNNTASK = hmlp::spdaskit::KNNTask<100, CONE, RKDTNODE, T>;
  
   // All timers.
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time, ann_time, tree_time, overhead_time;
@@ -361,7 +361,7 @@ int main( int argc, char *argv[] )
   const bool ADAPTIVE = true;
   const bool CONE = false;
   const bool LEVELRESTRICTION = false;
-  const bool RANDOMMATRIX = false;
+  const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
