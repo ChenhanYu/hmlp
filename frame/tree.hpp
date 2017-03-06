@@ -1367,7 +1367,7 @@ class Tree
       std::vector<TASK*> tasklist;
       int n_nodes = 1 << depth;
       auto level_beg = treelist.begin() + n_nodes - 1;
-	  /** this will result in seg fault due to double free. */
+      /** this will result in seg fault due to double free. */
       //dummy.event = Event();
 
       if ( USE_RUNTIME ) tasklist.resize( treelist.size() );

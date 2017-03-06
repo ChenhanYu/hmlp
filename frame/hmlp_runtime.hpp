@@ -323,6 +323,8 @@ class RunTime
 
     int n_worker;
 
+    thread_communicator *mycomm;
+
     Worker workers[ MAX_WORKER ];
 
     Scheduler *scheduler;

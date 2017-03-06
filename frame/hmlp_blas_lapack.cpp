@@ -172,8 +172,8 @@ void xgemm
 #endif
   xgemm_time = omp_get_wtime() - beg;
 #ifdef DEBUG_XGEMM
-  printf( "dgemm m %d n %d k %d, %5.2lf GFLOPS %5.2lf s\n", 
-      m, n, k, gflops / xgemm_time, xgemm_time );
+  printf( "dgemm %s%s m %d n %d k %d, %5.2lf GFLOPS %5.2lf s\n", 
+      transA, transB, m, n, k, gflops / xgemm_time, xgemm_time );
 #endif
 
 #ifdef DEBUG_XGEMM

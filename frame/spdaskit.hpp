@@ -1251,8 +1251,8 @@ void UpdateWeights( NODE *node )
   if ( node->isleaf )
   {
     double beg = omp_get_wtime();
-    w_leaf = w( node->lids );
-    double w_leaf_time = omp_get_wtime() - beg;
+    //w_leaf = w( node->lids );
+    //double w_leaf_time = omp_get_wtime() - beg;
 
 #ifdef DEBUG_SPDASKIT
     printf( "m %lu n %lu k %lu\n", 
@@ -1826,16 +1826,14 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
   {
     size_t itptr = 0;
     size_t offset = 0;
-    //std::vector<size_t> bmap;
 
     for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
     {
-      //if ( itptr < itbeg ) offset += (*it)->lids.size();
       if ( itbeg <= itptr && itptr < itend )
       {
-        //bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
         auto &bmap = (*it)->lids;
-        auto wb = w( bmap );
+        //auto wb = w( bmap );
+        auto wb = (*it)->data.w_leaf;
 
         /** ( Kab * wb' )' = wb * Kab' */
         xgemm
@@ -1846,23 +1844,10 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
           NearKab.data() + offset * NearKab.row(), NearKab.row(),
           1.0, u_leaf.data(),                       u_leaf.row()
         );
-        //offset += (*it)->lids.size();
       }
       offset += (*it)->lids.size();
       itptr ++;
     }
-
-    //auto wb = w( bmap );
-
-    ///** ( Kab * wb' )' = wb * Kab' */
-    //xgemm
-    //(
-    //  "N", "T",
-    //  u_leaf.row(), u_leaf.col(), wb.col(),
-    //  1.0, wb.data(),                               wb.row(),
-    //  NearKab.data() + offset * NearKab.row(), NearKab.row(),
-    //  0.0, u_leaf.data(),                       u_leaf.row()
-    //);
   }
   else /** Kab is not cached */
   {
@@ -2710,6 +2695,17 @@ hmlp::Data<T> ComputeAll
     SKELTONODETASK  skeltonodetask;
 
     beg = omp_get_wtime();
+
+    int n_nodes = 1 << tree.depth;
+    auto level_beg = tree.treelist.begin() + n_nodes - 1;
+
+    #pragma omp parallel for
+    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    {
+      auto *node = *(level_beg + node_ind);
+      node->data.w_leaf = weights( node->lids );
+    }
+
     if ( USE_OMP_TASK )
     {
       assert( !USE_RUNTIME );

@@ -630,6 +630,7 @@ void* Scheduler::EntryPoint( void* arg )
   while ( 1 )
   {
     Task *task = NULL;
+    Task *nexttask = NULL;
 
     scheduler->ready_queue_lock[ me->tid ].Acquire();
     {
@@ -642,11 +643,12 @@ void* Scheduler::EntryPoint( void* arg )
       /** try to prefetch the next task */
       if ( scheduler->ready_queue[ me->tid ].size() )
       {
-        auto *nexttask = scheduler->ready_queue[ me->tid ].front();
-        if ( nexttask ) nexttask->Prefetch();
+        nexttask = scheduler->ready_queue[ me->tid ].front();
       }
     }
     scheduler->ready_queue_lock[ me->tid ].Release();
+
+    if ( nexttask ) nexttask->Prefetch();
 
     if ( task )
     {
@@ -689,8 +691,12 @@ void* Scheduler::EntryPoint( void* arg )
         /** only steal jobs within the numa node */
         int numa_beg = ( me->tid / 2 ) * ( scheduler->n_worker / 2 );
         int numa_end = numa_beg + ( scheduler->n_worker / 2 );
-        //for ( int p = numa_beg; p < numa_end; p ++ )
-        for ( int p = 0; p < scheduler->n_worker; p ++ )
+
+
+        
+
+        for ( int p = numa_beg; p < numa_end; p ++ )
+        //for ( int p = 0; p < scheduler->n_worker; p ++ )
         {
           //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
           if ( scheduler->time_remaining[ p ] > max_remaining_time )

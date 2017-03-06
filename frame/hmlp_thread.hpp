@@ -108,6 +108,8 @@ class Worker
    
     Worker( thread_communicator *my_comm );
 
+    void Communicator( thread_communicator *comm );
+
     void SetDevice( class Device *device );
 
     class Device *GetDevice();
