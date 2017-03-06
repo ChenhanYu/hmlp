@@ -375,8 +375,8 @@ int main( int argc, char *argv[] )
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 
-  //std::string DATADIR( "/scratch/jlevitt/data/" );
-  std::string DATADIR( "/work/02794/ych/data/" );
+  std::string DATADIR( "/scratch/jlevitt/data/" );
+  //std::string DATADIR( "/work/02794/ych/data/" );
 
   size_t n, m, d, k, s, nrhs;
 

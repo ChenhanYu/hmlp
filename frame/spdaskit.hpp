@@ -117,6 +117,7 @@ class Data
 
     /** permuted weights and potentials (buffer) */
     hmlp::Data<T> w_leaf;
+    hmlp::Data<T> wt_leaf;
     hmlp::Data<T> u_leaf[ 4 ];
 
     /** cached Kab */
@@ -1635,12 +1636,21 @@ void SkeletonsToNodes( NODE *node )
     /** accumulate far interactions */
     if ( data.isskel )
     {
+      //xgemm
+      //(
+      //  "T", "N",
+      //  u_leaf.row(), u_leaf.col(), proj.row(),
+      //  1.0, u_skel.data(), u_skel.row(),
+      //         proj.data(),   proj.row(),
+      //  1.0, u_leaf.data(), u_leaf.row()
+      //);
+
       xgemm
       (
         "T", "N",
-        u_leaf.row(), u_leaf.col(), proj.row(),
-        1.0, u_skel.data(), u_skel.row(),
-               proj.data(),   proj.row(),
+        u_leaf.row(), u_leaf.col(), u_skel.row(),
+        1.0,   proj.data(),   proj.row(),
+             u_skel.data(), u_skel.row(),
         1.0, u_leaf.data(), u_leaf.row()
       );
     }
@@ -1650,7 +1660,8 @@ void SkeletonsToNodes( NODE *node )
     {
       for ( size_t i = 0; i < u.row(); i ++ )
       {
-        u[ amap[ j ] * u.row() + i ] = u_leaf[ j * u.row() + i ];
+        //u[ amap[ j ] * u.row() + i ] = u_leaf[ j * u.row() + i ];
+        u[ amap[ j ] * u.row() + i ] = u_leaf( j, i );
       }
     }
     after_writeback_time = omp_get_wtime() - beg;
@@ -1819,7 +1830,8 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
    **/
   auto &u_leaf = data.u_leaf[ SUBTASKID ];
   u_leaf.clear();
-  u_leaf.resize( w.row(), lids.size(), 0.0 );
+  //u_leaf.resize( w.row(), lids.size(), 0.0 );
+  u_leaf.resize( lids.size(), w.row(), 0.0 );
 
 
   if ( NearKab.size() ) /** Kab is cached */
@@ -1833,23 +1845,33 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
       {
         auto &bmap = (*it)->lids;
         //auto wb = w( bmap );
-        auto wb = (*it)->data.w_leaf;
+        //auto wb = (*it)->data.w_leaf;
+        auto wb = (*it)->data.wt_leaf;
 
-        /** ( Kab * wb' )' = wb * Kab' */
+        ///** ( Kab * wb' )' = wb * Kab' */
+        //xgemm
+        //(
+        //  "N", "T",
+        //  u_leaf.row(), u_leaf.col(), wb.col(),
+        //  1.0, wb.data(),                               wb.row(),
+        //  NearKab.data() + offset * NearKab.row(), NearKab.row(),
+        //  1.0, u_leaf.data(),                       u_leaf.row()
+        //);
+
         xgemm
         (
-          "N", "T",
-          u_leaf.row(), u_leaf.col(), wb.col(),
-          1.0, wb.data(),                               wb.row(),
-          NearKab.data() + offset * NearKab.row(), NearKab.row(),
-          1.0, u_leaf.data(),                       u_leaf.row()
+          "N", "N",
+          u_leaf.row(), u_leaf.col(), wb.row(),
+          1.0, NearKab.data() + offset * NearKab.row(), NearKab.row(),
+                    wb.data(),                               wb.row(),
+          1.0,  u_leaf.data(),                           u_leaf.row()
         );
       }
       offset += (*it)->lids.size();
       itptr ++;
     }
   }
-  else /** Kab is not cached */
+  else /** TODO: make xgemm into NN instead of NT. Kab is not cached */
   {
     size_t itptr = 0;
     for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
@@ -2704,6 +2726,7 @@ hmlp::Data<T> ComputeAll
     {
       auto *node = *(level_beg + node_ind);
       node->data.w_leaf = weights( node->lids );
+      node->data.wt_leaf = weights.GatherColumns<true>( node->lids );
     }
 
     if ( USE_OMP_TASK )

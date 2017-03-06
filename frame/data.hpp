@@ -167,30 +167,44 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       return submatrix;
     }; 
 
-	template<typename TINDEX>
-	std::pair<T, TINDEX> ImportantSample( TINDEX j )
-	{
-	  TINDEX i = std::rand() % m;
-	  std::pair<T, TINDEX> sample( (*this)( i, j ), i );
-	  return sample; 
-	};
-
+    template<typename TINDEX>
+    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    {
+      TINDEX i = std::rand() % m;
+      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+      return sample; 
+    };
 
 
     template<typename TINDEX>
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( m, jmap.size() );
-
       for ( int j = 0; j < jmap.size(); j ++ )
-      {
         for ( int i = 0; i < m; i ++ )
-        {
           submatrix[ j * m + i ] = (*this)[ m * jmap[ j ] + i ];
-        }
-      }
-
       return submatrix;
+    };
+
+    template<bool TRANS=false, typename TINDEX>
+    inline hmlp::Data<T> GatherColumns( std::vector<TINDEX> &jmap )
+    {
+      if ( TRANS )
+      {
+        hmlp::Data<T> submatrix( jmap.size(), m );
+        for ( int j = 0; j < jmap.size(); j ++ )
+          for ( int i = 0; i < m; i ++ )
+            submatrix[ i * jmap.size() + j ] = (*this)[ m * jmap[ j ] + i ];
+        return submatrix;
+      }
+      else
+      {
+        hmlp::Data<T> submatrix( m, jmap.size() );
+        for ( int j = 0; j < jmap.size(); j ++ )
+          for ( int i = 0; i < m; i ++ )
+            submatrix[ j * m + i ] = (*this)[ m * jmap[ j ] + i ];
+        return submatrix;
+      }
     }; 
 
     template<bool SYMMETRIC = false>

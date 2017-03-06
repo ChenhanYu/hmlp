@@ -45,12 +45,12 @@ export HMLP_USE_VML=true
 echo "HMLP_USE_VML = $HMLP_USE_VML"
 
 ## Compile with KNL -xMIC-AVX512
-export HMLP_MIC_AVX512=true
+export HMLP_MIC_AVX512=false
 
 ## Manually set the mkl path
-export HMLP_MKL_DIR=$TACC_MKL_DIR
+# export HMLP_MKL_DIR=$TACC_MKL_DIR
 # export HMLP_MKL_DIR=/opt/intel/mkl
-# export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
+export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
 ## Manually set the qsml path
@@ -66,7 +66,13 @@ echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 ## Parallel options
 export OMP_NESTED=false
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=68
+export OMP_NUM_THREADS=20
+#export OMP_PLACES="{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15},{16},{17},{18},{19}"
+#export OMP_PLACES="{0},{4},{8},{12},{16},{20},{24},{28},{32},{36},{1},{5},{9},{13},{17},{21},{25},{29},{33},{37}"
 export KS_JC_NT=1
 export KS_IC_NT=20
 export KS_JR_NT=1
+
+echo "OMP_PROC_BIND = $OMP_PROC_BIND"
+echo "OMP_NUM_THREADS = $OMP_NUM_THREADS"
+echo "OMP_PLACES = $OMP_PLACES"

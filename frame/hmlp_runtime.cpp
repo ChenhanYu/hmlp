@@ -689,11 +689,10 @@ void* Scheduler::EntryPoint( void* arg )
         int target = -1;
 
         /** only steal jobs within the numa node */
-        int numa_beg = ( me->tid / 2 ) * ( scheduler->n_worker / 2 );
-        int numa_end = numa_beg + ( scheduler->n_worker / 2 );
-
-
-        
+		int numa_grp = 2;
+		if ( scheduler->n_worker > 31 ) numa_grp = 4;
+        int numa_beg = ( me->tid / numa_grp ) * ( scheduler->n_worker / numa_grp );
+        int numa_end = numa_beg + ( scheduler->n_worker / numa_grp );
 
         for ( int p = numa_beg; p < numa_end; p ++ )
         //for ( int p = 0; p < scheduler->n_worker; p ++ )
