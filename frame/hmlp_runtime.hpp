@@ -184,6 +184,8 @@ class Task
 
     virtual void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
 
+    virtual void Prefetch();
+
     void Enqueue();
 
     void Enqueue( size_t tid );

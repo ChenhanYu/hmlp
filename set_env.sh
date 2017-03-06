@@ -45,7 +45,7 @@ export HMLP_USE_VML=true
 echo "HMLP_USE_VML = $HMLP_USE_VML"
 
 ## Compile with KNL -xMIC-AVX512
-export HMLP_MIC_AVX512=false
+export HMLP_MIC_AVX512=true
 
 ## Manually set the mkl path
 export HMLP_MKL_DIR=$TACC_MKL_DIR
@@ -64,10 +64,9 @@ echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 
 
 ## Parallel options
-# export KMP_AFFINITY=compact
 export OMP_NESTED=false
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=68
 export KS_JC_NT=1
 export KS_IC_NT=20
 export KS_JR_NT=1

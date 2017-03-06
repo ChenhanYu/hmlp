@@ -332,6 +332,8 @@ void Task::Set( std::string user_name, void (*user_function)(Task*), void *user_
   status = NOTREADY;
 };
 
+void Task::Prefetch() {};
+
 void Task::DependenciesUpdate()
 {
   while ( out.size() )
@@ -399,8 +401,8 @@ void Task::Enqueue( size_t tid )
     status = QUEUED;
     rt.scheduler->time_remaining[ assignment ] += 
       rt.workers[ assignment ].EstimateCost( this );
-    rt.scheduler->ready_queue[ assignment ].push_back( this );
-    //rt.scheduler->ready_queue[ assignment ].push_front( this );
+//    rt.scheduler->ready_queue[ assignment ].push_back( this );
+    rt.scheduler->ready_queue[ assignment ].push_front( this );
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
@@ -477,6 +479,7 @@ void Scheduler::Init( int user_n_worker )
 #endif
   // Reset task counter.
   n_task = 0;
+
 #ifdef USE_PTHREAD_RUNTIME
   for ( int i = 0; i < n_worker; i ++ )
   {
@@ -635,12 +638,19 @@ void* Scheduler::EntryPoint( void* arg )
         task = scheduler->ready_queue[ me->tid ].front();
         scheduler->ready_queue[ me->tid ].pop_front();
       }
+
+      /** try to prefetch the next task */
+      if ( scheduler->ready_queue[ me->tid ].size() )
+      {
+        auto *nexttask = scheduler->ready_queue[ me->tid ].front();
+        if ( nexttask ) nexttask->Prefetch();
+      }
     }
     scheduler->ready_queue_lock[ me->tid ].Release();
 
     if ( task )
     {
-	  idle = 0;
+      idle = 0;
       task->SetStatus( RUNNING );
       if ( me->Execute( task ) )
       {
