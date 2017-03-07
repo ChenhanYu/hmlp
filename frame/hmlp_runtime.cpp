@@ -696,7 +696,7 @@ void* Scheduler::EntryPoint( void* arg )
     {
       idle ++;
 
-      if ( idle > 10 )
+      if ( idle > 100 )
       {
         int max_remaining_task = 0;
         float max_remaining_time = 0.0;
@@ -712,17 +712,17 @@ void* Scheduler::EntryPoint( void* arg )
         for ( int p = 0; p < scheduler->n_worker; p ++ )
         {
           //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
-          //if ( scheduler->time_remaining[ p ] > max_remaining_time )
-          //{
-          //  max_remaining_time = scheduler->time_remaining[ p ];
-          //  target = p;
-          //}
-
-          if ( scheduler->ready_queue[ me->tid ].size() > max_remaining_task )
+          if ( scheduler->time_remaining[ p ] > max_remaining_time )
           {
-            max_remaining_task = scheduler->ready_queue[ me->tid ].size();
+            max_remaining_time = scheduler->time_remaining[ p ];
             target = p;
           }
+
+          //if ( scheduler->ready_queue[ p ].size() > max_remaining_task )
+          //{
+          //  max_remaining_task = scheduler->ready_queue[ p ].size();
+          //  target = p;
+          //}
         }
 
         if ( target >= 0 && target != me->tid )
@@ -740,24 +740,24 @@ void* Scheduler::EntryPoint( void* arg )
           scheduler->ready_queue_lock[ target ].Release();
           if ( target_task )
           {
-            //scheduler->ready_queue_lock[ me->tid ].Acquire();
-            //{
-            //  scheduler->ready_queue[ me->tid ].push_back( target_task );
-            //  scheduler->time_remaining[ me->tid ] += target_task->cost;
-            //}
-            //scheduler->ready_queue_lock[ me->tid ].Release();
-
-            idle = 0;
-            task->SetStatus( RUNNING );
-            if ( me->Execute( target_task ) )
+            scheduler->ready_queue_lock[ me->tid ].Acquire();
             {
-              target_task->DependenciesUpdate();
-              scheduler->n_task_lock.Acquire();
-              {
-                scheduler->n_task ++;
-              }
-              scheduler->n_task_lock.Release();
+              scheduler->ready_queue[ me->tid ].push_back( target_task );
+              scheduler->time_remaining[ me->tid ] += target_task->cost;
             }
+            scheduler->ready_queue_lock[ me->tid ].Release();
+
+            //idle = 0;
+            //target_task->SetStatus( RUNNING );
+            //if ( me->Execute( target_task ) )
+            //{
+            //  target_task->DependenciesUpdate();
+            //  scheduler->n_task_lock.Acquire();
+            //  {
+            //    scheduler->n_task ++;
+            //  }
+            //  scheduler->n_task_lock.Release();
+            //}
           }
         }
       }
