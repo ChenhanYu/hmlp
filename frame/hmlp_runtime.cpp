@@ -1,3 +1,4 @@
+#include <mkl.h>
 #include <hmlp_runtime.hpp>
 
 #ifdef HMLP_USE_CUDA
@@ -386,9 +387,9 @@ void Task::Enqueue( size_t tid )
   // Determine which work the task should go to using HEFT policy.
   for ( int p = 0; p < rt.n_worker; p ++ )
   {
-	int i = ( tid + p ) % rt.n_worker;
-    float terminate_t = rt.scheduler->time_remaining[ i ];
+    int i = ( tid + p ) % rt.n_worker;
     float cost = rt.workers[ i ].EstimateCost( this );
+    float terminate_t = rt.scheduler->time_remaining[ i ];
     if ( earliest_t == -1.0 || terminate_t + cost < earliest_t )
     {
       earliest_t = terminate_t + cost;
@@ -401,8 +402,10 @@ void Task::Enqueue( size_t tid )
     status = QUEUED;
     rt.scheduler->time_remaining[ assignment ] += 
       rt.workers[ assignment ].EstimateCost( this );
-//    rt.scheduler->ready_queue[ assignment ].push_back( this );
-    rt.scheduler->ready_queue[ assignment ].push_front( this );
+    if ( priority )
+      rt.scheduler->ready_queue[ assignment ].push_front( this );
+    else
+      rt.scheduler->ready_queue[ assignment ].push_back( this );
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
@@ -474,6 +477,12 @@ Scheduler::~Scheduler()
 void Scheduler::Init( int user_n_worker )
 {
   n_worker = user_n_worker;
+
+  mkl_set_dynamic( 0 );
+  mkl_set_num_threads( 1 );
+  omp_set_nested( 1 );
+  omp_set_max_active_levels( 2 );
+
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler::Init()\n" );
 #endif
@@ -504,6 +513,11 @@ void Scheduler::Init( int user_n_worker )
     EntryPoint( (void*)&(rt.workers[ i ]) );
   }
 #endif
+
+  mkl_set_dynamic( 1 );
+  mkl_set_num_threads( n_worker );
+  omp_set_nested( 0 );
+  omp_set_max_active_levels( 1 );
 };
 
 
@@ -636,13 +650,19 @@ void* Scheduler::EntryPoint( void* arg )
     {
       if ( scheduler->ready_queue[ me->tid ].size() )
       {
+        /** pop the front task */
         task = scheduler->ready_queue[ me->tid ].front();
         scheduler->ready_queue[ me->tid ].pop_front();
       }
+      else
+      {
+        /** reset my workload counter */
+        scheduler->time_remaining[ me->tid ] = 0.0;
+      }
 
-      /** try to prefetch the next task */
       if ( scheduler->ready_queue[ me->tid ].size() )
       {
+        /** try to prefetch the next task */
         nexttask = scheduler->ready_queue[ me->tid ].front();
       }
     }
@@ -676,31 +696,31 @@ void* Scheduler::EntryPoint( void* arg )
     {
       idle ++;
 
-      if ( idle > 100 )
+      if ( idle > 10 )
       {
-        scheduler->ready_queue_lock[ me->tid ].Acquire();
-        {
-          scheduler->time_remaining[ me->tid ] = 0.0;
-        }
-        scheduler->ready_queue_lock[ me->tid ].Release();
-
-
+        int max_remaining_task = 0;
         float max_remaining_time = 0.0;
         int target = -1;
 
         /** only steal jobs within the numa node */
-		int numa_grp = 2;
-		if ( scheduler->n_worker > 31 ) numa_grp = 4;
-        int numa_beg = ( me->tid / numa_grp ) * ( scheduler->n_worker / numa_grp );
-        int numa_end = numa_beg + ( scheduler->n_worker / numa_grp );
+        //int numa_grp = 2;
+        //if ( scheduler->n_worker > 31 ) numa_grp = 4;
+        //int numa_beg = ( me->tid / numa_grp ) * ( scheduler->n_worker / numa_grp );
+        //int numa_end = numa_beg + ( scheduler->n_worker / numa_grp );
 
-        for ( int p = numa_beg; p < numa_end; p ++ )
-        //for ( int p = 0; p < scheduler->n_worker; p ++ )
+        //for ( int p = numa_beg; p < numa_end; p ++ )
+        for ( int p = 0; p < scheduler->n_worker; p ++ )
         {
           //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
-          if ( scheduler->time_remaining[ p ] > max_remaining_time )
+          //if ( scheduler->time_remaining[ p ] > max_remaining_time )
+          //{
+          //  max_remaining_time = scheduler->time_remaining[ p ];
+          //  target = p;
+          //}
+
+          if ( scheduler->ready_queue[ me->tid ].size() > max_remaining_task )
           {
-            max_remaining_time = scheduler->time_remaining[ p ];
+            max_remaining_task = scheduler->ready_queue[ me->tid ].size();
             target = p;
           }
         }
@@ -720,12 +740,24 @@ void* Scheduler::EntryPoint( void* arg )
           scheduler->ready_queue_lock[ target ].Release();
           if ( target_task )
           {
-            scheduler->ready_queue_lock[ me->tid ].Acquire();
+            //scheduler->ready_queue_lock[ me->tid ].Acquire();
+            //{
+            //  scheduler->ready_queue[ me->tid ].push_back( target_task );
+            //  scheduler->time_remaining[ me->tid ] += target_task->cost;
+            //}
+            //scheduler->ready_queue_lock[ me->tid ].Release();
+
+            idle = 0;
+            task->SetStatus( RUNNING );
+            if ( me->Execute( target_task ) )
             {
-              scheduler->ready_queue[ me->tid ].push_back( target_task );
-              scheduler->time_remaining[ me->tid ] += target_task->cost;
+              target_task->DependenciesUpdate();
+              scheduler->n_task_lock.Acquire();
+              {
+                scheduler->n_task ++;
+              }
+              scheduler->n_task_lock.Release();
             }
-            scheduler->ready_queue_lock[ me->tid ].Release();
           }
         }
       }

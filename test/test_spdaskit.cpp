@@ -88,7 +88,7 @@ template<
 void test_spdaskit( 
   hmlp::Data<T> *X,
 	SPDMATRIX &K, hmlp::Data<std::pair<T, std::size_t>> &NN,
-	size_t n, size_t m, size_t k, size_t s, size_t nrhs )
+	size_t n, size_t m, size_t k, size_t s, T stol, size_t nrhs )
 {
   /** instantiation for the Spd-Askit tree */
   using SETUP = hmlp::spdaskit::Setup<SPDMATRIX, SPLITTER, T>;
@@ -169,7 +169,7 @@ void test_spdaskit(
   tree.setup.m = m;
   tree.setup.k = k;
   tree.setup.s = s;
-  tree.setup.stol = 1E-3;
+  tree.setup.stol = stol;
   // ------------------------------------------------------------------------
 
   printf( "TreePartition ..." ); fflush( stdout );
@@ -375,8 +375,8 @@ int main( int argc, char *argv[] )
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 
-  std::string DATADIR( "/scratch/jlevitt/data/" );
-  //std::string DATADIR( "/work/02794/ych/data/" );
+  //std::string DATADIR( "/scratch/jlevitt/data/" );
+  std::string DATADIR( "/work/02794/ych/data/" );
 
   size_t n, m, d, k, s, nrhs;
 
@@ -388,6 +388,8 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 3 ], "%lu", &k );
   sscanf( argv[ 4 ], "%lu", &s );
   sscanf( argv[ 5 ], "%lu", &nrhs );
+  T stol = 1E-4;
+
 
   //T val[ 6 ] = { 1.0, 4.0, 5.0, 2.0, 3.0, 6.0 };
   //std::size_t row_ind[ 6 ] = { 0, 2, 2, 0, 1, 2 };
@@ -447,7 +449,7 @@ int main( int argc, char *argv[] )
     K.resize( n, n );
     K.randspd<USE_LOWRANK>( 0.0, 1.0 );
     test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-    ( X, K, NN, n, m, k, s, nrhs );
+    ( X, K, NN, n, m, k, s, stol, nrhs );
   }
   
   if ( DENSETESTSUIT )
@@ -468,7 +470,7 @@ int main( int argc, char *argv[] )
                                                 + std::string( ".dat" );
       K.read( n, n, filename );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, nrhs );
+      ( X, K, NN, n, m, k, s, stol, nrhs );
     }
   }
 
@@ -499,7 +501,7 @@ int main( int argc, char *argv[] )
       //hmlp::Data<std::pair<T, std::size_t>> NN;
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, nrhs );
+      ( X, K, NN, n, m, k, s, stol, nrhs );
     }
     {
       std::string filename = DATADIR + std::string( "msdoor.mtx" );
@@ -510,7 +512,7 @@ int main( int argc, char *argv[] )
       //hmlp::Data<std::pair<T, std::size_t>> NN;
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, nrhs );
+      ( X, K, NN, n, m, k, s, stol, nrhs );
     }
     //{
     //  std::string filename = DATADIR + std::string( "thermal2.mtx" );
@@ -540,7 +542,7 @@ int main( int argc, char *argv[] )
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, nrhs );
+      ( X, K, NN, n, m, k, s, stol, nrhs );
 	  }
 	  {
       std::string filename = DATADIR + std::string( "email-Enron.mtx" );
@@ -550,7 +552,7 @@ int main( int argc, char *argv[] )
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, nrhs );
+      ( X, K, NN, n, m, k, s, stol, nrhs );
 	  }
 	  {
       std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
@@ -560,7 +562,7 @@ int main( int argc, char *argv[] )
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, nrhs );
+      ( X, K, NN, n, m, k, s, stol, nrhs );
 	  }
   }
 
@@ -579,7 +581,7 @@ int main( int argc, char *argv[] )
         + std::string( ".dat" );
       hmlp::OOC<T> K( n, n, filename );
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, nrhs );
+      ( X, K, NN, n, m, k, s, stol, nrhs );
     }
   }
 
@@ -600,7 +602,7 @@ int main( int argc, char *argv[] )
       K.read( n, d, filename );
       hmlp::Data<std::pair<T, std::size_t>> NN;
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, nrhs );
+      ( X, K, NN, n, m, k, s, stol, nrhs );
     }
   }
 

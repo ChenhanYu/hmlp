@@ -45,10 +45,10 @@ export HMLP_USE_VML=true
 echo "HMLP_USE_VML = $HMLP_USE_VML"
 
 ## Compile with KNL -xMIC-AVX512
-export HMLP_MIC_AVX512=false
+export HMLP_MIC_AVX512=true
 
 ## Manually set the mkl path
-# export HMLP_MKL_DIR=$TACC_MKL_DIR
+ export HMLP_MKL_DIR=$TACC_MKL_DIR
 # export HMLP_MKL_DIR=/opt/intel/mkl
 export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
 echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
@@ -58,7 +58,7 @@ export HMLP_QSML_DIR=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-androi
 echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
 
 ## Output google site data
-export HMLP_ANALYSIS_DATA=false
+export HMLP_ANALYSIS_DATA=true
 echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 
 
@@ -66,7 +66,7 @@ echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 ## Parallel options
 export OMP_NESTED=false
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=68
 #export OMP_PLACES="{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15},{16},{17},{18},{19}"
 #export OMP_PLACES="{0},{4},{8},{12},{16},{20},{24},{28},{32},{36},{1},{5},{9},{13},{17},{21},{25},{29},{33},{37}"
 export KS_JC_NT=1

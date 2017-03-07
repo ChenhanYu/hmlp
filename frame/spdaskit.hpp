@@ -117,7 +117,6 @@ class Data
 
     /** permuted weights and potentials (buffer) */
     hmlp::Data<T> w_leaf;
-    hmlp::Data<T> wt_leaf;
     hmlp::Data<T> u_leaf[ 4 ];
 
     /** cached Kab */
@@ -869,6 +868,15 @@ void Interpolate( NODE *node )
     return;
   }
 
+  /** if is skeletonized, reserve space for w_skel and u_skel */
+  if ( data.isskel )
+  {
+    data.w_skel.reserve( skels.size(), 1024 );
+    data.u_skel.reserve( skels.size(), 1024 );
+  }
+
+
+
   /** early return if ( s == n ) */
   //if ( s == n )
   //{
@@ -1049,20 +1057,20 @@ void Skeletonize( NODE *node )
     {
       while ( amap.size() < nsamples )
       {
-		size_t sample;
+        size_t sample;
 
-		if ( rand() % 5 ) // 80% chances to use important sample
-		{
-		  auto importantsample = K.ImportantSample( bmap[ rand() % bmap.size() ] );
-		  sample = importantsample.second;
-		}
-		else
-		{
+        if ( rand() % 5 ) // 80% chances to use important sample
+        {
+          auto importantsample = K.ImportantSample( bmap[ rand() % bmap.size() ] );
+          sample = importantsample.second;
+        }
+        else
+        {
           sample = rand() % K.col();
-		}
-		
+        }
+
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
-             std::find( lids.begin(), lids.end(), sample ) == lids.end() )
+            std::find( lids.begin(), lids.end(), sample ) == lids.end() )
         {
           amap.push_back( sample );
         }
@@ -1125,14 +1133,6 @@ void Skeletonize( NODE *node )
   /** separate interpolation of proj */
   //Interpolate<NODE, T>( node );
 
-
-  /** if is skeletonized, reserve space for w_skel and u_skel */
-  if ( data.isskel )
-  {
-    data.w_skel.reserve( skels.size(), 1024 );
-    data.u_skel.reserve( skels.size(), 1024 );
-  }
-
   /** update Pruning neighbor list, TODO: not sure what is this  */
   data.pnids.clear();
   for ( int ii = 0 ; ii < skels.size() ; ii ++ )
@@ -1163,8 +1163,12 @@ class SkeletonizeTask : public hmlp::Task
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
-      // Need an accurate cost model.
-      cost = 1.0;
+
+      /** we don't know the exact cost here */
+      cost = 5.0;
+
+      /** high priority */
+      priority = true;
     };
 
     void GetEventRecord()
@@ -1231,6 +1235,10 @@ void UpdateWeights( NODE *node )
   /** early return */
   if ( !node->parent || !node->data.isskel ) return;
 
+  /** eanble nested parallelism */
+  int num_threads = omp_get_num_threads();
+  if ( node->l < 4 ) omp_set_num_threads( 4 );
+
   /** gather shared data and create reference */
   auto &w = *node->setup->w;
 
@@ -1245,7 +1253,6 @@ void UpdateWeights( NODE *node )
 
   /** w_skel is s-by-nrhs, initial values are not important */
   w_skel.resize( skels.size(), w.row() );
-
 
   //printf( "%lu UpdateWeight w_skel.num() %lu\n", node->treelist_id, w_skel.num() );
 
@@ -1264,12 +1271,13 @@ void UpdateWeights( NODE *node )
 
     xgemm
     (
-      "N", "T",
-      w_skel.row(), w_skel.col(), w_leaf.col(),
+      "N", "N",
+      w_skel.row(), w_skel.col(), w_leaf.row(),
       1.0, proj.data(),   proj.row(),
            w_leaf.data(), w_leaf.row(),
       0.0, w_skel.data(), w_skel.row()
     );
+
     double update_leaf_time = omp_get_wtime() - beg;
     //printf( "m %lu n %lu k %lu, w_leaf %.3E total %.3E\n", 
     //  w_skel.row(), w_skel.col(), w_leaf.col(),
@@ -1298,6 +1306,9 @@ void UpdateWeights( NODE *node )
       1.0,  w_skel.data(),  w_skel.row()
     );
   }
+
+  /** reset omp threads */
+  omp_set_num_threads( num_threads );
 
 }; // end void SetWeights()
 
@@ -1352,6 +1363,9 @@ class UpdateWeightsTask : public hmlp::Task
 
       /** assume computation bound */
       cost = flops / 1E+9;
+
+      /** high priority */
+      priority = true;
     };
 
     void Prefetch()
@@ -1360,6 +1374,18 @@ class UpdateWeightsTask : public hmlp::Task
       __builtin_prefetch( proj.data() );
       auto &w_skel = arg->data.w_skel;
       __builtin_prefetch( w_skel.data() );
+      if ( arg->isleaf )
+      {
+        auto &w_leaf = arg->data.w_leaf;
+        __builtin_prefetch( w_leaf.data() );
+      }
+      else
+      {
+        auto &w_lskel = arg->lchild->data.w_skel;
+        __builtin_prefetch( w_lskel.data() );
+        auto &w_rskel = arg->rchild->data.w_skel;
+        __builtin_prefetch( w_rskel.data() );
+      }
     };
 
     void GetEventRecord()
@@ -1544,6 +1570,9 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
       /** assume computation bound */
       cost = flops / 1E+9;
+
+      /** high priority */
+      priority = true;
     };
 
     void Prefetch()
@@ -1754,6 +1783,9 @@ class SkeletonsToNodesTask : public hmlp::Task
 
       /** asuume computation bound */
       cost = flops / 1E+9;
+
+      /** low priority */
+      priority = false;
     };
 
     void Prefetch()
@@ -1762,6 +1794,20 @@ class SkeletonsToNodesTask : public hmlp::Task
       __builtin_prefetch( proj.data() );
       auto &u_skel = arg->data.u_skel;
       __builtin_prefetch( u_skel.data() );
+      if ( arg->isleaf )
+      {
+        __builtin_prefetch( arg->data.u_leaf[ 0 ].data() );
+        __builtin_prefetch( arg->data.u_leaf[ 1 ].data() );
+        __builtin_prefetch( arg->data.u_leaf[ 2 ].data() );
+        __builtin_prefetch( arg->data.u_leaf[ 3 ].data() );
+      }
+      else
+      {
+        auto &u_lskel = arg->lchild->data.u_skel;
+        __builtin_prefetch( u_lskel.data() );
+        auto &u_rskel = arg->rchild->data.u_skel;
+        __builtin_prefetch( u_rskel.data() );
+      }
     };
 
     void GetEventRecord()
@@ -1774,13 +1820,10 @@ class SkeletonsToNodesTask : public hmlp::Task
 #ifdef DEBUG_SPDASKIT
       printf( "Skel2Node DepenencyAnalysis %lu\n", arg->treelist_id );
 #endif
-      //if ( !arg->parent )  this->Enqueue();
-
-      /** impose rw dependencies on multiple copies */
-      for ( size_t p = 0; p < 4; p ++ )
+      if ( !arg->parent ) 
       {
-        auto &u_leaf = arg->data.u_leaf[ p ];
-        u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        this->Enqueue();
+        return;
       }
 
       auto &u_skel = arg->data.u_skel;
@@ -1792,6 +1835,15 @@ class SkeletonsToNodesTask : public hmlp::Task
         auto &u_rskel = arg->rchild->data.u_skel;
         u_lskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
         u_rskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      }
+      else
+      {
+        /** impose rw dependencies on multiple copies */
+        for ( size_t p = 0; p < 4; p ++ )
+        {
+          auto &u_leaf = arg->data.u_leaf[ p ];
+          u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        }
       }
     };
 
@@ -1845,19 +1897,9 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
       {
         auto &bmap = (*it)->lids;
         //auto wb = w( bmap );
-        //auto wb = (*it)->data.w_leaf;
-        auto wb = (*it)->data.wt_leaf;
+        auto wb = (*it)->data.w_leaf;
 
-        ///** ( Kab * wb' )' = wb * Kab' */
-        //xgemm
-        //(
-        //  "N", "T",
-        //  u_leaf.row(), u_leaf.col(), wb.col(),
-        //  1.0, wb.data(),                               wb.row(),
-        //  NearKab.data() + offset * NearKab.row(), NearKab.row(),
-        //  1.0, u_leaf.data(),                       u_leaf.row()
-        //);
-
+        /** Kab * wb */
         xgemm
         (
           "N", "N",
@@ -1991,17 +2033,14 @@ class LeavesToLeavesTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
+      assert( arg->isleaf );
+
       /** depends on nothing */
       this->Enqueue();
+
       /** impose rw dependencies on multiple copies */
       auto &u_leaf = arg->data.u_leaf[ SUBTASKID ];
-      u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-
-	  //for ( size_t p = 0; p < 4; p ++ )
-	  //{
-      //  auto &u_leaf = arg->data.u_leaf[ p ];
-      //  u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-	  //}
+      u_leaf.DependencyAnalysis( hmlp::ReadWriteType::W, this );
     };
 
     void Execute( Worker* user_worker )
@@ -2725,8 +2764,7 @@ hmlp::Data<T> ComputeAll
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
-      node->data.w_leaf = weights( node->lids );
-      node->data.wt_leaf = weights.GatherColumns<true>( node->lids );
+      node->data.w_leaf = weights.GatherColumns<true>( node->lids );
     }
 
     if ( USE_OMP_TASK )

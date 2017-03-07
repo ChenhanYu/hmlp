@@ -172,9 +172,9 @@ class Task
 
     float cost;
 
-    Event event;
+    bool priority = false;
 
-    // priority
+    Event event;
 
     TaskStatus GetStatus();
 
