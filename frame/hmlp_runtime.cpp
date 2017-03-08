@@ -400,7 +400,7 @@ void Task::Enqueue( size_t tid )
 
   rt.scheduler->ready_queue_lock[ assignment ].Acquire();
   {
-    float cost = rt.workers[ i ].EstimateCost( this );
+    float cost = rt.workers[ assignment ].EstimateCost( this );
     status = QUEUED;
     if ( priority )
       rt.scheduler->ready_queue[ assignment ].push_front( this );
