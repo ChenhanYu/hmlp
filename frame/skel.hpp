@@ -209,13 +209,13 @@ void id
     {
       skels.clear();
       proj.resize( 0, 0 );
-	  jpvt.resize( 0 );
+      jpvt.resize( 0 );
       return;
     }
     else /** Continue with rank maxs */
-	{
+    {
       s = maxs;
-	}
+    }
   }
 
   /** now #skeleton has been decided, resize skels to fit */
@@ -235,20 +235,20 @@ void id
   if ( true ) 
   {
     /** fill in proj */
-	proj.clear();
+    proj.clear();
     proj.resize( s, n, 0.0 );
 
-	for ( int j = 0; j < n; j ++ )
-	{
-	  for ( int i = 0; i < s; i ++ )
-	  {
-		if ( j < s )
-	    {
-	  	  if ( j >= i ) proj[ j * s + i ] = A_tmp[ j * m + i ];
-		  else          proj[ j * s + i ] = 0.0;
-	    }
-	    else
-	    {
+    for ( int j = 0; j < n; j ++ )
+    {
+      for ( int i = 0; i < s; i ++ )
+      {
+        if ( j < s )
+        {
+          if ( j >= i ) proj[ j * s + i ] = A_tmp[ j * m + i ];
+          else          proj[ j * s + i ] = 0.0;
+        }
+        else
+        {
 	      proj[ j * s + i ] = A_tmp[ j * m + i ];
 	    }
 	  }

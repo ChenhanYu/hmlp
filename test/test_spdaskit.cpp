@@ -18,11 +18,13 @@
 #include <hmlp_gpu.hpp>
 #endif
 
-#ifdef HMLP_MIC_AVX512
+#ifdef HMLP_AVX512
 /** this is for hbw_malloc() and hnw_free */
 #include <hbwmalloc.h>
 /** we need hbw::allocator<T> to replace std::allocator<T> */
 #include <hbw_allocator.h>
+/** MKL headers */
+#include <mkl.h>
 #endif
 
 #define GFLOPS 1073741824 
@@ -184,6 +186,18 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
+
+#ifdef HMLP_AVX512
+  /** if we are using KNL, use nested omp construct */
+  assert( omp_get_max_threads() == 68 );
+  mkl_set_dynamic( 0 );
+  mkl_set_num_threads( 17 );
+  hmlp_set_num_workers( 4 );
+  //printf( "here\n" );
+#endif
+
+
+  /** runtime */
   printf( "Skeletonization (HMLP Runtime) ..." ); fflush( stdout );
   const bool AUTODEPENDENCY = true;
   beg = omp_get_wtime();
@@ -194,13 +208,19 @@ void test_spdaskit(
   dynamic_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
+#ifdef HMLP_AVX512
+  mkl_set_dynamic( 1 );
+  mkl_set_num_threads( omp_get_max_threads() );
+#endif
+
+
   // Parallel level-by-level traversal.
   printf( "Skeletonization (Level-By-Level) ..." ); fflush( stdout );
   beg = omp_get_wtime();
   if ( OMPLEVEL ) 
   {
-	tree.template TraverseUp<false, false, SKELTASK>( skeltask );
-	tree.template TraverseUnOrdered<false, false, PROJTASK>( projtask );
+    tree.template TraverseUp<false, false, SKELTASK>( skeltask );
+    tree.template TraverseUnOrdered<false, false, PROJTASK>( projtask );
   }
   ref_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
@@ -210,28 +230,21 @@ void test_spdaskit(
   beg = omp_get_wtime();
   if ( OMPRECTASK ) 
   {
-	tree.template PostOrder<true>( tree.treelist[ 0 ], skeltask );
-	/** the interpolation part has no depednencies */
-	tree.template TraverseUp<false, false, PROJTASK>( projtask );
+    tree.template PostOrder<true>( tree.treelist[ 0 ], skeltask );
+    /** the interpolation part has no depednencies */
+    tree.template TraverseUp<false, false, PROJTASK>( projtask );
   }
   omptask_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
-  // Sekeletonization with omp task.
+  /** sekeletonization with omp task. */
   printf( "Skeletonization (OpenMP-4.5 Dependency tasks) ..." ); fflush( stdout );
   beg = omp_get_wtime();
   if ( OMPDAGTASK ) 
   {
-	//tree.PostOrder<false>( tree.treelist[ 0 ], skeltask );
-	tree. template UpDown<true, true, false>( skeltask, projtask, projtask );
+    //tree.PostOrder<false>( tree.treelist[ 0 ], skeltask );
+    tree. template UpDown<true, true, false>( skeltask, projtask, projtask );
   }
-
-  //#pragma omp parallel
-  //#pragma omp single
-  //{
-  //  tree.template OMPTraverseUp( skeltask );
-  //}
-
 
   omptask45_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
@@ -266,6 +279,15 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
   // ComputeAll
   // ------------------------------------------------------------------------
+#ifdef HMLP_AVX512
+  /** if we are using KNL, use nested omp construct */
+  assert( omp_get_max_threads() == 68 );
+  mkl_set_dynamic( 0 );
+  mkl_set_num_threads( 4 );
+  hmlp_set_num_workers( 17 );
+  //printf( "here2\n" );
+#endif
+
   printf( "ComputeAll (HMLP Runtime) ..." ); fflush( stdout );
   hmlp::Data<T> w( nrhs, n );
   w.rand();
@@ -275,15 +297,24 @@ void test_spdaskit(
   fmm_evaluation_time = dynamic_time;
   printf( "Done.\n" ); fflush( stdout );
 
+#ifdef HMLP_AVX512
+  mkl_set_dynamic( 1 );
+  mkl_set_num_threads( omp_get_max_threads() );
+#endif
+
+
+  /** omp level-by-level */
   printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
   beg = omp_get_wtime();
   if ( OMPLEVEL ) u = hmlp::spdaskit::ComputeAll<false, false, true, true, NODE>( tree, w );
   ref_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
+  /** omp recu task */
   beg = omp_get_wtime();
   omptask_time = omp_get_wtime() - beg;
 
+  /** omp recu task depend */
   beg = omp_get_wtime();
   if ( OMPDAGTASK ) u = hmlp::spdaskit::ComputeAll<false, true, true, true, NODE>( tree, w );
   omptask45_time = omp_get_wtime() - beg;
@@ -375,8 +406,8 @@ int main( int argc, char *argv[] )
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 
-  std::string DATADIR( "/scratch/jlevitt/data/" );
-  //std::string DATADIR( "/work/02794/ych/data/" );
+  //std::string DATADIR( "/scratch/jlevitt/data/" );
+  std::string DATADIR( "/work/02794/ych/data/" );
 
   size_t n, m, d, k, s, nrhs;
 
@@ -435,9 +466,8 @@ int main( int argc, char *argv[] )
 //  tmp.WaitPrefetch( &gpu );
 
 
-
-
   hmlp_init();
+  hmlp_set_num_workers( 17 );
   
   if ( RANDOMMATRIX )
   {

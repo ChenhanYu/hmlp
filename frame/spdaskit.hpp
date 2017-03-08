@@ -117,7 +117,7 @@ class Data
 
     /** permuted weights and potentials (buffer) */
     hmlp::Data<T> w_leaf;
-    hmlp::Data<T> u_leaf[ 4 ];
+    hmlp::Data<T> u_leaf[ 5 ];
 
     /** cached Kab */
     hmlp::Data<T> NearKab;
@@ -1236,8 +1236,8 @@ void UpdateWeights( NODE *node )
   if ( !node->parent || !node->data.isskel ) return;
 
   /** eanble nested parallelism */
-  int num_threads = omp_get_num_threads();
-  if ( node->l < 4 ) omp_set_num_threads( 4 );
+  //int num_threads = omp_get_num_threads();
+  //if ( node->l < 4 ) omp_set_num_threads( 4 );
 
   /** gather shared data and create reference */
   auto &w = *node->setup->w;
@@ -1308,7 +1308,7 @@ void UpdateWeights( NODE *node )
   }
 
   /** reset omp threads */
-  omp_set_num_threads( num_threads );
+  //omp_set_num_threads( num_threads );
 
 }; // end void SetWeights()
 
@@ -1649,18 +1649,20 @@ void SkeletonsToNodes( NODE *node )
     auto &u_leaf = node->data.u_leaf[ 0 ];
     //beg = omp_get_wtime();
     //u_leaf.resize( w.row(), lids.size(), 0.0 );
+    u_leaf.clear();
+    u_leaf.resize( lids.size(), w.row(), 0.0 );
     //u_leaf_time = omp_get_wtime() - beg;
 
     assert( u_leaf.size() == w.row() * lids.size() );
 
-    /** reduce direct iteractions from 4 copies */
-    for ( size_t p = 1; p < 4; p ++ )
-    {
-      for ( size_t i = 0; i < u_leaf.size(); i ++ )
-      {
-        u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
-      }
-    }
+//    /** reduce direct iteractions from 4 copies */
+//    for ( size_t p = 1; p < 4; p ++ )
+//    {
+//      for ( size_t i = 0; i < u_leaf.size(); i ++ )
+//      {
+//        u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
+//      }
+//    }
 
     /** accumulate far interactions */
     if ( data.isskel )
@@ -1684,15 +1686,15 @@ void SkeletonsToNodes( NODE *node )
       );
     }
 
-    /** assemble u_leaf back to u */
-    for ( size_t j = 0; j < amap.size(); j ++ )
-    {
-      for ( size_t i = 0; i < u.row(); i ++ )
-      {
-        //u[ amap[ j ] * u.row() + i ] = u_leaf[ j * u.row() + i ];
-        u[ amap[ j ] * u.row() + i ] = u_leaf( j, i );
-      }
-    }
+//    /** assemble u_leaf back to u */
+//    for ( size_t j = 0; j < amap.size(); j ++ )
+//    {
+//      for ( size_t i = 0; i < u.row(); i ++ )
+//      {
+//        //u[ amap[ j ] * u.row() + i ] = u_leaf[ j * u.row() + i ];
+//        u[ amap[ j ] * u.row() + i ] = u_leaf( j, i );
+//      }
+//    }
     after_writeback_time = omp_get_wtime() - beg;
 
     //printf( "u_leaf %.3E before %.3E after %.3E\n",
@@ -1785,7 +1787,7 @@ class SkeletonsToNodesTask : public hmlp::Task
       cost = flops / 1E+9;
 
       /** low priority */
-      priority = false;
+      priority = true;
     };
 
     void Prefetch()
@@ -1796,10 +1798,10 @@ class SkeletonsToNodesTask : public hmlp::Task
       __builtin_prefetch( u_skel.data() );
       if ( arg->isleaf )
       {
-        __builtin_prefetch( arg->data.u_leaf[ 0 ].data() );
-        __builtin_prefetch( arg->data.u_leaf[ 1 ].data() );
-        __builtin_prefetch( arg->data.u_leaf[ 2 ].data() );
-        __builtin_prefetch( arg->data.u_leaf[ 3 ].data() );
+        //__builtin_prefetch( arg->data.u_leaf[ 0 ].data() );
+        //__builtin_prefetch( arg->data.u_leaf[ 1 ].data() );
+        //__builtin_prefetch( arg->data.u_leaf[ 2 ].data() );
+        //__builtin_prefetch( arg->data.u_leaf[ 3 ].data() );
       }
       else
       {
@@ -1839,11 +1841,11 @@ class SkeletonsToNodesTask : public hmlp::Task
       else
       {
         /** impose rw dependencies on multiple copies */
-        for ( size_t p = 0; p < 4; p ++ )
-        {
-          auto &u_leaf = arg->data.u_leaf[ p ];
-          u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        }
+        //for ( size_t p = 0; p < 4; p ++ )
+        //{
+        //  auto &u_leaf = arg->data.u_leaf[ p ];
+        //  u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        //}
       }
     };
 
@@ -1990,15 +1992,15 @@ class LeavesToLeavesTask : public hmlp::Task
       if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
       else           NearNodes = &arg->NearNodes;
 
-      /** decide the range [itbeg itend] */ 
+      /** TODO: need to better decide the range [itbeg itend] */ 
       size_t itptr = 0;
       size_t itrange = ( NearNodes->size() + 3 ) / 4;
       if ( itrange < 1 ) itrange = 1;
-      itbeg = ( SUBTASKID + 0 ) * itrange;
-      itend = ( SUBTASKID + 1 ) * itrange;
+      itbeg = ( SUBTASKID - 1 ) * itrange;
+      itend = ( SUBTASKID + 0 ) * itrange;
       if ( itbeg > NearNodes->size() ) itbeg = NearNodes->size();
       if ( itend > NearNodes->size() ) itend = NearNodes->size();
-      if ( SUBTASKID == 3 ) itend = NearNodes->size();
+      if ( SUBTASKID == 4 ) itend = NearNodes->size();
 
       for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
       {
@@ -2039,8 +2041,8 @@ class LeavesToLeavesTask : public hmlp::Task
       this->Enqueue();
 
       /** impose rw dependencies on multiple copies */
-      auto &u_leaf = arg->data.u_leaf[ SUBTASKID ];
-      u_leaf.DependencyAnalysis( hmlp::ReadWriteType::W, this );
+      //auto &u_leaf = arg->data.u_leaf[ SUBTASKID ];
+      //u_leaf.DependencyAnalysis( hmlp::ReadWriteType::W, this );
     };
 
     void Execute( Worker* user_worker )
@@ -2736,20 +2738,20 @@ hmlp::Data<T> ComputeAll
   if ( SYMMETRIC_PRUNE )
   {
     //using LEAFTOLEAFTASK = LeavesToLeavesTask<NNPRUNE, NODE, T>;
-    using LEAFTOLEAFTASK0 = LeavesToLeavesTask<0, NNPRUNE, NODE, T>;
     using LEAFTOLEAFTASK1 = LeavesToLeavesTask<1, NNPRUNE, NODE, T>;
     using LEAFTOLEAFTASK2 = LeavesToLeavesTask<2, NNPRUNE, NODE, T>;
     using LEAFTOLEAFTASK3 = LeavesToLeavesTask<3, NNPRUNE, NODE, T>;
+    using LEAFTOLEAFTASK4 = LeavesToLeavesTask<4, NNPRUNE, NODE, T>;
 
     using NODETOSKELTASK  = UpdateWeightsTask<NODE>;
     using SKELTOSKELTASK  = SkeletonsToSkeletonsTask<NNPRUNE, NODE>;
     using SKELTONODETASK  = SkeletonsToNodesTask<NNPRUNE, NODE, T>;
 
     //LEAFTOLEAFTASK leaftoleaftask;
-    LEAFTOLEAFTASK0 leaftoleaftask0;
     LEAFTOLEAFTASK1 leaftoleaftask1;
     LEAFTOLEAFTASK2 leaftoleaftask2;
     LEAFTOLEAFTASK3 leaftoleaftask3;
+    LEAFTOLEAFTASK4 leaftoleaftask4;
 
     NODETOSKELTASK  nodetoskeltask;
     SKELTOSKELTASK  skeltoskeltask;
@@ -2772,10 +2774,10 @@ hmlp::Data<T> ComputeAll
       assert( !USE_RUNTIME );
       /** TODO: traverse leaf here */
       //tree.template TraverseLeafs<false, false>( leaftoleaftask );
-      tree.template TraverseLeafs<false, false>( leaftoleaftask0 );
       tree.template TraverseLeafs<false, false>( leaftoleaftask1 );
       tree.template TraverseLeafs<false, false>( leaftoleaftask2 );
       tree.template TraverseLeafs<false, false>( leaftoleaftask3 );
+      tree.template TraverseLeafs<false, false>( leaftoleaftask4 );
 
       tree.template UpDown<true, true, true>( nodetoskeltask, skeltoskeltask, skeltonodetask );
     }
@@ -2783,10 +2785,10 @@ hmlp::Data<T> ComputeAll
     {
       assert( !USE_OMP_TASK );
       /** TODO: traverse leaf here */
-      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask0 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
+      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
 
       //printf( "task creating done\n" ); fflush( stdout );
       //if ( USE_RUNTIME ) hmlp_run();
@@ -2802,6 +2804,26 @@ hmlp::Data<T> ComputeAll
       tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
       overhead_time = omp_get_wtime() - beg;
       if ( USE_RUNTIME ) hmlp_run();
+
+    }
+
+    /** reduce direct iteractions from 4 copies */
+    #pragma omp parallel for
+    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    {
+      auto *node = *(level_beg + node_ind);
+      auto &amap = node->lids;
+      auto &u_leaf = node->data.u_leaf[ 0 ];
+
+      /** reduce all u_leaf[0:4] */
+      for ( size_t p = 1; p < 5; p ++ )
+        for ( size_t i = 0; i < u_leaf.size(); i ++ )
+          u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
+
+      /** assemble u_leaf back to u */
+      for ( size_t j = 0; j < amap.size(); j ++ )
+        for ( size_t i = 0; i < potentials.row(); i ++ )
+          potentials[ amap[ j ] * potentials.row() + i ] = u_leaf( j, i );
     }
     computeall_time = omp_get_wtime() - beg;
 

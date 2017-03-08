@@ -1,4 +1,3 @@
-#include <mkl.h>
 #include <hmlp_runtime.hpp>
 
 #ifdef HMLP_USE_CUDA
@@ -280,11 +279,13 @@ void Event::Timeline( bool isbeg, size_t tag )
 
 void Event::MatlabTimeline( FILE *pFile )
 {
+  /** TODO: this needs to change according to the arch */
   double gflops_peak = 45.0;
   double flops_efficiency = 0.0;
   if ( sec * 1E+9 > 0.1 )
   {
-	flops_efficiency = flops / ( gflops_peak * sec * 1E+9 );
+    flops_efficiency = flops / ( gflops_peak * sec * 1E+9 );
+    if ( flops_efficiency > 1.0 ) flops_efficiency = 1.0;
   }
   fprintf( pFile, "rectangle('position',[%lf %lu %lf %d],'facecolor',[1.0,%lf,%lf]);\n",
       beg, tid, ( end - beg ), 1, 
@@ -399,13 +400,15 @@ void Task::Enqueue( size_t tid )
 
   rt.scheduler->ready_queue_lock[ assignment ].Acquire();
   {
+    float cost = rt.workers[ i ].EstimateCost( this );
     status = QUEUED;
-    rt.scheduler->time_remaining[ assignment ] += 
-      rt.workers[ assignment ].EstimateCost( this );
     if ( priority )
       rt.scheduler->ready_queue[ assignment ].push_front( this );
     else
       rt.scheduler->ready_queue[ assignment ].push_back( this );
+
+    /** update the remaining time */
+    rt.scheduler->time_remaining[ assignment ] += cost; 
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
 };
@@ -474,22 +477,25 @@ Scheduler::~Scheduler()
 };
 
 
-void Scheduler::Init( int user_n_worker )
+void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
 {
-  n_worker = user_n_worker;
-
-  mkl_set_dynamic( 0 );
-  mkl_set_num_threads( 1 );
-  omp_set_nested( 1 );
-  omp_set_max_active_levels( 2 );
-
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler::Init()\n" );
 #endif
-  // Reset task counter.
+
+  /** adjust the number of active works */
+  n_worker = user_n_worker;
+
+  /** reset task counter */
   n_task = 0;
 
 #ifdef USE_PTHREAD_RUNTIME
+  if ( user_n_nested_worker > 1 )
+  {
+    printf( "pthread runtime does not support nested parallism\n" );
+    exit( 1 );
+  }
+
   for ( int i = 0; i < n_worker; i ++ )
   {
     time_remaining[ i ] = 0.0;
@@ -501,23 +507,40 @@ void Scheduler::Init( int user_n_worker )
       EntryPoint, (void*)&(rt.workers[ i ])
     );
   }
-  // Now the master thread
+  /** now the master thread */
   EntryPoint( (void*)&(rt.workers[ 0 ]) );
 #else
+
+  /** nested setup */
+  if ( user_n_nested_worker > 1 )
+  {
+    omp_set_dynamic( 0 );
+    omp_set_nested( 1 );
+    omp_set_max_active_levels( 2 );
+  }
+
+  //printf( "mkl_get_max_threads %d\n", mkl_get_max_threads() );
+
   #pragma omp parallel for num_threads( n_worker )
   for ( int i = 0; i < n_worker; i ++ )
   {
+    /** setup nested thread number */
+    omp_set_num_threads( user_n_nested_worker );
+
     time_remaining[ i ] = 0.0;
     rt.workers[ i ].tid = i;
     rt.workers[ i ].scheduler = this;
     EntryPoint( (void*)&(rt.workers[ i ]) );
   }
-#endif
 
-  mkl_set_dynamic( 1 );
-  mkl_set_num_threads( n_worker );
-  omp_set_nested( 0 );
-  omp_set_max_active_levels( 1 );
+  if ( user_n_nested_worker > 1 )
+  {
+    omp_set_dynamic( 1 );
+    omp_set_nested( 0 );
+    omp_set_max_active_levels( 1 );
+    omp_set_num_threads( omp_get_max_threads() );
+  }
+#endif
 };
 
 
@@ -696,7 +719,7 @@ void* Scheduler::EntryPoint( void* arg )
     {
       idle ++;
 
-      if ( idle > 100 )
+      if ( idle > 10 )
       {
         int max_remaining_task = 0;
         float max_remaining_time = 0.0;
@@ -712,17 +735,17 @@ void* Scheduler::EntryPoint( void* arg )
         for ( int p = 0; p < scheduler->n_worker; p ++ )
         {
           //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
-          if ( scheduler->time_remaining[ p ] > max_remaining_time )
-          {
-            max_remaining_time = scheduler->time_remaining[ p ];
-            target = p;
-          }
-
-          //if ( scheduler->ready_queue[ p ].size() > max_remaining_task )
+          //if ( scheduler->time_remaining[ p ] > max_remaining_time )
           //{
-          //  max_remaining_task = scheduler->ready_queue[ p ].size();
+          //  max_remaining_time = scheduler->time_remaining[ p ];
           //  target = p;
           //}
+
+          if ( scheduler->ready_queue[ p ].size() > max_remaining_task )
+          {
+            max_remaining_task = scheduler->ready_queue[ p ].size();
+            target = p;
+          }
         }
 
         if ( target >= 0 && target != me->tid )
@@ -740,24 +763,24 @@ void* Scheduler::EntryPoint( void* arg )
           scheduler->ready_queue_lock[ target ].Release();
           if ( target_task )
           {
-            scheduler->ready_queue_lock[ me->tid ].Acquire();
-            {
-              scheduler->ready_queue[ me->tid ].push_back( target_task );
-              scheduler->time_remaining[ me->tid ] += target_task->cost;
-            }
-            scheduler->ready_queue_lock[ me->tid ].Release();
-
-            //idle = 0;
-            //target_task->SetStatus( RUNNING );
-            //if ( me->Execute( target_task ) )
+            //scheduler->ready_queue_lock[ me->tid ].Acquire();
             //{
-            //  target_task->DependenciesUpdate();
-            //  scheduler->n_task_lock.Acquire();
-            //  {
-            //    scheduler->n_task ++;
-            //  }
-            //  scheduler->n_task_lock.Release();
+            //  scheduler->ready_queue[ me->tid ].push_back( target_task );
+            //  scheduler->time_remaining[ me->tid ] += target_task->cost;
             //}
+            //scheduler->ready_queue_lock[ me->tid ].Release();
+
+            idle = 0;
+            target_task->SetStatus( RUNNING );
+            if ( me->Execute( target_task ) )
+            {
+              target_task->DependenciesUpdate();
+              scheduler->n_task_lock.Acquire();
+              {
+                scheduler->n_task ++;
+              }
+              scheduler->n_task_lock.Release();
+            }
           }
         }
       }
@@ -786,13 +809,12 @@ void Scheduler::Summary()
 
   //printf( "%s\n", buffer );
 
-
-    for ( size_t i = 0; i < tasklist.size(); i ++ )
-    {
-      total_flops += tasklist[ i ]->event.GetFlops();
-      total_mops  += tasklist[ i ]->event.GetMops();
-    }
-    printf( "flops %E mops %E\n", total_flops, total_mops );
+  for ( size_t i = 0; i < tasklist.size(); i ++ )
+  {
+    total_flops += tasklist[ i ]->event.GetFlops();
+    total_mops  += tasklist[ i ]->event.GetMops();
+  }
+  printf( "flops %E mops %E\n", total_flops, total_mops );
 
 
 #ifdef DUMP_ANALYSIS_DATA
@@ -826,10 +848,10 @@ void Scheduler::Summary()
       auto &data = timeline[ i ];
       auto &event = tasklist[ std::get<2>( data ) ]->event;  
       event.Timeline( std::get<0>( data ), i + timeline_tag );
-	  event.MatlabTimeline( pFile );
+      event.MatlabTimeline( pFile );
     }
 
-	fclose( pFile );
+    fclose( pFile );
 
     timeline_tag += timeline.size();
   }
@@ -862,6 +884,8 @@ void RunTime::Init()
     if ( !is_init )
     {
       n_worker = omp_get_max_threads();
+      n_max_worker = n_worker;
+      n_nested_worker = 1;
       scheduler = new Scheduler();
 
 #ifdef HMLP_USE_CUDA
@@ -883,7 +907,7 @@ void RunTime::Run()
   {
     Init();
   }
-  scheduler->Init( n_worker );
+  scheduler->Init( n_worker, n_nested_worker );
   scheduler->Finalize();
 };
 
@@ -920,6 +944,15 @@ void RunTime::Finalize()
 void hmlp_init()
 {
   hmlp::rt.Init();
+};
+
+void hmlp_set_num_workers( int n_worker )
+{
+  if ( n_worker != hmlp::rt.n_worker )
+  {
+    hmlp::rt.n_nested_worker = hmlp::rt.n_max_worker / n_worker;
+    hmlp::rt.n_worker = n_worker;
+  }
 };
 
 void hmlp_run()

@@ -253,7 +253,7 @@ class Scheduler
     
     ~Scheduler();
 
-    void Init( int n_worker );
+    void Init( int n_worker, int n_nested_worker );
 
     void Finalize();
 
@@ -323,6 +323,10 @@ class RunTime
 
     int n_worker;
 
+    int n_max_worker;
+
+    int n_nested_worker = 1;
+
     thread_communicator *mycomm;
 
     Worker workers[ MAX_WORKER ];
@@ -330,7 +334,7 @@ class RunTime
     Scheduler *scheduler;
 
   private:
-    
+   
     bool is_init = false;
 
     //std::size_t pool_size_in_bytes;
