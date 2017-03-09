@@ -1884,9 +1884,18 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
    **/
   auto &u_leaf = data.u_leaf[ SUBTASKID ];
   u_leaf.clear();
-  //u_leaf.resize( w.row(), lids.size(), 0.0 );
-  u_leaf.resize( lids.size(), w.row(), 0.0 );
 
+  /** early return if nothing to do */
+  if ( itbeg == itend ) 
+  {
+    u_leaf.resize( 0, 0 );
+    return;
+  }
+  else
+  {
+    u_leaf.clear();
+    u_leaf.resize( lids.size(), w.row(), 0.0 );
+  }
 
   if ( NearKab.size() ) /** Kab is cached */
   {
@@ -2219,7 +2228,7 @@ void NearNodes( TREE &tree )
 
 
   // Traverse all leaf nodes. 
-  //#pragma omp parallel for
+  #pragma omp parallel for
   for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
     auto *node = *(level_beg + node_ind);
@@ -2305,6 +2314,106 @@ void NearNodes( TREE &tree )
 #endif
   }
 };
+
+
+
+template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
+class NearNodesTask : public hmlp::Task
+{
+  public:
+
+    TREE *arg;
+
+    void Set( TREE *user_arg )
+    {
+      arg = user_arg;
+      name = std::string( "near" );
+
+      //--------------------------------------
+      double flops = 0.0, mops = 0.0;
+
+      /** setup the event */
+      event.Set( label + name, flops, mops );
+
+      /** asuume computation bound */
+      cost = 1.0;
+
+      /** low priority */
+      priority = true;
+    }
+
+    void DependencyAnalysis()
+    {
+      TREE &tree = *arg;
+      size_t n_nodes = 1 << tree.depth;
+      auto level_beg = tree.treelist.begin() + n_nodes - 1;
+      for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+      {
+        auto *node = *(level_beg + node_ind);
+        node->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      NearNodes<SYMMETRIC, NNPRUNE, TREE>( *arg );
+    };
+
+}; /** class NearNodesTask */
+
+
+template<bool NNPRUNE, typename NODE>
+class CacheNearNodesTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      arg = user_arg;
+      name = std::string( "c-n" );
+      {
+        //label = std::to_string( arg->treelist_id );
+        std::ostringstream ss;
+        ss << arg->treelist_id;
+        label = ss.str();
+      }
+
+      double flops = 0.0, mops = 0.0;
+
+      /** setup the event */
+      event.Set( label + name, flops, mops );
+
+      /** asuume computation bound */
+      cost = 1.0;
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      NODE *node = arg;
+      auto *NearNodes = &node->NearNodes;
+      if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
+      auto &K = *node->setup->K;
+      auto &data = node->data;
+      auto &amap = node->lids;
+      std::vector<size_t> bmap;
+      for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+      {
+        bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
+      }
+      data.NearKab = K( amap, bmap );
+    };
+}; 
+
+
+
+
 
 /**
  *  TODO: change to task.
@@ -2438,11 +2547,18 @@ void FarNodes( TREE &tree )
  *                          NearNodes and FarNodes.
  *        
  */ 
-template<bool SYMMETRIC, bool NNPRUNE, bool CACHE = true, typename TREE>
+template<bool SYMMETRIC, bool NNPRUNE, bool CACHE = true, typename NODE, typename TREE>
 void NearFarNodes( TREE &tree )
 {
   //printf( "Enter NearNodes\n" );
-  NearNodes<SYMMETRIC, NNPRUNE>( tree );
+  //NearNodes<SYMMETRIC, NNPRUNE>( tree );
+
+  //auto *nearnodestask = new NearNodesTask<SYMMETRIC, NNPRUNE, TREE>();
+  //nearnodestask->Set( &tree );
+  //nearnodestask->Execute( NULL );
+
+  //nearnodestaks->Enqueue();
+
   //printf( "Finish NearNodes\n" );
   FarNodes<SYMMETRIC, NNPRUNE>( tree );
 
@@ -2480,22 +2596,29 @@ void NearFarNodes( TREE &tree )
     }
 
     /** cache NearKab */
-    #pragma omp parallel for schedule( dynamic )
-    for ( size_t i = 0; i < tree.treelist.size(); i ++ )
-    {
-      auto *node = tree.treelist[ i ];
-      auto *NearNodes = &node->NearNodes;
-      if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
-      auto &K = *node->setup->K;
-      auto &data = node->data;
-      auto &amap = node->lids;
-      std::vector<size_t> bmap;
-      for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
-      {
-        bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
-      }
-      data.NearKab = K( amap, bmap );
-    }
+    //#pragma omp parallel for schedule( dynamic )
+    //for ( size_t i = 0; i < tree.treelist.size(); i ++ )
+    //{
+    //  auto *node = tree.treelist[ i ];
+    //  auto *NearNodes = &node->NearNodes;
+    //  if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
+    //  auto &K = *node->setup->K;
+    //  auto &data = node->data;
+    //  auto &amap = node->lids;
+    //  std::vector<size_t> bmap;
+    //  for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+    //  {
+    //    bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
+    //  }
+    //  data.NearKab = K( amap, bmap );
+    //}
+
+    //const bool AUTO_DEPENDENCY = false;
+    //const bool USE_RUNTIME= false;
+    //CacheNearNodesTask<NNPRUNE, NODE> cachenearnodestask;
+    //tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( cachenearnodestask );
+    //if ( USE_RUNTIME ) hmlp_run();
+
   }
 
 }; // end void NearFarNodes()
@@ -2817,7 +2940,7 @@ hmlp::Data<T> ComputeAll
 
       /** reduce all u_leaf[0:4] */
       for ( size_t p = 1; p < 5; p ++ )
-        for ( size_t i = 0; i < u_leaf.size(); i ++ )
+        for ( size_t i = 0; i < node->data.u_leaf[ p ].size(); i ++ )
           u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
 
       /** assemble u_leaf back to u */

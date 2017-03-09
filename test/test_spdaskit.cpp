@@ -27,21 +27,16 @@
 #include <mkl.h>
 #endif
 
+using namespace hmlp::tree;
+
 #define GFLOPS 1073741824 
 #define TOLERANCE 1E-13
 
-//#define DUMP_ANALYSIS_DATA 1
-
-
-
-using namespace hmlp::tree;
-
-//#define OMPCOMPARISON 0
 #define OMPLEVEL 0
 #define OMPRECTASK 0
-#define OMPDAGTASK 1
+#define OMPDAGTASK 0
 
-// By default, we use binary tree.
+/** by default, we use binary tree */
 #define N_CHILDREN 2
 
 
@@ -74,6 +69,94 @@ void OpenMP45()
   printf( "now  terminate\n" );
 };
 
+
+
+template<typename TREE, typename SKELTASK, typename PROJTASK, 
+  typename NEARNODESTASK, typename CACHENEARNODESTASK>
+void Compress( TREE &tree, SKELTASK &skeltask, PROJTASK &projtask,
+    NEARNODESTASK &dummy, CACHENEARNODESTASK &cachenearnodestask )
+{
+  /** all timers */
+  double beg, dynamic_time, omptask45_time, omptask_time, ref_time, ann_time, tree_time, overhead_time;
+
+  /** NearNodes */
+  auto *nearnodestask = new NEARNODESTASK();
+  nearnodestask->Set( &tree );
+
+#ifdef HMLP_AVX512
+  /** if we are using KNL, use nested omp construct */
+  assert( omp_get_max_threads() == 68 );
+  mkl_set_dynamic( 0 );
+  mkl_set_num_threads( 17 );
+  hmlp_set_num_workers( 4 );
+  //printf( "here\n" );
+#endif
+
+
+  /** runtime */
+  printf( "Skeletonization (HMLP Runtime) ..." ); fflush( stdout );
+  const bool AUTODEPENDENCY = true;
+  beg = omp_get_wtime();
+  tree.template TraverseUp<AUTODEPENDENCY, true>( skeltask );
+  nearnodestask->DependencyAnalysis();
+  tree.template TraverseUnOrdered<AUTODEPENDENCY, true>( projtask );
+  tree.template TraverseLeafs<AUTODEPENDENCY, true>( cachenearnodestask );
+  overhead_time = omp_get_wtime() - beg;
+  hmlp_run();
+  dynamic_time = omp_get_wtime() - beg;
+  printf( "Done.\n" ); fflush( stdout );
+
+
+#ifdef HMLP_AVX512
+  mkl_set_dynamic( 1 );
+  mkl_set_num_threads( omp_get_max_threads() );
+#endif
+
+
+  /** parallel level-by-level traversal */
+  printf( "Skeletonization (Level-By-Level) ..." ); fflush( stdout );
+  beg = omp_get_wtime();
+  if ( OMPLEVEL ) 
+  {
+    tree.template TraverseUp<false, false>( skeltask );
+    tree.template TraverseUnOrdered<false, false>( projtask );
+    nearnodestask->Execute( NULL );
+    tree.template TraverseLeafs<false, false>( cachenearnodestask );
+  }
+  ref_time = omp_get_wtime() - beg;
+  printf( "Done.\n" ); fflush( stdout );
+
+
+  /** sekeletonization with omp task. */
+  printf( "Skeletonization (Recursive OpenMP tasks) ..." ); fflush( stdout );
+  beg = omp_get_wtime();
+  if ( OMPRECTASK ) 
+  {
+    tree.template PostOrder<true>( tree.treelist[ 0 ], skeltask );
+    tree.template TraverseUp<false, false>( projtask );
+    nearnodestask->Execute( NULL );
+    tree.template TraverseLeafs<false, false>( cachenearnodestask );
+  }
+  omptask_time = omp_get_wtime() - beg;
+  printf( "Done.\n" ); fflush( stdout );
+
+
+  /** sekeletonization with omp task. */
+  printf( "Skeletonization (OpenMP-4.5 Dependency tasks) ..." ); fflush( stdout );
+  beg = omp_get_wtime();
+  if ( OMPDAGTASK ) 
+  {
+    tree.template UpDown<true, true, false>( skeltask, projtask, projtask );
+    nearnodestask->Execute( NULL );
+    tree.template TraverseLeafs<false, false>( cachenearnodestask );
+  }
+  omptask45_time = omp_get_wtime() - beg;
+  printf( "Done.\n" ); fflush( stdout );
+
+  printf( "Runtime %5.2lfs (overhead %5.2lfs) level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
+      dynamic_time, overhead_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
+
+}; /** void Compress() */
 
 
 
@@ -149,15 +232,11 @@ void test_spdaskit(
   }
   else
   {
-    printf( "not performed (precomputed) ..." ); fflush( stdout );
+    printf( "not performed (precomputed or k=0) ..." ); fflush( stdout );
   }
-  //hmlp_run();
   ann_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
-
-
-  //OpenMP45();
 
 
   // ------------------------------------------------------------------------
@@ -181,99 +260,31 @@ void test_spdaskit(
   printf( "Done.\n" ); fflush( stdout );
 
 
-  //OpenMP45();
-
   // ------------------------------------------------------------------------
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
-
-#ifdef HMLP_AVX512
-  /** if we are using KNL, use nested omp construct */
-  assert( omp_get_max_threads() == 68 );
-  mkl_set_dynamic( 0 );
-  mkl_set_num_threads( 17 );
-  hmlp_set_num_workers( 4 );
-  //printf( "here\n" );
-#endif
-
-
-  /** runtime */
-  printf( "Skeletonization (HMLP Runtime) ..." ); fflush( stdout );
-  const bool AUTODEPENDENCY = true;
-  beg = omp_get_wtime();
-  tree.template TraverseUp<AUTODEPENDENCY, true, SKELTASK>( skeltask );
-  tree.template TraverseUnOrdered<AUTODEPENDENCY, true, PROJTASK>( projtask );
-  overhead_time = omp_get_wtime() - beg;
-  hmlp_run();
-  dynamic_time = omp_get_wtime() - beg;
-  printf( "Done.\n" ); fflush( stdout );
-
-#ifdef HMLP_AVX512
-  mkl_set_dynamic( 1 );
-  mkl_set_num_threads( omp_get_max_threads() );
-#endif
-
-
-  // Parallel level-by-level traversal.
-  printf( "Skeletonization (Level-By-Level) ..." ); fflush( stdout );
-  beg = omp_get_wtime();
-  if ( OMPLEVEL ) 
-  {
-    tree.template TraverseUp<false, false, SKELTASK>( skeltask );
-    tree.template TraverseUnOrdered<false, false, PROJTASK>( projtask );
-  }
-  ref_time = omp_get_wtime() - beg;
-  printf( "Done.\n" ); fflush( stdout );
-
-  /** sekeletonization with omp task. */
-  printf( "Skeletonization (Recursive OpenMP tasks) ..." ); fflush( stdout );
-  beg = omp_get_wtime();
-  if ( OMPRECTASK ) 
-  {
-    tree.template PostOrder<true>( tree.treelist[ 0 ], skeltask );
-    /** the interpolation part has no depednencies */
-    tree.template TraverseUp<false, false, PROJTASK>( projtask );
-  }
-  omptask_time = omp_get_wtime() - beg;
-  printf( "Done.\n" ); fflush( stdout );
-
-  /** sekeletonization with omp task. */
-  printf( "Skeletonization (OpenMP-4.5 Dependency tasks) ..." ); fflush( stdout );
-  beg = omp_get_wtime();
-  if ( OMPDAGTASK ) 
-  {
-    //tree.PostOrder<false>( tree.treelist[ 0 ], skeltask );
-    tree. template UpDown<true, true, false>( skeltask, projtask, projtask );
-  }
-
-  omptask45_time = omp_get_wtime() - beg;
-  printf( "Done.\n" ); fflush( stdout );
-
-  printf( "Runtime %5.2lfs (overhead %5.2lfs) level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
-      dynamic_time, overhead_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
+  const bool SYMMETRIC_PRUNE = true;
+  const bool NNPRUNE = true;
+  const bool CACHE = true;
+  using NEARNODESTASK = hmlp::spdaskit::NearNodesTask<SYMMETRIC_PRUNE, NNPRUNE, Tree<SETUP, NODE, N_CHILDREN, T>>;
+  using CACHENEARNODESTASK = hmlp::spdaskit::CacheNearNodesTask<NNPRUNE, NODE>;
+  NEARNODESTASK nearnodestask;
+  CACHENEARNODESTASK cachenearnodestask;
+  /** compree the matrix  */
+  Compress( tree, skeltask, projtask, nearnodestask, cachenearnodestask );
   // ------------------------------------------------------------------------
- 
+
 
   // ------------------------------------------------------------------------
   // NearFarNodes
-  // IMPORTANT: this requires to know the fact of ``isskel''.
   // ------------------------------------------------------------------------
-  const bool SYMMETRIC_PRUNE = true;
-  const bool NNPRUNE = true;
-  printf( "NearFarNodes ..." ); fflush( stdout );
+  printf( "FarNodes ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNE, NNPRUNE>( tree );
+  hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNE, NNPRUNE, CACHE, NODE>( tree );
   symbolic_evaluation_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
   auto exact_ratio = hmlp::spdaskit::DrawInteraction<true>( tree );
   // ------------------------------------------------------------------------
-
-
-
-
-  //OpenMP45();
-
-
 
 
   // ------------------------------------------------------------------------
@@ -406,8 +417,8 @@ int main( int argc, char *argv[] )
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 
-  std::string DATADIR( "/scratch/jlevitt/data/" );
-  //std::string DATADIR( "/work/02794/ych/data/" );
+  //std::string DATADIR( "/scratch/jlevitt/data/" );
+  std::string DATADIR( "/work/02794/ych/data/" );
 
   size_t n, m, d, k, s, nrhs;
 

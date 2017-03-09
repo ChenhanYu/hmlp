@@ -155,7 +155,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-
+      #pragma omp parallel for
       for ( int j = 0; j < jmap.size(); j ++ )
       {
         for ( int i = 0; i < imap.size(); i ++ )
@@ -180,6 +180,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( m, jmap.size() );
+      #pragma omp parallel for
       for ( int j = 0; j < jmap.size(); j ++ )
         for ( int i = 0; i < m; i ++ )
           submatrix[ j * m + i ] = (*this)[ m * jmap[ j ] + i ];
@@ -409,6 +410,7 @@ class CSC : public ReadWrite
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+      #pragma omp parallel for
       for ( int j = 0; j < jmap.size(); j ++ )
       {
         for ( int i = 0; i < imap.size(); i ++ )
@@ -679,6 +681,7 @@ class OOC : public ReadWrite
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+      #pragma omp parallel for
       for ( int j = 0; j < jmap.size(); j ++ )
       {
         for ( int i = 0; i < imap.size(); i ++ )
@@ -838,6 +841,7 @@ class Kernel : public ReadWrite
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+      #pragma omp parallel for
       for ( int j = 0; j < jmap.size(); j ++ )
       {
         for ( int i = 0; i < imap.size(); i ++ )
