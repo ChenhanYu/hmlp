@@ -334,7 +334,7 @@ void Task::Set( std::string user_name, void (*user_function)(Task*), void *user_
   status = NOTREADY;
 };
 
-void Task::Prefetch() {};
+void Task::Prefetch( Worker *user_worker ) {};
 
 void Task::DependenciesUpdate()
 {
@@ -691,7 +691,7 @@ void* Scheduler::EntryPoint( void* arg )
     }
     scheduler->ready_queue_lock[ me->tid ].Release();
 
-    if ( nexttask ) nexttask->Prefetch();
+    if ( nexttask ) nexttask->Prefetch( me );
 
     if ( task )
     {
@@ -965,3 +965,7 @@ void hmlp_finalize()
   hmlp::rt.Finalize();
 };
 
+hmlp::RunTime *hmlp_get_runtime_handle()
+{
+  return &hmlp::rt;
+};

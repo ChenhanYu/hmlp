@@ -302,7 +302,19 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       hmlp::hmlp_printmatrix( m, n, this->data(), m );
     };
 
+    template<typename TINDEX>
+    double flops( TINDEX na, TINDEX nb ) { return 0.0; };
+
+
 #ifdef HMLP_USE_CUDA
+    void AllocateD( hmlp::Device *dev )
+    {
+      double beg = omp_get_wtime();
+      gpu::DeviceMemory<T>::AllocateD( dev, m * n );
+      double alloc_time = omp_get_wtime() - beg;
+      printf( "AllocateD %5.2lf\n", alloc_time );
+    };
+
     void PrefetchH2D( hmlp::Device *dev )
     {
       gpu::DeviceMemory<T>::PrefetchH2D( dev, m * n, this->data() );
@@ -320,14 +332,20 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     void FetchH2D( hmlp::Device *dev )
     {
+      double beg = omp_get_wtime();
       PrefetchH2D( dev );
       WaitPrefetch( dev );
+      double fetch_time = omp_get_wtime() - beg;
+      printf( "FetchH2D %5.2lf\n", fetch_time );
     };
 
     void FetchD2H( hmlp::Device *dev )
     {
+      double beg = omp_get_wtime();
       PrefetchD2H( dev );
       WaitPrefetch( dev );
+      double fetch_time = omp_get_wtime() - beg;
+      printf( "FetchD2H %5.2lf\n", fetch_time );
     };
 #endif
 
@@ -591,6 +609,9 @@ class CSC : public ReadWrite
 
     std::size_t col() { return n; };
 
+    template<typename TINDEX>
+    double flops( TINDEX na, TINDEX nb ) { return 0.0; };
+
   private:
 
     std::size_t m;
@@ -704,6 +725,9 @@ class OOC : public ReadWrite
 
     std::size_t col() { return n; };
 
+    template<typename TINDEX>
+    double flops( TINDEX na, TINDEX nb ) { return 0.0; };
+
   private:
 
     template<typename TINDEX>
@@ -769,7 +793,6 @@ class Kernel : public ReadWrite
       this->n = n;
       this->d = d;
       this->kernel = kernel;
-      this->flopcount = 0.0;
 
       if ( SYMMETRIC ) assert( m == n );
     };
@@ -822,7 +845,7 @@ class Kernel : public ReadWrite
               }
             }
             Kij = exp( kernel.scal * Kij );
-            flopcount += 3 * d;
+            //flopcount += 3 * d;
             break;
           }
         default:
@@ -837,108 +860,116 @@ class Kernel : public ReadWrite
     };
 
 
+    //template<typename TINDEX>
+    //inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    //{
+    //  hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+    //  #pragma omp parallel for
+    //  for ( int j = 0; j < jmap.size(); j ++ )
+    //  {
+    //    for ( int i = 0; i < imap.size(); i ++ )
+    //    {
+    //      submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
+    //    }
+    //  }
+    //  return submatrix;
+    //};
+
+
     template<typename TINDEX>
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+
+      if ( !submatrix.size() ) return submatrix;
+
+      // Get coordinates of sources and targets
+      //std::vector<TINDEX> dmap( d );
+      //std::iota( dmap.begin(), dmap.end(), TINDEX(0) );
+      //hmlp::Data<T> itargets = SYMMETRIC ? sources( dmap, imap ) : targets( dmap, imap );
+      //hmlp::Data<T> jsources = sources( dmap, jmap );
+
+      hmlp::Data<T> itargets = SYMMETRIC ? sources( imap ) : targets( imap );
+      hmlp::Data<T> jsources = sources( jmap );
+
+      assert( itargets.col() == submatrix.row() );
+      assert( itargets.row() == d );
+      assert( jsources.col() == submatrix.col() );
+      assert( jsources.row() == d );
+
+      // Compute inner products
+      xgemm
+      (
+        "T", "N",
+        imap.size(), jmap.size(), d,
+        -2.0, itargets.data(),   itargets.row(),
+              jsources.data(),   jsources.row(),
+         0.0, submatrix.data(), submatrix.row()
+      );
+
+      // Compute square norms
+      std::vector<T> target_sqnorms( imap.size() );
+      std::vector<T> source_sqnorms( jmap.size() );
       #pragma omp parallel for
-      for ( int j = 0; j < jmap.size(); j ++ )
+      for ( TINDEX i = 0; i < imap.size(); i ++ )
       {
-        for ( int i = 0; i < imap.size(); i ++ )
+        target_sqnorms[ i ] = xdot
+                              (
+                                d,
+                                itargets.data() + i * d, 1,
+                                itargets.data() + i * d, 1
+                              );
+      }
+      #pragma omp parallel for
+      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+      {
+        source_sqnorms[ j ] = xdot
+                              (
+                                d,
+                                jsources.data() + j * d, 1,
+                                jsources.data() + j * d, 1
+                              );
+      }
+
+      // Add square norms to inner products to get pairwise square distances
+      #pragma omp parallel for
+      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+      {
+        for ( TINDEX i = 0; i < imap.size(); i ++ )
         {
-          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
+          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
         }
       }
+
+      switch ( kernel.type )
+      {
+        case KS_GAUSSIAN:
+          {
+            // Apply the scaling factor and exponentiate
+            #pragma omp parallel for
+            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
+            {
+              submatrix[ i ] = std::exp( kernel.scal * submatrix[ i ] );
+            }
+
+            // gemm: 2 * i * j * d
+            // compute sqnorms: 2 * ( i + j ) * d
+            // add sqnorms: 2 * i * j
+            // scale and exponentiate: 2 * i * j
+            //flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
+            //           + 4 * imap.size() * jmap.size();
+            break;
+          }
+        default:
+          {
+            printf( "invalid kernel type\n" );
+            exit( 1 );
+            break;
+          }
+      }
+
       return submatrix;
-    };
-
-
-//    template<typename TINDEX>
-//    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
-//    {
-//      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-//
-//      // Get coordinates of sources and targets
-//      //std::vector<TINDEX> dmap( d );
-//      //std::iota( dmap.begin(), dmap.end(), TINDEX(0) );
-//      //hmlp::Data<T> itargets = SYMMETRIC ? sources( dmap, imap ) : targets( dmap, imap );
-//      //hmlp::Data<T> jsources = sources( dmap, jmap );
-//
-//      hmlp::Data<T> itargets = SYMMETRIC ? sources( imap ) : targets( imap );
-//      hmlp::Data<T> jsources = sources( jmap );
-//
-//      assert( itargets.col() == submatrix.row() );
-//      assert( itargets.col() == imap.size() );
-//
-//      // Compute inner products
-//      xgemm
-//      (
-//        "T", "N",
-//        imap.size(), jmap.size(), d,
-//        -2.0, itargets.data(),   itargets.row(),
-//              jsources.data(),   jsources.row(),
-//         0.0, submatrix.data(), submatrix.row()
-//      );
-//
-//      // Compute square norms
-//      std::vector<T> target_sqnorms( imap.size() );
-//      std::vector<T> source_sqnorms( jmap.size() );
-//      for ( TINDEX i = 0; i < imap.size(); i ++ )
-//      {
-//        target_sqnorms[ i ] = xdot
-//                              (
-//                                d,
-//                                itargets.data(), 1,
-//                                itargets.data(), 1
-//                              );
-//      }
-//      for ( TINDEX j = 0; j < jmap.size(); j ++ )
-//      {
-//        source_sqnorms[ j ] = xdot
-//                              (
-//                                d,
-//                                jsources.data(), 1,
-//                                jsources.data(), 1
-//                              );
-//      }
-//
-//      // Add square norms to inner products to get pairwise square distances
-//      for ( TINDEX j = 0; j < jmap.size(); j ++ )
-//      {
-//        for ( TINDEX i = 0; i < imap.size(); i ++ )
-//        {
-//          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
-//        }
-//      }
-//
-//      switch ( kernel.type )
-//      {
-//        case KS_GAUSSIAN:
-//          {
-//            // Apply the scaling factor and exponentiate
-//            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
-//            {
-//                submatrix[ i ] = exp( kernel.scal * submatrix[ i ] );
-//            }
-//
-//            // gemm: 2 * i * j * d
-//            // compute sqnorms: 2 * ( i + j ) * d
-//            // add sqnorms: 2 * i * j
-//            // scale and exponentiate: 2 * i * j
-//            flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
-//                       + 4 * imap.size() * jmap.size();
-//            break;
-//          }
-//        default:
-//          {
-//            printf( "invalid kernel type\n" );
-//            exit( 1 );
-//            break;
-//          }
-//      }
-//
-//      return submatrix;
-//    }; 
+    }; 
 
     template<typename TINDEX>
     std::pair<T, TINDEX> ImportantSample( TINDEX j )
@@ -971,7 +1002,28 @@ class Kernel : public ReadWrite
 
     std::size_t dim() { return d; };
 
-    double flops() { return flopcount; };
+    /** flops required for Kab */
+    template<typename TINDEX>
+    double flops( TINDEX na, TINDEX nb ) 
+    {
+      double flopcount = 0.0;
+
+      switch ( kernel.type )
+      {
+        case KS_GAUSSIAN:
+          {
+            flopcount = na * nb * ( 2.0 * d + 35.0 );
+            break;
+          }
+        default:
+          {
+            printf( "invalid kernel type\n" );
+            exit( 1 );
+            break;
+          }
+      }
+      return flopcount; 
+    };
 
 
   private:
@@ -981,8 +1033,6 @@ class Kernel : public ReadWrite
     std::size_t n;
 
     std::size_t d;
-
-    double flopcount;
 
     Data<T> sources;
 

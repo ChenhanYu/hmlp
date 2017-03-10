@@ -17,6 +17,7 @@
 #include <string>
 #include <stdio.h>
 #include <omp.h>
+#include <time.h>
 
 /** hmlp */
 #include <hmlp.h>
@@ -31,6 +32,7 @@
 
 /** gpu related */
 #ifdef HMLP_USE_CUDA
+#include <cuda_runtime.h>
 #include <spdaskit_gpu.hpp>
 #endif
 
@@ -1175,9 +1177,13 @@ class SkeletonizeTask : public hmlp::Task
     {
       double flops = 0.0, mops = 0.0;
 
+      auto &K = *arg->setup->K;
       size_t n = arg->data.proj.col();
       size_t m = 2 * n;
       size_t k = arg->data.proj.row();
+
+      /** Kab */
+      flops += K.flops( m, n );
 
       /** GEQP3 */
       flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
@@ -1368,7 +1374,7 @@ class UpdateWeightsTask : public hmlp::Task
       priority = true;
     };
 
-    void Prefetch()
+    void Prefetch( Worker* user_worker )
     {
       auto &proj = arg->data.proj;
       __builtin_prefetch( proj.data() );
@@ -1386,6 +1392,26 @@ class UpdateWeightsTask : public hmlp::Task
         auto &w_rskel = arg->rchild->data.w_skel;
         __builtin_prefetch( w_rskel.data() );
       }
+#ifdef HMLP_USE_CUDA
+      //hmlp::Device *device = NULL;
+      //if ( user_worker ) device = user_worker->GetDevice();
+      //if ( device ) 
+      //{
+      //  proj.PrefetchH2D( device );
+      //  if ( arg->isleaf )
+      //  {
+      //    auto &w_leaf = arg->data.w_leaf;
+      //    w_leaf.PrefetchH2D( device );
+      //  }
+      //  else
+      //  {
+      //    auto &w_lskel = arg->lchild->data.w_skel;
+      //    w_lskel.PrefetchH2D( device );
+      //    auto &w_rskel = arg->rchild->data.w_skel;
+      //    w_rskel.PrefetchH2D( device );
+      //  }
+      //}
+#endif
     };
 
     void GetEventRecord()
@@ -1575,7 +1601,7 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
       priority = true;
     };
 
-    void Prefetch()
+    void Prefetch( Worker* user_worker )
     {
       auto &u_skel = arg->data.u_skel;
       __builtin_prefetch( u_skel.data() );
@@ -1790,7 +1816,7 @@ class SkeletonsToNodesTask : public hmlp::Task
       priority = true;
     };
 
-    void Prefetch()
+    void Prefetch( Worker* user_worker )
     {
       auto &proj = arg->data.proj;
       __builtin_prefetch( proj.data() );
@@ -2030,7 +2056,7 @@ class LeavesToLeavesTask : public hmlp::Task
       cost = flops / 1E+9;
     };
 
-    void Prefetch()
+    void Prefetch( Worker* user_worker )
     {
       auto &u_leaf = arg->data.u_leaf[ SUBTASKID ];
       __builtin_prefetch( u_leaf.data() );
@@ -2381,6 +2407,21 @@ class CacheNearNodesTask : public hmlp::Task
       }
 
       double flops = 0.0, mops = 0.0;
+
+      NODE *node = arg;
+      auto *NearNodes = &node->NearNodes;
+      if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
+      auto &K = *node->setup->K;
+
+      size_t m = node->lids.size();
+      size_t n = 0;
+      for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+      {
+        n += (*it)->lids.size();
+      }
+
+      /** Kab */
+      flops += K.flops( m, n );
 
       /** setup the event */
       event.Set( label + name, flops, mops );
@@ -2853,6 +2894,16 @@ hmlp::Data<T> ComputeAll
 
   double beg, computeall_time = 0.0, overhead_time = 0.0;
 
+#ifdef HMLP_USE_CUDA
+  cudaEvent_t cuda_beg, cuda_end;
+  cudaSetDevice( 0 );
+  cudaEventCreate( &cuda_beg );
+  cudaEventCreate( &cuda_end );
+  T *ptr_d = NULL;
+  cudaMalloc( (void**)&ptr_d, 1 );
+  cudaFree( ptr_d );
+#endif
+
   hmlp::Data<T> potentials( weights.row(), weights.col() );
 
   tree.setup.w = &weights;
@@ -2880,6 +2931,10 @@ hmlp::Data<T> ComputeAll
     SKELTOSKELTASK  skeltoskeltask;
     SKELTONODETASK  skeltonodetask;
 
+#ifdef HMLP_USE_CUDA
+    cudaEventRecord( cuda_beg, 0 );
+    float clock_beg = ((float) clock());
+#endif
     beg = omp_get_wtime();
 
     int n_nodes = 1 << tree.depth;
@@ -2948,9 +3003,20 @@ hmlp::Data<T> ComputeAll
         for ( size_t i = 0; i < potentials.row(); i ++ )
           potentials[ amap[ j ] * potentials.row() + i ] = u_leaf( j, i );
     }
-    computeall_time = omp_get_wtime() - beg;
 
+#ifdef HMLP_USE_CUDA
+    cudaThreadSynchronize();
+    cudaEventRecord( cuda_end, 0 );
+    cudaEventSynchronize( cuda_end );
+    float cuda_time = 0.0;
+    cudaEventElapsedTime( &cuda_time, cuda_beg, cuda_end );
+    computeall_time = cuda_time / 1000.0;
+    float clock_end = ((float) clock());
+#else
+    computeall_time = omp_get_wtime() - beg;
+#endif
     printf( "ComputeAll %5.2lfs (overhead %5.2lfs)\n", computeall_time, overhead_time ); fflush( stdout );
+    //printf( "clock %5.2fs\n", ( clock_end - clock_beg ) / CLOCKS_PER_SEC );
   }
   else // TODO: implement unsymmetric prunning
   {

@@ -5,6 +5,8 @@
 #include <set>
 #include <map>
 
+#include <hmlp_runtime.hpp>
+
 /** CUDA header files */
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
@@ -54,6 +56,13 @@ class Nvidia : public hmlp::Device
           printf( "cublasSetStream(), fail on device %d\n", device_id );
         }
         std::cout << name << std::endl;
+
+        /** memory testing */
+        char dummy = NULL;
+        char *ptr_d = NULL;
+        cudaMalloc( (void**)&ptr_d, 1 );
+        cudaMemcpy( ptr_d, &dummy, 1, cudaMemcpyHostToDevice );
+        cudaFree( ptr_d );
       }
     };
 
@@ -85,8 +94,8 @@ class Nvidia : public hmlp::Device
         printf( "cudaSetDevice(), fail to set device %d\n", device_id );
         exit( 1 );
       }
-      //if ( cudaMemcpyAsync( ptr_d, ptr_h, size, cudaMemcpyHostToDevice, stream[ 1 ] ) )
-      if ( cudaMemcpy( ptr_d, ptr_h, size, cudaMemcpyHostToDevice ) )
+      if ( cudaMemcpyAsync( ptr_d, ptr_h, size, cudaMemcpyHostToDevice, stream[ 1 ] ) )
+      //if ( cudaMemcpy( ptr_d, ptr_h, size, cudaMemcpyHostToDevice ) )
       {
         printf( "cudaMemcpyAsync(), %lu bytes fail to device %d\n", size, device_id );
         exit( 1 );
@@ -188,7 +197,23 @@ class DeviceMemory
 {
   public:
 
-    DeviceMemory() {};
+    DeviceMemory() 
+    {
+      host = &(hmlp_get_runtime_handle()->host);
+      distribution.insert( host );
+    };
+
+    void AllocateD( hmlp::Device *dev, size_t size )
+    {
+      size *= sizeof(T);
+      
+      if ( !device_map.count( dev ) )
+      {
+        T *ptr_d = NULL;
+        cudaMalloc( (void**)&ptr_d, size );
+        device_map[ dev ] = ptr_d; 
+      }
+    };
 
     /** */
     void PrefetchH2D( hmlp::Device *dev, size_t size, T* ptr_h )
@@ -202,10 +227,8 @@ class DeviceMemory
         {
           printf( "allocate %lu bytes on %s\n", size, dev->name.data() );
           T *ptr_d;
-          
           cudaMalloc( (void**)&ptr_d, size );
           //dev->malloc( ptr_d, size );
-
           device_map[ dev ] = ptr_d; 
         }
         printf( "memcpy H2D\n" );
@@ -225,15 +248,18 @@ class DeviceMemory
     {
       size *= sizeof(T);
 
-      if ( !distribution.count( &host ) )
+      if ( !distribution.count( host ) )
       {
+        printf( "host does not have the latest copy.\n" );
         assert( device_map.count( dev ) );
+        printf( "memcpy D2H\n" );
         dev->prefetchd2h( ptr_h, device_map[ dev ], size );
-        Redistribute<false>( &host );
+        printf( "redistribute\n" );
+        Redistribute<false>( host );
       }
       else /** the host has the latest copy */
       {
-        assert( device_map.count( &host ) );
+        assert( device_map.count( host ) );
       }
     };
 
@@ -267,7 +293,7 @@ class DeviceMemory
 
   private:
 
-    hmlp::Device host;
+    hmlp::Device *host = NULL;
 
     /** map a device to its data pointer */
     std::map<hmlp::Device*, T*> device_map;

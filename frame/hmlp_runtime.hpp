@@ -184,7 +184,7 @@ class Task
 
     virtual void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
 
-    virtual void Prefetch();
+    virtual void Prefetch( Worker* );
 
     void Enqueue();
 
@@ -331,6 +331,8 @@ class RunTime
 
     Worker workers[ MAX_WORKER ];
 
+    Device host;
+
     Scheduler *scheduler;
 
   private:
@@ -344,5 +346,6 @@ class RunTime
 
 }; // end namespace hmlp
 
+hmlp::RunTime *hmlp_get_runtime_handle();
 
 #endif // define HMLP_RUNTIME_HPP
