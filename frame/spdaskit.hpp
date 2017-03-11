@@ -48,8 +48,6 @@ namespace spdaskit
 /**
  *  @brief These are data that shared by the whole tree.
  *
- *  @TODO  Make w into a pointer.
- *
  */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
 class Setup : public hmlp::tree::Setup<SPLITTER, T>
@@ -1135,7 +1133,7 @@ void Skeletonize( NODE *node )
   /** separate interpolation of proj */
   //Interpolate<NODE, T>( node );
 
-  /** update Pruning neighbor list, TODO: not sure what is this  */
+  /** update pruning neighbor list */
   data.pnids.clear();
   for ( int ii = 0 ; ii < skels.size() ; ii ++ )
   {
@@ -1932,7 +1930,7 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
     {
       if ( itbeg <= itptr && itptr < itend )
       {
-        auto &bmap = (*it)->lids;
+        //auto &bmap = (*it)->lids;
         //auto wb = w( bmap );
         auto wb = (*it)->data.w_leaf;
 
@@ -1958,7 +1956,8 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
       if ( itbeg <= itptr && itptr < itend )
       {
         auto &bmap = (*it)->lids;
-        auto wb = w( bmap );
+        //auto wb = w( bmap );
+        auto wb = (*it)->data.w_leaf;
 
         /** evaluate the submatrix */
         beg = omp_get_wtime();
@@ -1972,10 +1971,10 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
         /** ( Kab * wb )' = wb' * Kab' */
         xgemm
         (
-          "N", "T",
-          u_leaf.row(), u_leaf.col(), wb.col(),
-          1.0,     wb.data(),     wb.row(),
-                  Kab.data(),    Kab.row(),
+          "N", "N",
+          u_leaf.row(), u_leaf.col(), wb.row(),
+          1.0,    Kab.data(),    Kab.row(),
+                   wb.data(),     wb.row(),
           1.0, u_leaf.data(), u_leaf.row()
         );
       }
@@ -2017,6 +2016,8 @@ class LeavesToLeavesTask : public hmlp::Task
       auto &proj = data.proj;
       auto &skels = data.skels;
       auto &w = *arg->setup->w;
+      auto &K = *arg->setup->K;
+      auto &NearKab = data.NearKab;
 
       assert( arg->isleaf );
 
@@ -2045,6 +2046,8 @@ class LeavesToLeavesTask : public hmlp::Task
           flops += 2.0 * m * n * k;
           mops += m * k;
           mops += 2.0 * ( m * n + n * k + m * k );
+          /** the cost of Kab */
+          if ( !NearKab.size() ) flops += K.flops( m, k );
         }
         itptr ++;
       }
@@ -2513,6 +2516,12 @@ class CacheNearNodesTask : public hmlp::Task
         label = ss.str();
       }
 
+      /** asuume computation bound */
+      cost = 1.0;
+    };
+
+    void GetEventRecord()
+    {
       double flops = 0.0, mops = 0.0;
 
       NODE *node = arg;
@@ -2532,9 +2541,6 @@ class CacheNearNodesTask : public hmlp::Task
 
       /** setup the event */
       event.Set( label + name, flops, mops );
-
-      /** asuume computation bound */
-      cost = 1.0;
     };
 
     void DependencyAnalysis()
@@ -3059,7 +3065,6 @@ hmlp::Data<T> ComputeAll
     if ( USE_OMP_TASK )
     {
       assert( !USE_RUNTIME );
-      /** TODO: traverse leaf here */
       //tree.template TraverseLeafs<false, false>( leaftoleaftask );
       tree.template TraverseLeafs<false, false>( leaftoleaftask1 );
       tree.template TraverseLeafs<false, false>( leaftoleaftask2 );
@@ -3071,7 +3076,6 @@ hmlp::Data<T> ComputeAll
     else
     {
       assert( !USE_OMP_TASK );
-      /** TODO: traverse leaf here */
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );

@@ -43,35 +43,35 @@ using namespace hmlp::tree;
 /** This function tests for omp task depend.  */
 void OpenMP45()
 {
-  #pragma omp parallel
-  #pragma omp single
+#pragma omp parallel
+#pragma omp single
   {
     int a[3];
     #pragma omp task shared(a) depend(out:a[1])
-	{
-	  a[1] = 1;
-	  printf( "me %d\n", 1 );
-	}
+    {
+      a[1] = 1;
+      printf( "me %d\n", 1 );
+    }
 
     #pragma omp task shared(a) depend(out:a[2])
-	{
-	  a[2] = 2;
-	  printf( "me %d\n", 2 );
-	}
+    {
+      a[2] = 2;
+      printf( "me %d\n", 2 );
+    }
 
     #pragma omp task shared(a) depend(in:a[1],a[2]) depend(out:a[0])
-	{
-	  a[0] = 0;
-	  printf( "me %d\n", 0 );
-	}
-	printf( "prepare to terminate\n" );
+    {
+      a[0] = 0;
+      printf( "me %d\n", 0 );
+    }
+    printf( "prepare to terminate\n" );
   }
   printf( "now  terminate\n" );
 };
 
 
 
-template<typename TREE, typename SKELTASK, typename PROJTASK, 
+template<bool CACHENEARNODE, typename TREE, typename SKELTASK, typename PROJTASK, 
   typename NEARNODESTASK, typename CACHENEARNODESTASK>
 void Compress( TREE &tree, SKELTASK &skeltask, PROJTASK &projtask,
     NEARNODESTASK &dummy, CACHENEARNODESTASK &cachenearnodestask )
@@ -87,8 +87,8 @@ void Compress( TREE &tree, SKELTASK &skeltask, PROJTASK &projtask,
   /** if we are using KNL, use nested omp construct */
   assert( omp_get_max_threads() == 68 );
   mkl_set_dynamic( 0 );
-  mkl_set_num_threads( 17 );
-  hmlp_set_num_workers( 4 );
+  mkl_set_num_threads( 4 );
+  hmlp_set_num_workers( 17 );
   //printf( "here\n" );
 #endif
 
@@ -100,7 +100,8 @@ void Compress( TREE &tree, SKELTASK &skeltask, PROJTASK &projtask,
   tree.template TraverseUp<AUTODEPENDENCY, true>( skeltask );
   nearnodestask->DependencyAnalysis();
   tree.template TraverseUnOrdered<AUTODEPENDENCY, true>( projtask );
-  tree.template TraverseLeafs<AUTODEPENDENCY, true>( cachenearnodestask );
+  if ( CACHENEARNODE )
+    tree.template TraverseLeafs<AUTODEPENDENCY, true>( cachenearnodestask );
   overhead_time = omp_get_wtime() - beg;
   hmlp_run();
   dynamic_time = omp_get_wtime() - beg;
@@ -114,44 +115,47 @@ void Compress( TREE &tree, SKELTASK &skeltask, PROJTASK &projtask,
 
 
   /** parallel level-by-level traversal */
-  printf( "Skeletonization (Level-By-Level) ..." ); fflush( stdout );
   beg = omp_get_wtime();
   if ( OMPLEVEL ) 
   {
+    printf( "Skeletonization (Level-By-Level) ..." ); fflush( stdout );
     tree.template TraverseUp<false, false>( skeltask );
     tree.template TraverseUnOrdered<false, false>( projtask );
     nearnodestask->Execute( NULL );
-    tree.template TraverseLeafs<false, false>( cachenearnodestask );
+    if ( CACHENEARNODE )
+      tree.template TraverseLeafs<false, false>( cachenearnodestask );
+    printf( "Done.\n" ); fflush( stdout );
   }
   ref_time = omp_get_wtime() - beg;
-  printf( "Done.\n" ); fflush( stdout );
 
 
   /** sekeletonization with omp task. */
-  printf( "Skeletonization (Recursive OpenMP tasks) ..." ); fflush( stdout );
   beg = omp_get_wtime();
   if ( OMPRECTASK ) 
   {
+    printf( "Skeletonization (Recursive OpenMP tasks) ..." ); fflush( stdout );
     tree.template PostOrder<true>( tree.treelist[ 0 ], skeltask );
     tree.template TraverseUp<false, false>( projtask );
     nearnodestask->Execute( NULL );
-    tree.template TraverseLeafs<false, false>( cachenearnodestask );
+    if ( CACHENEARNODE )
+      tree.template TraverseLeafs<false, false>( cachenearnodestask );
+    printf( "Done.\n" ); fflush( stdout );
   }
   omptask_time = omp_get_wtime() - beg;
-  printf( "Done.\n" ); fflush( stdout );
 
 
   /** sekeletonization with omp task. */
-  printf( "Skeletonization (OpenMP-4.5 Dependency tasks) ..." ); fflush( stdout );
   beg = omp_get_wtime();
   if ( OMPDAGTASK ) 
   {
+    printf( "Skeletonization (OpenMP-4.5 Dependency tasks) ..." ); fflush( stdout );
     tree.template UpDown<true, true, false>( skeltask, projtask, projtask );
     nearnodestask->Execute( NULL );
-    tree.template TraverseLeafs<false, false>( cachenearnodestask );
+    if ( CACHENEARNODE )
+      tree.template TraverseLeafs<false, false>( cachenearnodestask );
+    printf( "Done.\n" ); fflush( stdout );
   }
   omptask45_time = omp_get_wtime() - beg;
-  printf( "Done.\n" ); fflush( stdout );
 
   printf( "Runtime %5.2lfs (overhead %5.2lfs) level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
       dynamic_time, overhead_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
@@ -188,7 +192,8 @@ void test_spdaskit(
   using KNNTASK = hmlp::spdaskit::KNNTask<100, CONE, RKDTNODE, T>;
  
   /** all timers */
-  double beg, dynamic_time, omptask45_time, omptask_time, ref_time, ann_time, tree_time, overhead_time;
+  double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
+  double ann_time, tree_time, overhead_time;
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
 
   /** dummy instances for each task */
@@ -196,24 +201,21 @@ void test_spdaskit(
   PROJTASK projtask;
   KNNTASK knntask;
 
-  // ------------------------------------------------------------------------
-  // Original order of the matrix.
-  // ------------------------------------------------------------------------
+  /** original order of the matrix */
   std::vector<std::size_t> gids( n ), lids( n );
   for ( auto i = 0; i < n; i ++ ) 
   {
     gids[ i ] = i;
     lids[ i ] = i;
   }
-  // ------------------------------------------------------------------------
 
-
-  //OpenMP45();
 
 
   // ------------------------------------------------------------------------
   // Initialize randomized Spd-Askit tree.
   // ------------------------------------------------------------------------
+  const size_t n_iter = 10;
+  const bool SORTED = true;
   Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
   rkdt.setup.X = X;
   rkdt.setup.K = &K;
@@ -222,8 +224,6 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
 
   printf( "AllNearestNeighbors ..." ); fflush( stdout );
-  const size_t n_iter = 20;
-  const bool SORTED = true;
   beg = omp_get_wtime();
   if ( NN.size() != n * k )
   {
@@ -270,21 +270,20 @@ void test_spdaskit(
   using CACHENEARNODESTASK = hmlp::spdaskit::CacheNearNodesTask<NNPRUNE, NODE>;
   NEARNODESTASK nearnodestask;
   CACHENEARNODESTASK cachenearnodestask;
+  // ------------------------------------------------------------------------
+  
   /** compree the matrix  */
-  Compress( tree, skeltask, projtask, nearnodestask, cachenearnodestask );
-  // ------------------------------------------------------------------------
+  Compress<CACHE>( tree, skeltask, projtask, nearnodestask, cachenearnodestask );
 
-
-  // ------------------------------------------------------------------------
-  // NearFarNodes
-  // ------------------------------------------------------------------------
+  /** FarNodes */
   printf( "FarNodes ..." ); fflush( stdout );
   beg = omp_get_wtime();
   hmlp::spdaskit::NearFarNodes<SYMMETRIC_PRUNE, NNPRUNE, CACHE, NODE>( tree );
   symbolic_evaluation_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
+
+  /** plot iteraction matrix */  
   auto exact_ratio = hmlp::spdaskit::DrawInteraction<true>( tree );
-  // ------------------------------------------------------------------------
 
 
   // ------------------------------------------------------------------------
@@ -294,9 +293,8 @@ void test_spdaskit(
   /** if we are using KNL, use nested omp construct */
   assert( omp_get_max_threads() == 68 );
   mkl_set_dynamic( 0 );
-  mkl_set_num_threads( 4 );
-  hmlp_set_num_workers( 17 );
-  //printf( "here2\n" );
+  mkl_set_num_threads( 2 );
+  hmlp_set_num_workers( 34 );
 #endif
 
   printf( "ComputeAll (HMLP Runtime) ..." ); fflush( stdout );
@@ -315,9 +313,13 @@ void test_spdaskit(
 
 
   /** omp level-by-level */
-  printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
   beg = omp_get_wtime();
-  if ( OMPLEVEL ) u = hmlp::spdaskit::ComputeAll<false, false, true, true, NODE>( tree, w );
+  if ( OMPLEVEL ) 
+  {
+    printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
+    u = hmlp::spdaskit::ComputeAll<false, false, true, true, NODE>( tree, w );
+    printf( "Done.\n" ); fflush( stdout );
+  }
   ref_time = omp_get_wtime() - beg;
   printf( "Done.\n" ); fflush( stdout );
 
@@ -327,7 +329,10 @@ void test_spdaskit(
 
   /** omp recu task depend */
   beg = omp_get_wtime();
-  if ( OMPDAGTASK ) u = hmlp::spdaskit::ComputeAll<false, true, true, true, NODE>( tree, w );
+  if ( OMPDAGTASK )
+  {
+    u = hmlp::spdaskit::ComputeAll<false, true, true, true, NODE>( tree, w );
+  }
   omptask45_time = omp_get_wtime() - beg;
 
   printf( "Exact ratio %5.2lf Runtime %5.2lfs level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
@@ -383,11 +388,11 @@ void test_spdaskit(
   printf( "================================================================\n" );
   // ------------------------------------------------------------------------
 
-//#ifdef DUMP_ANALYSIS_DATA
+#ifdef DUMP_ANALYSIS_DATA
   hmlp::spdaskit::Summary<NODE> summary;
   tree.Summary( summary );
   summary.Print();
-//#endif
+#endif
   printf( "n %5lu k %4lu s %4lu nrhs %4lu ANN %5.3lf CONSTRUCT %5.3lf EVAL(NN) %5.3lf EVAL %5.3lf EVAL(FMM) %5.3lf SYMBOLIC(FMM) %5.3lf\n", 
       n, k, s, nrhs, ann_time, tree_time,
       nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time );
@@ -413,7 +418,7 @@ int main( int argc, char *argv[] )
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
-  const bool GRAPHTESTSUIT = true;
+  const bool GRAPHTESTSUIT = false;
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 
@@ -637,7 +642,7 @@ int main( int argc, char *argv[] )
       hmlp::Data<T> *X = NULL;
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
-      kernel.scal = -0.5;
+      kernel.scal = -0.5 / ( 0.5 * 0.5 );
       hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
       K.read( n, d, filename );
       hmlp::Data<std::pair<T, std::size_t>> NN;

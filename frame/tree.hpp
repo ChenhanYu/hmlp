@@ -18,6 +18,8 @@
 //#define DEBUG_TREE 1
 
 
+bool has_uneven_split = false;
+
 namespace hmlp
 {
 namespace tree
@@ -568,46 +570,37 @@ class Node : public ReadWrite
     template<bool PREALLOCATE>
     void Split( int dummy )
     {
-      //int nthd_glb = omp_get_max_threads();
-	  //if ( l < 4 ) 
-	  //{
-	  //  omp_set_nested( 1 );
-	  //  omp_set_num_threads( 1 << ( 4 - l ) ); 
-      //  omp_set_max_active_levels( 2 );
-	  //}
+      assert( N_CHILDREN == 2 );
 
       int m = setup->m;
       int max_depth = setup->max_depth;
 
       if ( n > m && l < max_depth || ( PREALLOCATE && kids[ 0 ] ) )
       {
-		double beg = omp_get_wtime();
+        double beg = omp_get_wtime();
         auto split = setup->splitter( gids, lids );
-		double splitter_time = omp_get_wtime() - beg;
-		//printf( "splitter %5.3lfs\n", splitter_time );
+        double splitter_time = omp_get_wtime() - beg;
+        //printf( "splitter %5.3lfs\n", splitter_time );
 
-        if ( N_CHILDREN == 2 )
+        if ( std::abs( (int)split[ 0 ].size() - (int)split[ 1 ].size() ) > 1 )
         {
-          if ( std::abs( (int)split[ 0 ].size() - (int)split[ 1 ].size() ) > 1 )
+          if ( !has_uneven_split )
           {
-            //printf( "WARNING! the split is uneven. Using random split instead\n" );
-            //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", split[ 0 ].size(), split[ 1 ].size() );
-            split[ 0 ].resize( gids.size() / 2 );
-            split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
-            #pragma omp parallel for
-            for ( size_t i = 0; i < gids.size(); i ++ )
-            {
-              if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
-              else                       split[ 1 ][ i - ( gids.size() / 2 ) ] = i;
-            }
+            printf( "\n\nWARNING! uneven split. Using random split instead\n\n" );
+            has_uneven_split = true;
           }
-          else
+          //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", 
+          //  split[ 0 ].size(), split[ 1 ].size() );
+          split[ 0 ].resize( gids.size() / 2 );
+          split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
+          #pragma omp parallel for
+          for ( size_t i = 0; i < gids.size(); i ++ )
           {
-            //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", split[ 0 ].size(), split[ 1 ].size() );
+            if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
+            else                       split[ 1 ][ i - ( gids.size() / 2 ) ] = i;
           }
         }
 
-        // TODO: Can be parallelized
         for ( int i = 0; i < N_CHILDREN; i ++ )
         {
           int nchild = split[ i ].size();
@@ -622,7 +615,6 @@ class Node : public ReadWrite
             kids[ i ] = new Node( setup, nchild, l + 1, this );
           }
 
-          // TODO: Can be parallelized
           #pragma omp parallel for
           for ( int j = 0; j < nchild; j ++ )
           {
@@ -631,7 +623,7 @@ class Node : public ReadWrite
           }
         }
 
-        // Facilitate binary tree
+        /** facilitate binary tree */
         if ( N_CHILDREN > 1  )
         {
           lchild = kids[ 0 ];
@@ -644,9 +636,6 @@ class Node : public ReadWrite
         isleaf = true;
       }
 	  
-	  //omp_set_num_threads( nthd_glb ); 
-	  //omp_set_nested( 0 );
-      //omp_set_max_active_levels( 1 );
     }; // end Split()
 
 
@@ -893,42 +882,42 @@ class Tree
 
     void TreePartition
     (
-      //int leafsize, int max_depth,
       std::vector<std::size_t> &gids,
       std::vector<std::size_t> &lids
     )
     {
       assert( N_CHILDREN == 2 );
 
-	  double beg, alloc_time, split_time, morton_time, permute_time;
-
-      n = lids.size();
-      m = setup.m;
-      int max_depth = setup.max_depth;
+      double beg, alloc_time, split_time, morton_time, permute_time;
 
       std::deque<NODE*> treequeue;
-     
+
+      this->n = lids.size();
+      this->m = setup.m;
+      int max_depth = setup.max_depth;
+
       beg = omp_get_wtime();
 
+      /** reset the warning flag and clean up the treelist */
+      has_uneven_split = false;
       treelist.clear();
       treequeue.clear();
       treelist.reserve( ( n / m ) * N_CHILDREN );
 
-      auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
-   
-      treequeue.push_back( root );
+      //auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
+  
+      /** root */
+      treequeue.push_back( new NODE( &setup, n, 0, gids, lids, NULL ) );
     
       // TODO: there is parallelism to be exploited here.
       while ( auto *node = treequeue.front() )
       {
         node->treelist_id = treelist.size();
-        //node->Split<false>( m, max_depth );
         node->Split<false>( 0 );
         for ( int i = 0; i < N_CHILDREN; i ++ )
         {
           treequeue.push_back( node->kids[ i ] );
         }
-
         treelist.push_back( node );
         treequeue.pop_front();
       }
@@ -975,7 +964,7 @@ class Tree
 //	  split_time = omp_get_wtime() - beg;
 //
 
-      // All tree nodes were created. Now decide tree depth.
+      /** all tree nodes were created. Now decide tree depth */
       if ( treelist.size() )
       {
         treelist.shrink_to_fit();
@@ -998,14 +987,14 @@ class Tree
       morton_time = omp_get_wtime() - beg;
 
 
+      /** adgust lids and gids to the appropriate order */
       beg = omp_get_wtime();
-      // Adgust lids and gids to the appropriate order.
       PermuteTask<NODE> permutetask;
       TraverseUp<false, false>( permutetask );
       permute_time = omp_get_wtime() - beg;
 
       //printf( "alloc %5.3lfs split %5.3lfs morton %5.3lfs permute %5.3lfs\n", 
-		//  alloc_time, split_time, morton_time, permute_time );
+      //  alloc_time, split_time, morton_time, permute_time );
     };
 
 
