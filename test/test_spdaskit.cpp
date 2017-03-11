@@ -413,7 +413,7 @@ int main( int argc, char *argv[] )
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
-  const bool GRAPHTESTSUIT = false;
+  const bool GRAPHTESTSUIT = true;
   const bool OOCTESTSUIT = false;
   const bool KERNELTESTSUIT = true;
 

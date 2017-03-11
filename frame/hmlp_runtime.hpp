@@ -190,6 +190,8 @@ class Task
 
     void Enqueue( size_t tid );
 
+    void ForceEnqueue( size_t tid );
+
     virtual void Execute( Worker* );
 
     virtual void GetEventRecord();
@@ -333,6 +335,8 @@ class RunTime
 
     Device host;
 
+    Device* device[ 1 ];
+
     Scheduler *scheduler;
 
   private:
@@ -347,5 +351,8 @@ class RunTime
 }; // end namespace hmlp
 
 hmlp::RunTime *hmlp_get_runtime_handle();
+
+hmlp::Device *hmlp_get_device( int i );
+
 
 #endif // define HMLP_RUNTIME_HPP

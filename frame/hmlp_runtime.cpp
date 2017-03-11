@@ -375,6 +375,25 @@ void Task::Enqueue()
   Enqueue( 0 );
 };
 
+void Task::ForceEnqueue( size_t tid )
+{
+  int assignment = tid;
+
+  rt.scheduler->ready_queue_lock[ assignment ].Acquire();
+  {
+    float cost = rt.workers[ assignment ].EstimateCost( this );
+    status = QUEUED;
+    if ( priority )
+      rt.scheduler->ready_queue[ assignment ].push_front( this );
+    else
+      rt.scheduler->ready_queue[ assignment ].push_back( this );
+
+    /** update the remaining time */
+    rt.scheduler->time_remaining[ assignment ] += cost; 
+  }
+  rt.scheduler->ready_queue_lock[ assignment ].Release();
+};
+
 
 /**
  *  @brief 
@@ -890,9 +909,10 @@ void RunTime::Init()
 
 #ifdef HMLP_USE_CUDA
       /** TODO: detect devices */
+      device[ 0 ] = new hmlp::gpu::Nvidia( 0 );
       if ( n_worker )
       {
-        workers[ 0 ].SetDevice( new hmlp::gpu::Nvidia( 0 ) );
+        workers[ 0 ].SetDevice( device[ 0 ] );
       }
 #endif
 
@@ -968,4 +988,9 @@ void hmlp_finalize()
 hmlp::RunTime *hmlp_get_runtime_handle()
 {
   return &hmlp::rt;
+};
+
+hmlp::Device *hmlp_get_device( int i )
+{
+  return hmlp::rt.device[ i ];
 };

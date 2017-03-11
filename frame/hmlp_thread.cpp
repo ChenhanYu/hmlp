@@ -123,13 +123,11 @@ Device::Device()
   devicetype = hmlp::DeviceType::HOST;
 };
 
-void Device::prefetchd2h( void *ptr_h, void *ptr_d, size_t size ) {};
+void Device::prefetchd2h( void *ptr_h, void *ptr_d, size_t size, int stream_id ) {};
 
-void Device::prefetchh2d( void *ptr_d, void *ptr_h, size_t size ) {};
+void Device::prefetchh2d( void *ptr_d, void *ptr_h, size_t size, int stream_id ) {};
 
-void Device::wait() {};
-
-void Device::waitexecute() {};
+void Device::wait( int stream_id ) {};
 
 void Device::malloc( void *ptr_d, size_t size ) {};
 
@@ -270,7 +268,7 @@ bool Worker::Execute( Task *task )
  */ 
 void Worker::WaitExecute()
 {
-  if ( device ) device->waitexecute();
+  //if ( device ) device->waitexecute();
 };
 
 float Worker::EstimateCost( class Task * task )

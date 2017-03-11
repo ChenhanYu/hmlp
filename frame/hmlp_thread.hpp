@@ -76,13 +76,11 @@ class Device
 
     Device();
 
-    virtual void prefetchd2h( void *ptr_h, void *ptr_d, size_t size );
+    virtual void prefetchd2h( void *ptr_h, void *ptr_d, size_t size, int stream_id );
 
-    virtual void prefetchh2d( void *ptr_d, void *ptr_h, size_t size );
+    virtual void prefetchh2d( void *ptr_d, void *ptr_h, size_t size, int stream_id );
 
-    virtual void wait();
-
-    virtual void waitexecute();
+    virtual void wait( int stream_id );
 
     virtual void malloc( void *ptr_d, size_t size );
 

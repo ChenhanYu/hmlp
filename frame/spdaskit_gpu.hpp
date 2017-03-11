@@ -22,7 +22,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   /** early return */
   if ( !node->parent || !node->data.isskel ) return;
 
-  double beg;
+  double beg, flops;
 
   /** gather shared data and create reference */
   auto &w = *node->setup->w;
@@ -56,6 +56,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   {
     /** need a memcpy */
     auto k = w_leaf.row();
+    flops = 2.0 * m * n * k;
     printf( "-->w_leaf\n" );
     w_leaf.FetchH2D( dev );
     assert( w_leaf.device_data( dev ) );
@@ -75,6 +76,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   {
     auto &w_lskel = lchild->data.w_skel;
     auto &w_rskel = rchild->data.w_skel;
+    flops = 2.0 * m * n * ( w_lskel.row() + w_rskel.row() );
 
     printf( "-->w_lskel\n" );
     w_lskel.FetchH2D( dev );
@@ -108,7 +110,8 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   dev->waitexecute();
 
   double gemm_time = omp_get_wtime() - beg;
-  printf( "cublas %5.2lf\n", gemm_time );
+  printf( "cublas %5.2lf (%5.2lf GFLOPS)\n", 
+      gemm_time, flops / ( gemm_time * 1E+9 ) );
 
 
   /** cliam redistribution, now only dev has the latest copy */
@@ -125,7 +128,16 @@ void UpdateWeights( DEVICE *dev, NODE *node )
 template<int SUBTASKID, bool NNPRUNE, typename NODE, typename T, typename DEVICE>
 void LeavesToLeaves( DEVICE *dev, NODE *node, size_t itbeg, size_t itend )
 {
-  assert( node->isleaf );
+  assert( dev && node && node->isleaf );
+
+#ifdef DEBUG_SPDASKIT_GPU
+  //printf( "\n%lu LeavesToLeaves on GPU\n", node->treelist_id );
+#endif
+
+  double beg, gemm_time = 0.0, flops = 0.0;
+
+  /** use cuda stream for asynchronous execution */
+  int stream_id = node->treelist_id % 8;
 
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
@@ -142,48 +154,64 @@ void LeavesToLeaves( DEVICE *dev, NODE *node, size_t itbeg, size_t itend )
   else           NearNodes = &node->NearNodes;
 
   auto &u_leaf = data.u_leaf[ SUBTASKID ];
-  u_leaf.clear();
 
   /** early return if nothing to do */
-  if ( itbeg == itend ) 
+  if ( SUBTASKID != 1 ) 
   {
     u_leaf.resize( 0, 0 );
     return;
   }
   else
   {
-    u_leaf.clear();
-    u_leaf.resize( lids.size(), w.row(), 0.0 );
+    //u_leaf.clear();
+    //u_leaf.resize( lids.size(), w.row(), 0.0 );
+    //u_leaf.AllocateD( dev );
   }
 
-  //if ( NearKab.size() ) /** Kab is cached */
-  //{
-  //  size_t itptr = 0;
-  //  size_t offset = 0;
+  //printf( "NearKab\n" );
+  //NearKab.FetchH2D( dev );
 
-  //  for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
-  //  {
-  //    if ( itbeg <= itptr && itptr < itend )
-  //    {
-  //      auto &bmap = (*it)->lids;
-  //      //auto wb = w( bmap );
-  //      auto wb = (*it)->data.w_leaf;
+  size_t m = u_leaf.row();
+  size_t n = u_leaf.col();
+  size_t offset = 0;
 
-  //      /** Kab * wb */
-  //      xgemm
-  //      (
-  //        "N", "N",
-  //        u_leaf.row(), u_leaf.col(), wb.row(),
-  //        1.0, NearKab.data() + offset * NearKab.row(), NearKab.row(),
-  //                  wb.data(),                               wb.row(),
-  //        1.0,  u_leaf.data(),                           u_leaf.row()
-  //      );
-  //    }
-  //  }
-  //}
+  beg = omp_get_wtime();
+  for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+  {
+    auto wb = (*it)->data.w_leaf;
+    size_t k = wb.row();
 
+    /** Kab * wb */
+    hmlp::xgemm
+    (
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( stream_id ),
+      CUBLAS_OP_N, CUBLAS_OP_N,
+      m, n, k,
+      1.0, NearKab.device_data( dev ) + offset * m, m,
+                wb.device_data( dev ),              k,
+      1.0,  u_leaf.device_data( dev ),              m
+    );
+    //flops += 2.0 * m * n * k;
+    offset += (*it)->lids.size();
+  }
+  
+  /** make sure that cublas is fully stopped */
+  dev->wait( stream_id );
 
+  gemm_time = omp_get_wtime() - beg;
+  printf( "cublas m %lu n %lu %5.2lf (%5.2lf GFLOPS)\n", 
+      u_leaf.row(), u_leaf.col(), 
+      gemm_time, flops / ( gemm_time * 1E+9 ) );
 
+  
+  /** cliam redistribution, now only dev has the latest copy */
+  u_leaf.Redistribute<true>( dev );
+
+  /** store back */
+  //u_leaf.FetchD2H( dev );
+  u_leaf.PrefetchD2H( dev, stream_id );
+
+  //printf( "Finish GPU LeavesToLeaves\n\n" );
 };
 
 

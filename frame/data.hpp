@@ -315,26 +315,28 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       printf( "AllocateD %5.2lf\n", alloc_time );
     };
 
-    void PrefetchH2D( hmlp::Device *dev )
+    void PrefetchH2D( hmlp::Device *dev, int stream_id )
     {
-      gpu::DeviceMemory<T>::PrefetchH2D( dev, m * n, this->data() );
+      gpu::DeviceMemory<T>::PrefetchH2D
+        ( dev, stream_id, m * n, this->data() );
     };
 
-    void PrefetchD2H( hmlp::Device *dev )
+    void PrefetchD2H( hmlp::Device *dev, int stream_id )
     {
-      gpu::DeviceMemory<T>::PrefetchD2H( dev, m * n, this->data() );
+      gpu::DeviceMemory<T>::PrefetchD2H
+        ( dev, stream_id, m * n, this->data() );
     };
 
-    void WaitPrefetch( hmlp::Device *dev )
+    void WaitPrefetch( hmlp::Device *dev, int stream_id )
     {
-      gpu::DeviceMemory<T>::Wait( dev );
+      gpu::DeviceMemory<T>::Wait( dev, int stream_id );
     };
 
     void FetchH2D( hmlp::Device *dev )
     {
       double beg = omp_get_wtime();
-      PrefetchH2D( dev );
-      WaitPrefetch( dev );
+      PrefetchH2D(  dev, 8 );
+      WaitPrefetch( dev, 8 );
       double fetch_time = omp_get_wtime() - beg;
       printf( "FetchH2D %5.2lf\n", fetch_time );
     };
@@ -342,8 +344,8 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     void FetchD2H( hmlp::Device *dev )
     {
       double beg = omp_get_wtime();
-      PrefetchD2H( dev );
-      WaitPrefetch( dev );
+      PrefetchD2H(  dev, 9 );
+      WaitPrefetch( dev, 9 );
       double fetch_time = omp_get_wtime() - beg;
       printf( "FetchD2H %5.2lf\n", fetch_time );
     };

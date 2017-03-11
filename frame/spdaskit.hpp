@@ -1445,14 +1445,14 @@ class UpdateWeightsTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-#ifdef HMLP_USE_CUDA 
-      hmlp::Device *device = NULL;
-      if ( user_worker ) device = user_worker->GetDevice();
-      if ( device ) gpu::UpdateWeights( device, arg );
-      else               UpdateWeights( arg );
-#else
+//#ifdef HMLP_USE_CUDA 
+//      hmlp::Device *device = NULL;
+//      if ( user_worker ) device = user_worker->GetDevice();
+//      if ( device ) gpu::UpdateWeights( device, arg );
+//      else               UpdateWeights( arg );
+//#else
       UpdateWeights( arg );
-#endif
+//#endif
     };
 
 }; // end class SetWeights
@@ -2072,8 +2072,13 @@ class LeavesToLeavesTask : public hmlp::Task
     {
       assert( arg->isleaf );
 
+#ifdef HMLP_USE_CUDA
+      //this->ForceEnqueue( 0 );
+      this->Enqueue();
+#else
       /** depends on nothing */
       this->Enqueue();
+#endif
 
       /** impose rw dependencies on multiple copies */
       //auto &u_leaf = arg->data.u_leaf[ SUBTASKID ];
@@ -2082,7 +2087,17 @@ class LeavesToLeavesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+#ifdef HMLP_USE_CUDA 
+      hmlp::Device *device = NULL;
+      //if ( user_worker ) device = user_worker->GetDevice();
+      device = hmlp_get_device( 0 );
+      //if ( device && arg->data.w_leaf.is_up_to_date( device ) )
+        gpu::LeavesToLeaves<SUBTASKID, NNPRUNE, NODE, T>( device, arg, itbeg, itend );
+      //else               
+      //       LeavesToLeaves<SUBTASKID, NNPRUNE, NODE, T>( arg, itbeg, itend );
+#else
       LeavesToLeaves<SUBTASKID, NNPRUNE, NODE, T>( arg, itbeg, itend );
+#endif
     };
 
 }; /** end class LeavesToLeaves */
@@ -2224,6 +2239,95 @@ void PrintSet( std::set<NODE*> &set )
 };
 
 
+template<typename NODE>
+void RemoveClique( NODE *node )
+{
+  assert( node->NNNearNodes.count( node ) );
+  node->NNNearNodes.erase( node );
+};
+
+template<typename NODE>
+void RemoveClique( NODE *node1, NODE *node2 )
+{
+  if ( node1->isleaf )
+  {
+    if ( node2->isleaf )
+    {
+      node1->NNNearNodes.erase( node2 );
+    }
+    else
+    {
+      RemoveClique( node1, node2->lchild );
+      RemoveClique( node1, node2->rchild );
+    }
+  }
+  else
+  {
+    RemoveClique( node1->lchild, node2 );
+    RemoveClique( node1->rchild, node2 );
+  }
+};
+
+
+template<typename NODE>
+bool NearNodeClique( NODE *node1, NODE *node2 )
+{
+  bool isclique = false;
+
+  if ( node1->isleaf )
+  {
+    if ( node2->isleaf )
+    {
+      isclique = node1->NNNearNodes.count( node2 );
+    }
+    else
+    {
+      isclique = 
+        NearNodeClique( node1, node2->lchild ) &&
+        NearNodeClique( node1, node2->rchild );
+    }
+  }
+  else
+  {
+    isclique = 
+      NearNodeClique( node1->lchild, node2 ) &&
+      NearNodeClique( node1->rchild, node2 );
+  }
+
+  return isclique;
+};
+
+template<typename NODE>
+bool NearNodeClique( NODE *node )
+{
+  if ( node->isleaf )
+  {
+    return true;
+  }
+  else
+  {
+    bool ll = NearNodeClique( node->lchild );
+    bool rr = NearNodeClique( node->rchild );
+    bool lr = NearNodeClique( node->lchild, node->rchild );
+    bool rl = NearNodeClique( node->rchild, node->lchild );
+
+    if ( ll && rr && lr && rl )
+    {
+      printf( "clique at level %lu\n", node->l );
+    }
+
+    return ( ll && rr && lr && rl );
+  }
+};
+
+template<typename TREE>
+void FindClique( TREE &tree )
+{
+
+};
+
+
+
 /**
  *  @brief Compute those near leaf nodes and build a list. This is just like
  *         the neighbor list but the granularity is in nodes but not points.
@@ -2339,6 +2443,9 @@ void NearNodes( TREE &tree )
     }
 #endif
   }
+
+  /** TODO: amalgamation (clique finding) */
+  //NearNodeClique( tree.treelist[ 0 ] );
 };
 
 
@@ -2449,6 +2556,11 @@ class CacheNearNodesTask : public hmlp::Task
         bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
       }
       data.NearKab = K( amap, bmap );
+
+#ifdef HMLP_USE_CUDA
+      /** prefetch NearKab to GPU */
+      data.NearKab.PrefetchH2D( hmlp_get_device( 0 ), 8 );
+#endif
     };
 }; 
 
@@ -2611,6 +2723,12 @@ void NearFarNodes( TREE &tree )
     if ( node->isleaf )
     {
       node->data.u_leaf[ 0 ].reserve( 1024, node->lids.size() );
+#ifdef HMLP_USE_CUDA
+      node->data.w_leaf.resize( node->lids.size(), 1024 );
+      node->data.w_leaf.AllocateD( hmlp_get_device( 0 ) );
+      node->data.u_leaf[ 1 ].resize( node->lids.size(), 1024, 0.0 );
+      node->data.u_leaf[ 1 ].AllocateD( hmlp_get_device( 0 ) );
+#endif
     }
   }
 
@@ -2894,16 +3012,6 @@ hmlp::Data<T> ComputeAll
 
   double beg, computeall_time = 0.0, overhead_time = 0.0;
 
-#ifdef HMLP_USE_CUDA
-  cudaEvent_t cuda_beg, cuda_end;
-  cudaSetDevice( 0 );
-  cudaEventCreate( &cuda_beg );
-  cudaEventCreate( &cuda_end );
-  T *ptr_d = NULL;
-  cudaMalloc( (void**)&ptr_d, 1 );
-  cudaFree( ptr_d );
-#endif
-
   hmlp::Data<T> potentials( weights.row(), weights.col() );
 
   tree.setup.w = &weights;
@@ -2931,10 +3039,6 @@ hmlp::Data<T> ComputeAll
     SKELTOSKELTASK  skeltoskeltask;
     SKELTONODETASK  skeltonodetask;
 
-#ifdef HMLP_USE_CUDA
-    cudaEventRecord( cuda_beg, 0 );
-    float clock_beg = ((float) clock());
-#endif
     beg = omp_get_wtime();
 
     int n_nodes = 1 << tree.depth;
@@ -2945,6 +3049,11 @@ hmlp::Data<T> ComputeAll
     {
       auto *node = *(level_beg + node_ind);
       node->data.w_leaf = weights.GatherColumns<true>( node->lids );
+#ifdef HMLP_USE_CUDA
+      /** prefetch w_leaf, non-blocking */
+      //if ( node_ind < n_nodes / 2 )
+      node->data.w_leaf.PrefetchH2D( hmlp_get_device( 0 ), 8 ); 
+#endif
     }
 
     if ( USE_OMP_TASK )
@@ -2980,9 +3089,19 @@ hmlp::Data<T> ComputeAll
       //printf( "Skel2Skel\n" );
       
       tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+
+#ifdef HMLP_USE_CUDA
+      hmlp::Device *device = hmlp_get_device( 0 );
+      device->wait( 8 );
+#endif
+
       overhead_time = omp_get_wtime() - beg;
       if ( USE_RUNTIME ) hmlp_run();
 
+#ifdef HMLP_USE_CUDA
+      for ( int stream_id = 0; stream_id < 10; stream_id ++ )
+        device->wait( stream_id );
+#endif
     }
 
     /** reduce direct iteractions from 4 copies */
@@ -3004,19 +3123,9 @@ hmlp::Data<T> ComputeAll
           potentials[ amap[ j ] * potentials.row() + i ] = u_leaf( j, i );
     }
 
-#ifdef HMLP_USE_CUDA
-    cudaThreadSynchronize();
-    cudaEventRecord( cuda_end, 0 );
-    cudaEventSynchronize( cuda_end );
-    float cuda_time = 0.0;
-    cudaEventElapsedTime( &cuda_time, cuda_beg, cuda_end );
-    computeall_time = cuda_time / 1000.0;
-    float clock_end = ((float) clock());
-#else
     computeall_time = omp_get_wtime() - beg;
-#endif
-    printf( "ComputeAll %5.2lfs (overhead %5.2lfs)\n", computeall_time, overhead_time ); fflush( stdout );
-    //printf( "clock %5.2fs\n", ( clock_end - clock_beg ) / CLOCKS_PER_SEC );
+    printf( "ComputeAll %5.2lfs (overhead %5.2lfs)\n", 
+        computeall_time, overhead_time ); fflush( stdout );
   }
   else // TODO: implement unsymmetric prunning
   {
