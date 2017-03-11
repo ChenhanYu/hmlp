@@ -428,7 +428,6 @@ int main( int argc, char *argv[] )
   size_t n, m, d, k, s, nrhs;
 
   using T = double;
-  //using SPLITTER = hmlp::spdaskit::centersplit<SPDMATRIX, N_CHILDREN, T>;
 
   sscanf( argv[ 1 ], "%lu", &n );
   sscanf( argv[ 2 ], "%lu", &m );
@@ -642,7 +641,49 @@ int main( int argc, char *argv[] )
       hmlp::Data<T> *X = NULL;
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
-      kernel.scal = -0.5 / ( 0.5 * 0.5 );
+      kernel.scal = -0.5 / ( 0.3 * 0.3 );
+      hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
+      K.read( n, d, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
+      n = 108000;
+      d = 128;
+      hmlp::Data<T> *X = NULL;
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5 / ( 0.3 * 0.3 );
+      hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
+      K.read( n, d, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = DATADIR + std::string( "higgs.0.5M.28d.tst.X.bin" );
+      n = 500000;
+      d = 28;
+      hmlp::Data<T> *X = NULL;
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5 / ( 0.3 * 0.3 );
+      hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
+      K.read( n, d, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = DATADIR + std::string( "mnist2m.d784.n1600000.trn.X.bin" );
+      n = 1600000;
+      d = 784;
+      hmlp::Data<T> *X = NULL;
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5 / ( 0.3 * 0.3 );
       hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
       K.read( n, d, filename );
       hmlp::Data<std::pair<T, std::size_t>> NN;
