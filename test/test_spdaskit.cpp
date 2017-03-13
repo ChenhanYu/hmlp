@@ -396,6 +396,13 @@ void test_spdaskit(
   printf( "n %5lu k %4lu s %4lu nrhs %4lu ANN %5.3lf CONSTRUCT %5.3lf EVAL(NN) %5.3lf EVAL %5.3lf EVAL(FMM) %5.3lf SYMBOLIC(FMM) %5.3lf\n", 
       n, k, s, nrhs, ann_time, tree_time,
       nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time );
+  // Decomment for latex tables
+  /*
+  printf( "TABLE: n %5lu m %4lu k %4lu s %4lu nrhs %4lu e(nntree) %E %%K %1.3lf ANN %5.3lf CONSTRUCT %5.2lf SKEL %5.2lf EVAL(NN) %5.3lf EVAL %5.3lf EVAL(FMM) %5.3lf SYMBOLIC(FMM) %5.3lf\n",
+      n, m, k, s, nrhs, nnerr_avg / ntest, exact_ratio,ann_time, tree_time, skel_time,
+       nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time );
+  */
+
 
 };
 
