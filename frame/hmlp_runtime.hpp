@@ -17,6 +17,7 @@
 #include <pthread.h>
 #endif
 
+#include <hmlp_device.hpp>
 #include <hmlp_thread.hpp>
 
 #define MAX_WORKER 68
@@ -273,12 +274,10 @@ class Scheduler
 
     float time_remaining[ MAX_WORKER ];
 
+    void ReportRemainingTime();
+
     // Manually describe the dependencies.
     static void DependencyAdd( Task *source, Task *target );
-
-    //template<bool READ, bool WRITE>
-    //static void DependencyAnalysis( Task *task, Object &object );
-
 
     void NewTask( Task *task );
 
@@ -353,6 +352,7 @@ class RunTime
 hmlp::RunTime *hmlp_get_runtime_handle();
 
 hmlp::Device *hmlp_get_device( int i );
+
 
 
 #endif // define HMLP_RUNTIME_HPP

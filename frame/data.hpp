@@ -25,6 +25,7 @@
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
 #include <hmlp_util.hpp>
+#include <hmlp_device.hpp>
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
@@ -61,7 +62,7 @@ template<class T, class Allocator = std::allocator<T> >
 class Data : public ReadWrite, public std::vector<T, Allocator>
 #ifdef HMLP_USE_CUDA
 /** inheritate the interface fot the host-device model. */
-, public hmlp::gpu::DeviceMemory<T>
+, public hmlp::DeviceMemory<T>
 #endif
 {
   public:
@@ -307,47 +308,50 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
 
 #ifdef HMLP_USE_CUDA
+
+    void CacheD( hmlp::Device *dev )
+    {
+      DeviceMemory<T>::CacheD( dev, this->size() * sizeof(T) );
+    };
+
     void AllocateD( hmlp::Device *dev )
     {
       double beg = omp_get_wtime();
-      gpu::DeviceMemory<T>::AllocateD( dev, m * n );
+      DeviceMemory<T>::AllocateD( dev, m * n );
       double alloc_time = omp_get_wtime() - beg;
       printf( "AllocateD %5.2lf\n", alloc_time );
     };
 
+    void FreeD( hmlp::Device *dev )
+    {
+      DeviceMemory<T>::FreeD( dev, this->size() * sizeof(T) );
+    };
+
     void PrefetchH2D( hmlp::Device *dev, int stream_id )
     {
-      gpu::DeviceMemory<T>::PrefetchH2D
+      DeviceMemory<T>::PrefetchH2D
         ( dev, stream_id, m * n, this->data() );
     };
 
     void PrefetchD2H( hmlp::Device *dev, int stream_id )
     {
-      gpu::DeviceMemory<T>::PrefetchD2H
+      DeviceMemory<T>::PrefetchD2H
         ( dev, stream_id, m * n, this->data() );
     };
 
     void WaitPrefetch( hmlp::Device *dev, int stream_id )
     {
-      gpu::DeviceMemory<T>::Wait( dev, int stream_id );
+      DeviceMemory<T>::Wait( dev, stream_id );
     };
 
     void FetchH2D( hmlp::Device *dev )
     {
-      double beg = omp_get_wtime();
-      PrefetchH2D(  dev, 8 );
-      WaitPrefetch( dev, 8 );
-      double fetch_time = omp_get_wtime() - beg;
-      printf( "FetchH2D %5.2lf\n", fetch_time );
+      DeviceMemory<T>::FetchH2D( dev, m * n, this->data() );
     };
 
     void FetchD2H( hmlp::Device *dev )
     {
-      double beg = omp_get_wtime();
-      PrefetchD2H(  dev, 9 );
-      WaitPrefetch( dev, 9 );
-      double fetch_time = omp_get_wtime() - beg;
-      printf( "FetchD2H %5.2lf\n", fetch_time );
+      DeviceMemory<T>::FetchD2H( dev, m * n, this->data() );
     };
 #endif
 

@@ -417,6 +417,11 @@ void Task::Enqueue( size_t tid )
     }
   }
 
+//  if ( assignment == 0 )
+//  {
+//    rt.scheduler->ReportRemainingTime();
+//  }
+//
   rt.scheduler->ready_queue_lock[ assignment ].Acquire();
   {
     float cost = rt.workers[ assignment ].EstimateCost( this );
@@ -517,7 +522,6 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
 
   for ( int i = 0; i < n_worker; i ++ )
   {
-    time_remaining[ i ] = 0.0;
     rt.workers[ i ].tid = i;
     rt.workers[ i ].scheduler = this;
     pthread_create
@@ -546,7 +550,6 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
     /** setup nested thread number */
     omp_set_num_threads( user_n_nested_worker );
 
-    time_remaining[ i ] = 0.0;
     rt.workers[ i ].tid = i;
     rt.workers[ i ].scheduler = this;
     EntryPoint( (void*)&(rt.workers[ i ]) );
@@ -585,12 +588,32 @@ void Scheduler::Finalize()
 #else
 #endif
   Summary();
-  // Reset tasklist
+
+  /** reset remaining time */
+  for ( int i = 0; i < n_worker; i ++ )
+  {
+    time_remaining[ i ] = 0.0;
+  }
+
+  /** reset tasklist */
   for ( auto it = tasklist.begin(); it != tasklist.end(); it ++ )
   {
     delete *it; 
   }
   tasklist.clear();
+};
+
+void Scheduler::ReportRemainingTime()
+{
+  printf( "ReportRemainingTime:" ); fflush( stdout );
+  printf( "--------------------\n" ); fflush( stdout );
+  for ( int i = 0; i < rt.n_worker; i ++ )
+  {
+    printf( "worker %2d --> %7.2lf (%4lu jobs)\n", 
+        i, rt.scheduler->time_remaining[ i ], 
+           rt.scheduler->ready_queue[ i ].size() ); fflush( stdout );
+  }
+  printf( "--------------------\n" ); fflush( stdout );
 };
 
 
@@ -738,7 +761,7 @@ void* Scheduler::EntryPoint( void* arg )
     {
       idle ++;
 
-      if ( idle > 10 )
+      if ( idle > 100 )
       {
         int max_remaining_task = 0;
         float max_remaining_time = 0.0;
@@ -751,6 +774,7 @@ void* Scheduler::EntryPoint( void* arg )
         //int numa_end = numa_beg + ( scheduler->n_worker / numa_grp );
 
         //for ( int p = numa_beg; p < numa_end; p ++ )
+        /** TODO: do not steal job from 0 (with GPU) */
         for ( int p = 0; p < scheduler->n_worker; p ++ )
         {
           //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
@@ -958,6 +982,13 @@ void RunTime::Finalize()
 //{
 //
 //};
+
+
+hmlp::Device *hmlp_get_device_host()
+{
+  return &(hmlp::rt.host);
+};
+
 
 }; // end namespace hmlp
 

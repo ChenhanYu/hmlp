@@ -36,6 +36,8 @@
 #include <spdaskit_gpu.hpp>
 #endif
 
+#define MAX_NRHS 1024
+
 //#define DEBUG_SPDASKIT 1
 
 namespace hmlp
@@ -117,9 +119,10 @@ class Data
 
     /** permuted weights and potentials (buffer) */
     hmlp::Data<T> w_leaf;
-    hmlp::Data<T> u_leaf[ 5 ];
+    hmlp::Data<T> u_leaf[ 20 ];
 
     /** cached Kab */
+    hmlp::Data<std::size_t> Nearbmap;
     hmlp::Data<T> NearKab;
     hmlp::Data<T> FarKab;
 
@@ -871,8 +874,8 @@ void Interpolate( NODE *node )
   /** if is skeletonized, reserve space for w_skel and u_skel */
   if ( data.isskel )
   {
-    data.w_skel.reserve( skels.size(), 1024 );
-    data.u_skel.reserve( skels.size(), 1024 );
+    data.w_skel.reserve( skels.size(), MAX_NRHS );
+    data.u_skel.reserve( skels.size(), MAX_NRHS );
   }
 
 
@@ -2074,14 +2077,8 @@ class LeavesToLeavesTask : public hmlp::Task
     void DependencyAnalysis()
     {
       assert( arg->isleaf );
-
-#ifdef HMLP_USE_CUDA
-      //this->ForceEnqueue( 0 );
-      this->Enqueue();
-#else
       /** depends on nothing */
       this->Enqueue();
-#endif
 
       /** impose rw dependencies on multiple copies */
       //auto &u_leaf = arg->data.u_leaf[ SUBTASKID ];
@@ -2090,17 +2087,7 @@ class LeavesToLeavesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-#ifdef HMLP_USE_CUDA 
-      hmlp::Device *device = NULL;
-      //if ( user_worker ) device = user_worker->GetDevice();
-      device = hmlp_get_device( 0 );
-      //if ( device && arg->data.w_leaf.is_up_to_date( device ) )
-        gpu::LeavesToLeaves<SUBTASKID, NNPRUNE, NODE, T>( device, arg, itbeg, itend );
-      //else               
-      //       LeavesToLeaves<SUBTASKID, NNPRUNE, NODE, T>( arg, itbeg, itend );
-#else
       LeavesToLeaves<SUBTASKID, NNPRUNE, NODE, T>( arg, itbeg, itend );
-#endif
     };
 
 }; /** end class LeavesToLeaves */
@@ -2563,9 +2550,29 @@ class CacheNearNodesTask : public hmlp::Task
       }
       data.NearKab = K( amap, bmap );
 
+      /** */
+      data.Nearbmap.resize( bmap.size(), 1 );
+      for ( size_t i = 0; i < bmap.size(); i ++ ) 
+        data.Nearbmap[ i ] = bmap[ i ];
+
+
+
 #ifdef HMLP_USE_CUDA
-      /** prefetch NearKab to GPU */
-      data.NearKab.PrefetchH2D( hmlp_get_device( 0 ), 8 );
+      auto *device = hmlp_get_device( 0 );
+      size_t preserve_size = 3000000000;
+      if ( data.NearKab.col() * MAX_NRHS < 1200000000 &&
+           data.NearKab.size() + preserve_size < device->get_memory_left() )
+      {
+        auto &Nearbmap = node->data.Nearbmap;
+        /** prefetch Nearbmap to GPU */
+        Nearbmap.PrefetchH2D( device, 8 );
+        /** prefetch NearKab to GPU */
+        data.NearKab.PrefetchH2D( device, 8 );
+      }
+      else
+      {
+        printf( "Kab %lu %lu not cache\n", data.NearKab.row(), data.NearKab.col() );
+      }
 #endif
     };
 }; 
@@ -2728,13 +2735,7 @@ void NearFarNodes( TREE &tree )
     auto *node = tree.treelist[ i ];
     if ( node->isleaf )
     {
-      node->data.u_leaf[ 0 ].reserve( 1024, node->lids.size() );
-#ifdef HMLP_USE_CUDA
-      node->data.w_leaf.resize( node->lids.size(), 1024 );
-      node->data.w_leaf.AllocateD( hmlp_get_device( 0 ) );
-      node->data.u_leaf[ 1 ].resize( node->lids.size(), 1024, 0.0 );
-      node->data.u_leaf[ 1 ].AllocateD( hmlp_get_device( 0 ) );
-#endif
+      node->data.u_leaf[ 0 ].reserve( MAX_NRHS, node->lids.size() );
     }
   }
 
@@ -3018,14 +3019,19 @@ hmlp::Data<T> ComputeAll
 
   double beg, computeall_time = 0.0, overhead_time = 0.0;
 
-  hmlp::Data<T> potentials( weights.row(), weights.col() );
+  hmlp::Data<T> potentials( weights.row(), weights.col(), 0.0 );
 
   tree.setup.w = &weights;
   tree.setup.u = &potentials;
 
+
   if ( SYMMETRIC_PRUNE )
   {
-    //using LEAFTOLEAFTASK = LeavesToLeavesTask<NNPRUNE, NODE, T>;
+#ifdef HMLP_USE_CUDA
+    potentials.AllocateD( hmlp_get_device( 0 ) );
+    using LEAFTOLEAFVER2TASK = gpu::LeavesToLeavesVer2Task<NNPRUNE, NODE, T>;
+    LEAFTOLEAFVER2TASK leaftoleafver2task;
+#endif
     using LEAFTOLEAFTASK1 = LeavesToLeavesTask<1, NNPRUNE, NODE, T>;
     using LEAFTOLEAFTASK2 = LeavesToLeavesTask<2, NNPRUNE, NODE, T>;
     using LEAFTOLEAFTASK3 = LeavesToLeavesTask<3, NNPRUNE, NODE, T>;
@@ -3035,7 +3041,6 @@ hmlp::Data<T> ComputeAll
     using SKELTOSKELTASK  = SkeletonsToSkeletonsTask<NNPRUNE, NODE>;
     using SKELTONODETASK  = SkeletonsToNodesTask<NNPRUNE, NODE, T>;
 
-    //LEAFTOLEAFTASK leaftoleaftask;
     LEAFTOLEAFTASK1 leaftoleaftask1;
     LEAFTOLEAFTASK2 leaftoleaftask2;
     LEAFTOLEAFTASK3 leaftoleaftask3;
@@ -3057,15 +3062,19 @@ hmlp::Data<T> ComputeAll
       node->data.w_leaf = weights.GatherColumns<true>( node->lids );
 #ifdef HMLP_USE_CUDA
       /** prefetch w_leaf, non-blocking */
-      //if ( node_ind < n_nodes / 2 )
-      node->data.w_leaf.PrefetchH2D( hmlp_get_device( 0 ), 8 ); 
+      //if (  node->data.NearKab.is_up_to_date( hmlp_get_device( 0 ) ) &&
+      //     node->data.Nearbmap.is_up_to_date( hmlp_get_device( 0 ) ) )
+      //{
+      //  node->data.w_leaf.PrefetchH2D( hmlp_get_device( 0 ), 8 ); 
+      //}
 #endif
     }
+
+    //beg = omp_get_wtime();
 
     if ( USE_OMP_TASK )
     {
       assert( !USE_RUNTIME );
-      //tree.template TraverseLeafs<false, false>( leaftoleaftask );
       tree.template TraverseLeafs<false, false>( leaftoleaftask1 );
       tree.template TraverseLeafs<false, false>( leaftoleaftask2 );
       tree.template TraverseLeafs<false, false>( leaftoleaftask3 );
@@ -3076,14 +3085,25 @@ hmlp::Data<T> ComputeAll
     else
     {
       assert( !USE_OMP_TASK );
+
+#ifdef HMLP_USE_CUDA
+      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleafver2task );
+#else
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
+#endif
+
+      /** check scheduler */
+      hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
+
+
+
 
       //printf( "task creating done\n" ); fflush( stdout );
       //if ( USE_RUNTIME ) hmlp_run();
-      //printf( "here\n" ); fflush( stdout );
+      printf( "here\n" ); fflush( stdout );
 
       tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
       //if ( USE_RUNTIME ) hmlp_run();
@@ -3094,17 +3114,22 @@ hmlp::Data<T> ComputeAll
       
       tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
 
-#ifdef HMLP_USE_CUDA
-      hmlp::Device *device = hmlp_get_device( 0 );
-      device->wait( 8 );
-#endif
+      /** check scheduler */
+      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
+      
+      //printf( "here\n" ); fflush( stdout );
 
       overhead_time = omp_get_wtime() - beg;
       if ( USE_RUNTIME ) hmlp_run();
 
+      //printf( "finish\n" );
+
 #ifdef HMLP_USE_CUDA
+      hmlp::Device *device = hmlp_get_device( 0 );
       for ( int stream_id = 0; stream_id < 10; stream_id ++ )
         device->wait( stream_id );
+      //potentials.PrefetchD2H( device, 0 );
+      potentials.FetchD2H( device );
 #endif
     }
 
@@ -3113,18 +3138,30 @@ hmlp::Data<T> ComputeAll
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
-      auto &amap = node->lids;
       auto &u_leaf = node->data.u_leaf[ 0 ];
-
       /** reduce all u_leaf[0:4] */
-      for ( size_t p = 1; p < 5; p ++ )
+      for ( size_t p = 1; p < 20; p ++ )
+      {
         for ( size_t i = 0; i < node->data.u_leaf[ p ].size(); i ++ )
           u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
+      }
+    }
+ 
+#ifdef HMLP_USE_CUDA
+    hmlp::Device *device = hmlp_get_device( 0 );
+    device->wait( 0 );
+#endif
 
+    #pragma omp parallel for
+    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    {
+      auto *node = *(level_beg + node_ind);
+      auto &amap = node->lids;
+      auto &u_leaf = node->data.u_leaf[ 0 ];
       /** assemble u_leaf back to u */
       for ( size_t j = 0; j < amap.size(); j ++ )
         for ( size_t i = 0; i < potentials.row(); i ++ )
-          potentials[ amap[ j ] * potentials.row() + i ] = u_leaf( j, i );
+          potentials[ amap[ j ] * potentials.row() + i ] += u_leaf( j, i );
     }
 
     computeall_time = omp_get_wtime() - beg;
