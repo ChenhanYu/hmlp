@@ -69,7 +69,7 @@ template<class T>
 class DeviceMemory
 {
   /** allow other instance to access device_map */
-  friend class DeviceMemory;
+  //friend class DeviceMemory;
 
   public:
 
