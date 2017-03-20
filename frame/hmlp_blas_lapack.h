@@ -183,7 +183,7 @@ float xdot
 // cublasSgemm wrapper
 void xgemm
 (
-  cublasHandle_t handle,
+  cublasHandle_t &handle,
   cublasOperation_t transa, cublasOperation_t transb,
   int m, int n, int k, 
   float alpha,
@@ -195,7 +195,7 @@ void xgemm
 // cublasDgemm wrapper
 void xgemm
 (
-  cublasHandle_t handle,
+  cublasHandle_t &handle,
   cublasOperation_t transa, cublasOperation_t transb,
   int m, int n, int k, 
   double alpha,
@@ -207,7 +207,7 @@ void xgemm
 // cublasSgemmBatched wrapper
 void xgemm_batched
 (
-  cublasHandle_t handle,
+  cublasHandle_t &handle,
   cublasOperation_t transa, cublasOperation_t transb,
   int m, int n, int k, 
   float alpha,
@@ -220,7 +220,7 @@ void xgemm_batched
 // cublasDgemmBatched wrapper
 void xgemm_batched
 (
-  cublasHandle_t handle,
+  cublasHandle_t &handle,
   cublasOperation_t transa, cublasOperation_t transb,
   int m, int n, int k, 
   double alpha,
@@ -229,6 +229,17 @@ void xgemm_batched
   double *Carray[], int ldc,
   int batchSize
 );
+
+void xgeqp3
+(
+  cublasHandle_t &handle,
+  int m, int n,
+  double *A, int lda,
+  int *jpvt,
+  double *tau,
+  double *work, int lwork
+);
+
 #endif
 
 

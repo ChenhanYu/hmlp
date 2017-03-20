@@ -313,7 +313,7 @@ void test_spdaskit(
   hmlp::Data<T> w( nrhs, n );
   w.rand();
   beg = omp_get_wtime();
-  auto u = hmlp::spdaskit::ComputeAll<true, false, true, true, NODE>( tree, w );
+  auto u = hmlp::spdaskit::ComputeAll<true, false, true, true, CACHE, NODE>( tree, w );
   dynamic_time = omp_get_wtime() - beg;
   fmm_evaluation_time = dynamic_time;
   printf( "Done.\n" ); fflush( stdout );
@@ -332,7 +332,7 @@ void test_spdaskit(
   if ( OMPLEVEL ) 
   {
     printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
-    u = hmlp::spdaskit::ComputeAll<false, false, true, true, NODE>( tree, w );
+    u = hmlp::spdaskit::ComputeAll<false, false, true, true, CACHE, NODE>( tree, w );
     printf( "Done.\n" ); fflush( stdout );
   }
   ref_time = omp_get_wtime() - beg;
@@ -346,7 +346,7 @@ void test_spdaskit(
   beg = omp_get_wtime();
   if ( OMPDAGTASK )
   {
-    u = hmlp::spdaskit::ComputeAll<false, true, true, true, NODE>( tree, w );
+    u = hmlp::spdaskit::ComputeAll<false, true, true, true, CACHE, NODE>( tree, w );
   }
   omptask45_time = omp_get_wtime() - beg;
 
@@ -693,7 +693,7 @@ int main( int argc, char *argv[] )
     //  hmlp::Data<T> *X = NULL;
     //  kernel_s<T> kernel;
     //  kernel.type = KS_GAUSSIAN;
-    //  kernel.scal = -0.5 / ( 0.3 * 0.3 );
+    //  kernel.scal = -0.5 / ( h * h );
     //  hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
     //  K.read( n, d, filename );
     //  hmlp::Data<std::pair<T, std::size_t>> NN;

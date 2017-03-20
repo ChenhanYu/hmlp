@@ -13,9 +13,9 @@ namespace gpu
 {
 
 void assemble
-( cudaStream_t stream, int m, int n, double *a, size_t *amap, double *A );
+( cudaStream_t stream, int m, int n, const double *a, const size_t *amap, double *A );
 void assemble
-( cudaStream_t stream, int m, int n, float *a, size_t *amap, float *A );
+( cudaStream_t stream, int m, int n, const float *a, const size_t *amap, float *A );
 
 
 
@@ -26,7 +26,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   assert( dev && node );
 
 #ifdef DEBUG_SPDASKIT_GPU
-  printf( "\n%lu UpdateWeight on GPU\n", node->treelist_id );
+  //printf( "\n%lu UpdateWeight on GPU\n", node->treelist_id );
 #endif
   /** early return */
   if ( !node->parent || !node->data.isskel ) return;
@@ -48,14 +48,15 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   /** s-by-nrhs, TODO: need a way to only allocate GPU memory */
   w_skel.clear();
   w_skel.resize( skels.size(), w.row() );
+  //printf( "-->w_skel\n" );
+  w_skel.CacheD( dev );
+
+
   auto m = w_skel.row();
   auto n = w_skel.col();
 
-  printf( "-->w_proj\n" );
+  //printf( "-->w_proj\n" );
   proj.FetchH2D( dev );
-  printf( "-->w_skel\n" );
-  //w_skel.FetchH2D( dev );
-  w_skel.AllocateD( dev );
 
   assert( proj.device_data( dev ) );
   assert( w_skel.device_data( dev ) );
@@ -66,20 +67,21 @@ void UpdateWeights( DEVICE *dev, NODE *node )
     /** need a memcpy */
     auto k = w_leaf.row();
     flops = 2.0 * m * n * k;
-    printf( "-->w_leaf\n" );
+    //printf( "-->w_leaf\n" );
     w_leaf.FetchH2D( dev );
     assert( w_leaf.device_data( dev ) );
 
     beg = omp_get_wtime();
     hmlp::xgemm
     (
-      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle(),
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
       CUBLAS_OP_N, CUBLAS_OP_N,
       m, n, k,
       1.0, proj.device_data( dev ),     proj.row(),
            w_leaf.device_data( dev ), w_leaf.row(),
       0.0, w_skel.device_data( dev ), w_skel.row()
     );
+    dev->wait( 0 );
   }
   else
   {
@@ -87,9 +89,9 @@ void UpdateWeights( DEVICE *dev, NODE *node )
     auto &w_rskel = rchild->data.w_skel;
     flops = 2.0 * m * n * ( w_lskel.row() + w_rskel.row() );
 
-    printf( "-->w_lskel\n" );
+    //printf( "-->w_lskel\n" );
     w_lskel.FetchH2D( dev );
-    printf( "-->w_rskel\n" );
+    //printf( "-->w_rskel\n" );
     w_rskel.FetchH2D( dev );
     assert( w_lskel.device_data( dev ) );
     assert( w_rskel.device_data( dev ) );
@@ -97,40 +99,155 @@ void UpdateWeights( DEVICE *dev, NODE *node )
     beg = omp_get_wtime();
     hmlp::xgemm
     (
-      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle(),
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
       CUBLAS_OP_N, CUBLAS_OP_N,
       m, n, w_lskel.row(),
       1.0, proj.device_data( dev ),       proj.row(),
            w_lskel.device_data( dev ), w_lskel.row(),
       0.0, w_skel.device_data( dev ),   w_skel.row()
     );
+    dev->wait( 0 );
     hmlp::xgemm
     (
-      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle(),
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
       CUBLAS_OP_N, CUBLAS_OP_N,
       m, n, w_rskel.row(),
       1.0, proj.device_data( dev ) + m * w_lskel.row(),    proj.row(),
            w_rskel.device_data( dev ),                  w_rskel.row(),
       1.0, w_skel.device_data( dev ),                    w_skel.row()
     );
+    dev->wait( 0 );
   }
-
-  /** make sure that cublas is fully stopped */
-  dev->waitexecute();
 
   double gemm_time = omp_get_wtime() - beg;
   printf( "cublas %5.2lf (%5.2lf GFLOPS)\n", 
       gemm_time, flops / ( gemm_time * 1E+9 ) );
 
-
   /** cliam redistribution, now only dev has the latest copy */
   w_skel.Redistribute<true>( dev );
-
-  /** store back */
-  printf( "-->w_skel\n" );
   w_skel.FetchD2H( dev );
 
-  printf( "finish GPU task\n\n" );
+  //printf( "finish GPU task\n\n" );
+};
+
+
+template<bool NNPRUNE, typename NODE, typename T, typename DEVICE>
+void SkeletonsToNodes( DEVICE *dev, NODE *node )
+{
+#ifdef DEBUG_SPDASKIT_GPU
+  //printf( "%lu GPU Skel2Node u_skel.row() %lu\n", node->treelist_id, node->data.u_skel.row() ); fflush( stdout );
+#endif
+
+  double beg, kij_s2n_time = 0.0, u_leaf_time, before_writeback_time, after_writeback_time;
+
+  /** gather shared data and create reference */
+  auto &K = *node->setup->K;
+  auto &w = *node->setup->w;
+  auto &u = *node->setup->u;
+
+  /** Gather per node data and create reference */
+  auto &lids = node->lids;
+  auto &data = node->data;
+  auto &proj = data.proj;
+  auto &skels = data.skels;
+  auto &u_skel = data.u_skel;
+  auto *lchild = node->lchild;
+  auto *rchild = node->rchild;
+
+  if ( node->isleaf )
+  {
+    std::set<NODE*> *NearNodes;
+    if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
+    else           NearNodes = &node->NearNodes;
+    auto &amap = node->lids;
+    auto &u_leaf = node->data.u_leaf[ 0 ];
+    u_leaf.clear();
+    u_leaf.resize( lids.size(), w.row(), 0.0 );
+
+    assert( u_leaf.size() == w.row() * lids.size() );
+
+    /** accumulate far interactions */
+    if ( data.isskel )
+    {
+      //xgemm
+      //(
+      //  "T", "N",
+      //  u_leaf.row(), u_leaf.col(), u_skel.row(),
+      //  1.0,   proj.data(),   proj.row(),
+      //       u_skel.data(), u_skel.row(),
+      //  1.0, u_leaf.data(), u_leaf.row()
+      //);
+
+      proj.CacheD( dev );
+      proj.FetchH2D( dev );
+
+      u_skel.CacheD( dev );
+      u_skel.FetchH2D( dev );
+
+      u_leaf.CacheD( dev );
+
+      xgemm
+      (
+        reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
+        CUBLAS_OP_T, CUBLAS_OP_N,
+        u_leaf.row(), u_leaf.col(), u_skel.row(),
+        1.0,   proj.device_data( dev ),   proj.row(),
+             u_skel.device_data( dev ), u_skel.row(),
+        0.0, u_leaf.device_data( dev ), u_leaf.row()
+      );
+      dev->wait( 0 );
+
+      u_leaf.Redistribute<true>( dev );
+      u_leaf.FetchD2H( dev );
+    }
+  }
+  else
+  {
+    if ( !node->parent || !node->data.isskel ) return;
+
+    auto &u_lskel = lchild->data.u_skel;
+    auto &u_rskel = rchild->data.u_skel;
+    auto &lskel = lchild->data.skels;
+    auto &rskel = rchild->data.skels;
+
+    proj.CacheD( dev );
+    proj.FetchH2D( dev );
+
+    u_skel.CacheD( dev );
+    u_skel.FetchH2D( dev );
+
+    u_lskel.CacheD( dev );
+    u_lskel.FetchH2D( dev );
+
+    u_rskel.CacheD( dev );
+    u_rskel.FetchH2D( dev );
+
+    xgemm
+    (
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
+      CUBLAS_OP_T, CUBLAS_OP_N,
+      u_lskel.row(), u_lskel.col(), proj.row(),
+      1.0, proj.device_data( dev ),    proj.row(),
+           u_skel.device_data( dev ),  u_skel.row(),
+      1.0, u_lskel.device_data( dev ), u_lskel.row()
+    );
+    dev->wait( 0 );
+    xgemm
+    (
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
+      CUBLAS_OP_T, CUBLAS_OP_N,
+      u_rskel.row(), u_rskel.col(), proj.row(),
+      1.0, proj.device_data( dev ) + proj.row() * lskel.size(), proj.row(),
+           u_skel.device_data( dev ), u_skel.row(),
+      1.0, u_rskel.device_data( dev ), u_rskel.row()
+    );
+    dev->wait( 0 );
+    
+    u_lskel.Redistribute<true>( dev );
+    u_rskel.Redistribute<true>( dev );
+    u_lskel.FetchD2H( dev );
+    u_rskel.FetchD2H( dev );
+  }
 };
 
 
@@ -141,9 +258,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
 
 
 
-
-
-template<bool NNPRUNE, typename NODE, typename T, typename DEVICE>
+template<bool CACHE, bool NNPRUNE, typename NODE, typename T, typename DEVICE>
 void LeavesToLeaves( DEVICE *dev, NODE *node )
 {
   assert( node && node->isleaf );
@@ -167,11 +282,18 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
   auto &amap = node->lids;
   auto &Nearbmap = data.Nearbmap;
   auto &NearKab = data.NearKab;
-
   auto &w_leaf = data.w_leaf;
 
-  //printf( "NearKab\n" );
-  //NearKab.FetchH2D( dev );
+
+  /** if NearKab has not yet been computed */
+  if ( NearKab.size() != lids.size() * Nearbmap.size() )
+  {
+    std::vector<size_t> bmap( Nearbmap.size() );
+    for ( size_t i = 0; i < bmap.size(); i ++ )
+      bmap[ i ] = Nearbmap[ i ];
+    assert( !CACHE );
+    NearKab = K( lids, bmap );
+  }
 
   if ( dev )
   {
@@ -195,7 +317,7 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
     T *B = NearKab.device_data( dev );
     T *C = (T*)reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->workspace();
 
-    dev->wait( stream_id );
+    //dev->wait( stream_id );
 
     beg = omp_get_wtime();
     /** w_leaf' * Kab  */
@@ -208,6 +330,9 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
            B, NearKab.row(),
       0.0, C, m
     );
+
+    //dev->wait( stream_id );
+    //gemm_time = omp_get_wtime() - beg;
 
     //printf( "assemble\n" );
     assemble
@@ -223,7 +348,7 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
     dev->wait( stream_id );
 
     gemm_time = omp_get_wtime() - beg;
-    printf( "cublas m %lu n %lu k %lu, %5.2lf (%5.2lf GFLOPS)\n", 
+    printf( "cublas m %lu n %lu k %lu, %5.3lf (%5.2lf GFLOPS)\n", 
       m, n, k, 
       gemm_time, flops / ( gemm_time * 1E+9 ) );
 
@@ -232,9 +357,9 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
 
 
     /** free device memory */
-    w_leaf.FreeD( dev );
-    NearKab.FreeD( dev );
-    Nearbmap.FreeD( dev );
+    //w_leaf.FreeD( dev );
+    //NearKab.FreeD( dev );
+    //Nearbmap.FreeD( dev );
   }
   else
   {
@@ -284,19 +409,14 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
     //printf( "cpu gemm finishd\n" ); fflush( stdout );
   }
 
-
-  /** cliam redistribution, now only dev has the latest copy */
-  //u_leaf.Redistribute<true>( dev );
-
-  /** store back */
-  //u_leaf.FetchD2H( dev );
-  //u_leaf.PrefetchD2H( dev, stream_id );
+  /** free Kab if not cached */
+  if ( !CACHE ) NearKab.resize( 0, 0 );
 
   //printf( "Finish GPU LeavesToLeaves\n\n" );
 };
 
 
-template<bool NNPRUNE, typename NODE, typename T>
+template<bool CACHE, bool NNPRUNE, typename NODE, typename T>
 class LeavesToLeavesVer2Task : public hmlp::Task
 {
   public:
@@ -323,13 +443,28 @@ class LeavesToLeavesVer2Task : public hmlp::Task
       /** TODO: fill in flops and mops */
       //--------------------------------------
       double flops = 0.0, mops = 0.0;
-      auto &data = arg->data;
-      auto &NearKab = data.NearKab;
+      auto *node = arg;
+      auto &data = node->data;
       auto &w_leaf = data.w_leaf;
+      auto *NearNodes = &node->NearNodes;
+      if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
+      auto &amap = node->lids;
+
+      if ( !CACHE )
+      {
+        std::vector<size_t> bmap;
+        for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+        {
+          bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
+        }
+        data.Nearbmap.resize( bmap.size(), 1 );
+        for ( size_t i = 0; i < bmap.size(); i ++ ) 
+          data.Nearbmap[ i ] = bmap[ i ];
+      }
 
       size_t m = w_leaf.col();
-      size_t n = NearKab.col();
-      size_t k = NearKab.row();
+      size_t n = arg->data.Nearbmap.size();
+      size_t k = arg->lids.size();
 
       flops += 2.0 * m * n * k;
       mops += 2.0 * ( m * n + m * k + k * n );
@@ -356,9 +491,28 @@ class LeavesToLeavesVer2Task : public hmlp::Task
 
       if ( device )
       {
+        if ( !CACHE )
+        {
+          assert( !arg->data.NearKab.size() );
+          auto &K = *arg->setup->K;
+          std::vector<size_t> bmap( arg->data.Nearbmap.size() );
+          for ( size_t i = 0; i < bmap.size(); i ++ )
+            bmap[ i ] = arg->data.Nearbmap[ i ];
+          arg->data.NearKab = K( arg->lids, bmap );
+          
+          printf( "not cache\n" );
+        }
+        if ( arg->data.NearKab.size() < 4096 * 4096 * 4 )
+          arg->data.NearKab.CacheD( device );
         arg->data.NearKab.PrefetchH2D( device, stream_id );
+
+        /** use device cache (512MB) */
+        arg->data.Nearbmap.CacheD( device );
         arg->data.Nearbmap.PrefetchH2D( device, stream_id );
+        //arg->data.Nearbmap.PrefetchH2D( device, 2 );
+        arg->data.w_leaf.CacheD( device );
         arg->data.w_leaf.PrefetchH2D( device, stream_id );
+        //arg->data.w_leaf.PrefetchH2D( device, 3 );
       }
     };
 
@@ -375,7 +529,7 @@ class LeavesToLeavesVer2Task : public hmlp::Task
     {
       hmlp::Device *device = NULL;
       if ( user_worker ) device = user_worker->GetDevice();
-      gpu::LeavesToLeaves<NNPRUNE, NODE, T>( device, arg );
+      gpu::LeavesToLeaves<CACHE, NNPRUNE, NODE, T>( device, arg );
     };
 
 };

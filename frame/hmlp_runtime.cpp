@@ -4,6 +4,11 @@
 #include <hmlp_gpu.hpp>
 #endif
 
+#ifdef HMLP_USE_MAGMA
+#include <magma_v2.h>
+#include <magma_lapack.h>
+#endif
+
 // #define DEBUG_RUNTIME 1
 // #define DEBUG_SCHEDULER 1
 
@@ -775,7 +780,7 @@ void* Scheduler::EntryPoint( void* arg )
 
         //for ( int p = numa_beg; p < numa_end; p ++ )
         /** TODO: do not steal job from 0 (with GPU) */
-        for ( int p = 0; p < scheduler->n_worker; p ++ )
+        for ( int p = 1; p < scheduler->n_worker; p ++ )
         {
           //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
           //if ( scheduler->time_remaining[ p ] > max_remaining_time )
@@ -939,7 +944,9 @@ void RunTime::Init()
         workers[ 0 ].SetDevice( device[ 0 ] );
       }
 #endif
-
+#ifdef HMLP_USE_MAGMA
+        magma_init();
+#endif
       is_init = true;
     }
   }

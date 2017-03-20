@@ -12,272 +12,12 @@
 #include <cublas_v2.h>
 #include <thrust/system/cuda/experimental/pinned_allocator.h>
 
+
 namespace hmlp
 {
 namespace gpu
 {
 
-
-/**
- *  @brief 
- *
- */ 
-//template<class T>
-//class DeviceMemory
-//{
-//  /** allow other instance to access device_map */
-//  friend class DeviceMemory;
-//
-//  public:
-//
-//    DeviceMemory() 
-//    {
-//      host = &(hmlp_get_runtime_handle()->host);
-//      distribution.insert( host );
-//    };
-//
-//    void Cache( hmlp::Device *dev, size_t size )
-//    {
-//      if ( cache )
-//      {
-//        /** has been cached before, check availability */
-//        if ( cache->isCached( this ) ) return;
-//      }
-//      /** request a new cache location on the device */
-//       
-//    };
-//
-//    /** this will be the cache of target */
-//    void asCache( DeviceMemory *target )
-//    {
-//      cache = target;
-//    };
-//
-//    void AllocateD( hmlp::Device *dev, size_t size )
-//    {
-//      size *= sizeof(T);
-//      
-//      if ( !device_map.count( dev ) )
-//      {
-//        T *ptr_d = NULL;
-//        //cudaMalloc( (void**)&ptr_d, size );
-//        //dev->malloc( ptr_d, size );
-//        ptr_d = (T*)dev->malloc( size );
-//        if ( !ptr_d ) return;
-//        device_map[ dev ] = ptr_d; 
-//      }
-//    };
-//
-//    /** free device memory, remove from the map and the distribution */
-//    void FreeD( hmlp::Device *dev, size_t size )
-//    {
-//      if ( device_map.count( dev ) )
-//      {
-//        if ( !device_map[ dev ] )
-//        {
-//          printf( "NULL device ptr in device_map\n" ); fflush( stdout );
-//        }
-//
-//        dev->free( device_map[ dev ], size );
-//        device_map.erase( dev );
-//        distribution.erase( dev );
-//      }
-//    };
-//
-//
-//    /** */
-//    void PrefetchH2D( hmlp::Device *dev, int stream_id, size_t size, T* ptr_h )
-//    {
-//      size *= sizeof(T);
-//
-//      if ( !distribution.count( dev ) )
-//      {
-//        //printf( "target device does not have the latest copy.\n" );
-//        if ( !device_map.count( dev ) )
-//        {
-//          //printf( "allocate %lu bytes on %s\n", size, dev->name.data() );
-//          T *ptr_d;
-//          //cudaMalloc( (void**)&ptr_d, size );
-//          //dev->malloc( ptr_d, size );
-//          ptr_d = (T*)dev->malloc( size );
-//          if ( !ptr_d ) return;
-//          device_map[ dev ] = ptr_d; 
-//        }
-//        //printf( "memcpy H2D\n" );
-//        dev->prefetchh2d( device_map[ dev ], ptr_h, size, stream_id );
-//        /** TODO: maybe update the distribution here? */
-//        //printf( "redistribute\n" );
-//        Redistribute<false>( dev );
-//      }
-//      else /** the device has the latest copy */
-//      {
-//        assert( device_map.find( dev ) != device_map.end() );
-//      }
-//    };
-//
-//    /** if host does not have the latest copy */
-//    void PrefetchD2H( hmlp::Device *dev, int stream_id, size_t size, T* ptr_h )
-//    {
-//      size *= sizeof(T);
-//
-//      if ( !distribution.count( host ) )
-//      {
-//        //printf( "host does not have the latest copy.\n" );
-//        assert( device_map.count( dev ) );
-//        //printf( "memcpy D2H\n" );
-//        dev->prefetchd2h( ptr_h, device_map[ dev ], size, stream_id );
-//        //printf( "redistribute\n" );
-//        Redistribute<false>( host );
-//      }
-//      else /** the host has the latest copy */
-//      {
-//        assert( device_map.count( host ) );
-//      }
-//    };
-//
-//
-//    /** */
-//    void Wait( hmlp::Device *dev, int stream_id )
-//    {
-//      dev->wait( stream_id );
-//    };
-//
-//    /** */
-//    template<bool OVERWRITE>
-//    void Redistribute( hmlp::Device *dev )
-//    {
-//      assert( dev );
-//      if ( OVERWRITE ) distribution.clear();
-//      distribution.insert( dev );
-//    };
-//
-//    bool is_up_to_date( hmlp::Device *dev )
-//    {
-//      return distribution.count( dev );
-//    };
-//
-//    T* device_data( hmlp::Device *dev )
-//    {
-//      if ( cache )
-//      {
-//        cache->device_map[ dev ];
-//      }
-//      else
-//      {
-//        auto it = device_map.find( dev );
-//        if ( it == device_map.end() )
-//        {
-//          printf( "no device pointer for the target device\n" );
-//          return NULL;
-//        }
-//      }
-//      return device_map[ dev ];
-//    };
-//
-//  private:
-//
-//    hmlp::Device *host = NULL;
-//
-//    /** map a device to its data pointer */
-//    std::map<hmlp::Device*, T*> device_map;
-//   
-//    /** distribution */
-//    std::set<hmlp::Device*> distribution;
-//
-//    DeviceMemory *cache = NULL;
-//
-//    bool isCached( DeviceMemory *target )
-//    {
-//      return ( cache == target );
-//    };
-//
-//}; // end class DeviceMemory
-//
-
-
-
-
-
-
-
-
-
-typedef enum
-{
-  CACHE_CLEAN, 
-  CACHE_DIRTY
-} CacheStatus;
-
-class CacheLine : public DeviceMemory<char>
-{
-  public:
-
-    CacheLine() {};
-
-    void Setup( hmlp::Device *device, size_t line_size )
-    {
-      this->status = CACHE_CLEAN;
-      this->line_size = line_size;
-      AllocateD( device, line_size );
-    };
-
-    bool isClean()
-    {
-      return ( status == CACHE_CLEAN );
-    };
-
-    //void Read( DeviceMemory *target )
-    //{
-    //  asCache( target );
-    //};
-
-    //void Write()
-    //{
-    //};
-
-  private:
-
-    CacheStatus status;
-
-    size_t line_size;
-
-};
-
-template<int NUM_LINE>
-class Cache
-{
-  public:
-
-    Cache() {};
-      
-    void Setup( hmlp::Device *device )
-    {
-      for ( int line_id = 0; line_id < NUM_LINE; line_id ++ )
-      {
-        line[ line_id ].Setup( device, 4096 * 4096 * 8 );
-      }
-    };
-
-    //void Read( hmlp::Device *device, DeviceMemory *data )
-    //{
-    //   size_t line_id = fifo % NUM_LINE;
-    //   if ( !cache[ line_id ]->isClean() )
-    //   {
-    //   }
-    //   cache[ line_id ]->Read( data );
-    //};
-
-    //char *Write( hmlp::Device *device, size_t line_id )
-    //{
-    //  return (char*)line[ line_id ].device_data( device );
-    //};
-
-  private:
-
-    size_t fifo = 0;
-
-    CacheLine line[ NUM_LINE ];
-};
 
 class Nvidia : public hmlp::Device
 {
@@ -323,7 +63,8 @@ class Nvidia : public hmlp::Device
         work_d = (char*)malloc( work_size );
 
         /** cache */
-        //cache.Setup( this );
+        cache.Setup( this );
+
       }
     };
 
@@ -476,7 +217,7 @@ class Nvidia : public hmlp::Device
 
     char *work_d = NULL;
 
-    size_t work_size = 800000000;
+    size_t work_size = 1073741824;
 
     size_t total_memory = 0;
 

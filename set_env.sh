@@ -28,12 +28,19 @@ export HMLP_USE_INTEL=true
 echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 
 ## GPU compiler options (if true, compile the gpu library as well)
-export HMLP_USE_CUDA=true
+export HMLP_USE_CUDA=false
 echo "HMLP_USE_CUDA = $HMLP_USE_CUDA"
 
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it)
 export HMLP_CUDA_DIR=$TACC_CUDA_DIR
 echo "HMLP_CUDA_DIR = $HMLP_CUDA_DIR"
+
+## MAGMA (GPU LAPACK support)
+export HMLP_USE_MAGMA=false
+echo "HMLP_USE_MAGMA = $HMLP_USE_MAGMA"
+
+export HMLP_MAGMA_DIR=/users/chenhan/Projects/magma-2.2.0
+echo "HMLP_MAGMA_DIR = $HMLP_MAGMA_DIR"
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
@@ -59,6 +66,7 @@ echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
 
 ## Output google site data
 export HMLP_ANALYSIS_DATA=false
+
 echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 
 
@@ -66,7 +74,7 @@ echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 ## Parallel options
 export OMP_NESTED=false
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=12
+export OMP_NUM_THREADS=36
 #export OMP_PLACES="{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15},{16},{17},{18},{19}"
 #export OMP_PLACES="{0},{4},{8},{12},{16},{20},{24},{28},{32},{36},{1},{5},{9},{13},{17},{21},{25},{29},{33},{37}"
 echo "OMP_PROC_BIND = $OMP_PROC_BIND"

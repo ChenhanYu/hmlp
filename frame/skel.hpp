@@ -180,6 +180,20 @@ void id
   jpvt.resize( n, 0 );
 
   /** Traditional pivoting QR (GEQP3) */
+#ifdef HMLP_USE_CUDA
+  auto *dev = hmlp_get_device( 0 );
+  cublasHandle_t &handle = 
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 );
+  hmlp::xgeqp3
+  (
+    handle,
+    m, n, 
+    A_tmp.data(), m,
+    jpvt.data(), 
+    tau.data(),
+    work.data(), lwork
+  );
+#else
   hmlp::xgeqp3
   (
     m, n, 
@@ -188,6 +202,7 @@ void id
     tau.data(),
     work.data(), lwork
   );
+#endif
   //printf( "end xgeqp3\n" );
 
   /** shift jpvt from 1-base to 0-base index. */

@@ -16,6 +16,67 @@ namespace hmlp
 
 class Device *hmlp_get_device_host();
 
+
+
+typedef enum
+{
+  CACHE_CLEAN, 
+  CACHE_DIRTY
+} CacheStatus;
+
+class CacheLine
+{
+  public:
+
+    CacheLine();
+
+    void Setup( hmlp::Device *device, size_t line_size );
+
+    bool isClean();
+     
+    void Bind( void *ptr_h );    
+
+    bool isCache( void *ptr_h, size_t size );
+
+    char *device_data();
+
+  private:
+
+    void *ptr_h = NULL;
+
+    char *ptr_d = NULL;
+
+    CacheStatus status;
+
+    size_t line_size;
+
+};
+
+
+class Cache
+{
+  public:
+
+    Cache();
+      
+    void Setup( hmlp::Device *device );
+
+    CacheLine *Read( size_t size );
+
+  private:
+
+    size_t fifo = 0;
+
+    class CacheLine line[ 16 ];
+};
+
+
+
+
+
+
+
+
 typedef enum 
 {
   HOST,
@@ -41,6 +102,8 @@ class Device
 
     Device();
 
+    virtual class CacheLine *getline( size_t size );
+
     virtual void prefetchd2h( void *ptr_h, void *ptr_d, size_t size, int stream_id );
 
     virtual void prefetchh2d( void *ptr_d, void *ptr_h, size_t size, int stream_id );
@@ -58,6 +121,8 @@ class Device
     DeviceType devicetype;
 
     std::string name;
+
+    class Cache cache;
 
   private:
 
@@ -79,16 +144,16 @@ class DeviceMemory
       distribution.insert( host );
     };
 
-    //void Cache( hmlp::Device *dev, size_t size )
-    //{
-    //  if ( cache )
-    //  {
-    //    /** has been cached before, check availability */
-    //    if ( cache->isCached( this ) ) return;
-    //  }
-    //  /** request a new cache location on the device */
-    //   
-    //};
+    void CacheD( hmlp::Device *dev, size_t size )
+    {
+      if ( !isCached( size ) )
+      {
+        /** request a new cache location on the device */
+        cache = dev->getline( size );
+        cache->Bind( this ); 
+        Redistribute<true>( host );
+      }
+    };
 
     ///** this will be the cache of target */
     //void asCache( DeviceMemory *target )
@@ -98,8 +163,6 @@ class DeviceMemory
 
     void AllocateD( hmlp::Device *dev, size_t size )
     {
-      size *= sizeof(T);
-      
       if ( !device_map.count( dev ) )
       {
         T *ptr_d = (T*)dev->malloc( size );
@@ -127,28 +190,43 @@ class DeviceMemory
     void PrefetchH2D( hmlp::Device *dev, int stream_id, size_t size, T* ptr_h )
     {
       this->stream_id = stream_id;
-      size *= sizeof(T);
 
-      if ( !distribution.count( dev ) )
+      if ( cache )
       {
-        //printf( "PrefetchH2D: target device does not have the latest copy.\n" );
-        if ( !device_map.count( dev ) )
+        //printf( "Is cached\n" ); fflush( stdout );
+        CacheD( dev, size );
+        if ( !distribution.count( dev ) )
         {
-          //printf( "allocate %lu bytes on %s\n", size, dev->name.data() );
-          T *ptr_d = (T*)dev->malloc( size );
-          if ( !ptr_d ) return;
-          device_map[ dev ] = ptr_d; 
+          dev->prefetchh2d( cache->device_data(), ptr_h, size, stream_id );
+          /** TODO need to be careful about the definition here. */
+          Redistribute<false>( dev );
         }
-        //printf( "memcpy H2D\n" );
-        dev->prefetchh2d( device_map[ dev ], ptr_h, size, stream_id );
-        /** TODO: maybe update the distribution here? */
-        //printf( "redistribute\n" );
-        Redistribute<false>( dev );
       }
-      else /** the device has the latest copy */
+      else
       {
-        //printf( "PrefetchH2D: target device has the latest copy\n" );
-        assert( device_map.find( dev ) != device_map.end() );
+        //printf( "Not cached\n" ); fflush( stdout );
+        if ( !distribution.count( dev ) )
+        {
+          //printf( "PrefetchH2D: target device does not have the latest copy.\n" );
+          AllocateD( dev, size );
+          //if ( !device_map.count( dev ) )
+          //{
+          //  //printf( "allocate %lu bytes on %s\n", size, dev->name.data() );
+          //  T *ptr_d = (T*)dev->malloc( size );
+          //  if ( !ptr_d ) return;
+          //  device_map[ dev ] = ptr_d; 
+          //}
+          //printf( "memcpy H2D\n" );
+          dev->prefetchh2d( device_map[ dev ], ptr_h, size, stream_id );
+          /** TODO: maybe update the distribution here? */
+          //printf( "redistribute\n" );
+          Redistribute<false>( dev );
+        }
+        else /** the device has the latest copy */
+        {
+          //printf( "PrefetchH2D: target device has the latest copy\n" );
+          assert( device_map.find( dev ) != device_map.end() );
+        }
       }
     };
 
@@ -156,19 +234,30 @@ class DeviceMemory
     void PrefetchD2H( hmlp::Device *dev, int stream_id, size_t size, T* ptr_h )
     {
       this->stream_id = stream_id;
-      size *= sizeof(T);
 
-      if ( !distribution.count( host ) )
+      if ( cache )
       {
-        //printf( "PrefetchD2H: host does not have the latest copy.\n" );
-        assert( device_map.count( dev ) );
-        dev->prefetchd2h( ptr_h, device_map[ dev ], size, stream_id );
-        Redistribute<false>( host );
+        CacheD( dev, size );
+        if ( !distribution.count( host ) )
+        {
+          dev->prefetchd2h( ptr_h, cache->device_data(), size, stream_id );
+          Redistribute<false>( host );
+        }
       }
-      else /** the host has the latest copy */
+      else
       {
-        //printf( "PrefetchD2H: host has the latest copy\n" );
-        assert( device_map.count( host ) );
+        if ( !distribution.count( host ) )
+        {
+          //printf( "PrefetchD2H: host does not have the latest copy.\n" );
+          assert( device_map.count( dev ) );
+          dev->prefetchd2h( ptr_h, device_map[ dev ], size, stream_id );
+          Redistribute<false>( host );
+        }
+        else /** the host has the latest copy */
+        {
+          //printf( "PrefetchD2H: host has the latest copy\n" );
+          assert( device_map.count( host ) );
+        }
       }
     };
 
@@ -206,14 +295,22 @@ class DeviceMemory
 
     T* device_data( hmlp::Device *dev )
     {
-      auto it = device_map.find( dev );
-      if ( it == device_map.end() )
+      if ( cache )
       {
-        printf( "no device pointer for the target device\n" );
-        return NULL;
+        return (T*)cache->device_data();
       }
-      return device_map[ dev ];
+      else
+      {
+        auto it = device_map.find( dev );
+        if ( it == device_map.end() )
+        {
+          printf( "no device pointer for the target device\n" );
+          return NULL;
+        }
+        return device_map[ dev ];
+      }
     };
+
 
   private:
 
@@ -227,19 +324,19 @@ class DeviceMemory
     /** distribution */
     std::set<hmlp::Device*> distribution;
 
-    //DeviceMemory *cache = NULL;
+    CacheLine *cache = NULL;
 
-    //bool isCached( DeviceMemory *target )
-    //{
-    //  return ( cache == target );
-    //};
+    bool isCached( size_t size )
+    {
+      bool iscached = false;
+      if ( cache )
+      {
+        iscached = cache->isCache( this, size );
+      }    
+      return iscached;
+    };
 
 }; // end class DeviceMemory
-
-
-
-
-
 
 }; // end namespace hmlp
 

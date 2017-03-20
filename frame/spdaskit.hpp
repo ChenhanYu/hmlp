@@ -1394,24 +1394,28 @@ class UpdateWeightsTask : public hmlp::Task
         __builtin_prefetch( w_rskel.data() );
       }
 #ifdef HMLP_USE_CUDA
-      //hmlp::Device *device = NULL;
-      //if ( user_worker ) device = user_worker->GetDevice();
-      //if ( device ) 
-      //{
-      //  proj.PrefetchH2D( device );
-      //  if ( arg->isleaf )
-      //  {
-      //    auto &w_leaf = arg->data.w_leaf;
-      //    w_leaf.PrefetchH2D( device );
-      //  }
-      //  else
-      //  {
-      //    auto &w_lskel = arg->lchild->data.w_skel;
-      //    w_lskel.PrefetchH2D( device );
-      //    auto &w_rskel = arg->rchild->data.w_skel;
-      //    w_rskel.PrefetchH2D( device );
-      //  }
-      //}
+      hmlp::Device *device = NULL;
+      if ( user_worker ) device = user_worker->GetDevice();
+      if ( device ) 
+      {
+        proj.CacheD( device );
+        proj.PrefetchH2D( device, 1 );
+        if ( arg->isleaf )
+        {
+          auto &w_leaf = arg->data.w_leaf;
+          w_leaf.CacheD( device );
+          w_leaf.PrefetchH2D( device, 1 );
+        }
+        else
+        {
+          auto &w_lskel = arg->lchild->data.w_skel;
+          w_lskel.CacheD( device );
+          w_lskel.PrefetchH2D( device, 1 );
+          auto &w_rskel = arg->rchild->data.w_skel;
+          w_rskel.CacheD( device );
+          w_rskel.PrefetchH2D( device, 1 );
+        }
+      }
 #endif
     };
 
@@ -1446,14 +1450,14 @@ class UpdateWeightsTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-//#ifdef HMLP_USE_CUDA 
-//      hmlp::Device *device = NULL;
-//      if ( user_worker ) device = user_worker->GetDevice();
-//      if ( device ) gpu::UpdateWeights( device, arg );
-//      else               UpdateWeights( arg );
-//#else
+#ifdef HMLP_USE_CUDA 
+      hmlp::Device *device = NULL;
+      if ( user_worker ) device = user_worker->GetDevice();
+      if ( device ) gpu::UpdateWeights( device, arg );
+      else               UpdateWeights( arg );
+#else
       UpdateWeights( arg );
-//#endif
+#endif
     };
 
 }; // end class SetWeights
@@ -1837,6 +1841,29 @@ class SkeletonsToNodesTask : public hmlp::Task
         auto &u_rskel = arg->rchild->data.u_skel;
         __builtin_prefetch( u_rskel.data() );
       }
+#ifdef HMLP_USE_CUDA
+      hmlp::Device *device = NULL;
+      if ( user_worker ) device = user_worker->GetDevice();
+      if ( device )
+      {
+        proj.CacheD( device );
+        proj.PrefetchH2D( device, 1 );
+        u_skel.CacheD( device );
+        u_skel.PrefetchH2D( device, 1 );
+        if ( arg->isleaf )
+        {
+        }
+        else
+        {
+          auto &u_lskel = arg->lchild->data.u_skel;
+          u_lskel.CacheD( device );
+          u_lskel.PrefetchH2D( device, 1 );
+          auto &u_rskel = arg->rchild->data.u_skel;
+          u_rskel.CacheD( device );
+          u_rskel.PrefetchH2D( device, 1 );
+        }
+      }
+#endif
     };
 
     void GetEventRecord()
@@ -1878,7 +1905,14 @@ class SkeletonsToNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+#ifdef HMLP_USE_CUDA 
+      hmlp::Device *device = NULL;
+      if ( user_worker ) device = user_worker->GetDevice();
+      if ( device ) gpu::SkeletonsToNodes<NNPRUNE, NODE, T>( device, arg );
+      else               SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
+#else
       SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
+#endif
     };
 
 }; // end class SkeletonsToNodesTask
@@ -2395,7 +2429,10 @@ void NearNodes( TREE &tree )
             size_t neighbor_morton = setup.morton[ neighbor_lid ];
             //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
 
-            node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
+
+            /** TODO: maximum 5% direct evalution  */
+            //if ( node->NNNearNodes.size() < n_nodes / 20 )
+              node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
           }
         }
       }
@@ -2555,17 +2592,16 @@ class CacheNearNodesTask : public hmlp::Task
       for ( size_t i = 0; i < bmap.size(); i ++ ) 
         data.Nearbmap[ i ] = bmap[ i ];
 
-
-
 #ifdef HMLP_USE_CUDA
       auto *device = hmlp_get_device( 0 );
+      /** prefetch Nearbmap to GPU */
+      node->data.Nearbmap.PrefetchH2D( device, 8 );
+
       size_t preserve_size = 3000000000;
       if ( data.NearKab.col() * MAX_NRHS < 1200000000 &&
-           data.NearKab.size() + preserve_size < device->get_memory_left() )
+           data.NearKab.size() * 8 + preserve_size < device->get_memory_left() &&
+           data.NearKab.size() * 8 > 4096 * 4096 * 8 * 4 )
       {
-        auto &Nearbmap = node->data.Nearbmap;
-        /** prefetch Nearbmap to GPU */
-        Nearbmap.PrefetchH2D( device, 8 );
         /** prefetch NearKab to GPU */
         data.NearKab.PrefetchH2D( device, 8 );
       }
@@ -2574,6 +2610,8 @@ class CacheNearNodesTask : public hmlp::Task
         printf( "Kab %lu %lu not cache\n", data.NearKab.row(), data.NearKab.col() );
       }
 #endif
+
+
     };
 }; 
 
@@ -3007,7 +3045,7 @@ void Evaluate
 
 template<
 bool USE_RUNTIME, bool USE_OMP_TASK, 
-bool SYMMETRIC_PRUNE, bool NNPRUNE, 
+bool SYMMETRIC_PRUNE, bool NNPRUNE, bool CACHE, 
 typename NODE, typename TREE, typename T>
 hmlp::Data<T> ComputeAll
 ( 
@@ -3017,7 +3055,7 @@ hmlp::Data<T> ComputeAll
 {
   const bool AUTO_DEPENDENCY = true;
 
-  double beg, computeall_time = 0.0, overhead_time = 0.0;
+  double beg, computeall_time = 0.0, overhead_time = 0.0, permute_beg = 0.0, permute_time = 0.0;
 
   hmlp::Data<T> potentials( weights.row(), weights.col(), 0.0 );
 
@@ -3029,7 +3067,7 @@ hmlp::Data<T> ComputeAll
   {
 #ifdef HMLP_USE_CUDA
     potentials.AllocateD( hmlp_get_device( 0 ) );
-    using LEAFTOLEAFVER2TASK = gpu::LeavesToLeavesVer2Task<NNPRUNE, NODE, T>;
+    using LEAFTOLEAFVER2TASK = gpu::LeavesToLeavesVer2Task<CACHE, NNPRUNE, NODE, T>;
     LEAFTOLEAFVER2TASK leaftoleafver2task;
 #endif
     using LEAFTOLEAFTASK1 = LeavesToLeavesTask<1, NNPRUNE, NODE, T>;
@@ -3124,6 +3162,8 @@ hmlp::Data<T> ComputeAll
 
       //printf( "finish\n" );
 
+      permute_beg = omp_get_wtime();
+
 #ifdef HMLP_USE_CUDA
       hmlp::Device *device = hmlp_get_device( 0 );
       for ( int stream_id = 0; stream_id < 10; stream_id ++ )
@@ -3163,10 +3203,10 @@ hmlp::Data<T> ComputeAll
         for ( size_t i = 0; i < potentials.row(); i ++ )
           potentials[ amap[ j ] * potentials.row() + i ] += u_leaf( j, i );
     }
-
+    permute_time = omp_get_wtime() - permute_beg;
     computeall_time = omp_get_wtime() - beg;
-    printf( "ComputeAll %5.2lfs (overhead %5.2lfs)\n", 
-        computeall_time, overhead_time ); fflush( stdout );
+    printf( "ComputeAll %5.2lfs (overhead %5.2lfs+%5.2lf)\n", 
+        computeall_time, overhead_time, permute_time ); fflush( stdout );
   }
   else // TODO: implement unsymmetric prunning
   {

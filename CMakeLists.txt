@@ -90,6 +90,11 @@ if ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm")
 endif ()
 
 
+# Turn on testing.
+ENABLE_TESTING()
+
+
+
 # GPU Compiler sptions
 # ---------------------------
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
@@ -101,13 +106,19 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   list (APPEND CUDA_NVCC_FLAGS --gpu-architecture=sm_60)
   list (APPEND CUDA_NVCC_FLAGS -DHMLP_USE_CUDA)
   set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DHMLP_USE_CUDA")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L ${CUDA_TOOLKIT_ROOT_DIR}/lib64")
+  set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L ${CUDA_TOOLKIT_ROOT_DIR}/lib64")
   set (CUDA_PROPAGATE_HOST_FLAGS "false")
   set (CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
 endif ()
 
-# Turn on testing.
-ENABLE_TESTING()
+if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+  set (HMLP_MAGMA_DIR $ENV{HMLP_MAGMA_DIR})
+  list (APPEND CUDA_NVCC_FLAGS -DHMLP_USE_MAGMA)
+  set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DHMLP_USE_MAGMA")
+  include_directories ("${HMLP_MAGMA_DIR}/include")
+  link_directories ("${HMLP_MAGMA_DIR}/lib")
+endif()
+
 
 
 
@@ -244,6 +255,9 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/conv2d.cpp)
     target_link_libraries(test_conv2d.x cudart)
     cuda_add_cublas_to_target(test_conv2d.x)
   endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_conv2d.x magma)
+  endif()
 endif ()
 
 
@@ -255,6 +269,9 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsks.cpp)
     target_link_libraries(test_gsks.x cudart)
     cuda_add_cublas_to_target(test_gsks.x)
   endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_gsks.x magma)
+  endif()
 endif ()
 
 # Build GKMX test suit
@@ -265,6 +282,9 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gkmx.cpp)
     target_link_libraries(test_gkmx.x cudart)
     cuda_add_cublas_to_target(test_gkmx.x)
   endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_gkmx.x magma)
+  endif()
 endif ()
 
 # Build STRASSEN test suit
@@ -275,6 +295,9 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/strassen.cpp)
     target_link_libraries(test_strassen.x cudart)
     cuda_add_cublas_to_target(test_strassen.x)
   endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_strassen.x magma)
+  endif()
 endif ()
 
 # Build CONV_RELU_POOL test suit
@@ -285,6 +308,9 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/conv_relu_pool.cpp)
     target_link_libraries(test_conv_relu_pool.x cudart)
     cuda_add_cublas_to_target(test_conv_relu_pool.x)
   endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_conv_relu_pool.x magma)
+  endif()
 endif ()
 
 # Build GSKNN test suit
@@ -295,6 +321,9 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsknn.cpp)
     target_link_libraries(test_gsknn.x cudart)
     cuda_add_cublas_to_target(test_gsknn.x)
   endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_gsknn.x magma)
+  endif()
 endif ()
 
 # Build TREE test suit
@@ -305,6 +334,9 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/tree.cpp)
     target_link_libraries(test_tree.x cudart)
     cuda_add_cublas_to_target(test_tree.x)
   endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_tree.x magma)
+  endif()
 endif ()
 
 # Build SKEL test suit
@@ -314,6 +346,9 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   target_link_libraries(test_skel.x cudart)
   cuda_add_cublas_to_target(test_skel.x)
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+  target_link_libraries(test_skel.x magma)
+endif()
 
 # Build SPDASKIT test suit
 add_executable (test_spdaskit.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit.cpp)
@@ -322,6 +357,9 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   target_link_libraries(test_spdaskit.x cudart)
   cuda_add_cublas_to_target(test_spdaskit.x)
 endif ()
+if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+  target_link_libraries(test_spdaskit.x magma)
+endif()
 
 
 
@@ -343,6 +381,10 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   # target_link_libraries(test_spdaskit_gpu.x hmlp)
   # cuda_add_cublas_to_target(test_spdaskit_gpu.x)
 endif ()
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_gkmm_gpu.x magma)
+    target_link_libraries(test_strassen_gpu.x magma)
+  endif()
 
 
 

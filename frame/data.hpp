@@ -317,9 +317,9 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     void AllocateD( hmlp::Device *dev )
     {
       double beg = omp_get_wtime();
-      DeviceMemory<T>::AllocateD( dev, m * n );
+      DeviceMemory<T>::AllocateD( dev, m * n * sizeof(T) );
       double alloc_time = omp_get_wtime() - beg;
-      printf( "AllocateD %5.2lf\n", alloc_time );
+      printf( "AllocateD %5.3lf\n", alloc_time );
     };
 
     void FreeD( hmlp::Device *dev )
@@ -329,14 +329,17 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     void PrefetchH2D( hmlp::Device *dev, int stream_id )
     {
+      double beg = omp_get_wtime();
       DeviceMemory<T>::PrefetchH2D
-        ( dev, stream_id, m * n, this->data() );
+        ( dev, stream_id, m * n * sizeof(T), this->data() );
+      double alloc_time = omp_get_wtime() - beg;
+      //printf( "PrefetchH2D %5.3lf\n", alloc_time );
     };
 
     void PrefetchD2H( hmlp::Device *dev, int stream_id )
     {
       DeviceMemory<T>::PrefetchD2H
-        ( dev, stream_id, m * n, this->data() );
+        ( dev, stream_id, m * n * sizeof(T), this->data() );
     };
 
     void WaitPrefetch( hmlp::Device *dev, int stream_id )
@@ -346,12 +349,12 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     void FetchH2D( hmlp::Device *dev )
     {
-      DeviceMemory<T>::FetchH2D( dev, m * n, this->data() );
+      DeviceMemory<T>::FetchH2D( dev, m * n * sizeof(T), this->data() );
     };
 
     void FetchD2H( hmlp::Device *dev )
     {
-      DeviceMemory<T>::FetchD2H( dev, m * n, this->data() );
+      DeviceMemory<T>::FetchD2H( dev, m * n * sizeof(T), this->data() );
     };
 #endif
 
