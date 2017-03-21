@@ -922,7 +922,10 @@ class Tree
         treequeue.pop_front();
       }
 
-      // Assume complete tree, compute the tree level first.
+
+
+
+//      // Assume complete tree, compute the tree level first.
 //      depth = 0;
 //      size_t n_per_node = n;
 //      while ( n_per_node > m && depth < max_depth )
@@ -962,7 +965,12 @@ class Tree
 //      SplitTask<NODE> splittask;
 //      TraverseDown<false, false>( splittask );
 //	  split_time = omp_get_wtime() - beg;
-//
+
+
+
+
+
+
 
       /** all tree nodes were created. Now decide tree depth */
       if ( treelist.size() )

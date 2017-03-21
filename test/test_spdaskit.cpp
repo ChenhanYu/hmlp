@@ -94,6 +94,7 @@ void Compress( TREE &tree, SKELTASK &skeltask, PROJTASK &projtask,
   mkl_set_dynamic( 0 );
   mkl_set_num_threads( 2 );
   hmlp_set_num_workers( omp_get_max_threads() / 2 );
+  printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
 #endif
 
 
@@ -307,6 +308,7 @@ void test_spdaskit(
   //mkl_set_num_threads( 2 );
   //hmlp_set_num_workers( omp_get_max_threads() / 2 );
   hmlp_set_num_workers( omp_get_max_threads() );
+  printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
 #endif
 
   printf( "ComputeAll (HMLP Runtime) ..." ); fflush( stdout );
@@ -445,8 +447,8 @@ int main( int argc, char *argv[] )
   const bool KERNELTESTSUIT = true;
 
   //std::string DATADIR( "/scratch/jlevitt/data/" );
-  //std::string DATADIR( "/work/02794/ych/data/" );
-  std::string DATADIR( "/users/chenhan/data/" );
+  std::string DATADIR( "/work/02794/ych/data/" );
+  //std::string DATADIR( "/users/chenhan/data/" );
 
   size_t n, m, d, k, s, nrhs;
 
@@ -601,26 +603,26 @@ int main( int argc, char *argv[] )
 	  const bool IJONLY = true;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
-	  {
-      std::string filename = DATADIR + std::string( "ca-AstroPh.mtx" );
-      n = 18772;
-      hmlp::Data<T> *X = NULL;
-      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
-      K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-	  }
-	  {
-      std::string filename = DATADIR + std::string( "email-Enron.mtx" );
-      n = 36692;
-      hmlp::Data<T> *X = NULL;
-      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
-      K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-	  }
+	  //{
+      //std::string filename = DATADIR + std::string( "ca-AstroPh.mtx" );
+      //n = 18772;
+      //hmlp::Data<T> *X = NULL;
+      //hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
+      //K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+      //hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+      //test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      //( X, K, NN, n, m, k, s, stol, nrhs );
+	  //}
+	  //{
+      //std::string filename = DATADIR + std::string( "email-Enron.mtx" );
+      //n = 36692;
+      //hmlp::Data<T> *X = NULL;
+      //hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
+      //K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+      //hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+      //test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      //( X, K, NN, n, m, k, s, stol, nrhs );
+	  //}
 	  {
       std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
       n = 1696415;
@@ -658,10 +660,24 @@ int main( int argc, char *argv[] )
     double h = 1.0;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
+    //{
+    //  std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+    //  n = 100000;
+    //  d = 54;
+    //  hmlp::Data<T> *X = NULL;
+    //  kernel_s<T> kernel;
+    //  kernel.type = KS_GAUSSIAN;
+    //  kernel.scal = -0.5 / ( h * h );
+    //  hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
+    //  K.read( n, d, filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //}
     {
-      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
-      n = 100000;
-      d = 54;
+      std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
+      n = 108000;
+      d = 128;
       hmlp::Data<T> *X = NULL;
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
@@ -672,20 +688,6 @@ int main( int argc, char *argv[] )
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
       ( X, K, NN, n, m, k, s, stol, nrhs );
     }
-    //{
-    //  std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
-    //  n = 108000;
-    //  d = 128;
-    //  hmlp::Data<T> *X = NULL;
-    //  kernel_s<T> kernel;
-    //  kernel.type = KS_GAUSSIAN;
-    //  kernel.scal = -0.5 / ( 0.3 * 0.3 );
-    //  hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
-    //  K.read( n, d, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
     //{
     //  std::string filename = DATADIR + std::string( "higgs.0.5M.28d.tst.X.bin" );
     //  n = 500000;

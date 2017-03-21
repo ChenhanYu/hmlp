@@ -563,7 +563,7 @@ class KNNTask : public hmlp::Task
 		}
 	  } /** end omp parallel for */
 
-
+#ifdef REPORT_ANN_ACCURACY
       /** test the accuracy of NN with exhausted search */
 	  double knn_acc = 0.0;
 	  size_t num_acc = 0;
@@ -613,6 +613,7 @@ class KNNTask : public hmlp::Task
 	  }
 	  arg->data.knn_acc = knn_acc;
 	  arg->data.num_acc = num_acc;
+#endif
 
 	};
 
