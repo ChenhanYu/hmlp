@@ -368,16 +368,27 @@ struct centersplit
     //	(size_t)std::log( n ), d2c_time, d2f_time, projection_time, max_time );
 
     /** parallel median search */
-    T median = hmlp::tree::Select( n, n / 2, temp );
+    // T median = hmlp::tree::Select( n, n / 2, temp );
+    auto temp_copy = temp;
+    std::nth_element( temp_copy.begin(), temp_copy.begin() + n / 2, temp_copy.end() );
+    T median = temp_copy[ n / 2 ];
 
     split[ 0 ].reserve( n / 2 + 1 );
     split[ 1 ].reserve( n / 2 + 1 );
 
     /** TODO: Can be parallelized */
+    std::vector<std::size_t> middle;
     for ( size_t i = 0; i < n; i ++ )
     {
-      if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-      else                      split[ 0 ].push_back( i );
+      if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
+      else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
+      else                           middle.push_back( i );
+    }
+
+    for ( size_t i = 0; i < middle.size(); i ++ )
+    {
+      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
+      else                                          split[ 1 ].push_back( middle[ i ] );
     }
 
     return split;
@@ -429,45 +440,55 @@ struct randomsplit
    }
 
     // Parallel median search
-    T median = hmlp::tree::Select( n, n / 2, temp );
+    // T median = hmlp::tree::Select( n, n / 2, temp );
+    auto temp_copy = temp;
+    std::nth_element( temp_copy.begin(), temp_copy.begin() + n / 2, temp_copy.end() );
+    T median = temp_copy[ n / 2 ];
 
-//    split[ 0 ].reserve( n / 2 + 1 );
-//    split[ 1 ].reserve( n / 2 + 1 );
+    split[ 0 ].reserve( n / 2 + 1 );
+    split[ 1 ].reserve( n / 2 + 1 );
+
+    /** TODO: Can be parallelized */
+    std::vector<std::size_t> middle;
+    for ( size_t i = 0; i < n; i ++ )
+    {
+      if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
+      else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
+      else                           middle.push_back( i );
+    }
+
+    for ( size_t i = 0; i < middle.size(); i ++ )
+    {
+      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
+      else                                          split[ 1 ].push_back( middle[ i ] );
+    }
+
+//    std::vector<size_t> lflag( n, 0 );
+//    std::vector<size_t> rflag( n, 0 );
+//    std::vector<size_t> pscan( n + 1, 0 );
 //
-//    // TODO: Can be parallelized
+//    #pragma omp parallel for
 //    for ( size_t i = 0; i < n; i ++ )
 //    {
-//      if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-//      else                      split[ 0 ].push_back( i );
+//      if ( temp[ i ] > median ) rflag[ i ] = 1;
+//      else                      lflag[ i ] = 1;
 //    }
-
-
-    std::vector<size_t> lflag( n, 0 );
-    std::vector<size_t> rflag( n, 0 );
-    std::vector<size_t> pscan( n + 1, 0 );
-
-    #pragma omp parallel for
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      if ( temp[ i ] > median ) rflag[ i ] = 1;
-      else                      lflag[ i ] = 1;
-    }
-
-    hmlp::tree::Scan( lflag, pscan );
-    split[ 0 ].resize( pscan[ n ] );
-    #pragma omp parallel for 
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      if ( lflag[ i ] ) split[ 0 ][ pscan[ i + 1 ] - 1 ] = i;
-    }
-
-    hmlp::tree::Scan( rflag, pscan );
-    split[ 1 ].resize( pscan[ n ] );
-    #pragma omp parallel for 
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      if ( rflag[ i ] ) split[ 1 ][ pscan[ i + 1 ] - 1 ] = i;
-    }
+//
+//    hmlp::tree::Scan( lflag, pscan );
+//    split[ 0 ].resize( pscan[ n ] );
+//    #pragma omp parallel for 
+//    for ( size_t i = 0; i < n; i ++ )
+//    {
+//      if ( lflag[ i ] ) split[ 0 ][ pscan[ i + 1 ] - 1 ] = i;
+//    }
+//
+//    hmlp::tree::Scan( rflag, pscan );
+//    split[ 1 ].resize( pscan[ n ] );
+//    #pragma omp parallel for 
+//    for ( size_t i = 0; i < n; i ++ )
+//    {
+//      if ( rflag[ i ] ) split[ 1 ][ pscan[ i + 1 ] - 1 ] = i;
+//    }
 
 
     return split;

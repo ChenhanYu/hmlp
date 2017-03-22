@@ -471,15 +471,27 @@ struct centersplit
 
 
     // Parallel median search
-    T median = Select( n, n / 2, projection );
+    // T median = Select( n, n / 2, projection );
+    auto proj_copy = projection;
+    std::nth_element( proj_copy.begin(), proj_copy.begin() + n / 2, proj_copy.end() );
+    T median = proj_copy[ n / 2 ];
 
-    //printf( "After Select\n" );
+    split[ 0 ].reserve( n / 2 + 1 );
+    split[ 1 ].reserve( n / 2 + 1 );
 
-
-    for ( int i = 0; i < n; i ++ )
+    /** TODO: Can be parallelized */
+    std::vector<std::size_t> middle;
+    for ( size_t i = 0; i < n; i ++ )
     {
-      if ( projection[ i ] > median ) split[ 1 ].push_back( i );
-      else                            split[ 0 ].push_back( i );
+      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
+      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
+      else                                 middle.push_back( i );
+    }
+
+    for ( size_t i = 0; i < middle.size(); i ++ )
+    {
+      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
+      else                                          split[ 1 ].push_back( middle[ i ] );
     }
 
 
