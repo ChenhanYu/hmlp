@@ -8,6 +8,7 @@
 #include <vector>
 #include <deque>
 #include <iostream>
+#include <random>
 #include <hmlp.h>
 
 #include <mkl.h>
@@ -468,6 +469,98 @@ struct centersplit
     //}
     //printf( "\n" );
 
+
+
+    // Parallel median search
+    // T median = Select( n, n / 2, projection );
+    auto proj_copy = projection;
+    std::nth_element( proj_copy.begin(), proj_copy.begin() + n / 2, proj_copy.end() );
+    T median = proj_copy[ n / 2 ];
+
+    split[ 0 ].reserve( n / 2 + 1 );
+    split[ 1 ].reserve( n / 2 + 1 );
+
+    /** TODO: Can be parallelized */
+    std::vector<std::size_t> middle;
+    for ( size_t i = 0; i < n; i ++ )
+    {
+      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
+      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
+      else                                 middle.push_back( i );
+    }
+
+    for ( size_t i = 0; i < middle.size(); i ++ )
+    {
+      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
+      else                                          split[ 1 ].push_back( middle[ i ] );
+    }
+
+
+    //printf( "split median %lf left %d right %d\n", 
+    //    median,
+    //    (int)split[ 0 ].size(), (int)split[ 1 ].size() );
+
+    //if ( split[ 0 ].size() > 0.6 * n ||
+    //     split[ 1 ].size() > 0.6 * n )
+    //{
+    //  for ( int i = 0; i < n; i ++ )
+    //  {
+    //    printf( "%E ", projection[ i ] );
+    //  } 
+    //  printf( "\n" );
+    //}
+
+
+    return split; 
+  };
+};
+
+
+/**
+ *  @brief This is the splitter used in the randomized tree. Given
+ *         coordinates, project all points onto a random direction
+ *         and split into two groups using a median select.
+ *
+ *  @para
+ *
+ *  @TODO  Need to explit the parallelism.
+ */ 
+template<int N_SPLIT, typename T>
+struct randomsplit
+{
+  // closure
+  hmlp::Data<T> *Coordinate;
+
+  inline std::vector<std::vector<std::size_t> > operator()
+  ( 
+    std::vector<std::size_t>& gids,
+    std::vector<std::size_t>& lids
+  ) const 
+  {
+    assert( N_SPLIT == 2 );
+
+    hmlp::Data<T> &X = *Coordinate;
+    size_t d = X.row();
+    size_t n = lids.size();
+
+    std::vector<std::vector<std::size_t> > split( N_SPLIT );
+
+    std::vector<T> direction( d );
+    std::vector<T> projection( n, 0.0 );
+
+    // Compute random direction
+    static std::default_random_engine generator;
+    std::normal_distribution<T> distribution;
+    for ( int p = 0; p < d; p ++ )
+    {
+      direction[ p ] = distribution( generator );
+    }
+
+    // Compute projection
+    projection.resize( n, 0.0 );
+    for ( int i = 0; i < n; i ++ )
+      for ( int p = 0; p < d; p ++ )
+        projection[ i ] += X[ lids[ i ] * d + p ] * direction[ p ];
 
 
     // Parallel median search

@@ -40,6 +40,12 @@
 
 //#define DEBUG_SPDASKIT 1
 
+typedef enum {
+  SPLIT_POINT_DISTANCE,
+  SPLIT_KERNEL_DISTANCE,
+  SPLIT_ANGLE
+} SplitScheme;
+
 namespace hmlp
 {
 namespace spdaskit
@@ -294,7 +300,7 @@ class Summary
  *         the matrix is sparse.
  *
  */ 
-template<typename SPDMATRIX, int N_SPLIT, typename T, bool CONE>
+template<typename SPDMATRIX, int N_SPLIT, typename T, SplitScheme SPLIT>
 struct centersplit
 {
   /** closure */
@@ -360,8 +366,17 @@ struct centersplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      if ( ! CONE) temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
-      else temp[ i ] = std::abs((K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] )) / K( lids[ i ], lids[ i ] ));
+      switch ( SPLIT )
+      {
+        case SPLIT_KERNEL_DISTANCE:
+          temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+          break;
+        case SPLIT_ANGLE:
+          temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / K( lids[ i ], lids[ i ] ) );
+          break;
+        default:
+          exit( 1 );
+      }
     }
     projection_time = omp_get_wtime() - beg;
     //printf( "log(n) %lu d2c %5.3lfs d2f %5.3lfs proj %5.3lfs max %5.3lfs\n", 
@@ -403,7 +418,7 @@ struct centersplit
  *         the matrix is sparse.
  *
  */ 
-template<typename SPDMATRIX, int N_SPLIT, typename T, bool CONE>
+template<typename SPDMATRIX, int N_SPLIT, typename T, SplitScheme SPLIT>
 struct randomsplit
 {
   /** closure */
@@ -435,8 +450,17 @@ struct randomsplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      if ( ! CONE) temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
-      else temp[ i ] = std::abs((K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] )) / K( lids[ i ], lids[ i ] ));
+      switch ( SPLIT )
+      {
+        case SPLIT_KERNEL_DISTANCE:
+          temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+          break;
+        case SPLIT_ANGLE:
+          temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / K( lids[ i ], lids[ i ] ) );
+          break;
+        default:
+          exit( 1 );
+      }
    }
 
     // Parallel median search
@@ -508,7 +532,7 @@ struct randomsplit
  *  @TODO  Improve the heap to deal with unique id.
  *
  */ 
-template<int NUM_TEST, bool CONE, class NODE, typename T>
+template<int NUM_TEST, SplitScheme SPLIT, class NODE, typename T>
 class KNNTask : public hmlp::Task
 {
   public:
@@ -544,6 +568,7 @@ class KNNTask : public hmlp::Task
     void Execute( Worker* user_worker )
     {
       auto &K = *arg->setup->K;
+      auto &X = *arg->setup->X;
       auto &NN = *arg->setup->NN;
       auto &lids = arg->lids;
      
@@ -556,33 +581,42 @@ class KNNTask : public hmlp::Task
         {
           size_t jlid = lids[ j ];
           NNset.insert( NN[ jlid * NN.row() + i ].second );
-		}
+        }
 
-		for ( size_t i = 0; i < lids.size(); i ++ )
-		{
-		  size_t ilid = lids[ i ];
-		  size_t jlid = lids[ j ];
+        for ( size_t i = 0; i < lids.size(); i ++ )
+        {
+          size_t ilid = lids[ i ];
+          size_t jlid = lids[ j ];
 
-		  if ( !NNset.count( ilid ) )
-		  {
-			T dist;
-			if ( !CONE ) 
-			{
-			  dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
-			}
-			else  
-			{
-			  dist = 1 - std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
-			}
-			std::pair<T, size_t> query( dist, ilid );
-			hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
-		  }
-		  else
-		  {
-			/** ignore duplication */
-		  }
-		}
-	  } /** end omp parallel for */
+          if ( !NNset.count( ilid ) )
+          {
+            T dist = 0;
+            switch ( SPLIT )
+            {
+              case SPLIT_POINT_DISTANCE:
+                size_t d = X.row();
+                for ( size_t p = 0; p < d; p ++ )
+                  dist += std::pow( X[ ilid * d + p ] - X[ jlid * d + p ], 2 );
+                break;
+              case SPLIT_KERNEL_DISTANCE:
+                dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
+                break;
+              case SPLIT_ANGLE:
+                // Take the opposite since the heap select finds minimum distances
+                dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
+                break;
+              default:
+                exit( 1 );
+            }
+            std::pair<T, size_t> query( dist, ilid );
+            hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
+          }
+          else
+          {
+            /** ignore duplication */
+          }
+        }
+      } /** end omp parallel for */
 
 #ifdef REPORT_ANN_ACCURACY
       /** test the accuracy of NN with exhausted search */
@@ -606,19 +640,28 @@ class KNNTask : public hmlp::Task
 		  size_t ilid = i;
 		  size_t jlid = lids[ j ];
 		  if ( !NNset.count( ilid ) )
-		  {
-			T dist;
-			if ( !CONE ) 
-			{
-			  dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
-			}
-			else  
-			{
-			  dist = 1 - std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
-			}
-			std::pair<T, size_t> query( dist, ilid );
-			hmlp::HeapSelect( 1, nn_test.row(), &query, nn_test.data() );
-		  }
+          {
+            T dist = 0;
+            switch ( SPLIT )
+            {
+              case SPLIT_POINT_DISTANCE:
+                size_t d = X.row();
+                for ( size_t p = 0; p < d; p ++ )
+                  dist += std::pow( X[ ilid * d + p ] - X[ jlid * d + p ], 2 );
+                break;
+              case SPLIT_KERNEL_DISTANCE:
+                dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
+                break;
+              case SPLIT_ANGLE:
+                // Take the opposite since the heap select finds minimum distances
+                dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
+                break;
+              default:
+                exit( 1 );
+            }
+            std::pair<T, size_t> query( dist, ilid );
+            hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
+          }
 		}
 
 		/** compute the acruracy */
@@ -881,17 +924,12 @@ void Interpolate( NODE *node )
   auto s = proj.row();
   auto n = proj.col();
 
-  /** proceed if the node can be compressed */
-  if ( data.isskel )
-  {
-    assert( s );
-    assert( s <= n );
-    assert( jpvt.size() == n );
-  }
-  else
-  {
-    return;
-  }
+  /** early return if the node is incompressible or all zeros */
+  if ( !data.isskel || proj[ 0 ] == 0 ) return;
+
+  assert( s );
+  assert( s <= n );
+  assert( jpvt.size() == n );
 
   /** if is skeletonized, reserve space for w_skel and u_skel */
   if ( data.isskel )

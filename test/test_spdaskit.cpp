@@ -2,6 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <stdio.h>
+#include <iomanip>
 #include <stdlib.h>
 #include <omp.h>
 #include <math.h>
@@ -175,17 +176,18 @@ void Compress( TREE &tree, SKELTASK &skeltask, PROJTASK &projtask,
 
 
 template<
-  bool     ADAPTIVE, 
-  bool     LEVELRESTRICTION, 
-  bool     CONE, 
-  typename SPLITTER, 
-  typename RKDTSPLITTER, 
-  typename T, 
-  typename SPDMATRIX>
+  bool        ADAPTIVE, 
+  bool        LEVELRESTRICTION, 
+  SplitScheme SPLIT,
+  typename    SPLITTER, 
+  typename    RKDTSPLITTER, 
+  typename    T, 
+  typename    SPDMATRIX>
 void test_spdaskit( 
   hmlp::Data<T> *X,
-	SPDMATRIX &K, hmlp::Data<std::pair<T, std::size_t>> &NN,
-	size_t n, size_t m, size_t k, size_t s, T stol, size_t nrhs )
+  SPDMATRIX &K, hmlp::Data<std::pair<T, std::size_t>> &NN,
+  SPLITTER splitter, RKDTSPLITTER rkdtsplitter,
+  size_t n, size_t m, size_t k, size_t s, T stol, size_t nrhs )
 {
   /** instantiation for the Spd-Askit tree */
   using SETUP = hmlp::spdaskit::Setup<SPDMATRIX, SPLITTER, T>;
@@ -197,7 +199,7 @@ void test_spdaskit(
   /** instantiation for the randomisze Spd-Askit tree */
   using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK = hmlp::spdaskit::KNNTask<100, CONE, RKDTNODE, T>;
+  using KNNTASK = hmlp::spdaskit::KNNTask<100, SPLIT, RKDTNODE, T>;
  
   /** all timers */
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
@@ -227,7 +229,7 @@ void test_spdaskit(
   Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
   rkdt.setup.X = X;
   rkdt.setup.K = &K;
-  rkdt.setup.splitter.Kptr = rkdt.setup.K;
+  rkdt.setup.splitter = rkdtsplitter;
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
   // ------------------------------------------------------------------------
 
@@ -253,7 +255,7 @@ void test_spdaskit(
   Tree<SETUP, NODE, N_CHILDREN, T> tree;
   tree.setup.X = X;
   tree.setup.K = &K;
-  tree.setup.splitter.Kptr = tree.setup.K; // The closure takes coordinates.
+  tree.setup.splitter = splitter;
   tree.setup.NN = &NN;
   tree.setup.m = m;
   tree.setup.k = k;
@@ -426,6 +428,53 @@ void test_spdaskit(
 
 
 
+template<
+  bool        ADAPTIVE, 
+  bool        LEVELRESTRICTION, 
+  SplitScheme SPLIT,
+  typename    T, 
+  typename    SPDMATRIX>
+void test_spdaskit_setup( 
+  hmlp::Data<T> *X,
+  SPDMATRIX &K, hmlp::Data<std::pair<T, std::size_t>> &NN,
+  size_t n, size_t m, size_t k, size_t s, T stol, size_t nrhs )
+{
+  switch ( SPLIT )
+  {
+    case SPLIT_POINT_DISTANCE:
+    {
+      assert( X );
+
+      using SPLITTER = hmlp::tree::centersplit<N_CHILDREN, T>;
+      using RKDTSPLITTER = hmlp::tree::randomsplit<N_CHILDREN, T>;
+      SPLITTER splitter;
+      splitter.Coordinate = X;
+      RKDTSPLITTER rkdtsplitter;
+      rkdtsplitter.Coordinate = X;
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
+      ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, nrhs );
+      break;
+    }
+    case SPLIT_KERNEL_DISTANCE:
+    case SPLIT_ANGLE:
+    {
+      using SPLITTER = hmlp::spdaskit::centersplit<SPDMATRIX, N_CHILDREN, T, SPLIT>;
+      using RKDTSPLITTER = hmlp::spdaskit::randomsplit<SPDMATRIX, N_CHILDREN, T, SPLIT>;
+      SPLITTER splitter;
+      splitter.Kptr = &K;
+      RKDTSPLITTER rkdtsplitter;
+      rkdtsplitter.Kptr = &K;
+      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
+      ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, nrhs );
+      break;
+    }
+    default:
+      exit( 1 );
+  }
+}
+
+
+
 template<typename TMATRIX, typename SPLITTER, typename T>
 //void OpenMP45Site( TMATRIX &K, T &dummy )
 void OpenMP45Site( T &dummy )
@@ -437,15 +486,20 @@ void OpenMP45Site( T &dummy )
 int main( int argc, char *argv[] )
 {
   const bool ADAPTIVE = true;
-  const bool CONE = false;
+  // const SplitScheme SPLIT = SPLIT_POINT_DISTANCE;
+  // const SplitScheme SPLIT = SPLIT_KERNEL_DISTANCE;
+  const SplitScheme SPLIT = SPLIT_ANGLE;
+  const bool POINTDISTANCE = true;
+  const bool KERNELDISTANCE = true;
+  const bool ANGLE = true;
   const bool LEVELRESTRICTION = false;
   const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
-  const bool DENSETESTSUIT = false;
+  const bool DENSETESTSUIT = true;
   const bool SPARSETESTSUIT = false;
   const bool GRAPHTESTSUIT = false;
   const bool OOCTESTSUIT = false;
-  const bool KERNELTESTSUIT = true;
+  const bool KERNELTESTSUIT = false;
 
   //std::string DATADIR( "/scratch/jlevitt/data/" );
   //std::string DATADIR( "/work/02794/ych/data/" );
@@ -513,43 +567,71 @@ int main( int argc, char *argv[] )
   {
     hmlp::Data<T> *X = NULL;
     hmlp::spdaskit::SPDMatrix<T> K;
-    hmlp::Data<std::pair<T, std::size_t>> NN;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T, CONE>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T, CONE>;
     K.resize( n, n );
     K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-    test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+    hmlp::Data<std::pair<T, std::size_t>> NN;
+    test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
     ( X, K, NN, n, m, k, s, stol, nrhs );
   }
   
   if ( DENSETESTSUIT )
   {
-    std::string DATADIR( "/scratch/sreiz/65536/" );
-    n = 65536;
-    hmlp::spdaskit::SPDMatrix<T> K;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T, CONE>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::spdaskit::SPDMatrix<T>, N_CHILDREN, T, CONE>;
-    K.resize( n, n );
-    for ( size_t id = 11; id < 14; id ++ )
+    using T = float;
+    // std::string DATADIR( "/scratch/sreiz/65536/" );
+    std::string DATADIR( "/work/02497/jll2752/maverick/data/" );
+    n = 16384;
+    for ( size_t id = 1; id <= 16; id ++ )
     {
-      hmlp::Data<T> *X = NULL;
-      hmlp::Data<std::pair<T, std::size_t>> NN;
       std::ostringstream id_stream;
-      id_stream << id;
+      id_stream << std::setw( 2 ) << std::setfill( '0' ) << id;
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
-                                                + std::string( ".dat" );
+                                                + std::string( "N16384.bin" );
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
       K.read( n, n, filename );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
+
+      std::string pointfilename;
+      switch ( id )
+      {
+        case 11:
+          printf( "Test for matrix K11 not yet implemented\n" );
+          // d = 1;
+          // pointfilename = DATADIR + std::string( "X1DN16384.points.bin" );
+          continue;
+        case 1:
+        case 2:
+        case 3:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+        case 16:
+          d = 2;
+          pointfilename = DATADIR + std::string( "X2DN16384.points.bin" );
+          break;
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+          d = 3;
+          pointfilename = DATADIR + std::string( "XKEN16384.points.bin" );
+          break;
+      }
+      hmlp::Data<T> X( d, n, pointfilename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( &X, K, NN, n, m, k, s, stol, nrhs );
     }
   }
 
   if ( SPARSETESTSUIT )
   {
-	  const bool SYMMETRIC = false;
-	  const bool LOWERTRIANGULAR = true;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
+    const bool SYMMETRIC = false;
+    const bool LOWERTRIANGULAR = true;
 
     //{
     //  std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
@@ -559,8 +641,8 @@ int main( int argc, char *argv[] )
     //  K.readmtx<LOWERTRIANGULAR, false>( filename );
     //  //hmlp::Data<std::pair<T, std::size_t>> NN;
     //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
-    //  ( X, K, NN, n, m, k, s, nrhs );
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
     //}
     {
       std::string filename = DATADIR + std::string( "inline_1.mtx" );
@@ -570,7 +652,7 @@ int main( int argc, char *argv[] )
       K.readmtx<LOWERTRIANGULAR, false>( filename );
       //hmlp::Data<std::pair<T, std::size_t>> NN;
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
       ( X, K, NN, n, m, k, s, stol, nrhs );
     }
     {
@@ -581,7 +663,7 @@ int main( int argc, char *argv[] )
       K.readmtx<LOWERTRIANGULAR, false>( filename );
       //hmlp::Data<std::pair<T, std::size_t>> NN;
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
       ( X, K, NN, n, m, k, s, stol, nrhs );
     }
     //{
@@ -592,8 +674,8 @@ int main( int argc, char *argv[] )
     //  K.readmtx<LOWERTRIANGULAR, false>( filename );
     //  //hmlp::Data<std::pair<T, std::size_t>> NN;
     //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
-    //  ( X, K, NN, n, m, k, s, nrhs );
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
     //}
   }
 
@@ -602,8 +684,6 @@ int main( int argc, char *argv[] )
 	  const bool SYMMETRIC = false;
 	  const bool LOWERTRIANGULAR = true;
 	  const bool IJONLY = true;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::CSC<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
 	  //{
       //std::string filename = DATADIR + std::string( "ca-AstroPh.mtx" );
       //n = 18772;
@@ -611,7 +691,7 @@ int main( int argc, char *argv[] )
       //hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
       //K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       //hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      //test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      //test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
       //( X, K, NN, n, m, k, s, stol, nrhs );
 	  //}
 	  //{
@@ -621,7 +701,7 @@ int main( int argc, char *argv[] )
       //hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
       //K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       //hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      //test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      //test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
       //( X, K, NN, n, m, k, s, stol, nrhs );
 	  //}
 	  {
@@ -631,15 +711,13 @@ int main( int argc, char *argv[] )
       hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
       K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
       hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
+      //test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      //( X, K, NN, n, m, k, s, stol, nrhs );
 	  }
   }
 
   if ( OOCTESTSUIT )
   {
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::OOC<T>, N_CHILDREN, T, CONE>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::OOC<T>, N_CHILDREN, T, CONE>;
     n = 4096;
     for ( size_t id = 1; id < 14; id ++ )
     {
@@ -650,7 +728,7 @@ int main( int argc, char *argv[] )
       std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
         + std::string( ".dat" );
       hmlp::OOC<T> K( n, n, filename );
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
       ( X, K, NN, n, m, k, s, stol, nrhs );
     }
   }
@@ -658,8 +736,6 @@ int main( int argc, char *argv[] )
   if ( KERNELTESTSUIT )
   {
     double h = 0.2;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::Kernel<T>, N_CHILDREN, T, CONE>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::Kernel<T>, N_CHILDREN, T, CONE>;
     {
       std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
       n = 100000;
@@ -670,7 +746,7 @@ int main( int argc, char *argv[] )
       kernel.scal = -0.5 / ( h * h );
       hmlp::Kernel<T> K( n, n, d, kernel, X );
       hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
       ( &X, K, NN, n, m, k, s, stol, nrhs );
     }
     //{
@@ -683,7 +759,7 @@ int main( int argc, char *argv[] )
     //  kernel.scal = -0.5 / ( h * h );
     //  hmlp::Kernel<T> K( n, n, d, kernel, X );
     //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
     //  ( &X, K, NN, n, m, k, s, stol, nrhs );
     //}
     //{
@@ -696,7 +772,7 @@ int main( int argc, char *argv[] )
     //  kernel.scal = -0.5 / ( h * h );
     //  hmlp::Kernel<T> K( n, n, d, kernel, X );
     //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
     //  ( &X, K, NN, n, m, k, s, stol, nrhs );
     //}
     //{
@@ -709,7 +785,7 @@ int main( int argc, char *argv[] )
     //  kernel.scal = -0.5 / ( 0.3 * 0.3 );
     //  hmlp::Kernel<T> K( n, n, d, kernel, X );
     //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
     //  ( &X, K, NN, n, m, k, s, stol, nrhs );
     //}
   }
