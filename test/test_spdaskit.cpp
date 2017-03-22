@@ -235,7 +235,7 @@ void test_spdaskit(
   beg = omp_get_wtime();
   if ( NN.size() != n * k )
   {
-    NN = rkdt.template AllNearestNeighbor<SORTED, CONE>
+    NN = rkdt.template AllNearestNeighbor<SORTED>
          ( n_iter, k, 10, gids, lids, initNN, knntask );
   }
   else
@@ -657,65 +657,60 @@ int main( int argc, char *argv[] )
 
   if ( KERNELTESTSUIT )
   {
-    const bool SYMMETRIC = true;
     double h = 0.2;
-    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
-    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
+    using SPLITTER = hmlp::spdaskit::centersplit<hmlp::Kernel<T>, N_CHILDREN, T, CONE>;
+    using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::Kernel<T>, N_CHILDREN, T, CONE>;
     {
       std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
       n = 100000;
       d = 54;
-      hmlp::Data<T> *X = NULL;
+      hmlp::Data<T> X( d, n, filename );
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
-      hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
-      K.read( n, d, filename );
+      hmlp::Kernel<T> K( n, n, d, kernel, X );
       hmlp::Data<std::pair<T, std::size_t>> NN;
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
+      ( &X, K, NN, n, m, k, s, stol, nrhs );
     }
     //{
     //  std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
     //  n = 108000;
     //  d = 128;
-    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::Data<T> X( d, n, filename );
     //  kernel_s<T> kernel;
     //  kernel.type = KS_GAUSSIAN;
     //  kernel.scal = -0.5 / ( h * h );
-    //  hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
-    //  K.read( n, d, filename );
+    //  hmlp::Kernel<T> K( n, n, d, kernel, X );
     //  hmlp::Data<std::pair<T, std::size_t>> NN;
     //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //  ( &X, K, NN, n, m, k, s, stol, nrhs );
     //}
     //{
     //  std::string filename = DATADIR + std::string( "higgs.0.5M.28d.tst.X.bin" );
     //  n = 500000;
     //  d = 28;
-    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::Data<T> X( d, n, filename );
     //  kernel_s<T> kernel;
     //  kernel.type = KS_GAUSSIAN;
     //  kernel.scal = -0.5 / ( h * h );
-    //  hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
-    //  K.read( n, d, filename );
+    //  hmlp::Kernel<T> K( n, n, d, kernel, X );
     //  hmlp::Data<std::pair<T, std::size_t>> NN;
     //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //  ( &X, K, NN, n, m, k, s, stol, nrhs );
     //}
     //{
     //  std::string filename = DATADIR + std::string( "mnist2m.d784.n1600000.trn.X.bin" );
     //  n = 1600000;
     //  d = 784;
-    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::Data<T> X( d, n, filename );
     //  kernel_s<T> kernel;
     //  kernel.type = KS_GAUSSIAN;
     //  kernel.scal = -0.5 / ( 0.3 * 0.3 );
-    //  hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
-    //  K.read( n, d, filename );
+    //  hmlp::Kernel<T> K( n, n, d, kernel, X );
     //  hmlp::Data<std::pair<T, std::size_t>> NN;
     //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //  ( &X, K, NN, n, m, k, s, stol, nrhs );
     //}
   }
 

@@ -1181,7 +1181,7 @@ class Tree
       //printf( "finish PostOrder\n" ); fflush( stdout );
 	};
 
-    template<bool SORTED, bool CONE, typename KNNTASK>
+    template<bool SORTED, typename KNNTASK>
     hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
     (
       std::size_t n_tree,
