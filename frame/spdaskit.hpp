@@ -1494,7 +1494,7 @@ void SkeletonsToSkeletons( NODE *node )
 
   /** initilize u_skel to be zeros( s, nrhs ). */
   beg = omp_get_wtime();
-  u_skel.clear();
+  u_skel.resize( 0, 0 );
   u_skel.resize( amap.size(), node->setup->w->row(), 0.0 );
   u_skel_time = omp_get_wtime() - beg;
 
@@ -1681,7 +1681,7 @@ void SkeletonsToNodes( NODE *node )
     auto &u_leaf = node->data.u_leaf[ 0 ];
     //beg = omp_get_wtime();
     //u_leaf.resize( w.row(), lids.size(), 0.0 );
-    u_leaf.clear();
+    u_leaf.resize( 0, 0 );
     u_leaf.resize( lids.size(), w.row(), 0.0 );
     //u_leaf_time = omp_get_wtime() - beg;
 
@@ -1945,17 +1945,15 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
    *        Overall there will be 4 task
    **/
   auto &u_leaf = data.u_leaf[ SUBTASKID ];
-  u_leaf.clear();
+  u_leaf.resize( 0, 0 );
 
   /** early return if nothing to do */
   if ( itbeg == itend ) 
   {
-    u_leaf.resize( 0, 0 );
     return;
   }
   else
   {
-    u_leaf.clear();
     u_leaf.resize( lids.size(), w.row(), 0.0 );
   }
 
@@ -2631,9 +2629,11 @@ class CacheNearNodesTask : public hmlp::Task
       node->data.Nearbmap.PrefetchH2D( device, 8 );
 
       size_t preserve_size = 3000000000;
+      //if ( data.NearKab.col() * MAX_NRHS < 1200000000 &&
+      //     data.NearKab.size() * 8 + preserve_size < device->get_memory_left() &&
+      //     data.NearKab.size() * 8 > 4096 * 4096 * 8 * 4 )
       if ( data.NearKab.col() * MAX_NRHS < 1200000000 &&
-           data.NearKab.size() * 8 + preserve_size < device->get_memory_left() &&
-           data.NearKab.size() * 8 > 4096 * 4096 * 8 * 4 )
+           data.NearKab.size() * 8 + preserve_size < device->get_memory_left() )
       {
         /** prefetch NearKab to GPU */
         data.NearKab.PrefetchH2D( device, 8 );
@@ -2799,13 +2799,14 @@ void NearFarNodes( TREE &tree )
   //printf( "Finish NearNodes\n" );
   FarNodes<SYMMETRIC, NNPRUNE>( tree );
 
-  /** reserve space for u_leaf */
+  /** reserve space for w_leaf and u_leaf */
   #pragma omp parallel for schedule( dynamic )
   for ( size_t i = 0; i < tree.treelist.size(); i ++ )
   {
     auto *node = tree.treelist[ i ];
     if ( node->isleaf )
     {
+      node->data.w_leaf.reserve( node->lids.size(), MAX_NRHS );
       node->data.u_leaf[ 0 ].reserve( MAX_NRHS, node->lids.size() );
     }
   }
@@ -3123,25 +3124,17 @@ hmlp::Data<T> ComputeAll
 
     beg = omp_get_wtime();
 
+    /** permute weights into w_leaf */
     int n_nodes = 1 << tree.depth;
     auto level_beg = tree.treelist.begin() + n_nodes - 1;
-
     #pragma omp parallel for
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
-      node->data.w_leaf = weights.GatherColumns<true>( node->lids );
-#ifdef HMLP_USE_CUDA
-      /** prefetch w_leaf, non-blocking */
-      //if (  node->data.NearKab.is_up_to_date( hmlp_get_device( 0 ) ) &&
-      //     node->data.Nearbmap.is_up_to_date( hmlp_get_device( 0 ) ) )
-      //{
-      //  node->data.w_leaf.PrefetchH2D( hmlp_get_device( 0 ), 8 ); 
-      //}
-#endif
+      weights.GatherColumns<true>( node->lids, node->data.w_leaf );
     }
+    printf( "finish permuting weights to w_leaf\n" ); fflush( stdout );
 
-    //beg = omp_get_wtime();
 
     if ( USE_OMP_TASK )
     {
@@ -3165,6 +3158,7 @@ hmlp::Data<T> ComputeAll
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
       tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
 #endif
+      printf( "create l2l jobs done\n" );
 
       /** check scheduler */
       //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
@@ -3184,6 +3178,7 @@ hmlp::Data<T> ComputeAll
       //printf( "Skel2Skel\n" );
       
       tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+      printf( "task n2s, s2s and s2n jobs done\n" ); fflush( stdout );
 
       /** check scheduler */
       //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();

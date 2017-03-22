@@ -48,16 +48,16 @@ Cache::Cache() {};
 
 void Cache::Setup( hmlp::Device *device )
 {
-  for ( int line_id = 0; line_id < 16; line_id ++ )
+  for ( int line_id = 0; line_id < 8; line_id ++ )
   {
-    line[ line_id ].Setup( device, 4096 * 4096 * 8 * 4 );
+    line[ line_id ].Setup( device, 4096 * 4096 * 8 );
   }
 };
 
 CacheLine *Cache::Read( size_t size )
 {
   int line_id = fifo;
-  fifo = ( fifo + 1 ) % 16;
+  fifo = ( fifo + 1 ) % 8;
   if ( !line[ line_id ].isClean() )
   {
     printf( "The cache line is not clean\n" );

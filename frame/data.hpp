@@ -42,6 +42,38 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/system/cuda/experimental/pinned_allocator.h>
+#include <thrust/system_error.h>
+#include <thrust/system/cuda/error.h>
+template<class T>
+class managed_allocator
+{
+  public:
+    using value_type = T;
+
+    value_type* allocate(size_t n)
+    {
+      value_type* result = nullptr;
+
+      cudaError_t error = cudaMallocManaged(&result, n*sizeof(T), cudaMemAttachGlobal);
+
+      if(error != cudaSuccess)
+      {
+        throw thrust::system_error(error, thrust::cuda_category(), "managed_allocator::allocate(): cudaMallocManaged");
+      }
+
+      return result;
+    }
+
+    void deallocate(value_type* ptr, size_t)
+    {
+      cudaError_t error = cudaFree(ptr);
+
+      if(error != cudaSuccess)
+      {
+        throw thrust::system_error(error, thrust::cuda_category(), "managed_allocator::deallocate(): cudaFree");
+      }
+    }
+};
 #endif // ifdef HMLP_USE_CUDA
 
 /** debug flag */
@@ -189,23 +221,21 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     };
 
     template<bool TRANS=false, typename TINDEX>
-    inline hmlp::Data<T> GatherColumns( std::vector<TINDEX> &jmap )
+    inline void GatherColumns( std::vector<TINDEX> &jmap, hmlp::Data<T> &submatrix )
     {
       if ( TRANS )
       {
-        hmlp::Data<T> submatrix( jmap.size(), m );
+        submatrix.resize( jmap.size(), m );
         for ( int j = 0; j < jmap.size(); j ++ )
           for ( int i = 0; i < m; i ++ )
             submatrix[ i * jmap.size() + j ] = (*this)[ m * jmap[ j ] + i ];
-        return submatrix;
       }
       else
       {
-        hmlp::Data<T> submatrix( m, jmap.size() );
+        submatrix.resize( m, jmap.size() );
         for ( int j = 0; j < jmap.size(); j ++ )
           for ( int i = 0; i < m; i ++ )
             submatrix[ j * m + i ] = (*this)[ m * jmap[ j ] + i ];
-        return submatrix;
       }
     }; 
 

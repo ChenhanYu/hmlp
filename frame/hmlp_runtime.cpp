@@ -780,7 +780,7 @@ void* Scheduler::EntryPoint( void* arg )
 
         //for ( int p = numa_beg; p < numa_end; p ++ )
         /** TODO: do not steal job from 0 (with GPU) */
-        for ( int p = 0; p < scheduler->n_worker; p ++ )
+        for ( int p = 1; p < scheduler->n_worker; p ++ )
         {
           //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
           //if ( scheduler->time_remaining[ p ] > max_remaining_time )

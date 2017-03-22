@@ -97,6 +97,26 @@ class Nvidia : public hmlp::Device
         printf( "cudaSetDevice(), fail to set device %d\n", device_id );
         exit( 1 );
       }
+
+      struct cudaPointerAttributes attribute;
+
+      if ( cudaPointerGetAttributes ( &attribute, ptr_h ) )
+      {
+        printf( "cudaPointerGetAttributes(), fail on device %d\n", device_id );
+        exit( 1 );
+      }
+
+      if ( attribute.isManaged )
+      {
+        printf( "ptr_h is managed\n" );
+        if ( cudaMemPrefetchAsync( ptr_d, size, device_id, stream[ stream_id ] ) )
+        {
+          printf( "cudaMemPrefetchAsync(), fail on device %d\n", device_id );
+        }
+      }
+
+
+
       if ( cudaMemcpyAsync( ptr_d, ptr_h, size, cudaMemcpyHostToDevice, stream[ stream_id ] ) )
       //if ( cudaMemcpy( ptr_d, ptr_h, size, cudaMemcpyHostToDevice ) )
       {
