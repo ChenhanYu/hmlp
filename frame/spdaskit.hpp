@@ -2369,7 +2369,7 @@ void FindClique( TREE &tree )
  *         node traversal scheme.
  *  
  */ 
-template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
+template<int BUDGET, bool SYMMETRIC, bool NNPRUNE, typename TREE>
 void NearNodes( TREE &tree )
 {
   auto &setup = tree.setup;
@@ -2405,6 +2405,13 @@ void NearNodes( TREE &tree )
     {
       /** add myself to the list. */
       node->NNNearNodes.insert( node );
+  
+      std::vector<std::pair<size_t, size_t>> freq( n_nodes );
+      for ( size_t i = 0; i < n_nodes; i ++ )
+      {
+        freq[ i ].first  = 0;
+        freq[ i ].second = i;
+      }
 
       /** TODO: have some consensus on the interaction list */
       if ( false )
@@ -2430,13 +2437,38 @@ void NearNodes( TREE &tree )
             size_t neighbor_morton = setup.morton[ neighbor_lid ];
             //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
 
+            auto *target = tree.Morton2Node( neighbor_morton );
+
+            freq[ target->treelist_id - ( n_nodes - 1 ) ].first += 1;
+
 
             /** TODO: maximum 5% direct evalution  */
-            //if ( node->NNNearNodes.size() < n_nodes / 20 )
-              node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
+            //if ( node->NNNearNodes.size() < n_nodes / 10 )
+            //  node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
           }
         }
       }
+
+      /** sort the frequency list */
+      struct 
+      {
+        bool operator () ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b )
+        {   
+          return a.first > b.first;
+        }   
+      } FreqMore;
+      std::sort( freq.begin(), freq.end(), FreqMore );
+
+      for ( size_t i = 0; i < n_nodes; i ++ )
+      {
+        if ( freq[ i ].first && node->NNNearNodes.size() < n_nodes * ( (float)BUDGET / 100.0 ) )
+        {
+          //printf( "freq %lu, leaf id %lu\n", freq[ i ].first, freq[ i ].second );
+          node->NNNearNodes.insert( tree.treelist[ freq[ i ].second + ( n_nodes - 1 ) ] );
+        }
+      }
+
+      //printf( "leaf %lu direct %lu/%lu\n", node->treelist_id, node->NNNearNodes.size(), n_nodes );
     }
     else
     {
@@ -2478,7 +2510,7 @@ void NearNodes( TREE &tree )
 
 
 
-template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
+template<int BUDGET, bool SYMMETRIC, bool NNPRUNE, typename TREE>
 class NearNodesTask : public hmlp::Task
 {
   public:
@@ -2517,7 +2549,7 @@ class NearNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      NearNodes<SYMMETRIC, NNPRUNE, TREE>( *arg );
+      NearNodes<BUDGET, SYMMETRIC, NNPRUNE, TREE>( *arg );
     };
 
 }; /** class NearNodesTask */
@@ -3135,14 +3167,14 @@ hmlp::Data<T> ComputeAll
 #endif
 
       /** check scheduler */
-      hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
+      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
 
 
 
 
       //printf( "task creating done\n" ); fflush( stdout );
       //if ( USE_RUNTIME ) hmlp_run();
-      printf( "here\n" ); fflush( stdout );
+      //printf( "here\n" ); fflush( stdout );
 
       tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
       //if ( USE_RUNTIME ) hmlp_run();

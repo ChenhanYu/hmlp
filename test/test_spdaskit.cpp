@@ -271,10 +271,11 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
+  const int BUDGET = 10;
   const bool SYMMETRIC_PRUNE = true;
   const bool NNPRUNE = true;
   const bool CACHE = true;
-  using NEARNODESTASK = hmlp::spdaskit::NearNodesTask<SYMMETRIC_PRUNE, NNPRUNE, Tree<SETUP, NODE, N_CHILDREN, T>>;
+  using NEARNODESTASK = hmlp::spdaskit::NearNodesTask<BUDGET, SYMMETRIC_PRUNE, NNPRUNE, Tree<SETUP, NODE, N_CHILDREN, T>>;
   using CACHENEARNODESTASK = hmlp::spdaskit::CacheNearNodesTask<NNPRUNE, NODE>;
   NEARNODESTASK nearnodestask;
   CACHENEARNODESTASK cachenearnodestask;
@@ -447,8 +448,8 @@ int main( int argc, char *argv[] )
   const bool KERNELTESTSUIT = true;
 
   //std::string DATADIR( "/scratch/jlevitt/data/" );
-  std::string DATADIR( "/work/02794/ych/data/" );
-  //std::string DATADIR( "/users/chenhan/data/" );
+  //std::string DATADIR( "/work/02794/ych/data/" );
+  std::string DATADIR( "/users/chenhan/data/" );
 
   size_t n, m, d, k, s, nrhs;
 
@@ -657,27 +658,13 @@ int main( int argc, char *argv[] )
   if ( KERNELTESTSUIT )
   {
     const bool SYMMETRIC = true;
-    double h = 1.0;
+    double h = 0.2;
     using SPLITTER = hmlp::spdaskit::centersplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
     using RKDTSPLITTER = hmlp::spdaskit::randomsplit<hmlp::Kernel<SYMMETRIC, T>, N_CHILDREN, T, CONE>;
-    //{
-    //  std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
-    //  n = 100000;
-    //  d = 54;
-    //  hmlp::Data<T> *X = NULL;
-    //  kernel_s<T> kernel;
-    //  kernel.type = KS_GAUSSIAN;
-    //  kernel.scal = -0.5 / ( h * h );
-    //  hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
-    //  K.read( n, d, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
     {
-      std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
-      n = 108000;
-      d = 128;
+      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+      n = 100000;
+      d = 54;
       hmlp::Data<T> *X = NULL;
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
@@ -688,6 +675,20 @@ int main( int argc, char *argv[] )
       test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
       ( X, K, NN, n, m, k, s, stol, nrhs );
     }
+    //{
+    //  std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
+    //  n = 108000;
+    //  d = 128;
+    //  hmlp::Data<T> *X = NULL;
+    //  kernel_s<T> kernel;
+    //  kernel.type = KS_GAUSSIAN;
+    //  kernel.scal = -0.5 / ( h * h );
+    //  hmlp::Kernel<SYMMETRIC, T> K( n, n, d, kernel );
+    //  K.read( n, d, filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit<ADAPTIVE, LEVELRESTRICTION, CONE, SPLITTER, RKDTSPLITTER, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //}
     //{
     //  std::string filename = DATADIR + std::string( "higgs.0.5M.28d.tst.X.bin" );
     //  n = 500000;
