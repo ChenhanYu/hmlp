@@ -385,7 +385,7 @@ struct centersplit
     /** parallel median search */
     // T median = hmlp::tree::Select( n, n / 2, temp );
     auto temp_copy = temp;
-    std::nth_element( temp_copy.begin(), temp_copy.begin() + n / 2, temp_copy.end() );
+    std::sort( temp_copy.begin(), temp_copy.end() );
     T median = temp_copy[ n / 2 ];
 
     split[ 0 ].reserve( n / 2 + 1 );
@@ -466,7 +466,7 @@ struct randomsplit
     // Parallel median search
     // T median = hmlp::tree::Select( n, n / 2, temp );
     auto temp_copy = temp;
-    std::nth_element( temp_copy.begin(), temp_copy.begin() + n / 2, temp_copy.end() );
+    std::sort( temp_copy.begin(), temp_copy.end() );
     T median = temp_copy[ n / 2 ];
 
     split[ 0 ].reserve( n / 2 + 1 );

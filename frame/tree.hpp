@@ -474,7 +474,7 @@ struct centersplit
     // Parallel median search
     // T median = Select( n, n / 2, projection );
     auto proj_copy = projection;
-    std::nth_element( proj_copy.begin(), proj_copy.begin() + n / 2, proj_copy.end() );
+    std::sort( proj_copy.begin(), proj_copy.end() );
     T median = proj_copy[ n / 2 ];
 
     split[ 0 ].reserve( n / 2 + 1 );
@@ -566,7 +566,7 @@ struct randomsplit
     // Parallel median search
     // T median = Select( n, n / 2, projection );
     auto proj_copy = projection;
-    std::nth_element( proj_copy.begin(), proj_copy.begin() + n / 2, proj_copy.end() );
+    std::sort( proj_copy.begin(), proj_copy.end() );
     T median = proj_copy[ n / 2 ];
 
     split[ 0 ].reserve( n / 2 + 1 );
