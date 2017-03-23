@@ -817,51 +817,37 @@ class OOC : public ReadWrite
 
 
 #ifdef HMLP_MIC_AVX512
-template<bool SYMMETRIC, typename T, class Allocator = hbw::allocator<T> >
+template<typename T, class Allocator = hbw::allocator<T> >
 #else
-template<bool SYMMETRIC, typename T, class Allocator = std::allocator<T> >
+template<typename T, class Allocator = std::allocator<T> >
 #endif
 class Kernel : public ReadWrite
 {
   public:
 
+    // Symmetric kernel matrix
     template<typename TINDEX>
-    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel )
+    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources )
+    : sources( sources ), targets( sources )
     {
       this->m = m;
       this->n = n;
       this->d = d;
       this->kernel = kernel;
+    };
 
-      if ( SYMMETRIC ) assert( m == n );
+    // Nonsymmetric kernel matrix
+    template<typename TINDEX>
+    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources, Data<T> &targets )
+    : sources( sources ), targets( targets )
+    {
+      this->m = m;
+      this->n = n;
+      this->d = d;
+      this->kernel = kernel;
     };
 
     ~Kernel() {};
-
-    void read( std::size_t n, std::size_t d, std::string &filename )
-    {
-      assert( SYMMETRIC );
-      assert( this->n == n );
-      assert( this->d == d );
-
-      sources.resize( d, n );
-      sources.read( d, n, filename );
-    }
-
-    void read( std::size_t m, std::size_t n, std::size_t d,
-               std::string &sourcefilename, std::string &targetfilename )
-    {
-      assert( !SYMMETRIC );
-      assert( this->m == m );
-      assert( this->n == n );
-      assert( this->d == d )
-
-      sources.resize( d, n );
-      sources.read( d, n, sourcefilename );
-
-      targets.resize( d, m );
-      targets.read( d, m, targetfilename );
-    }
 
     template<typename TINDEX>
     inline T operator()( TINDEX i, TINDEX j )
@@ -874,17 +860,9 @@ class Kernel : public ReadWrite
           {
             for ( TINDEX k = 0; k < d; k++ )
             {
-              if ( SYMMETRIC )
-              {
-                Kij += std::pow( sources[ i * d + k] - sources[ j * d + k ], 2 );
-              }
-              else
-              {
-                Kij += std::pow( targets[ i * d + k] - sources[ j * d + k ], 2 );
-              }
+              Kij += std::pow( targets[ i * d + k] - sources[ j * d + k ], 2 );
             }
             Kij = exp( kernel.scal * Kij );
-            //flopcount += 3 * d;
             break;
           }
         default:
@@ -923,12 +901,7 @@ class Kernel : public ReadWrite
       if ( !submatrix.size() ) return submatrix;
 
       // Get coordinates of sources and targets
-      //std::vector<TINDEX> dmap( d );
-      //std::iota( dmap.begin(), dmap.end(), TINDEX(0) );
-      //hmlp::Data<T> itargets = SYMMETRIC ? sources( dmap, imap ) : targets( dmap, imap );
-      //hmlp::Data<T> jsources = sources( dmap, jmap );
-
-      hmlp::Data<T> itargets = SYMMETRIC ? sources( imap ) : targets( imap );
+      hmlp::Data<T> itargets = targets( imap );
       hmlp::Data<T> jsources = sources( jmap );
 
       assert( itargets.col() == submatrix.row() );
@@ -1073,9 +1046,9 @@ class Kernel : public ReadWrite
 
     std::size_t d;
 
-    Data<T> sources;
+    Data<T> &sources;
 
-    Data<T> targets;
+    Data<T> &targets;
 
     kernel_s<T> kernel;
 
