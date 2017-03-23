@@ -150,6 +150,43 @@ void xgeqp3
 };
 
 
+// magma_sgeqp3 wrapper
+void xgeqp3
+(
+  cublasHandle_t &handle,
+  int m, int n,
+  float *A, int lda,
+  int *jpvt,
+  float *tau,
+  float *work, int lwork
+)
+{
+#ifdef HMLP_USE_MAGMA
+  printf( "magma_sgeqp3\n" );
+  int info = 0;
+  magma_sgeqp3
+  (
+    m, n, 
+    A, lda,
+    jpvt,
+    tau,
+    work, lwork,
+    &info
+  );
+#else
+  xgeqp3
+  (
+    m, n, 
+    A, lda,
+    jpvt,
+    tau,
+    work, lwork
+  );
+#endif
+};
+
+
+
 
 
 }; // end namespace hmlp

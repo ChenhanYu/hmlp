@@ -495,11 +495,11 @@ int main( int argc, char *argv[] )
   const bool LEVELRESTRICTION = false;
   const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
-  const bool DENSETESTSUIT = true;
+  const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
   const bool GRAPHTESTSUIT = false;
   const bool OOCTESTSUIT = false;
-  const bool KERNELTESTSUIT = false;
+  const bool KERNELTESTSUIT = true;
 
   //std::string DATADIR( "/scratch/jlevitt/data/" );
   //std::string DATADIR( "/work/02794/ych/data/" );

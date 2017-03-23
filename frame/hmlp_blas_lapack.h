@@ -230,6 +230,18 @@ void xgemm_batched
   int batchSize
 );
 
+
+void xgeqp3
+(
+  cublasHandle_t &handle,
+  int m, int n,
+  float *A, int lda,
+  int *jpvt,
+  float *tau,
+  float *work, int lwork
+);
+
+
 void xgeqp3
 (
   cublasHandle_t &handle,
