@@ -271,7 +271,7 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
-  const int BUDGET = 10;
+  const int BUDGET = 5;
   const bool SYMMETRIC_PRUNE = true;
   const bool NNPRUNE = true;
   const bool CACHE = true;
@@ -460,7 +460,7 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 3 ], "%lu", &k );
   sscanf( argv[ 4 ], "%lu", &s );
   sscanf( argv[ 5 ], "%lu", &nrhs );
-  T stol = 1E-4;
+  T stol = 1E-6;
 
 
   //T val[ 6 ] = { 1.0, 4.0, 5.0, 2.0, 3.0, 6.0 };

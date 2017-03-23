@@ -217,8 +217,11 @@ class Task
     // argument list
     // arg
 
-    // Task lock
+    /** task lock */
     Lock task_lock;
+
+    /** the next task in the batch job */
+    Task *next = NULL;
 
   private:
 

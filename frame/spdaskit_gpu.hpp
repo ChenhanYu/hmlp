@@ -26,7 +26,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   assert( dev && node );
 
 #ifdef DEBUG_SPDASKIT_GPU
-  printf( "\n%lu UpdateWeight on GPU\n", node->treelist_id );
+  printf( "\n%lu UpdateWeight on GPU\n", node->treelist_id ); fflush( stdout );
 #endif
   /** early return */
   if ( !node->parent || !node->data.isskel ) return;
@@ -146,6 +146,8 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
 
   double beg, flops, kij_s2n_time = 0.0, u_leaf_time, before_writeback_time, after_writeback_time;
 
+  int stream_id = node->treelist_id % 8;
+
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
@@ -176,10 +178,12 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
     if ( data.isskel )
     {
       proj.CacheD( dev );
-      proj.FetchH2D( dev );
+      //proj.FetchH2D( dev );
+      proj.PrefetchH2D( dev, stream_id );
 
       u_skel.CacheD( dev );
-      u_skel.FetchH2D( dev );
+      //u_skel.FetchH2D( dev );
+      u_skel.PrefetchH2D( dev, stream_id );
 
       u_leaf.CacheD( dev );
 
@@ -193,23 +197,22 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
       beg = omp_get_wtime();
       xgemm
       (
-        reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
+        reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( stream_id ),
         CUBLAS_OP_T, CUBLAS_OP_N,
         m, n, k,
         1.0,   proj.device_data( dev ),   proj.row(),
              u_skel.device_data( dev ), u_skel.row(),
         0.0, u_leaf.device_data( dev ), u_leaf.row()
       );
-      dev->wait( 0 );
+      //dev->wait( 0 );
       double gemm_time = omp_get_wtime() - beg;
       printf( "s2n cublas m %lu n %lu k %lu, %5.2lf (%5.2lf GFLOPS)\n", 
           m, n, k,
           gemm_time, flops / ( gemm_time * 1E+9 ) ); fflush( stdout );
 
-
-
       u_leaf.Redistribute<true>( dev );
-      u_leaf.FetchD2H( dev );
+      //u_leaf.FetchD2H( dev );
+      u_leaf.PrefetchD2H( dev, stream_id );
     }
   }
   else
@@ -222,16 +225,20 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
     auto &rskel = rchild->data.skels;
 
     proj.CacheD( dev );
-    proj.FetchH2D( dev );
+    //proj.FetchH2D( dev );
+    proj.PrefetchH2D( dev, stream_id );
 
     u_skel.CacheD( dev );
-    u_skel.FetchH2D( dev );
+    //u_skel.FetchH2D( dev );
+    u_skel.PrefetchH2D( dev, stream_id );
 
     u_lskel.CacheD( dev );
-    u_lskel.FetchH2D( dev );
+    //u_lskel.FetchH2D( dev );
+    u_lskel.PrefetchH2D( dev, stream_id );
 
     u_rskel.CacheD( dev );
-    u_rskel.FetchH2D( dev );
+    //u_rskel.FetchH2D( dev );
+    u_rskel.PrefetchH2D( dev, stream_id );
 
     /** compute flops */
     flops  = 2.0 * u_lskel.row() * u_lskel.col() * proj.row();
@@ -241,24 +248,24 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
     beg = omp_get_wtime();
     xgemm
     (
-      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( stream_id ),
       CUBLAS_OP_T, CUBLAS_OP_N,
       u_lskel.row(), u_lskel.col(), proj.row(),
       1.0, proj.device_data( dev ),    proj.row(),
            u_skel.device_data( dev ),  u_skel.row(),
       1.0, u_lskel.device_data( dev ), u_lskel.row()
     );
-    dev->wait( 0 );
+    //dev->wait( 0 );
     xgemm
     (
-      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
+      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( stream_id ),
       CUBLAS_OP_T, CUBLAS_OP_N,
       u_rskel.row(), u_rskel.col(), proj.row(),
       1.0, proj.device_data( dev ) + proj.row() * lskel.size(), proj.row(),
            u_skel.device_data( dev ), u_skel.row(),
       1.0, u_rskel.device_data( dev ), u_rskel.row()
     );
-    dev->wait( 0 );
+    //dev->wait( 0 );
     double gemm_time = omp_get_wtime() - beg;
     printf( "s2n cublas m %lu n %lu k %lu, %5.2lf (%5.2lf GFLOPS)\n", 
         u_lskel.row(), u_lskel.col(), proj.row(),
@@ -266,8 +273,9 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
     
     u_lskel.Redistribute<true>( dev );
     u_rskel.Redistribute<true>( dev );
-    u_lskel.FetchD2H( dev );
-    u_rskel.FetchD2H( dev );
+    //u_lskel.FetchD2H( dev );
+    u_lskel.PrefetchD2H( dev, stream_id );
+    u_rskel.PrefetchD2H( dev, stream_id );
   }
 };
 
@@ -282,11 +290,11 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
 template<bool CACHE, bool NNPRUNE, typename NODE, typename T, typename DEVICE>
 void LeavesToLeaves( DEVICE *dev, NODE *node )
 {
-  assert( node && node->isleaf );
-
 #ifdef DEBUG_SPDASKIT_GPU
-  printf( "\n%lu LeavesToLeaves on GPU\n", node->treelist_id );
+  printf( "\n%lu LeavesToLeaves on GPU\n", node->treelist_id ); fflush( stdout );
 #endif
+
+  assert( node && node->isleaf );
 
   double beg, gemm_time = 0.0, total_time = 0.0, flops = 0.0;
 
@@ -323,10 +331,8 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
     size_t m = w_leaf.col();
     size_t n = NearKab.col();
     size_t k = NearKab.row();
-
     flops += 2.0 * m * n * k;
 
-    //dev->wait( node->treelist_id % 8 );
     w_leaf.FetchH2D( dev );
     NearKab.FetchH2D( dev );
     Nearbmap.FetchH2D( dev );

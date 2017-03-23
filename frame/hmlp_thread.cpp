@@ -238,24 +238,38 @@ class Device* Worker::GetDevice()
  *  @param *task The current task pointer.
  *
  */ 
-bool Worker::Execute( Task *task )
+bool Worker::Execute( Task *batch )
 {
-  current_task = task;
-  task->worker = this;
+  current_task = batch;
+  Task *task = batch;
 
-  // Fetching data from GPU memory or from other processes.
-  // Fetch( task );
-  // Prefetch( task );
+  while ( task )
+  {
+    task->worker = this;
+    // Fetching data from GPU memory or from other processes.
+    // Fetch( task );
+    // Prefetch( task );
 
-//#ifdef DUMP_ANALYSIS_DATA
-  task->event.Begin( this->tid );
-//#endif
-  task->Execute( this );
+    //#ifdef DUMP_ANALYSIS_DATA
+    task->event.Begin( this->tid );
+    //#endif
+    task->Execute( this );
+    /** move to the next task in the batch */
+
+    task = task->next;
+  }
+
+  /** wait for all tasks in the batch to terminate */
   WaitExecute();
-//#ifdef DUMP_ANALYSIS_DATA
-  task->event.Terminate();
-  task->GetEventRecord();
-//#endif
+
+  task = batch;
+  while ( task )
+  {
+    task->event.Terminate();
+    task->GetEventRecord();
+    /** move to the next task in the batch */
+    task = task->next;
+  }
 
   // WaitPrefetch
 
@@ -273,7 +287,7 @@ bool Worker::Execute( Task *task )
  */ 
 void Worker::WaitExecute()
 {
-  //if ( device ) device->waitexecute();
+  if ( device ) device->waitexecute();
 };
 
 float Worker::EstimateCost( class Task * task )

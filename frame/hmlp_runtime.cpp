@@ -9,6 +9,8 @@
 #include <magma_lapack.h>
 #endif
 
+#define MAX_BATCH_SIZE 4
+
 // #define DEBUG_RUNTIME 1
 // #define DEBUG_SCHEDULER 1
 
@@ -321,9 +323,16 @@ TaskStatus Task::GetStatus()
   return status;
 };
 
+/** change the status of all tasks in the batch */
 void Task::SetStatus( TaskStatus next_status )
 {
-  status = next_status;
+  auto *task = this;
+  while ( task )
+  {
+    task->status = next_status;
+    /** move to the next task in the batch */
+    task = task->next;
+  }
 };
 
 void Task::Submit()
@@ -549,6 +558,8 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
 
   //printf( "mkl_get_max_threads %d\n", mkl_get_max_threads() );
 
+  printf( "before omp workers\n" ); fflush( stdout );
+
   #pragma omp parallel for num_threads( n_worker )
   for ( int i = 0; i < n_worker; i ++ )
   {
@@ -713,7 +724,8 @@ void* Scheduler::EntryPoint( void* arg )
 
   while ( 1 )
   {
-    Task *task = NULL;
+    size_t batch_size = 0;
+    Task *batch = NULL;
     Task *nexttask = NULL;
 
     scheduler->ready_queue_lock[ me->tid ].Acquire();
@@ -721,8 +733,23 @@ void* Scheduler::EntryPoint( void* arg )
       if ( scheduler->ready_queue[ me->tid ].size() )
       {
         /** pop the front task */
-        task = scheduler->ready_queue[ me->tid ].front();
+        batch = scheduler->ready_queue[ me->tid ].front();
         scheduler->ready_queue[ me->tid ].pop_front();
+        batch_size ++;
+
+        /** create a batched job if there is not enough flops */
+        if ( me->GetDevice() && batch->cost < 0.5 )
+        {
+          Task *task = batch;
+          while ( scheduler->ready_queue[ me->tid ].size() && 
+                  batch_size < MAX_BATCH_SIZE + 1 )
+          {
+            task->next = scheduler->ready_queue[ me->tid ].front();
+            scheduler->ready_queue[ me->tid ].pop_front();
+            batch_size ++;
+            task = task->next;
+          }
+        }
       }
       else
       {
@@ -740,26 +767,34 @@ void* Scheduler::EntryPoint( void* arg )
 
     if ( nexttask ) nexttask->Prefetch( me );
 
-    if ( task )
+
+    if ( batch )
     {
       idle = 0;
-      task->SetStatus( RUNNING );
-      if ( me->Execute( task ) )
-      {
-        scheduler->ready_queue_lock[ me->tid ].Acquire();
-        {
-          scheduler->time_remaining[ me->tid ] -= task->cost;
-          if ( scheduler->time_remaining[ me->tid ] < 0.0 )
-            scheduler->time_remaining[ me->tid ] = 0.0;
-        }
-        scheduler->ready_queue_lock[ me->tid ].Release();
+      batch->SetStatus( RUNNING );
 
-        task->DependenciesUpdate();
-        scheduler->n_task_lock.Acquire();
+      if ( me->Execute( batch ) )
+      {
+        Task *task = batch;
+        while ( task )
         {
-          scheduler->n_task ++;
+          scheduler->ready_queue_lock[ me->tid ].Acquire();
+          {
+            scheduler->time_remaining[ me->tid ] -= task->cost;
+            if ( scheduler->time_remaining[ me->tid ] < 0.0 )
+              scheduler->time_remaining[ me->tid ] = 0.0;
+          }
+          scheduler->ready_queue_lock[ me->tid ].Release();
+
+          task->DependenciesUpdate();
+          scheduler->n_task_lock.Acquire();
+          {
+            scheduler->n_task ++;
+          }
+          scheduler->n_task_lock.Release();
+          /** move to the next task in te batch */
+          task = task->next;
         }
-        scheduler->n_task_lock.Release();
       }
     }
     else // No task in my ready_queue. Steal from others.
@@ -834,9 +869,26 @@ void* Scheduler::EntryPoint( void* arg )
       }
     }
 
-    if ( scheduler->n_task >= scheduler->tasklist.size() ) 
+    if ( scheduler->n_task >= scheduler->tasklist.size() )
     {
-      break;
+      /** sanity check: no task should left */
+      if ( scheduler->ready_queue[ me->tid ].size() == 0 )
+      {
+        break;
+      }
+      else
+      {
+        auto *task = scheduler->ready_queue[ me->tid ].front();
+        printf( "taskid %d, %s, tasklist.size() %lu  left\n", 
+            task->taskid, task->name.data(),
+            scheduler->tasklist.size() ); fflush( stdout );
+      }
+    }
+    else
+    {
+      //printf( "worker %d\n", me->tid ); fflush( stdout );
+      //#pragma omp barrier
+      //if ( me->tid  == 0 ) printf( "\nnext\n" ); fflush( stdout );
     }
   }
 

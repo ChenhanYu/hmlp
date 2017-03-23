@@ -12,6 +12,8 @@
 #include <cublas_v2.h>
 #include <thrust/system/cuda/experimental/pinned_allocator.h>
 
+#define NUM_CUBLAS_HANDLE 8
+#define NUM_CUDA_STREAM 10
 
 namespace hmlp
 {
@@ -44,13 +46,13 @@ class Nvidia : public hmlp::Device
         this->total_memory = prop.totalGlobalMem;
         this->memory_left = prop.totalGlobalMem;
 
-        for ( int i = 0; i < 10; i ++ )
+        for ( int i = 0; i < NUM_CUDA_STREAM; i ++ )
         {
           if ( cudaStreamCreate( &(stream[ i ] ) ) )
             printf( "cudaStreamCreate(), fail on device %d\n", device_id );
         }
 
-        for ( int i = 0; i < 1; i ++ )
+        for ( int i = 0; i < NUM_CUBLAS_HANDLE; i ++ )
         {
           if ( cublasCreate( &handle[ i ] ) )
             printf( "cublasCreate(), fail on device %d\n", device_id );
@@ -70,7 +72,7 @@ class Nvidia : public hmlp::Device
 
     ~Nvidia()
     {
-      for ( int i = 0; i < 8; i ++ )
+      for ( int i = 0; i < NUM_CUBLAS_HANDLE; i ++ )
       {
         if ( cublasDestroy( handle[ i ] ) )
           printf( "cublasDestroy(), fail on device %d\n", device_id );
@@ -122,6 +124,14 @@ class Nvidia : public hmlp::Device
       {
         printf( "cudaMemcpyAsync(), %lu bytes fail to device %d\n", size, device_id );
         exit( 1 );
+      }
+    };
+
+    void waitexecute()
+    {
+      for ( int stream_id = 0; stream_id < NUM_CUDA_STREAM; stream_id ++ )
+      {
+        wait( stream_id );
       }
     };
 
@@ -230,10 +240,10 @@ class Nvidia : public hmlp::Device
     int device_id;
 
     /** use 10 device streams for asynchronous execution */
-    cudaStream_t stream[ 10 ];
+    cudaStream_t stream[ NUM_CUDA_STREAM ];
 
-    /** use 1 cublas handles */
-    cublasHandle_t handle[ 1 ];
+    /** use 8 cublas handles */
+    cublasHandle_t handle[ NUM_CUBLAS_HANDLE ];
 
     char *work_d = NULL;
 

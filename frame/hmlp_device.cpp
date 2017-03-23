@@ -48,16 +48,16 @@ Cache::Cache() {};
 
 void Cache::Setup( hmlp::Device *device )
 {
-  for ( int line_id = 0; line_id < 8; line_id ++ )
+  for ( int line_id = 0; line_id < MAX_LINE; line_id ++ )
   {
-    line[ line_id ].Setup( device, 4096 * 4096 * 8 );
+    line[ line_id ].Setup( device, 2048 * 2048 * 8 );
   }
 };
 
 CacheLine *Cache::Read( size_t size )
 {
   int line_id = fifo;
-  fifo = ( fifo + 1 ) % 8;
+  fifo = ( fifo + 1 ) % MAX_LINE;
   if ( !line[ line_id ].isClean() )
   {
     printf( "The cache line is not clean\n" );
@@ -93,6 +93,8 @@ CacheLine *Device::getline( size_t size )
 void Device::prefetchd2h( void *ptr_h, void *ptr_d, size_t size, int stream_id ) {};
 
 void Device::prefetchh2d( void *ptr_d, void *ptr_h, size_t size, int stream_id ) {};
+
+void Device::waitexecute() {};
 
 void Device::wait( int stream_id ) {};
 

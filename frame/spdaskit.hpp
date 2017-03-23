@@ -1238,7 +1238,7 @@ template<typename NODE>
 void UpdateWeights( NODE *node )
 {
 #ifdef DEBUG_SPDASKIT
-  printf( "%lu UpdateWeight\n", node->treelist_id );
+  printf( "%lu UpdateWeight\n", node->treelist_id ); fflush( stdout );
 #endif
   /** early return */
   if ( !node->parent || !node->data.isskel ) return;
@@ -1266,7 +1266,7 @@ void UpdateWeights( NODE *node )
 
   if ( node->isleaf )
   {
-    double beg = omp_get_wtime();
+    //double beg = omp_get_wtime();
     //w_leaf = w( node->lids );
     //double w_leaf_time = omp_get_wtime() - beg;
 
@@ -1286,13 +1286,14 @@ void UpdateWeights( NODE *node )
       0.0, w_skel.data(), w_skel.row()
     );
 
-    double update_leaf_time = omp_get_wtime() - beg;
-    //printf( "m %lu n %lu k %lu, w_leaf %.3E total %.3E\n", 
-    //  w_skel.row(), w_skel.col(), w_leaf.col(),
-    //  w_leaf_time, update_leaf_time );
+    //double update_leaf_time = omp_get_wtime() - beg;
+    //printf( "%lu, m %lu n %lu k %lu, total %.3E\n", 
+    //  node->treelist_id, 
+    //  w_skel.row(), w_skel.col(), w_leaf.col(), update_leaf_time );
   }
   else
   {
+    //double beg = omp_get_wtime();
     auto &w_lskel = lchild->data.w_skel;
     auto &w_rskel = rchild->data.w_skel;
     auto &lskel = lchild->data.skels;
@@ -1313,10 +1314,14 @@ void UpdateWeights( NODE *node )
            w_rskel.data(), w_rskel.row(),
       1.0,  w_skel.data(),  w_skel.row()
     );
+    //double update_leaf_time = omp_get_wtime() - beg;
+    //printf( "%lu, total %.3E\n", 
+    //  node->treelist_id, update_leaf_time );
   }
 
-  /** reset omp threads */
-  //omp_set_num_threads( num_threads );
+#ifdef DEBUG_SPDASKIT
+  printf( "%lu UpdateWeight done\n", node->treelist_id ); fflush( stdout );
+#endif
 
 }; // end void SetWeights()
 
@@ -1847,10 +1852,11 @@ class SkeletonsToNodesTask : public hmlp::Task
       if ( user_worker ) device = user_worker->GetDevice();
       if ( device )
       {
+        int stream_id = arg->treelist_id % 8;
         proj.CacheD( device );
-        proj.PrefetchH2D( device, 1 );
+        proj.PrefetchH2D( device, stream_id );
         u_skel.CacheD( device );
-        u_skel.PrefetchH2D( device, 1 );
+        u_skel.PrefetchH2D( device, stream_id );
         if ( arg->isleaf )
         {
         }
@@ -1858,10 +1864,10 @@ class SkeletonsToNodesTask : public hmlp::Task
         {
           auto &u_lskel = arg->lchild->data.u_skel;
           u_lskel.CacheD( device );
-          u_lskel.PrefetchH2D( device, 1 );
+          u_lskel.PrefetchH2D( device, stream_id );
           auto &u_rskel = arg->rchild->data.u_skel;
           u_rskel.CacheD( device );
-          u_rskel.PrefetchH2D( device, 1 );
+          u_rskel.PrefetchH2D( device, stream_id );
         }
       }
 #endif

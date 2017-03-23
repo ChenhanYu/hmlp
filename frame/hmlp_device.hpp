@@ -11,6 +11,8 @@
 
 //#include <hmlp_runtime.hpp>
 
+#define MAX_LINE 32
+
 namespace hmlp
 {
 
@@ -67,7 +69,7 @@ class Cache
 
     size_t fifo = 0;
 
-    class CacheLine line[ 16 ];
+    class CacheLine line[ MAX_LINE ];
 };
 
 
@@ -107,6 +109,8 @@ class Device
     virtual void prefetchd2h( void *ptr_h, void *ptr_d, size_t size, int stream_id );
 
     virtual void prefetchh2d( void *ptr_d, void *ptr_h, size_t size, int stream_id );
+
+    virtual void waitexecute();
 
     virtual void wait( int stream_id );
 
