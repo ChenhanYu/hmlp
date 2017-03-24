@@ -273,7 +273,7 @@ void test_spdaskit(
   // ------------------------------------------------------------------------
   // Sekeletonization with dynamic scheduling (symbolic traversal).
   // ------------------------------------------------------------------------
-  const int BUDGET = 5;
+  const int BUDGET = 3; /** 0.3% */
   const bool SYMMETRIC_PRUNE = true;
   const bool NNPRUNE = true;
   const bool CACHE = true;
@@ -422,6 +422,7 @@ void test_spdaskit(
       n, m, k, s, nrhs, nnerr_avg / ntest, exact_ratio,ann_time, tree_time, skel_time,
        nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time );
   */
+
 
 
 };
@@ -735,20 +736,20 @@ int main( int argc, char *argv[] )
 
   if ( KERNELTESTSUIT )
   {
-    double h = 0.2;
-    {
-      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
-      n = 100000;
-      d = 54;
-      hmlp::Data<T> X( d, n, filename );
-      kernel_s<T> kernel;
-      kernel.type = KS_GAUSSIAN;
-      kernel.scal = -0.5 / ( h * h );
-      hmlp::Kernel<T> K( n, n, d, kernel, X );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( &X, K, NN, n, m, k, s, stol, nrhs );
-    }
+    double h = 0.9;
+    //{
+    //  std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+    //  n = 100000;
+    //  d = 54;
+    //  hmlp::Data<T> X( d, n, filename );
+    //  kernel_s<T> kernel;
+    //  kernel.type = KS_GAUSSIAN;
+    //  kernel.scal = -0.5 / ( h * h );
+    //  hmlp::Kernel<T> K( n, n, d, kernel, X );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( &X, K, NN, n, m, k, s, stol, nrhs );
+    //}
     //{
     //  std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
     //  n = 108000;
@@ -762,19 +763,19 @@ int main( int argc, char *argv[] )
     //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
     //  ( &X, K, NN, n, m, k, s, stol, nrhs );
     //}
-    //{
-    //  std::string filename = DATADIR + std::string( "higgs.0.5M.28d.tst.X.bin" );
-    //  n = 500000;
-    //  d = 28;
-    //  hmlp::Data<T> X( d, n, filename );
-    //  kernel_s<T> kernel;
-    //  kernel.type = KS_GAUSSIAN;
-    //  kernel.scal = -0.5 / ( h * h );
-    //  hmlp::Kernel<T> K( n, n, d, kernel, X );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( &X, K, NN, n, m, k, s, stol, nrhs );
-    //}
+    {
+      std::string filename = DATADIR + std::string( "higgs.0.5M.28d.tst.X.bin" );
+      n = 500000;
+      d = 28;
+      hmlp::Data<T> X( d, n, filename );
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5 / ( h * h );
+      hmlp::Kernel<T> K( n, n, d, kernel, X );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( &X, K, NN, n, m, k, s, stol, nrhs );
+    }
     //{
     //  std::string filename = DATADIR + std::string( "mnist2m.d784.n1600000.trn.X.bin" );
     //  n = 1600000;

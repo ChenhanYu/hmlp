@@ -11,7 +11,7 @@
 
 //#include <hmlp_runtime.hpp>
 
-#define MAX_LINE 32
+#define MAX_LINE 16
 
 namespace hmlp
 {

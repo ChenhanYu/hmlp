@@ -2524,7 +2524,7 @@ void NearNodes( TREE &tree )
 
       for ( size_t i = 0; i < n_nodes; i ++ )
       {
-        if ( freq[ i ].first && node->NNNearNodes.size() < n_nodes * ( (float)BUDGET / 100.0 ) )
+        if ( freq[ i ].first && node->NNNearNodes.size() < n_nodes * ( (float)BUDGET / 1000.0 ) )
         {
           //printf( "freq %lu, leaf id %lu\n", freq[ i ].first, freq[ i ].second );
           node->NNNearNodes.insert( tree.treelist[ freq[ i ].second + ( n_nodes - 1 ) ] );
