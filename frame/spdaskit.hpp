@@ -39,8 +39,11 @@
 #define MAX_NRHS 1024
 
 //#define DEBUG_SPDASKIT 1
+#define REPORT_ANN_ACCURACY 1
 
-typedef enum {
+
+typedef enum 
+{
   SPLIT_POINT_DISTANCE,
   SPLIT_KERNEL_DISTANCE,
   SPLIT_ANGLE
@@ -304,7 +307,7 @@ template<typename SPDMATRIX, int N_SPLIT, typename T, SplitScheme SPLIT>
 struct centersplit
 {
   /** closure */
-  SPDMATRIX *Kptr;
+  SPDMATRIX *Kptr = NULL;
 
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
@@ -328,12 +331,35 @@ struct centersplit
     for ( size_t i = 0; i < n; i ++ )
     {
       size_t n_samples = std::log( n );
-      temp[ i ] = K( lids[ i ], lids[ i ] );
-      for ( size_t j = 0; j < n_samples; j ++ )
+      switch ( SPLIT )
       {
-        std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
-        //temp[ i ] -= 2.0 * K( lids[ i ], lids[ sample ] );
-        temp[ i ] -= 2.0 / n_samples * sample.first;
+        case SPLIT_KERNEL_DISTANCE:
+          {
+            temp[ i ] = K( lids[ i ], lids[ i ] );
+            for ( size_t j = 0; j < n_samples; j ++ )
+            {
+              std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
+              //temp[ i ] -= 2.0 * K( lids[ i ], lids[ sample ] );
+              temp[ i ] -= 2.0 / n_samples * sample.first;
+            }
+            break;
+          }
+        case SPLIT_ANGLE:
+          {
+            temp[ i ] = 0.0;
+            for ( size_t j = 0; j < n_samples; j ++ )
+            {
+              std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
+              T kij = sample.first;
+              T kii = K( lids[ i ], lids[ i ] );
+              T kjj = K( sample.second, sample.second );
+              temp[ i ] += std::abs( kij / std::sqrt( kii * kjj ) );
+            }
+            temp[ i ] /= n_samples;
+            break;
+          }
+        default:
+          exit( 1 );
       }
     }
     d2c_time = omp_get_wtime() - beg;
@@ -347,7 +373,24 @@ struct centersplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      temp[ i ] = K( lids[ i ], lids[ i ] ) - 2.0 * K( lids[ i ], lids[ idf2c ] );
+      switch ( SPLIT )
+      {
+        case SPLIT_KERNEL_DISTANCE:
+          {
+            temp[ i ] = K( lids[ i ], lids[ i ] ) - 2.0 * K( lids[ i ], lids[ idf2c ] );
+            break;
+          }
+        case SPLIT_ANGLE:
+          {
+            T kij = K( lids[ i ], lids[ idf2c ] );
+            T kii = K( lids[ i ], lids[ i ] );
+            T kjj = K( lids[ idf2c ], lids[ idf2c ] );
+            temp[ i ] = std::abs( kij / std::sqrt( kii * kjj ) );
+            break;
+          }
+        default:
+          exit( 1 );
+      }
     }
     d2f_time = omp_get_wtime() - beg;
 
@@ -372,8 +415,16 @@ struct centersplit
           temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
           break;
         case SPLIT_ANGLE:
-          temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / K( lids[ i ], lids[ i ] ) );
-          break;
+          //temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / K( lids[ i ], lids[ i ] ) );
+          {
+            T kip = K( lids[ i ], lids[ idf2f ] );
+            T kiq = K( lids[ i ], lids[ idf2c ] );
+            T kii = K( lids[ i ], lids[ i ] );
+            T kpp = K( lids[ idf2f ], lids[ idf2f ] );
+            T kqq = K( lids[ idf2c ], lids[ idf2c ] );
+            temp[ i ] = std::abs( kip / std::sqrt( kii * kpp ) ) - std::abs( kiq / std::sqrt( kii * kqq ) );
+            break;
+          }
         default:
           exit( 1 );
       }
@@ -456,8 +507,16 @@ struct randomsplit
           temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
           break;
         case SPLIT_ANGLE:
-          temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / K( lids[ i ], lids[ i ] ) );
-          break;
+          //temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / K( lids[ i ], lids[ i ] ) );
+          {
+            T kip = K( lids[ i ], lids[ idf2f ] );
+            T kiq = K( lids[ i ], lids[ idf2c ] );
+            T kii = K( lids[ i ], lids[ i ] );
+            T kpp = K( lids[ idf2f ], lids[ idf2f ] );
+            T kqq = K( lids[ idf2c ], lids[ idf2c ] );
+            temp[ i ] = std::abs( kip / std::sqrt( kii * kpp ) ) - std::abs( kiq / std::sqrt( kii * kqq ) );
+            break;
+          }
         default:
           exit( 1 );
       }
@@ -603,8 +662,14 @@ class KNNTask : public hmlp::Task
                 break;
               case SPLIT_ANGLE:
                 // Take the opposite since the heap select finds minimum distances
-                dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
-                break;
+                //dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
+                {
+                  T kij = K( ilid, jlid );
+                  T kii = K( ilid, ilid );
+                  T kjj = K( jlid, jlid );
+                  dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+                  break;
+                }
               default:
                 exit( 1 );
             }
@@ -623,17 +688,21 @@ class KNNTask : public hmlp::Task
 	  double knn_acc = 0.0;
 	  size_t num_acc = 0;
 
+      /** loop over all points in this leaf node */
 	  for ( size_t j = 0; j < lids.size(); j ++ )
 	  {
 		if ( lids[ j ] >= NUM_TEST ) continue;
 		
         std::set<size_t> NNset;
 	    hmlp::Data<std::pair<T, size_t>> nn_test( NN.row(), 1 );
+
+        /** initialize nn_test to be the same as NN */
         for ( size_t i = 0; i < NN.row(); i ++ )
 		{
 		  nn_test[ i ] = NN( i, lids[ j ] );
           NNset.insert( nn_test[ i ].second );
 		}
+
 		/** loop over all references */
         for ( size_t i = 0; i < K.row(); i ++ )
 		{
@@ -654,13 +723,21 @@ class KNNTask : public hmlp::Task
                 break;
               case SPLIT_ANGLE:
                 // Take the opposite since the heap select finds minimum distances
-                dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
-                break;
+                //dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
+                {
+                  T kij = K( ilid, jlid );
+                  T kii = K( ilid, ilid );
+                  T kjj = K( jlid, jlid );
+                  dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+                  break;
+                }
               default:
                 exit( 1 );
             }
             std::pair<T, size_t> query( dist, ilid );
-            hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
+            //hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
+            hmlp::HeapSelect( 1, NN.row(), &query, nn_test.data() );
+            NNset.insert( ilid );
           }
 		}
 
@@ -1161,12 +1238,21 @@ void Skeletonize( NODE *node )
   data.kij_skel.first  = kij_skel_time;
   data.kij_skel.second = amap.size() * bmap.size();
 
-
   /** interpolative decomposition */
   beg = omp_get_wtime();
+  size_t N = K.col();
+  size_t m = amap.size();
+  size_t n = bmap.size();
+  size_t q = lids.size();
+  /** Bill's l2 norm scaling factor */
+  T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
+  /** account for uniform sampling */
+  scaled_stol *= std::sqrt( (T)q / N );
+  /** We use a tighter Frobenius norm */
+  //scaled_stol /= std::sqrt( q );
   hmlp::skel::id<ADAPTIVE, LEVELRESTRICTION>
   ( 
-    amap.size(), bmap.size(), maxs, stol, /** ignore if !ADAPTIVE */
+    amap.size(), bmap.size(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
     Kab, skels, proj, jpvt
   );
   id_time = omp_get_wtime() - beg;
