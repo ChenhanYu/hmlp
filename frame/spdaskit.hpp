@@ -39,7 +39,7 @@
 #define MAX_NRHS 1024
 
 //#define DEBUG_SPDASKIT 1
-#define REPORT_ANN_ACCURACY 1
+//#define REPORT_ANN_ACCURACY 1
 
 
 typedef enum 
@@ -353,7 +353,7 @@ struct centersplit
               T kij = sample.first;
               T kii = K( lids[ i ], lids[ i ] );
               T kjj = K( sample.second, sample.second );
-              temp[ i ] += std::abs( kij / std::sqrt( kii * kjj ) );
+              temp[ i ] += -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
             }
             temp[ i ] /= n_samples;
             break;
@@ -385,7 +385,7 @@ struct centersplit
             T kij = K( lids[ i ], lids[ idf2c ] );
             T kii = K( lids[ i ], lids[ i ] );
             T kjj = K( lids[ idf2c ], lids[ idf2c ] );
-            temp[ i ] = std::abs( kij / std::sqrt( kii * kjj ) );
+            temp[ i ] = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
             break;
           }
         default:
@@ -668,6 +668,7 @@ class KNNTask : public hmlp::Task
                   T kii = K( ilid, ilid );
                   T kjj = K( jlid, jlid );
                   dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+                  //dist = std::abs( kij / std::sqrt( kii * kjj ) );
                   break;
                 }
               default:
@@ -729,6 +730,7 @@ class KNNTask : public hmlp::Task
                   T kii = K( ilid, ilid );
                   T kjj = K( jlid, jlid );
                   dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+                  //dist = std::abs( kij / std::sqrt( kii * kjj ) );
                   break;
                 }
               default:
@@ -1249,7 +1251,7 @@ void Skeletonize( NODE *node )
   /** account for uniform sampling */
   scaled_stol *= std::sqrt( (T)q / N );
   /** We use a tighter Frobenius norm */
-  //scaled_stol /= std::sqrt( q );
+  scaled_stol /= std::sqrt( q );
   hmlp::skel::id<ADAPTIVE, LEVELRESTRICTION>
   ( 
     amap.size(), bmap.size(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
