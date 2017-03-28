@@ -211,7 +211,8 @@ void id
   /** search for rank 1 <= s <= maxs that satisfies the error tolerance */
   for ( s = 1; s < n; s ++ )
   {
-    if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol ) break;
+    //if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol ) break;
+    if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) / std::abs( A_tmp[ 0 ] ) < stol ) break;
   }
 
   /** if using fixed rank */

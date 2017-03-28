@@ -518,6 +518,7 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 4 ], "%lu", &s );
   sscanf( argv[ 5 ], "%lu", &nrhs );
   T stol = 1E-6;
+  //T stol = 0.0;
 
 
   //T val[ 6 ] = { 1.0, 4.0, 5.0, 2.0, 3.0, 6.0 };
@@ -896,142 +897,142 @@ int main( int argc, char *argv[] )
 
 
     ///** data_to_use_65K */
-    //printf( "\ndata_to_use_65K\n\n" );
-    //SUBDIR = DATADIR + std::string( "data_to_use_65K/" );
-    //{
-    //  std::string filename = SUBDIR + std::string( "K01N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K02N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //  hmlp::Data<T> u( nrhs, n );
-    //  hmlp::Data<T> w( nrhs, n );
-    //  double beg = omp_get_wtime();
-    //  hmlp::xgemm
-    //  (
-    //    "N", "T",
-    //    u.row(), u.col(), u.col(),
-    //    1.0, w.data(), w.row(),
-    //         K.data(), K.row(),
-    //    0.0, u.data(), u.row()
-    //  );
-    //  double gemm_time = omp_get_wtime() - beg;
-    //  printf( "exact gemm time %5.3lfs\n", gemm_time );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K03N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K04N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K05N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K06N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K07N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K08N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K09N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K10N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = SUBDIR + std::string( "K11N65536.bin" );
-    //  n = 65536;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
+    printf( "\ndata_to_use_65K\n\n" );
+    SUBDIR = DATADIR + std::string( "data_to_use_65K/" );
+    {
+      std::string filename = SUBDIR + std::string( "K01N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K02N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+      hmlp::Data<T> u( nrhs, n );
+      hmlp::Data<T> w( nrhs, n );
+      double beg = omp_get_wtime();
+      hmlp::xgemm
+      (
+        "N", "T",
+        u.row(), u.col(), u.col(),
+        1.0, w.data(), w.row(),
+             K.data(), K.row(),
+        0.0, u.data(), u.row()
+      );
+      double gemm_time = omp_get_wtime() - beg;
+      printf( "exact gemm time %5.3lfs\n", gemm_time );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K03N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K04N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K05N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K06N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K07N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K08N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K09N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K10N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
+    {
+      std::string filename = SUBDIR + std::string( "K11N65536.bin" );
+      n = 65536;
+      hmlp::Data<T> *X = NULL;
+      hmlp::spdaskit::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, filename );
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( X, K, NN, n, m, k, s, stol, nrhs );
+    }
      
     /** PDEs */
     SUBDIR = DATADIR;

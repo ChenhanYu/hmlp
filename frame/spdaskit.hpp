@@ -347,6 +347,7 @@ struct centersplit
         case SPLIT_ANGLE:
           {
             temp[ i ] = 0.0;
+            temp[ i ] = K( lids[ i ], lids[ i ] );
             for ( size_t j = 0; j < n_samples; j ++ )
             {
               std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
@@ -415,7 +416,9 @@ struct centersplit
           temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
           break;
         case SPLIT_ANGLE:
-          //temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / K( lids[ i ], lids[ i ] ) );
+          //temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / 
+          //    std::sqrt( K( lids[ i ], lids[ i ] ) ) );
+          //break;
           {
             T kip = K( lids[ i ], lids[ idf2f ] );
             T kiq = K( lids[ i ], lids[ idf2c ] );
@@ -507,7 +510,9 @@ struct randomsplit
           temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
           break;
         case SPLIT_ANGLE:
-          //temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / K( lids[ i ], lids[ i ] ) );
+          //temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) )  
+          //  / std::sqrt( K( lids[ i ], lids[ i ] ) ) );
+          //break;
           {
             T kip = K( lids[ i ], lids[ idf2f ] );
             T kiq = K( lids[ i ], lids[ idf2c ] );
@@ -667,8 +672,8 @@ class KNNTask : public hmlp::Task
                   T kij = K( ilid, jlid );
                   T kii = K( ilid, ilid );
                   T kjj = K( jlid, jlid );
-                  dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
-                  //dist = std::abs( kij / std::sqrt( kii * kjj ) );
+                  //dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+                  dist = std::abs( kij / std::sqrt( kii * kjj ) );
                   break;
                 }
               default:
@@ -729,8 +734,8 @@ class KNNTask : public hmlp::Task
                   T kij = K( ilid, jlid );
                   T kii = K( ilid, ilid );
                   T kjj = K( jlid, jlid );
-                  dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
-                  //dist = std::abs( kij / std::sqrt( kii * kjj ) );
+                  //dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+                  dist = std::abs( kij / std::sqrt( kii * kjj ) );
                   break;
                 }
               default:
@@ -1251,7 +1256,8 @@ void Skeletonize( NODE *node )
   /** account for uniform sampling */
   scaled_stol *= std::sqrt( (T)q / N );
   /** We use a tighter Frobenius norm */
-  scaled_stol /= std::sqrt( q );
+  //scaled_stol /= std::sqrt( q );
+
   hmlp::skel::id<ADAPTIVE, LEVELRESTRICTION>
   ( 
     amap.size(), bmap.size(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
