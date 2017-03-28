@@ -200,7 +200,7 @@ void test_spdaskit(
   /** instantiation for the randomisze Spd-Askit tree */
   using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK = hmlp::spdaskit::KNNTask<100, SPLIT, RKDTNODE, T>;
+  using KNNTASK = hmlp::spdaskit::KNNTask<3, SPLIT, RKDTNODE, T>;
  
   /** all timers */
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
@@ -226,7 +226,7 @@ void test_spdaskit(
   // Initialize randomized Spd-Askit tree.
   // ------------------------------------------------------------------------
   const size_t n_iter = 10;
-  const bool SORTED = true;
+  const bool SORTED = false;
   Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
   rkdt.setup.X = X;
   rkdt.setup.K = &K;
@@ -409,11 +409,11 @@ void test_spdaskit(
   printf( "================================================================\n" );
   // ------------------------------------------------------------------------
 
-  //#ifdef DUMP_ANALYSIS_DATA
+//#ifdef DUMP_ANALYSIS_DATA
   hmlp::spdaskit::Summary<NODE> summary;
   tree.Summary( summary );
   summary.Print();
-  //#endif
+//#endif
   printf( "n %5lu k %4lu s %4lu nrhs %4lu ANN %5.3lf CONSTRUCT %5.3lf EVAL(NN) %5.3lf EVAL %5.3lf EVAL(FMM) %5.3lf SYMBOLIC(FMM) %5.3lf\n", 
       n, k, s, nrhs, ann_time, tree_time,
       nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time );
@@ -505,8 +505,9 @@ int main( int argc, char *argv[] )
   const bool SCALETESTSUIT = true;
 
   //std::string DATADIR( "/scratch/jlevitt/data/" );
-  std::string DATADIR( "/work/02794/ych/data/" );
+  //std::string DATADIR( "/work/02794/ych/data/" );
   //std::string DATADIR( "/users/chenhan/data/" );
+  std::string DATADIR( "/workspace/biros/sc17/" );
 
   size_t n, m, d, k, s, nrhs;
 
@@ -517,7 +518,7 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 3 ], "%lu", &k );
   sscanf( argv[ 4 ], "%lu", &s );
   sscanf( argv[ 5 ], "%lu", &nrhs );
-  T stol = 1E-6;
+  T stol = 1E-2;
   //T stol = 0.0;
 
 
@@ -567,253 +568,241 @@ int main( int argc, char *argv[] )
 
   hmlp_init();
   
-  if ( RANDOMMATRIX )
-  {
-    hmlp::Data<T> *X = NULL;
-    hmlp::spdaskit::SPDMatrix<T> K;
-    K.resize( n, n );
-    K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-    hmlp::Data<std::pair<T, std::size_t>> NN;
-    test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    ( X, K, NN, n, m, k, s, stol, nrhs );
-  }
+//  if ( RANDOMMATRIX )
+//  {
+//    hmlp::Data<T> *X = NULL;
+//    hmlp::spdaskit::SPDMatrix<T> K;
+//    K.resize( n, n );
+//    K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+//    hmlp::Data<std::pair<T, std::size_t>> NN;
+//    test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//    ( X, K, NN, n, m, k, s, stol, nrhs );
+//  }
   
-  if ( DENSETESTSUIT )
-  {
-    using T = float;
-    // std::string DATADIR( "/scratch/sreiz/65536/" );
-    std::string DATADIR( "/work/02497/jll2752/maverick/data/" );
-    n = 16384;
-    for ( size_t id = 1; id <= 16; id ++ )
-    {
-      std::ostringstream id_stream;
-      id_stream << std::setw( 2 ) << std::setfill( '0' ) << id;
-      std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
-                                                + std::string( "N16384.bin" );
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, filename );
+//  if ( DENSETESTSUIT )
+//  {
+//    using T = float;
+//    // std::string DATADIR( "/scratch/sreiz/65536/" );
+//    std::string DATADIR( "/work/02497/jll2752/maverick/data/" );
+//    n = 16384;
+//    for ( size_t id = 1; id <= 16; id ++ )
+//    {
+//      std::ostringstream id_stream;
+//      id_stream << std::setw( 2 ) << std::setfill( '0' ) << id;
+//      std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
+//                                                + std::string( "N16384.bin" );
+//      hmlp::spdaskit::SPDMatrix<T> K;
+//      K.resize( n, n );
+//      K.read( n, n, filename );
+//
+//      std::string pointfilename;
+//      switch ( id )
+//      {
+//        case 11:
+//          printf( "Test for matrix K11 not yet implemented\n" );
+//          // d = 1;
+//          // pointfilename = DATADIR + std::string( "X1DN16384.points.bin" );
+//          continue;
+//        case 1:
+//        case 2:
+//        case 3:
+//        case 12:
+//        case 13:
+//        case 14:
+//        case 15:
+//        case 16:
+//          d = 2;
+//          pointfilename = DATADIR + std::string( "X2DN16384.points.bin" );
+//          break;
+//        case 4:
+//        case 5:
+//        case 6:
+//        case 7:
+//        case 8:
+//        case 9:
+//        case 10:
+//          d = 3;
+//          pointfilename = DATADIR + std::string( "XKEN16384.points.bin" );
+//          break;
+//      }
+//      hmlp::Data<T> X( d, n, pointfilename );
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( &X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//  }
 
-      std::string pointfilename;
-      switch ( id )
-      {
-        case 11:
-          printf( "Test for matrix K11 not yet implemented\n" );
-          // d = 1;
-          // pointfilename = DATADIR + std::string( "X1DN16384.points.bin" );
-          continue;
-        case 1:
-        case 2:
-        case 3:
-        case 12:
-        case 13:
-        case 14:
-        case 15:
-        case 16:
-          d = 2;
-          pointfilename = DATADIR + std::string( "X2DN16384.points.bin" );
-          break;
-        case 4:
-        case 5:
-        case 6:
-        case 7:
-        case 8:
-        case 9:
-        case 10:
-          d = 3;
-          pointfilename = DATADIR + std::string( "XKEN16384.points.bin" );
-          break;
-      }
-      hmlp::Data<T> X( d, n, pointfilename );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
+//  if ( SPARSETESTSUIT )
+//  {
+//    const bool SYMMETRIC = false;
+//    const bool LOWERTRIANGULAR = true;
+//
+//    {
+//      std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
+//      n = 1086;
+//      hmlp::Data<T> *X = NULL;
+//      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11578 );
+//      K.readmtx<LOWERTRIANGULAR, false>( filename );
+//      //hmlp::Data<std::pair<T, std::size_t>> NN;
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//    {
+//      std::string filename = DATADIR + std::string( "inline_1.mtx" );
+//      n = 503712;
+//      hmlp::Data<T> *X = NULL;
+//      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)18660027 );
+//      K.readmtx<LOWERTRIANGULAR, false>( filename );
+//      //hmlp::Data<std::pair<T, std::size_t>> NN;
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//    {
+//      std::string filename = DATADIR + std::string( "msdoor.mtx" );
+//      n = 415863;
+//      hmlp::Data<T> *X = NULL;
+//      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)10328399 );
+//      K.readmtx<LOWERTRIANGULAR, false>( filename );
+//      //hmlp::Data<std::pair<T, std::size_t>> NN;
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//    {
+//      std::string filename = DATADIR + std::string( "thermal2.mtx" );
+//      n = 1228045;
+//      hmlp::Data<T> *X = NULL;
+//      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)4904179 );
+//      K.readmtx<LOWERTRIANGULAR, false>( filename );
+//      //hmlp::Data<std::pair<T, std::size_t>> NN;
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//  }
 
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( &X, K, NN, n, m, k, s, stol, nrhs );
-    }
-  }
+//  if ( GRAPHTESTSUIT )
+//  {
+//    const bool SYMMETRIC = false;
+//    const bool LOWERTRIANGULAR = true;
+//    const bool IJONLY = true;
+//    {
+//      std::string filename = DATADIR + std::string( "ca-AstroPh.mtx" );
+//      n = 18772;
+//      hmlp::Data<T> *X = NULL;
+//      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
+//      K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//    {
+//      std::string filename = DATADIR + std::string( "email-Enron.mtx" );
+//      n = 36692;
+//      hmlp::Data<T> *X = NULL;
+//      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
+//      K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//    {
+//      std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
+//      n = 1696415;
+//      hmlp::Data<T> *X = NULL;
+//      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
+//      K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//  }
 
-  if ( SPARSETESTSUIT )
-  {
-    const bool SYMMETRIC = false;
-    const bool LOWERTRIANGULAR = true;
+//  if ( OOCTESTSUIT )
+//  {
+//    n = 4096;
+//    for ( size_t id = 1; id < 14; id ++ )
+//    {
+//      hmlp::Data<T> *X = NULL;
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      std::ostringstream id_stream;
+//      id_stream << id;
+//      std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
+//        + std::string( ".dat" );
+//      hmlp::OOC<T> K( n, n, filename );
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//  }
 
-    //{
-    //  std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
-    //  n = 1086;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11578 );
-    //  K.readmtx<LOWERTRIANGULAR, false>( filename );
-    //  //hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    {
-      std::string filename = DATADIR + std::string( "inline_1.mtx" );
-      n = 503712;
-      hmlp::Data<T> *X = NULL;
-      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)18660027 );
-      K.readmtx<LOWERTRIANGULAR, false>( filename );
-      //hmlp::Data<std::pair<T, std::size_t>> NN;
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
-    {
-      std::string filename = DATADIR + std::string( "msdoor.mtx" );
-      n = 415863;
-      hmlp::Data<T> *X = NULL;
-      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)10328399 );
-      K.readmtx<LOWERTRIANGULAR, false>( filename );
-      //hmlp::Data<std::pair<T, std::size_t>> NN;
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
-    //{
-    //  std::string filename = DATADIR + std::string( "thermal2.mtx" );
-    //  n = 1228045;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)4904179 );
-    //  K.readmtx<LOWERTRIANGULAR, false>( filename );
-    //  //hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-  }
-
-  if ( GRAPHTESTSUIT )
-  {
-	  const bool SYMMETRIC = false;
-	  const bool LOWERTRIANGULAR = true;
-	  const bool IJONLY = true;
-	  //{
-      //std::string filename = DATADIR + std::string( "ca-AstroPh.mtx" );
-      //n = 18772;
-      //hmlp::Data<T> *X = NULL;
-      //hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)198110 );
-      //K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-      //hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      //test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      //( X, K, NN, n, m, k, s, stol, nrhs );
-	  //}
-	  //{
-      //std::string filename = DATADIR + std::string( "email-Enron.mtx" );
-      //n = 36692;
-      //hmlp::Data<T> *X = NULL;
-      //hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)183831 );
-      //K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-      //hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      //test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      //( X, K, NN, n, m, k, s, stol, nrhs );
-	  //}
-	  {
-      std::string filename = DATADIR + std::string( "as-Skitter.mtx" );
-      n = 1696415;
-      hmlp::Data<T> *X = NULL;
-      hmlp::CSC<SYMMETRIC, T> K( n, n, (size_t)11095298 );
-      K.readmtx<LOWERTRIANGULAR, false, IJONLY>( filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      //test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      //( X, K, NN, n, m, k, s, stol, nrhs );
-	  }
-  }
-
-  if ( OOCTESTSUIT )
-  {
-    n = 4096;
-    for ( size_t id = 1; id < 14; id ++ )
-    {
-      hmlp::Data<T> *X = NULL;
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      std::ostringstream id_stream;
-      id_stream << id;
-      std::string filename = DATADIR + std::string( "K" ) + id_stream.str()
-        + std::string( ".dat" );
-      hmlp::OOC<T> K( n, n, filename );
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
-  }
-
-  if ( KERNELTESTSUIT )
-  {
-    double h = 0.9;
-    //{
-    //  std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
-    //  n = 100000;
-    //  d = 54;
-    //  hmlp::Data<T> X( d, n, filename );
-    //  kernel_s<T> kernel;
-    //  kernel.type = KS_GAUSSIAN;
-    //  kernel.scal = -0.5 / ( h * h );
-    //  hmlp::Kernel<T> K( n, n, d, kernel, X );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( &X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    //{
-    //  std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
-    //  n = 108000;
-    //  d = 128;
-    //  hmlp::Data<T> X( d, n, filename );
-    //  kernel_s<T> kernel;
-    //  kernel.type = KS_GAUSSIAN;
-    //  kernel.scal = -0.5 / ( h * h );
-    //  hmlp::Kernel<T> K( n, n, d, kernel, X );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( &X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-    {
-      std::string filename = DATADIR + std::string( "higgs.0.5M.28d.tst.X.bin" );
-      n = 500000;
-      d = 28;
-      hmlp::Data<T> X( d, n, filename );
-      kernel_s<T> kernel;
-      kernel.type = KS_GAUSSIAN;
-      kernel.scal = -0.5 / ( h * h );
-      hmlp::Kernel<T> K( n, n, d, kernel, X );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( &X, K, NN, n, m, k, s, stol, nrhs );
-    }
-    //{
-    //  std::string filename = DATADIR + std::string( "mnist2m.d784.n1600000.trn.X.bin" );
-    //  n = 1600000;
-    //  d = 784;
-    //  hmlp::Data<T> X( d, n, filename );
-    //  kernel_s<T> kernel;
-    //  kernel.type = KS_GAUSSIAN;
-    //  kernel.scal = -0.5 / ( 0.3 * 0.3 );
-    //  hmlp::Kernel<T> K( n, n, d, kernel, X );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( &X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-  }
+//  if ( KERNELTESTSUIT )
+//  {
+//    double h = 0.9;
+//    {
+//      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+//      n = 100000;
+//      d = 54;
+//      hmlp::Data<T> X( d, n, filename );
+//      kernel_s<T> kernel;
+//      kernel.type = KS_GAUSSIAN;
+//      kernel.scal = -0.5 / ( h * h );
+//      hmlp::Kernel<T> K( n, n, d, kernel, X );
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( &X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//    {
+//      std::string filename = DATADIR + std::string( "aloi.n108000.d128.trn.X.bin" );
+//      n = 108000;
+//      d = 128;
+//      hmlp::Data<T> X( d, n, filename );
+//      kernel_s<T> kernel;
+//      kernel.type = KS_GAUSSIAN;
+//      kernel.scal = -0.5 / ( h * h );
+//      hmlp::Kernel<T> K( n, n, d, kernel, X );
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( &X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//    {
+//      std::string filename = DATADIR + std::string( "higgs.0.5M.28d.tst.X.bin" );
+//      n = 500000;
+//      d = 28;
+//      hmlp::Data<T> X( d, n, filename );
+//      kernel_s<T> kernel;
+//      kernel.type = KS_GAUSSIAN;
+//      kernel.scal = -0.5 / ( h * h );
+//      hmlp::Kernel<T> K( n, n, d, kernel, X );
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( &X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//    {
+//      std::string filename = DATADIR + std::string( "mnist2m.d784.n1600000.trn.X.bin" );
+//      n = 1600000;
+//      d = 784;
+//      hmlp::Data<T> X( d, n, filename );
+//      kernel_s<T> kernel;
+//      kernel.type = KS_GAUSSIAN;
+//      kernel.scal = -0.5 / ( 0.3 * 0.3 );
+//      hmlp::Kernel<T> K( n, n, d, kernel, X );
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( &X, K, NN, n, m, k, s, stol, nrhs );
+//    }
+//  }
 
   if ( SCALETESTSUIT )
   {
     std::string SUBDIR;
     using T = float;
-    //{
-    //  std::string filename = DATADIR + std::string( "K02N16384.bin" );
-    //  n = 16384;
-    //  hmlp::Data<T> *X = NULL;
-    //  hmlp::spdaskit::SPDMatrix<T> K;
-    //  K.resize( n, n );
-    //  K.read( n, n, filename );
-    //  hmlp::Data<std::pair<T, std::size_t>> NN;
-    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    //  ( X, K, NN, n, m, k, s, stol, nrhs );
-    //}
-   
 
     /** data_to_use_kernels_without_points */
-    //printf( "\ndata_to_use_kernels_without_points\n\n" );
-    //SUBDIR = DATADIR + std::string( "data_to_use_kernels_without_points/" );
+    printf( "\ndata_to_use_kernels_without_points\n\n" );
+    SUBDIR = DATADIR + std::string( "data_to_use_kernels_without_points/" );
     //{
     //  std::string filename = SUBDIR + std::string( "K04N65536.bin" );
     //  n = 65536;
@@ -897,19 +886,19 @@ int main( int argc, char *argv[] )
 
 
     ///** data_to_use_65K */
-    printf( "\ndata_to_use_65K\n\n" );
+    //printf( "\ndata_to_use_65K\n\n" );
     SUBDIR = DATADIR + std::string( "data_to_use_65K/" );
-    {
-      std::string filename = SUBDIR + std::string( "K01N65536.bin" );
-      n = 65536;
-      hmlp::Data<T> *X = NULL;
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
+    //{
+    //  std::string filename = SUBDIR + std::string( "K01N65536.bin" );
+    //  n = 65536;
+    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::spdaskit::SPDMatrix<T> K;
+    //  K.resize( n, n );
+    //  K.read( n, n, filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //}
     {
       std::string filename = SUBDIR + std::string( "K02N65536.bin" );
       n = 65536;
@@ -920,19 +909,6 @@ int main( int argc, char *argv[] )
       hmlp::Data<std::pair<T, std::size_t>> NN;
       test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
       ( X, K, NN, n, m, k, s, stol, nrhs );
-      hmlp::Data<T> u( nrhs, n );
-      hmlp::Data<T> w( nrhs, n );
-      double beg = omp_get_wtime();
-      hmlp::xgemm
-      (
-        "N", "T",
-        u.row(), u.col(), u.col(),
-        1.0, w.data(), w.row(),
-             K.data(), K.row(),
-        0.0, u.data(), u.row()
-      );
-      double gemm_time = omp_get_wtime() - beg;
-      printf( "exact gemm time %5.3lfs\n", gemm_time );
     }
     {
       std::string filename = SUBDIR + std::string( "K03N65536.bin" );
@@ -1035,7 +1011,7 @@ int main( int argc, char *argv[] )
     }
      
     /** PDEs */
-    SUBDIR = DATADIR;
+    SUBDIR = DATADIR + std::string( "data_to_use_65K/" );
     {
       std::string filename = SUBDIR + std::string( "K13N65536.bin" );
       n = 65536;
@@ -1058,68 +1034,83 @@ int main( int argc, char *argv[] )
       test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
       ( X, K, NN, n, m, k, s, stol, nrhs );
     }
-    {
-      std::string filename = SUBDIR + std::string( "K15N65536.bin" );
-      n = 65536;
-      hmlp::Data<T> *X = NULL;
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
-    {
-      std::string filename = SUBDIR + std::string( "K16N65536.bin" );
-      n = 65536;
-      hmlp::Data<T> *X = NULL;
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
+    //{
+    //  std::string filename = SUBDIR + std::string( "K15N65536.bin" );
+    //  n = 65536;
+    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::spdaskit::SPDMatrix<T> K;
+    //  K.resize( n, n );
+    //  K.read( n, n, filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //}
+    //{
+    //  std::string filename = SUBDIR + std::string( "K16N65536.bin" );
+    //  n = 65536;
+    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::spdaskit::SPDMatrix<T> K;
+    //  K.resize( n, n );
+    //  K.read( n, n, filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //}
 
     /** data_to_use_graphs */
     printf( "\ndata_to_use_graphs\n\n" );
     SUBDIR = DATADIR + std::string( "data_to_use_graphs/" );
-    {
-      std::string filename = SUBDIR + std::string( "K19N21132.bin" );
-      n = 21132;
-      hmlp::Data<T> *X = NULL;
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
-    {
-      std::string filename = SUBDIR + std::string( "K20N65536.bin" );
-      n = 65536;
-      hmlp::Data<T> *X = NULL;
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
-    {
-      std::string filename = SUBDIR + std::string( "K21N89400.bin" );
-      n = 89400;
-      hmlp::Data<T> *X = NULL;
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, filename );
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, nrhs );
-    }
+    //{
+    //  std::string filename = SUBDIR + std::string( "K19N21132.bin" );
+    //  n = 21132;
+    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::spdaskit::SPDMatrix<T> K;
+    //  K.resize( n, n );
+    //  K.read( n, n, filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //}
+    //{
+    //  std::string filename = SUBDIR + std::string( "K20N65536.bin" );
+    //  n = 65536;
+    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::spdaskit::SPDMatrix<T> K;
+    //  K.resize( n, n );
+    //  K.read( n, n, filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //}
+    //{
+    //  std::string filename = SUBDIR + std::string( "K21N89400.bin" );
+    //  n = 89400;
+    //  hmlp::Data<T> *X = NULL;
+    //  hmlp::spdaskit::SPDMatrix<T> K;
+    //  K.resize( n, n );
+    //  K.read( n, n, filename );
+    //  hmlp::Data<std::pair<T, std::size_t>> NN;
+    //  test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    //  ( X, K, NN, n, m, k, s, stol, nrhs );
+    //}
   }
 
 
+  //{
+  //  hmlp::Data<T> u( nrhs, n );
+  //  hmlp::Data<T> w( nrhs, n );
+  //  double beg = omp_get_wtime();
+  //  hmlp::xgemm
+  //  (
+  //    "N", "T",
+  //    u.row(), u.col(), u.col(),
+  //    1.0, w.data(), w.row(),
+  //         K.data(), K.row(),
+  //    0.0, u.data(), u.row()
+  //  );
+  //  double gemm_time = omp_get_wtime() - beg;
+  //  printf( "exact gemm time %5.3lfs\n", gemm_time );
+  //}
 
   hmlp_finalize();
 

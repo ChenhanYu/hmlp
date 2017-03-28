@@ -39,7 +39,7 @@
 #define MAX_NRHS 1024
 
 //#define DEBUG_SPDASKIT 1
-//#define REPORT_ANN_ACCURACY 1
+#define REPORT_ANN_ACCURACY 1
 
 
 typedef enum 
@@ -273,19 +273,19 @@ class Summary
         printf( "===\n" );
         printf( "@SUMMARY\n" );
         printf( "rank:       " ); rank[ l ].Print();
-        printf( "merge_neig: " ); merge_neighbors_time[ l ].Print();
-        printf( "kij_skel_n: " ); kij_skel[ l ].Print();
-        printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
-        printf( "id_t:       " ); id_time[ l ].Print();
-        printf( "skel_t:     " ); skeletonize[ l ].Print();
-        printf( "... ... ...\n" );
-        printf( "n2s_t:      " ); updateweight[ l ].Print();
-        //printf( "s2s_kij_t:  " ); s2s_kij_t[ l ].Print();
-        printf( "s2s_t:      " ); s2s_t[ l ].Print();
-        printf( "s2s_gfp:    " ); s2s_gfp[ l ].Print();
-        //printf( "s2n_kij_t:  " ); s2n_kij_t[ l ].Print();
-        printf( "s2n_t:      " ); s2n_t[ l ].Print();
-        printf( "s2n_gfp:    " ); s2n_gfp[ l ].Print();
+        //printf( "merge_neig: " ); merge_neighbors_time[ l ].Print();
+        //printf( "kij_skel_n: " ); kij_skel[ l ].Print();
+        //printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
+        //printf( "id_t:       " ); id_time[ l ].Print();
+        //printf( "skel_t:     " ); skeletonize[ l ].Print();
+        //printf( "... ... ...\n" );
+        //printf( "n2s_t:      " ); updateweight[ l ].Print();
+        ////printf( "s2s_kij_t:  " ); s2s_kij_t[ l ].Print();
+        //printf( "s2s_t:      " ); s2s_t[ l ].Print();
+        //printf( "s2s_gfp:    " ); s2s_gfp[ l ].Print();
+        ////printf( "s2n_kij_t:  " ); s2n_kij_t[ l ].Print();
+        //printf( "s2n_t:      " ); s2n_t[ l ].Print();
+        //printf( "s2n_gfp:    " ); s2n_gfp[ l ].Print();
         printf( "===\n" );
       }
     };
@@ -330,7 +330,10 @@ struct centersplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      size_t n_samples = std::log( n );
+      //size_t n_samples = std::log( n );
+      /** use constant samples instead */
+      size_t n_samples = 1;
+
       switch ( SPLIT )
       {
         case SPLIT_KERNEL_DISTANCE:
@@ -347,14 +350,14 @@ struct centersplit
         case SPLIT_ANGLE:
           {
             temp[ i ] = 0.0;
-            temp[ i ] = K( lids[ i ], lids[ i ] );
             for ( size_t j = 0; j < n_samples; j ++ )
             {
               std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
               T kij = sample.first;
               T kii = K( lids[ i ], lids[ i ] );
               T kjj = K( sample.second, sample.second );
-              temp[ i ] += -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+              //temp[ i ] += -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+              temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
             }
             temp[ i ] /= n_samples;
             break;
@@ -386,7 +389,8 @@ struct centersplit
             T kij = K( lids[ i ], lids[ idf2c ] );
             T kii = K( lids[ i ], lids[ i ] );
             T kjj = K( lids[ idf2c ], lids[ idf2c ] );
-            temp[ i ] = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+            //temp[ i ] = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+            temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
             break;
           }
         default:
@@ -416,16 +420,15 @@ struct centersplit
           temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
           break;
         case SPLIT_ANGLE:
-          //temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) ) / 
-          //    std::sqrt( K( lids[ i ], lids[ i ] ) ) );
-          //break;
           {
             T kip = K( lids[ i ], lids[ idf2f ] );
             T kiq = K( lids[ i ], lids[ idf2c ] );
             T kii = K( lids[ i ], lids[ i ] );
             T kpp = K( lids[ idf2f ], lids[ idf2f ] );
             T kqq = K( lids[ idf2c ], lids[ idf2c ] );
-            temp[ i ] = std::abs( kip / std::sqrt( kii * kpp ) ) - std::abs( kiq / std::sqrt( kii * kqq ) );
+            //temp[ i ] = std::abs( kip / std::sqrt( kii * kpp ) ) - std::abs( kiq / std::sqrt( kii * kqq ) );
+            /** ingore 1 from both terms */
+            temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
             break;
           }
         default:
@@ -433,8 +436,8 @@ struct centersplit
       }
     }
     projection_time = omp_get_wtime() - beg;
-    //printf( "log(n) %lu d2c %5.3lfs d2f %5.3lfs proj %5.3lfs max %5.3lfs\n", 
-    //	(size_t)std::log( n ), d2c_time, d2f_time, projection_time, max_time );
+//    printf( "log(n) %lu d2c %5.3lfs d2f %5.3lfs proj %5.3lfs max %5.3lfs\n", 
+//    	(size_t)std::log( n ), d2c_time, d2f_time, projection_time, max_time );
 
     /** parallel median search */
     // T median = hmlp::tree::Select( n, n / 2, temp );
@@ -507,25 +510,26 @@ struct randomsplit
       switch ( SPLIT )
       {
         case SPLIT_KERNEL_DISTANCE:
-          temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
-          break;
+          {
+            temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+            break;
+          }
         case SPLIT_ANGLE:
-          //temp[ i ] = std::abs( ( K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] ) )  
-          //  / std::sqrt( K( lids[ i ], lids[ i ] ) ) );
-          //break;
           {
             T kip = K( lids[ i ], lids[ idf2f ] );
             T kiq = K( lids[ i ], lids[ idf2c ] );
             T kii = K( lids[ i ], lids[ i ] );
             T kpp = K( lids[ idf2f ], lids[ idf2f ] );
             T kqq = K( lids[ idf2c ], lids[ idf2c ] );
-            temp[ i ] = std::abs( kip / std::sqrt( kii * kpp ) ) - std::abs( kiq / std::sqrt( kii * kqq ) );
+            //temp[ i ] = std::abs( kip / std::sqrt( kii * kpp ) ) - std::abs( kiq / std::sqrt( kii * kqq ) );
+            /** ingore 1 from both terms */
+            temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
             break;
           }
         default:
           exit( 1 );
       }
-   }
+    }
 
     // Parallel median search
     // T median = hmlp::tree::Select( n, n / 2, temp );
@@ -673,7 +677,7 @@ class KNNTask : public hmlp::Task
                   T kii = K( ilid, ilid );
                   T kjj = K( jlid, jlid );
                   //dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
-                  dist = std::abs( kij / std::sqrt( kii * kjj ) );
+                  dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
                   break;
                 }
               default:
@@ -691,30 +695,30 @@ class KNNTask : public hmlp::Task
 
 #ifdef REPORT_ANN_ACCURACY
       /** test the accuracy of NN with exhausted search */
-	  double knn_acc = 0.0;
-	  size_t num_acc = 0;
+      double knn_acc = 0.0;
+      size_t num_acc = 0;
 
       /** loop over all points in this leaf node */
-	  for ( size_t j = 0; j < lids.size(); j ++ )
-	  {
-		if ( lids[ j ] >= NUM_TEST ) continue;
-		
+      for ( size_t j = 0; j < lids.size(); j ++ )
+      {
+        if ( lids[ j ] >= NUM_TEST ) continue;
+
         std::set<size_t> NNset;
-	    hmlp::Data<std::pair<T, size_t>> nn_test( NN.row(), 1 );
+        hmlp::Data<std::pair<T, size_t>> nn_test( NN.row(), 1 );
 
         /** initialize nn_test to be the same as NN */
         for ( size_t i = 0; i < NN.row(); i ++ )
-		{
-		  nn_test[ i ] = NN( i, lids[ j ] );
+        {
+          nn_test[ i ] = NN( i, lids[ j ] );
           NNset.insert( nn_test[ i ].second );
-		}
+        }
 
-		/** loop over all references */
+        /** loop over all references */
         for ( size_t i = 0; i < K.row(); i ++ )
-		{
-		  size_t ilid = i;
-		  size_t jlid = lids[ j ];
-		  if ( !NNset.count( ilid ) )
+        {
+          size_t ilid = i;
+          size_t jlid = lids[ j ];
+          if ( !NNset.count( ilid ) )
           {
             T dist = 0;
             switch ( SPLIT )
@@ -735,7 +739,7 @@ class KNNTask : public hmlp::Task
                   T kii = K( ilid, ilid );
                   T kjj = K( jlid, jlid );
                   //dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
-                  dist = std::abs( kij / std::sqrt( kii * kjj ) );
+                  dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
                   break;
                 }
               default:
@@ -746,21 +750,21 @@ class KNNTask : public hmlp::Task
             hmlp::HeapSelect( 1, NN.row(), &query, nn_test.data() );
             NNset.insert( ilid );
           }
-		}
+        }
 
-		/** compute the acruracy */
-		size_t correct = 0;
-		NNset.clear();
+        /** compute the acruracy */
+        size_t correct = 0;
+        NNset.clear();
         for ( size_t i = 0; i < NN.row(); i ++ ) NNset.insert( nn_test[ i ].second );
         for ( size_t i = 0; i < NN.row(); i ++ ) 
-		{
-		  if ( NNset.count( NN( i, lids[ j ] ).second ) ) correct ++;
-		}
-		knn_acc += (double)correct / NN.row();
-		num_acc ++;
-	  }
-	  arg->data.knn_acc = knn_acc;
-	  arg->data.num_acc = num_acc;
+        {
+          if ( NNset.count( NN( i, lids[ j ] ).second ) ) correct ++;
+        }
+        knn_acc += (double)correct / NN.row();
+        num_acc ++;
+      }
+      arg->data.knn_acc = knn_acc;
+      arg->data.num_acc = num_acc;
 #endif
 
 	};
@@ -1178,7 +1182,12 @@ void Skeletonize( NODE *node )
     bmap.insert( bmap.end(), rskels.begin(), rskels.end() );
   }
 
+  /** decide the number of row samples */
   auto nsamples = 2 * bmap.size();
+
+  /** make sure we at least m samples */
+  if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
+
 
   /** Build Node Neighbors from all nearest neighbors */
   beg = omp_get_wtime();
@@ -2586,7 +2595,8 @@ void NearNodes( TREE &tree )
         for ( size_t j = 0; j < node->lids.size(); j ++ )
         {
           size_t lid = node->lids[ j ];
-          for ( size_t i = 0; i < NN.row(); i ++ )
+          /** use the second half */
+          for ( size_t i = NN.row() / 2; i < NN.row(); i ++ )
           {
             size_t neighbor_gid = NN( i, lid ).second;
             //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );

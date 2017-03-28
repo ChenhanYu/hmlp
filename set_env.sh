@@ -74,11 +74,12 @@ echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 ## Parallel options
 export OMP_NESTED=false
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=24
+export OMP_NUM_THREADS=20
+export OMP_PLACES=
 #export OMP_PLACES="{0},{2},{4},{6},{8},{10}"
 #export OMP_PLACES="{0},{1},{2},{3},{4},{5}"
 #export OMP_PLACES="{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11}"
-export OMP_PLACES="{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15},{16},{17},{18},{19},{20},{21},{22},{23}"
+#export OMP_PLACES="{0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15},{16},{17},{18},{19},{20},{21},{22},{23}"
 #export OMP_PLACES="{0},{4},{8},{12},{16},{20},{24},{28},{32},{36},{1},{5},{9},{13},{17},{21},{25},{29},{33},{37}"
 echo "OMP_PROC_BIND = $OMP_PROC_BIND"
 echo "OMP_NUM_THREADS = $OMP_NUM_THREADS"
