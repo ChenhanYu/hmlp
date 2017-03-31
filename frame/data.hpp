@@ -694,15 +694,16 @@ class OOC : public ReadWrite
       //  assert( size == m * n * sizeof(T) );
       //}
 
-      fd = open( filename.data(), O_RDONLY, 0 );
-      assert( fd != -1 );
-#ifdef __APPLE__
-      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE, fd, 0 );
-#else /** assume linux */
-      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
-#endif
+      cache.resize( n );
 
-      assert( mmappedData != MAP_FAILED );
+      fd = open( filename.data(), O_RDONLY, 0 ); assert( fd != -1 );
+//#ifdef __APPLE__
+//      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE, fd, 0 );
+//#else /** assume linux */
+//      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
+//#endif
+//
+//      assert( mmappedData != MAP_FAILED );
 
       std::cout << filename << std::endl;
     };
@@ -711,8 +712,8 @@ class OOC : public ReadWrite
     {
       //if ( file.is_open() ) file.close();
       /** unmap */
-      int rc = munmap( mmappedData, m * n * sizeof(T) );
-      assert( rc == 0 );
+      //int rc = munmap( mmappedData, m * n * sizeof(T) );
+      //assert( rc == 0 );
       close( fd );
       printf( "finish readmatrix %s\n", filename.data() );
     };
@@ -723,16 +724,14 @@ class OOC : public ReadWrite
     {
       T Kij;
 
-      //if ( !read_from_cache( i, j, &Kij ) )
-      //{
-      //  if ( !read_from_disk( i, j, &Kij ) )
-      //  {
-      //    printf( "Accessing disk fail\n" );
-      //    exit( 1 );
-      //  }
-      //}
-
-      Kij = mmappedData[ j * m + i ];
+      if ( !read_from_cache( i, j, &Kij ) )
+      {
+        if ( !read_from_disk( i, j, &Kij ) )
+        {
+          printf( "Accessing disk fail\n" );
+          exit( 1 );
+        }
+      }
 
       return Kij;
     };
@@ -773,7 +772,14 @@ class OOC : public ReadWrite
     bool read_from_cache( TINDEX i, TINDEX j, T *Kij )
     {
       // Need some method to search in the caahe.
-      return false;
+      auto it = cache[ j ].find( i );
+
+      if ( it != cache[ j ].end() ) 
+      {
+        *Kij = it->second;
+        return true;
+      }
+      else return false;
     };
 
     /**
@@ -785,10 +791,24 @@ class OOC : public ReadWrite
       if ( file.is_open() )
       {
         //printf( "try %4lu, %4lu ", i, j );
+        T K015j[ 16 ];
+        size_t batch_size = 1;
+        if ( i + batch_size >= m ) batch_size = 1;
         #pragma omp critical
         {
           file.seekg( ( j * m + i ) * sizeof(T) );
-          file.read( (char*)Kij, sizeof(T) );
+          file.read( (char*)K015j, batch_size * sizeof(T) );
+        }
+        *Kij = K015j[ 0 ];
+        for ( size_t p = 0; p < batch_size; p ++ )
+        {
+          if ( cache[ j ].size() < 16384 )
+          {
+            #pragma omp critical
+            {
+              cache[ j ][ i + p ] = K015j[ p ];
+            }
+          }
         }
         // printf( "read %4lu, %4lu, %E\n", i, j, *Kij );
         // TODO: Need some method to cache the data.
@@ -810,6 +830,9 @@ class OOC : public ReadWrite
 
     // Use mmp
     T *mmappedData;
+
+    /** */
+    std::vector<std::map<size_t, T>> cache;
 
     int fd;
 
