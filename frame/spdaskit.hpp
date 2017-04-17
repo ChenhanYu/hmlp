@@ -29,13 +29,13 @@
 #include <skel.hpp>
 #include <data.hpp>
 
-
 /** gpu related */
 #ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>
 #include <spdaskit_gpu.hpp>
 #endif
 
+/** this parameter is used to reserve space for std::vector */
 #define MAX_NRHS 1024
 
 //#define DEBUG_SPDASKIT 1
@@ -48,6 +48,7 @@ typedef enum
   SPLIT_KERNEL_DISTANCE,
   SPLIT_ANGLE
 } SplitScheme;
+
 
 namespace hmlp
 {
@@ -153,7 +154,7 @@ class Data
     hmlp::Event s2s;
     hmlp::Event s2n;
 
-	/** knn accuracy */
+    /** knn accuracy */
     double knn_acc = 0.0;
     size_t num_acc = 0;
 
@@ -161,7 +162,8 @@ class Data
 
 
 /**
- *  @brief This class does not need to inherit hmlp::Data<T>, but it should
+ *  @brief This class does not need to inherit hmlp::Data<T>, 
+ *         but it should
  *         support two interfaces for data fetching.
  */ 
 template<typename T>
@@ -173,6 +175,7 @@ class SPDMatrix : public hmlp::Data<T>
 
 
 /**
+ *  @brief Provide statistics summary for the execution section.
  *
  */ 
 template<typename NODE>
@@ -270,9 +273,8 @@ class Summary
     {
       for ( size_t l = 1; l < rank.size(); l ++ )
       {
-        printf( "===\n" );
         printf( "@SUMMARY\n" );
-        printf( "rank:       " ); rank[ l ].Print();
+        printf( "level %2lu, ", l ); rank[ l ].Print();
         //printf( "merge_neig: " ); merge_neighbors_time[ l ].Print();
         //printf( "kij_skel_n: " ); kij_skel[ l ].Print();
         //printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
@@ -286,7 +288,6 @@ class Summary
         ////printf( "s2n_kij_t:  " ); s2n_kij_t[ l ].Print();
         //printf( "s2n_t:      " ); s2n_t[ l ].Print();
         //printf( "s2n_gfp:    " ); s2n_gfp[ l ].Print();
-        printf( "===\n" );
       }
     };
 
@@ -303,7 +304,11 @@ class Summary
  *         the matrix is sparse.
  *
  */ 
-template<typename SPDMATRIX, int N_SPLIT, typename T, SplitScheme SPLIT>
+template<
+typename SPDMATRIX, 
+int N_SPLIT, 
+typename T, 
+SplitScheme SPLIT>
 struct centersplit
 {
   /** closure */
@@ -315,56 +320,58 @@ struct centersplit
     std::vector<std::size_t>& lids
   ) const 
   {
+    /** all assertions */
     assert( N_SPLIT == 2 );
+    assert( Kptr );
 
+    /** all timers */
     double beg, d2c_time, d2f_time, projection_time, max_time;
 
     SPDMATRIX &K = *Kptr;
+    std::vector<std::vector<std::size_t>> split( N_SPLIT );
     size_t n = lids.size();
-    std::vector<std::vector<std::size_t> > split( N_SPLIT );
-
     std::vector<T> temp( n, 0.0 );
 
     beg = omp_get_wtime();
-    // Compute d2c (distance to center)
+    /** compute d2c (distance to the approximate centroid) */
+    size_t n_centroid_samples = 1;
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      //size_t n_samples = std::log( n );
-      /** use constant samples instead */
-      size_t n_samples = 1;
-
       switch ( SPLIT )
       {
         case SPLIT_KERNEL_DISTANCE:
+        {
+          temp[ i ] = K( lids[ i ], lids[ i ] );
+          for ( size_t j = 0; j < n_centroid_samples; j ++ )
           {
-            temp[ i ] = K( lids[ i ], lids[ i ] );
-            for ( size_t j = 0; j < n_samples; j ++ )
-            {
-              std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
-              //temp[ i ] -= 2.0 * K( lids[ i ], lids[ sample ] );
-              temp[ i ] -= 2.0 / n_samples * sample.first;
-            }
-            break;
+            /** important sample ( Kij, j ) if provided */
+            std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
+            temp[ i ] -= ( 2.0 / n_centroid_samples ) * sample.first;
           }
+          break;
+        }
         case SPLIT_ANGLE:
+        {
+          temp[ i ] = 0.0;
+          for ( size_t j = 0; j < n_centroid_samples; j ++ )
           {
-            temp[ i ] = 0.0;
-            for ( size_t j = 0; j < n_samples; j ++ )
-            {
-              std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
-              T kij = sample.first;
-              T kii = K( lids[ i ], lids[ i ] );
-              T kjj = K( sample.second, sample.second );
-              //temp[ i ] += -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
-              temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-            }
-            temp[ i ] /= n_samples;
-            break;
+            /** important sample ( Kij, j ) if provided */
+            std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
+            T kij = sample.first;
+            T kii = K( lids[ i ], lids[ i ] );
+            T kjj = K( sample.second, sample.second );
+            temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
           }
+          temp[ i ] /= n_centroid_samples;
+          break;
+        }
         default:
+        {
+          printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
           exit( 1 );
-      }
+        }
+      } /** end switch ( SPLIT ) */
     }
     d2c_time = omp_get_wtime() - beg;
 
@@ -373,71 +380,79 @@ struct centersplit
     size_t idf2c = std::distance( temp.begin(), itf2c );
 
     beg = omp_get_wtime();
-    // Compute the d2f (distance to far most)
+    /** compute the d2f (distance to far most) */
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
       switch ( SPLIT )
       {
         case SPLIT_KERNEL_DISTANCE:
-          {
-            temp[ i ] = K( lids[ i ], lids[ i ] ) - 2.0 * K( lids[ i ], lids[ idf2c ] );
-            break;
-          }
+        {
+          temp[ i ] = K( lids[ i ], lids[ i ] ) - 2.0 * K( lids[ i ], lids[ idf2c ] );
+          break;
+        }
         case SPLIT_ANGLE:
-          {
-            T kij = K( lids[ i ], lids[ idf2c ] );
-            T kii = K( lids[ i ], lids[ i ] );
-            T kjj = K( lids[ idf2c ], lids[ idf2c ] );
-            //temp[ i ] = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
-            temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-            break;
-          }
+        {
+          T kij = K( lids[ i ],     lids[ idf2c ] );
+          T kii = K( lids[ i ],     lids[ i ]     );
+          T kjj = K( lids[ idf2c ], lids[ idf2c ] );
+          temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
+          break;
+        }
         default:
+        {
+          printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
           exit( 1 );
+        }
       }
     }
     d2f_time = omp_get_wtime() - beg;
 
-    // Find the f2f (far most to far most)
     beg = omp_get_wtime();
+    /** find f2f (far most to far most) */
     auto itf2f = std::max_element( temp.begin(), temp.end() );
-    max_time = omp_get_wtime() - beg;
     size_t idf2f = std::distance( temp.begin(), itf2f );
+    max_time = omp_get_wtime() - beg;
 
 #ifdef DEBUG_SPDASKIT
     printf( "idf2c %lu idf2f %lu\n", idf2c, idf2f );
 #endif
 
     beg = omp_get_wtime();
-    // Compute projection
+    /** compute projection i.e. dip - diq */
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
       switch ( SPLIT )
       {
         case SPLIT_KERNEL_DISTANCE:
+        {
           temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
           break;
+        }
         case SPLIT_ANGLE:
-          {
-            T kip = K( lids[ i ], lids[ idf2f ] );
-            T kiq = K( lids[ i ], lids[ idf2c ] );
-            T kii = K( lids[ i ], lids[ i ] );
-            T kpp = K( lids[ idf2f ], lids[ idf2f ] );
-            T kqq = K( lids[ idf2c ], lids[ idf2c ] );
-            //temp[ i ] = std::abs( kip / std::sqrt( kii * kpp ) ) - std::abs( kiq / std::sqrt( kii * kqq ) );
-            /** ingore 1 from both terms */
-            temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
-            break;
-          }
+        {
+          T kip = K( lids[ i ],     lids[ idf2f ] );
+          T kiq = K( lids[ i ],     lids[ idf2c ] );
+          T kii = K( lids[ i ],     lids[ i ]     );
+          T kpp = K( lids[ idf2f ], lids[ idf2f ] );
+          T kqq = K( lids[ idf2c ], lids[ idf2c ] );
+          /** ingore 1 from both terms */
+          temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
+          break;
+        }
         default:
+        {
+          printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
           exit( 1 );
+        }
       }
     }
     projection_time = omp_get_wtime() - beg;
 //    printf( "log(n) %lu d2c %5.3lfs d2f %5.3lfs proj %5.3lfs max %5.3lfs\n", 
 //    	(size_t)std::log( n ), d2c_time, d2f_time, projection_time, max_time );
+
+
 
     /** parallel median search */
     // T median = hmlp::tree::Select( n, n / 2, temp );
@@ -454,18 +469,20 @@ struct centersplit
     {
       if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
       else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-      else                           middle.push_back( i );
+      else                               middle.push_back( i );
     }
 
     for ( size_t i = 0; i < middle.size(); i ++ )
     {
-      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
-      else                                          split[ 1 ].push_back( middle[ i ] );
+      if ( split[ 0 ].size() <= split[ 1 ].size() ) 
+        split[ 0 ].push_back( middle[ i ] );
+      else                                          
+        split[ 1 ].push_back( middle[ i ] );
     }
 
     return split;
   };
-}; // end struct centersplit
+}; /** end struct centersplit */
 
 
 /**
@@ -494,40 +511,42 @@ struct randomsplit
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
     std::vector<T> temp( n, 0.0 );
 
+    /** randomly select two points p and q */
     size_t idf2c = std::rand() % n;
     size_t idf2f = std::rand() % n;
-
     while ( idf2c == idf2f ) idf2f = std::rand() % n;
 
 #ifdef DEBUG_SPDASKIT
     printf( "randomsplit idf2c %lu idf2f %lu\n", idf2c, idf2f );
 #endif
 
-    // Compute projection
+    /** compute projection */
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
       switch ( SPLIT )
       {
         case SPLIT_KERNEL_DISTANCE:
-          {
-            temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
-            break;
-          }
+        {
+          temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+          break;
+        }
         case SPLIT_ANGLE:
-          {
-            T kip = K( lids[ i ], lids[ idf2f ] );
-            T kiq = K( lids[ i ], lids[ idf2c ] );
-            T kii = K( lids[ i ], lids[ i ] );
-            T kpp = K( lids[ idf2f ], lids[ idf2f ] );
-            T kqq = K( lids[ idf2c ], lids[ idf2c ] );
-            //temp[ i ] = std::abs( kip / std::sqrt( kii * kpp ) ) - std::abs( kiq / std::sqrt( kii * kqq ) );
-            /** ingore 1 from both terms */
-            temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
-            break;
-          }
+        {
+          T kip = K( lids[ i ], lids[ idf2f ] );
+          T kiq = K( lids[ i ], lids[ idf2c ] );
+          T kii = K( lids[ i ], lids[ i ] );
+          T kpp = K( lids[ idf2f ], lids[ idf2f ] );
+          T kqq = K( lids[ idf2c ], lids[ idf2c ] );
+          /** ingore 1 from both terms */
+          temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
+          break;
+        }
         default:
+        {
+          printf( "randomsplit() invalid splitting scheme\n" ); fflush( stdout );
           exit( 1 );
+        }
       }
     }
 
@@ -662,26 +681,30 @@ class KNNTask : public hmlp::Task
             switch ( SPLIT )
             {
               case SPLIT_POINT_DISTANCE:
+              {
                 size_t d = X.row();
                 for ( size_t p = 0; p < d; p ++ )
                   dist += std::pow( X[ ilid * d + p ] - X[ jlid * d + p ], 2 );
                 break;
+              }
               case SPLIT_KERNEL_DISTANCE:
+              {
                 dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
                 break;
+              }
               case SPLIT_ANGLE:
-                // Take the opposite since the heap select finds minimum distances
-                //dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
-                {
-                  T kij = K( ilid, jlid );
-                  T kii = K( ilid, ilid );
-                  T kjj = K( jlid, jlid );
-                  //dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
-                  dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-                  break;
-                }
+              {
+                T kij = K( ilid, jlid );
+                T kii = K( ilid, ilid );
+                T kjj = K( jlid, jlid );
+                dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
+                break;
+              }
               default:
+              {
+                printf( "KNNTask() invalid splitting scheme\n" ); fflush( stdout );
                 exit( 1 );
+              }
             }
             std::pair<T, size_t> query( dist, ilid );
             hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
@@ -773,7 +796,9 @@ class KNNTask : public hmlp::Task
 
 
 
-
+/**
+ *  @brief This is the ANN routine design for CSC matrices.
+ */ 
 template<bool DOAPPROXIMATE, bool SORTED, typename T, typename CSCMATRIX>
 hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATRIX &K )
 {
@@ -858,9 +883,8 @@ hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATR
 //	printf( "\n" );
 //  }
 
-
   return NN;
-};
+}; /** end SparsePattern() */
 
 
 /*
@@ -870,7 +894,7 @@ template<typename TA, typename TB>
 std::pair<TB, TA> flip_pair( const std::pair<TA, TB> &p )
 {
   return std::pair<TB, TA>( p.second, p.first );
-}; // end flip_pair()
+}; /** end flip_pair() */
 
 
 template<typename TA, typename TB>
@@ -880,20 +904,14 @@ std::multimap<TB, TA> flip_map( const std::map<TA, TB> &src )
   std::transform( src.begin(), src.end(), std::inserter( dst, dst.begin() ), 
                  flip_pair<TA, TB> );
   return dst;
-}; // end flip_map()
+}; /** end flip_map() */
 
-/*template<typename TA, typename TB>
-bool compare_pair ( std::pair<TA, TB> a , std::pair<TA, TB> b ) 
-{
-  return (a.first < b.first); 
-}
-*/
 
 /**
  *  @brief Building neighbors for each tree node.
  */ 
 template<typename NODE, typename T>
-void BuildNeighbors( NODE *node , size_t nsamples)
+void BuildNeighbors( NODE *node, size_t nsamples )
 {
   auto &NN = node->setup->NN;
   std::vector<size_t> &gids = node->gids;
@@ -914,7 +932,7 @@ void BuildNeighbors( NODE *node , size_t nsamples)
         //printf("%lu;",NN->data()[ gids[jj] * k + ii].second); 
       }
     }
-    // Remove "own" points
+    /** remove "own" points */
     for ( int i = 0; i < n; i ++ )
     {
       pnids.erase( gids[ i ] );
@@ -1110,7 +1128,7 @@ class InterpolateTask : public hmlp::Task
       Interpolate<NODE, T>( arg );
     };
 
-}; // end class InterpolateTask
+}; /** end class InterpolateTask */
 
 
 
@@ -1308,7 +1326,7 @@ void Skeletonize( NODE *node )
       data.pnids.insert( NN.data()[ skels[ ii ] * NN.row() + jj ].second );
     }
   }
-}; // end void Skeletonize()
+}; /** end void Skeletonize() */
 
 
 /**
@@ -1388,14 +1406,16 @@ class SkeletonizeTask : public hmlp::Task
       Skeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
     };
 
-}; // end class SkeletonizeTask
+}; /** end class SkeletonizeTask */
 
 
 
 
 
 
-
+/**
+ *  @brief 
+ */
 template<typename NODE>
 void UpdateWeights( NODE *node )
 {
@@ -2294,129 +2314,154 @@ class LeavesToLeavesTask : public hmlp::Task
 }; /** end class LeavesToLeaves */
 
 
-template<typename NODE, typename T>
-void Evaluate( NODE *node, NODE *target, hmlp::Data<T> &potentials )
-{
-  auto &w = node->setup->w;
-  auto &lids = node->lids;
-  auto &K = *node->setup->K;
-  auto &data = node->data;
-  auto *lchild = node->lchild;
-  auto *rchild = node->rchild;
+//template<typename NODE, typename T>
+//void EvaluateNode( NODE *node, NODE *target, hmlp::Data<T> &potentials )
+//{
+//  auto &w = node->setup->w;
+//  auto &lids = node->lids;
+//  auto &K = *node->setup->K;
+//  auto &data = node->data;
+//  auto *lchild = node->lchild;
+//  auto *rchild = node->rchild;
+//
+//  auto &amap = target->lids;
+//
+//  if ( potentials.size() != amap.size() * w.row() )
+//  {
+//    potentials.resize( amap.size(), w.row(), 0.0 );
+//  }
+//
+//  assert( target->isleaf );
+//
+//  if ( ( node == target ) || ( node->isleaf && !node->isskel ) )
+//  {
+//    // direct evaluation
+//#ifdef DEBUG_SPDASKIT
+//    printf( "level %lu direct evaluation\n", node->l );
+//#endif
+//    auto Kab = K( amap, lids ); // amap.size()-by-lids.size()
+//    auto wb  = w( lids ); // nrhs-by-lids.size()
+//    xgemm
+//    (
+//      "N", "T",
+//      Kab.row(), wb.row(), wb.col(),
+//      1.0, Kab.data(),        Kab.row(),
+//           wb.data(),         wb.row(),
+//      1.0, potentials.data(), potentials.row()
+//    );
+//  }
+//  else
+//  {
+//    if ( !data.isskel || IsMyParent( target->morton, node->morton ) )
+//    {
+//#ifdef DEBUG_SPDASKIT
+//      printf( "level %lu is not prunable\n", node->l );
+//#endif
+//      Evaluate( lchild, target, potentials );      
+//      Evaluate( rchild, target, potentials );
+//    }
+//    else
+//    {
+//#ifdef DEBUG_SPDASKIT
+//      printf( "level %lu is prunable\n", node->l );
+//#endif
+//      auto Kab = K( amap, node->data.skels );
+//      auto &w_skel = node->data.w_skel;
+//      xgemm
+//      (
+//        "N", "N",
+//        Kab.row(), w_skel.col(), w_skel.row(),
+//        1.0, Kab.data(),        Kab.row(),
+//             w_skel.data(),     w_skel.row(),
+//        1.0, potentials.data(), potentials.row()
+//      );          
+//    }
+//  }
+//
+//}; // end void Evaluate()
 
-  auto &amap = target->lids;
 
-  if ( potentials.size() != amap.size() * w.row() )
-  {
-    potentials.resize( amap.size(), w.row(), 0.0 );
-  }
-
-  assert( target->isleaf );
-
-  if ( ( node == target ) || ( node->isleaf && !node->isskel ) )
-  {
-    // direct evaluation
-#ifdef DEBUG_SPDASKIT
-    printf( "level %lu direct evaluation\n", node->l );
-#endif
-    auto Kab = K( amap, lids ); // amap.size()-by-lids.size()
-    auto wb  = w( lids ); // nrhs-by-lids.size()
-    xgemm
-    (
-      "N", "T",
-      Kab.row(), wb.row(), wb.col(),
-      1.0, Kab.data(),        Kab.row(),
-           wb.data(),         wb.row(),
-      1.0, potentials.data(), potentials.row()
-    );
-  }
-  else
-  {
-    if ( !data.isskel || IsMyParent( target->morton, node->morton ) )
-    {
-#ifdef DEBUG_SPDASKIT
-      printf( "level %lu is not prunable\n", node->l );
-#endif
-      Evaluate( lchild, target, potentials );      
-      Evaluate( rchild, target, potentials );
-    }
-    else
-    {
-#ifdef DEBUG_SPDASKIT
-      printf( "level %lu is prunable\n", node->l );
-#endif
-      auto Kab = K( amap, node->data.skels );
-      auto &w_skel = node->data.w_skel;
-      xgemm
-      (
-        "N", "N",
-        Kab.row(), w_skel.col(), w_skel.row(),
-        1.0, Kab.data(),        Kab.row(),
-             w_skel.data(),     w_skel.row(),
-        1.0, potentials.data(), potentials.row()
-      );          
-    }
-  }
-
-}; // end void Evaluate()
-
-
-/**
- *  @brief This evaluation evaluate the potentils of the whole target node.
- *
- */ 
-template<bool SYMMETRIC, bool NNPRUNE, typename NODE>
-void Evaluate( NODE *node, NODE *target )
-{
-  assert( target->isleaf );
-
-  auto &data = node->data;
-  auto *lchild = node->lchild;
-  auto *rchild = node->rchild;
-
-  std::set<NODE*> *NearNodes;
-
-  if ( NNPRUNE ) NearNodes = &target->NNNearNodes;
-  else           NearNodes = &target->NearNodes;
-
-  //std::cout << data.isskel << std::endl;
-
-  if ( !data.isskel || node->ContainAny( *NearNodes ) )
-  {
-    if ( node->isleaf )
-    {
-      // Do notthing, because the NearNodes list was constructed.
-    }
-    else
-    {
-      //printf( "%lu not prunes %lu\n", target->treelist_id, node->treelist_id );
-      Evaluate<SYMMETRIC, NNPRUNE>( lchild, target );
-      Evaluate<SYMMETRIC, NNPRUNE>( rchild, target );
-    }
-  }
-  else
-  {
-    if ( SYMMETRIC && node->morton < target->morton )
-    {
-      // Since target->morton is larger than the visiting node,
-      // the interaction between the target and this node has
-      // been computed. 
-      //printf( "symmetric prune\n" );
-    }
-    else
-    {
-      if ( NNPRUNE ) 
-      {
-        //printf( "target %lu has FarNode %lu\n", target->treelist_id, node->treelist_id );
-        target->NNFarNodes.insert( node );
-      }
-      else           
-      {
-        target->FarNodes.insert( node );
-      }
-    }
-  }
-};
+///**
+// *  @brief (FMM specific) find Far( target ) by traversing all treenodes 
+// *         top-down. 
+// *         If the visiting ``node'' does not contain any near node
+// *         of ``target'' (by MORTON helper function ContainAny() ),
+// *         then we add ``node'' to Far( target ).
+// *
+// *         Otherwise, recurse to two children.
+// */ 
+//template<bool SYMMETRIC, typename NODE>
+//void FindFarNodes( NODE *node, NODE *target )
+//{
+//  /** all assertions, ``target'' must be a leaf node */
+//  assert( target->isleaf );
+//
+//  /** get a list of near nodes from target */
+//  std::set<NODE*> *NearNodes;
+//  auto &data = node->data;
+//  auto *lchild = node->lchild;
+//  auto *rchild = node->rchild;
+//
+//  /**
+//   *  case: !NNPRUNE
+//   *
+//   *  Build NearNodes for pure hierarchical low-rank approximation.
+//   *  In this case, Near( target ) only contains target itself.
+//   *
+//   **/
+//  NearNodes = &target->NearNodes;
+//
+//  /** if this node contains any Near( target ) or isn't skeletonized */
+//  if ( !data.isskel || node->ContainAny( *NearNodes ) )
+//  {
+//    if ( !node->isleaf )
+//    {
+//      /** recurse to two children */
+//      FindFarNodes<SYMMETRIC>( lchild, target );
+//      FindFarNodes<SYMMETRIC>( rchild, target );
+//    }
+//  }
+//  else
+//  {
+//    /** insert ``node'' to Far( target ) */
+//    target->FarNodes.insert( node );
+//  }
+//
+//  /**
+//   *  case: NNPRUNE
+//   *
+//   *  Build NNNearNodes for the FMM approximation.
+//   *  Near( target ) contains other leaf nodes
+//   *  
+//   **/
+//  NearNodes = &target->NNNearNodes;
+//
+//  /** if this node contains any Near( target ) or isn't skeletonized */
+//  if ( !data.isskel || node->ContainAny( *NearNodes ) )
+//  {
+//    if ( !node->isleaf )
+//    {
+//      /** recurse to two children */
+//      FindFarNodes<SYMMETRIC>( lchild, target );
+//      FindFarNodes<SYMMETRIC>( rchild, target );
+//    }
+//  }
+//  else
+//  {
+//    if ( SYMMETRIC && ( node->morton < target->morton ) )
+//    {
+//      /** since target->morton is larger than the visiting node,
+//       * the interaction between the target and this node has
+//       * been computed. 
+//       */ 
+//    }
+//    else
+//    {
+//      target->NNFarNodes.insert( node );
+//    }
+//  }
+//
+//}; /** end FindFarNodes() */
 
 
 template<typename NODE>
@@ -2427,7 +2472,7 @@ void PrintSet( std::set<NODE*> &set )
     printf( "%lu, ", (*it)->treelist_id );
   }
   printf( "\n" );
-};
+}; /** end PrintSet() */
 
 
 template<typename NODE>
@@ -2520,7 +2565,7 @@ void FindClique( TREE &tree )
 
 
 /**
- *  @brief Compute those near leaf nodes and build a list. This is just like
+ *  @brief (FMM specific) Compute Near( leaf nodes ). This is just like
  *         the neighbor list but the granularity is in nodes but not points.
  *         The algorithm is to compute the node morton ids of neighbor points.
  *         Get the pointers of these nodes and insert them into a std::set.
@@ -2535,12 +2580,12 @@ void FindClique( TREE &tree )
  *         node traversal scheme.
  *  
  */ 
-template<int BUDGET, bool SYMMETRIC, bool NNPRUNE, typename TREE>
-void NearNodes( TREE &tree )
+template<bool SYMMETRIC, typename TREE>
+void FindNearNodes( TREE &tree, double budget )
 {
   auto &setup = tree.setup;
   auto &NN = *setup.NN;
-  size_t n_nodes = 1 << tree.depth;
+  size_t n_nodes = ( 1 << tree.depth );
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
   //printf( "NN( %lu, %lu ) depth %lu n_nodes %lu treelist.size() %lu\n", 
@@ -2548,105 +2593,77 @@ void NearNodes( TREE &tree )
   //    tree.depth, n_nodes, tree.treelist.size() );
 
 
-  // Traverse all leaf nodes. 
+  /** traverse all leaf nodes. */
   #pragma omp parallel for
   for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
     auto *node = *(level_beg + node_ind);
     auto &data = node->data;
 
-    // If no skeletons, then add every leaf nodes.
+    /** if no skeletons, then add every leaf nodes */
+    /** TODO: this is not affected by the BUDGET */
     if ( !node->data.isskel )
     {
-      //printf( "leaf %lu not skel\n", node->treelist_id );
       for ( size_t i = 0; i < n_nodes; i ++ )
       {
-        if ( NNPRUNE ) node->NNNearNodes.insert( *(level_beg + i) );
-        else           node->NearNodes.insert(   *(level_beg + i) );
+        node->NearNodes.insert(   *(level_beg + i) );
+        node->NNNearNodes.insert( *(level_beg + i) );
       }
-      //continue;
     }
 
-    if ( NNPRUNE )
+    /** add myself to the list. */
+    node->NearNodes.insert( node );
+    node->NNNearNodes.insert( node );
+ 
+    /** ballot table */
+    std::vector<std::pair<size_t, size_t>> ballot( n_nodes );
+    for ( size_t i = 0; i < n_nodes; i ++ )
     {
-      /** add myself to the list. */
-      node->NNNearNodes.insert( node );
-  
-      std::vector<std::pair<size_t, size_t>> freq( n_nodes );
-      for ( size_t i = 0; i < n_nodes; i ++ )
-      {
-        freq[ i ].first  = 0;
-        freq[ i ].second = i;
-      }
-
-      /** TODO: have some consensus on the interaction list */
-      if ( false )
-      {
-        for ( auto it = node->data.snids.begin(); it != node->data.snids.end(); it ++ )
-        {
-          size_t neighbor_lid = tree.Getlid( (*it).second );
-          size_t neighbor_morton = setup.morton[ neighbor_lid ];
-          node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
-        }
-      }
-      else
-      {
-        /** Traverse all points and their neighbors. NN is stored as k-by-N */
-        for ( size_t j = 0; j < node->lids.size(); j ++ )
-        {
-          size_t lid = node->lids[ j ];
-          /** use the second half */
-          for ( size_t i = NN.row() / 2; i < NN.row(); i ++ )
-          {
-            size_t neighbor_gid = NN( i, lid ).second;
-            //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
-            size_t neighbor_lid = tree.Getlid( neighbor_gid );
-            size_t neighbor_morton = setup.morton[ neighbor_lid ];
-            //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
-
-            auto *target = tree.Morton2Node( neighbor_morton );
-
-            freq[ target->treelist_id - ( n_nodes - 1 ) ].first += 1;
-
-
-            /** TODO: maximum 5% direct evalution  */
-            //if ( node->NNNearNodes.size() < n_nodes / 10 )
-            //  node->NNNearNodes.insert( tree.Morton2Node( neighbor_morton ) );
-          }
-        }
-      }
-
-      /** sort the frequency list */
-      struct 
-      {
-        bool operator () ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b )
-        {   
-          return a.first > b.first;
-        }   
-      } FreqMore;
-      std::sort( freq.begin(), freq.end(), FreqMore );
-
-      for ( size_t i = 0; i < n_nodes; i ++ )
-      {
-        if ( freq[ i ].first && node->NNNearNodes.size() < n_nodes * ( (float)BUDGET / 1000.0 ) )
-        {
-          //printf( "freq %lu, leaf id %lu\n", freq[ i ].first, freq[ i ].second );
-          node->NNNearNodes.insert( tree.treelist[ freq[ i ].second + ( n_nodes - 1 ) ] );
-        }
-      }
-
-      //printf( "leaf %lu direct %lu/%lu\n", node->treelist_id, node->NNNearNodes.size(), n_nodes );
+      ballot[ i ].first  = 0;
+      ballot[ i ].second = i;
     }
-    else
+
+    /** traverse all points and their neighbors. NN is stored as k-by-N */
+    for ( size_t j = 0; j < node->lids.size(); j ++ )
     {
-      // Add myself to the list, and it's done.
-      node->NearNodes.insert( node );
+      size_t lid = node->lids[ j ];
+      /** use the second half */
+      for ( size_t i = NN.row() / 2; i < NN.row(); i ++ )
+      {
+        size_t neighbor_gid = NN( i, lid ).second;
+        //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
+        size_t neighbor_lid = tree.Getlid( neighbor_gid );
+        size_t neighbor_morton = setup.morton[ neighbor_lid ];
+        //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
+        auto *target = tree.Morton2Node( neighbor_morton );
+        ballot[ target->treelist_id - ( n_nodes - 1 ) ].first += 1;
+      }
+    }
+
+    /** sort the ballot list */
+    struct 
+    {
+      bool operator () ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b )
+      {   
+        return a.first > b.first;
+      }   
+    } BallotMore;
+    std::sort( ballot.begin(), ballot.end(), BallotMore );
+
+    /** add leaf nodes with the highest votes util reach the budget */
+    for ( size_t i = 0; i < n_nodes; i ++ )
+    {
+      if ( ballot[ i ].first && node->NNNearNodes.size() < n_nodes * budget )
+      {
+        node->NNNearNodes.insert( tree.treelist[ ballot[ i ].second + ( n_nodes - 1 ) ] );
+      }
     }
   }
 
-  if ( SYMMETRIC && NNPRUNE )
+  /** symmetrinize Near( node ) */
+  if ( SYMMETRIC )
   {
-    // Make it symmetric
+    /** make Near( node ) symmetric */
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
@@ -2670,23 +2687,26 @@ void NearNodes( TREE &tree )
     }
 #endif
   }
-
-  /** TODO: amalgamation (clique finding) */
-  //NearNodeClique( tree.treelist[ 0 ] );
-};
+}; /** end FindNearNodes() */
 
 
 
-template<int BUDGET, bool SYMMETRIC, bool NNPRUNE, typename TREE>
+/**
+ *  @brief Task wrapper for FindNearNodes()
+ */ 
+template<bool SYMMETRIC, typename TREE>
 class NearNodesTask : public hmlp::Task
 {
   public:
 
     TREE *arg;
 
-    void Set( TREE *user_arg )
+    double budget = 0.0;
+
+    void Set( TREE *user_arg, double user_budget )
     {
       arg = user_arg;
+      budget = user_budget;
       name = std::string( "near" );
 
       //--------------------------------------
@@ -2716,12 +2736,15 @@ class NearNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      NearNodes<BUDGET, SYMMETRIC, NNPRUNE, TREE>( *arg );
+      FindNearNodes<SYMMETRIC, TREE>( *arg, budget );
     };
 
-}; /** class NearNodesTask */
+}; /** end class NearNodesTask */
 
 
+/**
+ *  @brief Task wrapper for CacheNearNodes().
+ */
 template<bool NNPRUNE, typename NODE>
 class CacheNearNodesTask : public hmlp::Task
 {
@@ -2813,74 +2836,161 @@ class CacheNearNodesTask : public hmlp::Task
       }
 #endif
 
-
     };
-}; 
-
-
+}; /** end class CacheNearNodesTask */
 
 
 
 /**
- *  TODO: change to task.
+ *  @brief (FMM specific) find Far( target ) by traversing all treenodes 
+ *         top-down. 
+ *         If the visiting ``node'' does not contain any near node
+ *         of ``target'' (by MORTON helper function ContainAny() ),
+ *         then we add ``node'' to Far( target ).
+ *
+ *         Otherwise, recurse to two children.
+ */ 
+template<bool SYMMETRIC, typename NODE>
+void FindFarNodes( NODE *node, NODE *target )
+{
+  /** all assertions, ``target'' must be a leaf node */
+  assert( target->isleaf );
+
+  /** get a list of near nodes from target */
+  std::set<NODE*> *NearNodes;
+  auto &data = node->data;
+  auto *lchild = node->lchild;
+  auto *rchild = node->rchild;
+
+  /**
+   *  case: !NNPRUNE
+   *
+   *  Build NearNodes for pure hierarchical low-rank approximation.
+   *  In this case, Near( target ) only contains target itself.
+   *
+   **/
+  NearNodes = &target->NearNodes;
+
+  /** if this node contains any Near( target ) or isn't skeletonized */
+  if ( !data.isskel || node->ContainAny( *NearNodes ) )
+  {
+    if ( !node->isleaf )
+    {
+      /** recurse to two children */
+      FindFarNodes<SYMMETRIC>( lchild, target );
+      FindFarNodes<SYMMETRIC>( rchild, target );
+    }
+  }
+  else
+  {
+    /** insert ``node'' to Far( target ) */
+    target->FarNodes.insert( node );
+  }
+
+  /**
+   *  case: NNPRUNE
+   *
+   *  Build NNNearNodes for the FMM approximation.
+   *  Near( target ) contains other leaf nodes
+   *  
+   **/
+  NearNodes = &target->NNNearNodes;
+
+  /** if this node contains any Near( target ) or isn't skeletonized */
+  if ( !data.isskel || node->ContainAny( *NearNodes ) )
+  {
+    if ( !node->isleaf )
+    {
+      /** recurse to two children */
+      FindFarNodes<SYMMETRIC>( lchild, target );
+      FindFarNodes<SYMMETRIC>( rchild, target );
+    }
+  }
+  else
+  {
+    if ( SYMMETRIC && ( node->morton < target->morton ) )
+    {
+      /** since target->morton is larger than the visiting node,
+       * the interaction between the target and this node has
+       * been computed. 
+       */ 
+    }
+    else
+    {
+      target->NNFarNodes.insert( node );
+    }
+  }
+
+}; /** end FindFarNodes() */
+
+
+
+/**
+ *  @brief (FMM specific) perform an bottom-up traversal to build 
+ *         Far( node ) for each node. Leaf nodes call
+ *         FindFarNodes(), and inner nodes will merge two Far lists
+ *         from lchild and rchild.
+ *
+ *  @TODO  change to task.
  *
  */
-template<bool SYMMETRIC, bool NNPRUNE, typename TREE>
-void FarNodes( TREE &tree )
+template<bool SYMMETRIC, typename TREE>
+void MergeFarNodes( TREE &tree )
 {
   for ( int l = tree.depth; l >= 0; l -- )
   {
-    std::size_t n_nodes = 1 << l;
+    std::size_t n_nodes = ( 1 << l );
     auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
 
-      // If I don't have any skeleton, then I'm nobody's far field.
+      /** if I don't have any skeleton, then I'm nobody's far field */
       if ( !node->data.isskel ) continue;
 
       if ( node->isleaf )
       {
-        Evaluate<SYMMETRIC, NNPRUNE>( tree.treelist[ 0 ], node );
-        //printf( "Leaf nodes evaluate\n" );
+        FindFarNodes<SYMMETRIC>( tree.treelist[ 0 ] /** root */, node );
       }
       else
       {
-        // Merging FarNodes from children
+        /** merge Far( lchild ) and Far( rchild ) from children */
         auto *lchild = node->lchild;
         auto *rchild = node->rchild;
-        if ( NNPRUNE )
+
+        /**
+         *  case: !NNPRUNE (HSS specific)
+         */ 
+        auto &pFarNodes =   node->FarNodes;
+        auto &lFarNodes = lchild->FarNodes;
+        auto &rFarNodes = rchild->FarNodes;
+        /** Far( parent ) = Far( lchild ) intersects Far( rchild ) */
+        for ( auto it = lFarNodes.begin(); it != lFarNodes.end(); ++ it )
         {
-          auto &pFarNodes =   node->NNFarNodes;
-          auto &lFarNodes = lchild->NNFarNodes;
-          auto &rFarNodes = rchild->NNFarNodes;
-
-          for ( auto it = lFarNodes.begin(); it != lFarNodes.end(); ++ it )
-          {
-            if ( rFarNodes.count( *it ) ) pFarNodes.insert( *it );
-          }
-          for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
-          {
-            lFarNodes.erase( *it );
-            rFarNodes.erase( *it );
-          }
-
+          if ( rFarNodes.count( *it ) ) pFarNodes.insert( *it );
         }
-        else
+        /** Far( lchild ) \= Far( parent ); Far( rchild ) \= Far( parent ) */
+        for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
         {
-          auto &pFarNodes =   node->FarNodes;
-          auto &lFarNodes = lchild->FarNodes;
-          auto &rFarNodes = rchild->FarNodes;
-          for ( auto it = lFarNodes.begin(); it != lFarNodes.end(); it ++ )
-          {
-            if ( rFarNodes.count( *it ) ) pFarNodes.insert( *it );
-          }
-          for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
-          {
-            lFarNodes.erase( *it );
-            rFarNodes.erase( *it );
-          }
+          lFarNodes.erase( *it ); rFarNodes.erase( *it );
+        }
+
+        /**
+         *  case: NNPRUNE (FMM specific)
+         */ 
+        pFarNodes =   node->NNFarNodes;
+        lFarNodes = lchild->NNFarNodes;
+        rFarNodes = rchild->NNFarNodes;
+        /** Far( parent ) = Far( lchild ) intersects Far( rchild ) */
+        for ( auto it = lFarNodes.begin(); it != lFarNodes.end(); ++ it )
+        {
+          if ( rFarNodes.count( *it ) ) pFarNodes.insert( *it );
+        }
+        /** Far( lchild ) \= Far( parent ); Far( rchild ) \= Far( parent ) */
+        for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
+        {
+          lFarNodes.erase( *it ); rFarNodes.erase( *it );
         }
       }
     }
@@ -2888,7 +2998,7 @@ void FarNodes( TREE &tree )
 
   if ( SYMMETRIC )
   {
-    // Symmetrinize FarNodes to FarNodes interaction.
+    /** symmetrinize FarNodes to FarNodes interaction */
     for ( int l = tree.depth; l >= 0; l -- )
     {
       std::size_t n_nodes = 1 << l;
@@ -2897,7 +3007,7 @@ void FarNodes( TREE &tree )
       for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
       {
         auto *node = *(level_beg + node_ind);
-        auto &pFarNodes =   node->NNFarNodes;
+        auto &pFarNodes = node->NNFarNodes;
         for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
         {
           (*it)->NNFarNodes.insert( node );
@@ -2943,31 +3053,15 @@ void FarNodes( TREE &tree )
 
 
 /**
- *  @brief Create a list of near nodes for  each leave (direct evaluation).
- *         Create a list of far nodes for each node (low-rank).
+ *  @brief Evaluate and store all submatrices Kba used in the Far 
+ *         interaction.
  *
- *         If ( SYMMETRIC ) Both near and far lists are symmetric.
- *         If ( NNPRUNE )   All neighbors are near nodes. Lists stored in
- *                          NNNearNodes and NNFarNodes.
- *         Else             Only the leave itself is the near node. Use
- *                          NearNodes and FarNodes.
+ *  @TODO  Take care the HSS case i.e. (!NNPRUNE)
  *        
  */ 
-template<bool SYMMETRIC, bool NNPRUNE, bool CACHE = true, typename NODE, typename TREE>
-void NearFarNodes( TREE &tree )
+template<bool NNPRUNE, bool CACHE = true, typename TREE>
+void CacheFarNodes( TREE &tree )
 {
-  //printf( "Enter NearNodes\n" );
-  //NearNodes<SYMMETRIC, NNPRUNE>( tree );
-
-  //auto *nearnodestask = new NearNodesTask<SYMMETRIC, NNPRUNE, TREE>();
-  //nearnodestask->Set( &tree );
-  //nearnodestask->Execute( NULL );
-
-  //nearnodestaks->Enqueue();
-
-  //printf( "Finish NearNodes\n" );
-  FarNodes<SYMMETRIC, NNPRUNE>( tree );
-
   /** reserve space for w_leaf and u_leaf */
   #pragma omp parallel for schedule( dynamic )
   for ( size_t i = 0; i < tree.treelist.size(); i ++ )
@@ -3001,34 +3095,8 @@ void NearFarNodes( TREE &tree )
       }
       data.FarKab = K( amap, bmap );
     }
-
-    /** cache NearKab */
-    //#pragma omp parallel for schedule( dynamic )
-    //for ( size_t i = 0; i < tree.treelist.size(); i ++ )
-    //{
-    //  auto *node = tree.treelist[ i ];
-    //  auto *NearNodes = &node->NearNodes;
-    //  if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
-    //  auto &K = *node->setup->K;
-    //  auto &data = node->data;
-    //  auto &amap = node->lids;
-    //  std::vector<size_t> bmap;
-    //  for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
-    //  {
-    //    bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
-    //  }
-    //  data.NearKab = K( amap, bmap );
-    //}
-
-    //const bool AUTO_DEPENDENCY = false;
-    //const bool USE_RUNTIME= false;
-    //CacheNearNodesTask<NNPRUNE, NODE> cachenearnodestask;
-    //tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( cachenearnodestask );
-    //if ( USE_RUNTIME ) hmlp_run();
-
   }
-
-}; // end void NearFarNodes()
+}; /** end CacheFarNodes() */
 
 
 template<bool NNPRUNE, typename TREE>
@@ -3087,7 +3155,7 @@ double DrawInteraction( TREE &tree )
   fclose( pFile );
 
   return exact_ratio / ( tree.n * tree.n );
-}; // end DrawInteration()
+}; /** end DrawInteration() */
 
 
 /**
@@ -3207,6 +3275,10 @@ void Evaluate
 }; // end T Evaluate()
 
 
+/** @brief Evaluate potentials( gid ) using treecode.
+ *         Notice in this case, the approximation is unsymmetric.
+ *
+ **/
 template<bool SYMBOLIC, bool NNPRUNE, typename TREE, typename T>
 void Evaluate
 ( 
@@ -3245,12 +3317,19 @@ void Evaluate
 
 }; // end Evaluate()
 
-
+/**
+ *  @brief ComputeAll
+ */ 
 template<
-bool USE_RUNTIME, bool USE_OMP_TASK, 
-bool SYMMETRIC_PRUNE, bool NNPRUNE, bool CACHE, 
-typename NODE, typename TREE, typename T>
-hmlp::Data<T> ComputeAll
+bool USE_RUNTIME, 
+bool USE_OMP_TASK, 
+bool SYMMETRIC_PRUNE, 
+bool NNPRUNE, 
+bool CACHE, 
+typename NODE, 
+typename TREE, 
+typename T>
+hmlp::Data<T> Evaluate
 ( 
   TREE &tree,
   hmlp::Data<T> &weights
@@ -3258,16 +3337,39 @@ hmlp::Data<T> ComputeAll
 {
   const bool AUTO_DEPENDENCY = true;
 
-  double beg, computeall_time = 0.0, overhead_time = 0.0, permute_beg = 0.0, permute_time = 0.0;
+  /** all timers */
+  double beg, time_ratio, evaluation_time = 0.0;
+  double allocate_time, computeall_time;
+  double forward_permute_time, backward_permute_time;
 
+  /** nrhs-by-n initialize potentials */
+  beg = omp_get_wtime();
   hmlp::Data<T> potentials( weights.row(), weights.col(), 0.0 );
-
   tree.setup.w = &weights;
   tree.setup.u = &potentials;
+  allocate_time = omp_get_wtime() - beg;
 
 
+  /** permute weights into w_leaf */
+  printf( "Forward permute ...\n" ); fflush( stdout );
+  beg = omp_get_wtime();
+  int n_nodes = ( 1 << tree.depth );
+  auto level_beg = tree.treelist.begin() + n_nodes - 1;
+  #pragma omp parallel for
+  for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+  {
+    auto *node = *(level_beg + node_ind);
+    weights.GatherColumns<true>( node->lids, node->data.w_leaf );
+  }
+  forward_permute_time = omp_get_wtime() - beg;
+
+
+
+  /** Compute all N2S, S2S, S2N, L2L */
+  printf( "N2S, S2S, S2N, L2L (HMLP Runtime) ...\n" ); fflush( stdout );
   if ( SYMMETRIC_PRUNE )
   {
+    beg = omp_get_wtime();
 #ifdef HMLP_USE_CUDA
     potentials.AllocateD( hmlp_get_device( 0 ) );
     using LEAFTOLEAFVER2TASK = gpu::LeavesToLeavesVer2Task<CACHE, NNPRUNE, NODE, T>;
@@ -3291,75 +3393,66 @@ hmlp::Data<T> ComputeAll
     SKELTOSKELTASK  skeltoskeltask;
     SKELTONODETASK  skeltonodetask;
 
-    beg = omp_get_wtime();
 
-    /** permute weights into w_leaf */
-    int n_nodes = 1 << tree.depth;
-    auto level_beg = tree.treelist.begin() + n_nodes - 1;
-    #pragma omp parallel for
-    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-    {
-      auto *node = *(level_beg + node_ind);
-      weights.GatherColumns<true>( node->lids, node->data.w_leaf );
-    }
-    printf( "finish permuting weights to w_leaf\n" ); fflush( stdout );
+//    if ( USE_OMP_TASK )
+//    {
+//      assert( !USE_RUNTIME );
+//      tree.template TraverseLeafs<false, false>( leaftoleaftask1 );
+//      tree.template TraverseLeafs<false, false>( leaftoleaftask2 );
+//      tree.template TraverseLeafs<false, false>( leaftoleaftask3 );
+//      tree.template TraverseLeafs<false, false>( leaftoleaftask4 );
+//      tree.template UpDown<true, true, true>( nodetoskeltask, skeltoskeltask, skeltonodetask );
+//    }
+//    else
+//    {
+//      assert( !USE_OMP_TASK );
+//
+//#ifdef HMLP_USE_CUDA
+//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleafver2task );
+//#else
+//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
+//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
+//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
+//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
+//#endif
+//
+//      /** check scheduler */
+//      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
+//      tree.template TraverseUp       <AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
+//      tree.template TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
+//      tree.template TraverseDown     <AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+//      /** check scheduler */
+//      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
+//
+//      if ( USE_RUNTIME ) hmlp_run();
+//
+//
+//
+//#ifdef HMLP_USE_CUDA
+//      hmlp::Device *device = hmlp_get_device( 0 );
+//      for ( int stream_id = 0; stream_id < 10; stream_id ++ )
+//        device->wait( stream_id );
+//      //potentials.PrefetchD2H( device, 0 );
+//      potentials.FetchD2H( device );
+//#endif
+//    }
 
 
-    if ( USE_OMP_TASK )
-    {
-      assert( !USE_RUNTIME );
-      tree.template TraverseLeafs<false, false>( leaftoleaftask1 );
-      tree.template TraverseLeafs<false, false>( leaftoleaftask2 );
-      tree.template TraverseLeafs<false, false>( leaftoleaftask3 );
-      tree.template TraverseLeafs<false, false>( leaftoleaftask4 );
 
-      tree.template UpDown<true, true, true>( nodetoskeltask, skeltoskeltask, skeltonodetask );
-    }
-    else
-    {
-      assert( !USE_OMP_TASK );
 
+    /** CPU-GPU hybrid uses a different kind of L2L task */
 #ifdef HMLP_USE_CUDA
-      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleafver2task );
+    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleafver2task );
 #else
-      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
-      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
-      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
-      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
+    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
+    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
+    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
+    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
 #endif
-      printf( "create l2l jobs done\n" );
-
-      /** check scheduler */
-      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
-
-
-
-
-      //printf( "task creating done\n" ); fflush( stdout );
-      //if ( USE_RUNTIME ) hmlp_run();
-      //printf( "here\n" ); fflush( stdout );
-
-      tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
-      //if ( USE_RUNTIME ) hmlp_run();
-      //printf( "UpdateWeights\n" );
-      tree.template TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
-      //if ( USE_RUNTIME ) hmlp_run();
-      //printf( "Skel2Skel\n" );
-      
-      tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
-      printf( "task n2s, s2s and s2n jobs done\n" ); fflush( stdout );
-
-      /** check scheduler */
-      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
-      
-      //printf( "here\n" ); fflush( stdout );
-
-      overhead_time = omp_get_wtime() - beg;
-      if ( USE_RUNTIME ) hmlp_run();
-
-      //printf( "finish\n" );
-
-      permute_beg = omp_get_wtime();
+    tree.template TraverseUp       <AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
+    tree.template TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
+    tree.template TraverseDown     <AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+    hmlp_run();
 
 #ifdef HMLP_USE_CUDA
       hmlp::Device *device = hmlp_get_device( 0 );
@@ -3368,7 +3461,7 @@ hmlp::Data<T> ComputeAll
       //potentials.PrefetchD2H( device, 0 );
       potentials.FetchD2H( device );
 #endif
-    }
+
 
     /** reduce direct iteractions from 4 copies */
     #pragma omp parallel for
@@ -3388,22 +3481,7 @@ hmlp::Data<T> ComputeAll
     hmlp::Device *device = hmlp_get_device( 0 );
     device->wait( 0 );
 #endif
-
-    #pragma omp parallel for
-    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-    {
-      auto *node = *(level_beg + node_ind);
-      auto &amap = node->lids;
-      auto &u_leaf = node->data.u_leaf[ 0 ];
-      /** assemble u_leaf back to u */
-      for ( size_t j = 0; j < amap.size(); j ++ )
-        for ( size_t i = 0; i < potentials.row(); i ++ )
-          potentials[ amap[ j ] * potentials.row() + i ] += u_leaf( j, i );
-    }
-    permute_time = omp_get_wtime() - permute_beg;
     computeall_time = omp_get_wtime() - beg;
-    printf( "ComputeAll %5.2lfs (overhead %5.2lfs+%5.2lf)\n", 
-        computeall_time, overhead_time, permute_time ); fflush( stdout );
   }
   else // TODO: implement unsymmetric prunning
   {
@@ -3418,8 +3496,50 @@ hmlp::Data<T> ComputeAll
     printf( "Non symmetric ComputeAll is not yet implemented\n" );
   }
 
+
+
+  /** permute back */
+  printf( "Backward permute ...\n" ); fflush( stdout );
+  beg = omp_get_wtime();
+  #pragma omp parallel for
+  for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+  {
+    auto *node = *(level_beg + node_ind);
+    auto &amap = node->lids;
+    auto &u_leaf = node->data.u_leaf[ 0 ];
+    /** assemble u_leaf back to u */
+    for ( size_t j = 0; j < amap.size(); j ++ )
+      for ( size_t i = 0; i < potentials.row(); i ++ )
+        potentials[ amap[ j ] * potentials.row() + i ] += u_leaf( j, i );
+  }
+  backward_permute_time = omp_get_wtime() - beg;
+
+  evaluation_time += allocate_time;
+  evaluation_time += forward_permute_time;
+  evaluation_time += computeall_time;
+  evaluation_time += backward_permute_time;
+  time_ratio = 100 / evaluation_time;
+  printf( "========================================================\n");
+  printf( "GOFMM evaluation phase\n" );
+  printf( "========================================================\n");
+  printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+      allocate_time, allocate_time * time_ratio );
+  printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
+      forward_permute_time, forward_permute_time * time_ratio );
+  printf( "N2S, S2S, S2N, L2L -------------------- %5.2lfs (%5.1lf%%)\n", 
+      computeall_time, computeall_time * time_ratio );
+  printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
+      backward_permute_time, backward_permute_time * time_ratio );
+  printf( "========================================================\n");
+  printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+      evaluation_time, evaluation_time * time_ratio );
+  printf( "========================================================\n\n");
+
+
+  /** return nrhs-by-N outputs */
   return potentials;
-}; // end ComputeAll()
+
+}; /** end Evaluate() */
 
 
 
@@ -3509,13 +3629,11 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
                         potentials.data(), potentials.row() ); 
 
   return err / nrm2;
-}; // end T ComputeError()
+}; /** end ComputeError() */
 
 
-
-
-}; // end namespace spdaskit
-}; // end namespace hmlp
+}; /** end namespace spdaskit */
+}; /** end namespace hmlp */
 
 
 #endif // define SPDASKIT_HPP

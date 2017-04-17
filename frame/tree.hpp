@@ -1314,6 +1314,7 @@ class Tree
       double mops= 0.0;
 
       // This loop has to be sequential to prevent from race condiditon on NN.
+      printf( "========================================================\n");
       for ( int t = 0; t < n_tree; t ++ )      
       {
         //TreePartition( 2 * k, max_depth, gids, lids );
@@ -1341,7 +1342,7 @@ class Tree
           knn_acc += node->data.knn_acc;
           num_acc += node->data.num_acc;
         }
-        printf( "ANN iter %2d average accuracy %.2lf%% over %4lu samples\n", 
+        printf( "ANN iter %2d, average accuracy %.2lf%% (over %4lu samples)\n", 
             t, knn_acc / num_acc, num_acc );
 
         /** clean up for the new iteration */
@@ -1366,6 +1367,7 @@ class Tree
         printf( "\n" );
 #endif
       }
+      printf( "========================================================\n\n");
 
       
       if ( SORTED )

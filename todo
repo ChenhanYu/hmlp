@@ -2,6 +2,9 @@
 
 need to clean up all gpu memory 
 
+-SPDASKIT:
+rename as GOFMM. Polish interface
+
 -TREE:
 
 remove mkl call

@@ -537,7 +537,7 @@ class Statistic
 
     void Print()
     {
-      printf( "num %5lu min %.2E max %.2E avg %.2E\n", _num, _min, _max, _avg );
+      printf( "num %5lu min %.1E max %.1E avg %.1E\n", _num, _min, _max, _avg );
     };
   
 }; // end class Statistic

@@ -557,8 +557,7 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
   }
 
   //printf( "mkl_get_max_threads %d\n", mkl_get_max_threads() );
-
-  printf( "before omp workers\n" ); fflush( stdout );
+  //printf( "before omp workers\n" ); fflush( stdout );
 
   #pragma omp parallel for num_threads( n_worker )
   for ( int i = 0; i < n_worker; i ++ )
