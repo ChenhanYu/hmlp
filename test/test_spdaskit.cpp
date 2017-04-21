@@ -314,6 +314,7 @@ Tree<
   other_time += omp_get_wtime() - beg;
   hmlp_run();
   skel_time = omp_get_wtime() - beg;
+  printf( "Done\n" ); fflush( stdout );
 
 
 #ifdef HMLP_AVX512
@@ -651,7 +652,7 @@ int main( int argc, char *argv[] )
   // const SplitScheme SPLIT = SPLIT_KERNEL_DISTANCE;
 
   /** test suit options */
-  const bool RANDOMMATRIX = true;
+  const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;

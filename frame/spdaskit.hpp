@@ -2589,7 +2589,7 @@ void FindNearNodes( TREE &tree, double budget )
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
   //printf( "NN( %lu, %lu ) depth %lu n_nodes %lu treelist.size() %lu\n", 
-  //    NN.row(), NN.num(),      
+  //    NN.row(), NN.col(),      
   //    tree.depth, n_nodes, tree.treelist.size() );
 
 
@@ -2655,8 +2655,10 @@ void FindNearNodes( TREE &tree, double budget )
     {
       if ( ballot[ i ].first && node->NNNearNodes.size() < n_nodes * budget )
       {
+        //printf( "add %lu ", ballot[ i ].second + ( n_nodes - 1 ) ); fflush( stdout );
         node->NNNearNodes.insert( tree.treelist[ ballot[ i ].second + ( n_nodes - 1 ) ] );
       }
+      //printf( "\n" );
     }
   }
 
