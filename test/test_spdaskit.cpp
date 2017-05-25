@@ -567,11 +567,20 @@ void test_gofmm
   printf( "========================================================\n");
   // ------------------------------------------------------------------------
 
+
+  /** Factorization */
+  //T lambda = 1.0;
+  //hmlp::hfamily::Factorize<NODE, T>( tree, lambda ); 
+
+
   //#ifdef DUMP_ANALYSIS_DATA
   hmlp::spdaskit::Summary<NODE> summary;
   tree.Summary( summary );
   summary.Print();
-  //#endif
+
+
+
+
 
 }; /** end test_gofmm() */
 
@@ -652,7 +661,7 @@ int main( int argc, char *argv[] )
   // const SplitScheme SPLIT = SPLIT_KERNEL_DISTANCE;
 
   /** test suit options */
-  const bool RANDOMMATRIX = false;
+  const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
@@ -709,30 +718,30 @@ int main( int argc, char *argv[] )
 
 
   /** run the matrix file provided by users */
-  if ( user_matrix_filename.size() )
-  {
-    using T = float;
-    {
-      /** dense spd matrix format */
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, user_matrix_filename );
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      if ( user_points_filename.size() )
-      {
-        hmlp::Data<T> X( d, n, user_points_filename );
-        test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
-        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-      }
-      else
-      {
-        hmlp::Data<T> *X = NULL;
-        test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-      }
-    }
-  }
+//  if ( user_matrix_filename.size() )
+//  {
+//    using T = float;
+//    {
+//      /** dense spd matrix format */
+//      hmlp::spdaskit::SPDMatrix<T> K;
+//      K.resize( n, n );
+//      K.read( n, n, user_matrix_filename );
+//      /** (optional) provide neighbors, leave uninitialized otherwise */
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      if ( user_points_filename.size() )
+//      {
+//        hmlp::Data<T> X( d, n, user_points_filename );
+//        test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
+//        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+//      }
+//      else
+//      {
+//        hmlp::Data<T> *X = NULL;
+//        test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+//      }
+//    }
+//  }
 
   /** create a random spd matrix, which is diagonal-dominant */
   if ( RANDOMMATRIX )
@@ -752,75 +761,75 @@ int main( int argc, char *argv[] )
   }
 
   /** generate a Gaussian kernel matrix from the coordinates */
-  if ( KERNELTESTSUIT )
-  {
-    /** set the Gaussian kernel bandwidth */
-    T h = 0.1;
-    {
-      /** filename, number of points, dimension */
-      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
-      n = 100000;
-      d = 54;
-      /** read the coordinates from the file */
-      hmlp::Data<T> X( d, n, filename );
-      /** setup the kernel object as Gaussian */
-      kernel_s<T> kernel;
-      kernel.type = KS_GAUSSIAN;
-      kernel.scal = -0.5 / ( h * h );
-      /** spd kernel matrix format (implicitly create) */
-      hmlp::Kernel<T> K( n, n, d, kernel, X );
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      /** routine */
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-    }
-  }
-
-  /** generate (read) a CSC sparse matrix */
-  if ( SPARSETESTSUIT )
-  {
-    const bool SYMMETRIC = false;
-    const bool LOWERTRIANGULAR = true;
-    {
-      /** no geometric coordinates provided */
-      hmlp::Data<T> *X = NULL;
-      /** filename, problem size, nnz */
-      std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
-      n = 1086;
-      nnz = 11578;
-      /** CSC format */
-      hmlp::CSC<SYMMETRIC, T> K( n, n, nnz );
-      K.readmtx<LOWERTRIANGULAR, false>( filename );
-      /** use non-zero pattern as neighbors */
-      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
-      /** routine */
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-    }
-  }
-
-  /** generate (read) dense spd matrix */
-  if ( DENSETESTSUIT )
-  {
-    using T = float;
-    {
-      /** no geometric coordinates provided */
-      hmlp::Data<T> *X = NULL;
-      /** filename, problem size */
-      std::string filename = DATADIR + std::string( "K04N65536.bin" );
-      n = 65536;
-      /** dense spd matrix format */
-      hmlp::spdaskit::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, filename );
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      /** routine */
-      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-    }
-  }
+//  if ( KERNELTESTSUIT )
+//  {
+//    /** set the Gaussian kernel bandwidth */
+//    T h = 0.1;
+//    {
+//      /** filename, number of points, dimension */
+//      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+//      n = 100000;
+//      d = 54;
+//      /** read the coordinates from the file */
+//      hmlp::Data<T> X( d, n, filename );
+//      /** setup the kernel object as Gaussian */
+//      kernel_s<T> kernel;
+//      kernel.type = KS_GAUSSIAN;
+//      kernel.scal = -0.5 / ( h * h );
+//      /** spd kernel matrix format (implicitly create) */
+//      hmlp::Kernel<T> K( n, n, d, kernel, X );
+//      /** (optional) provide neighbors, leave uninitialized otherwise */
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      /** routine */
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+//    }
+//  }
+//
+//  /** generate (read) a CSC sparse matrix */
+//  if ( SPARSETESTSUIT )
+//  {
+//    const bool SYMMETRIC = false;
+//    const bool LOWERTRIANGULAR = true;
+//    {
+//      /** no geometric coordinates provided */
+//      hmlp::Data<T> *X = NULL;
+//      /** filename, problem size, nnz */
+//      std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
+//      n = 1086;
+//      nnz = 11578;
+//      /** CSC format */
+//      hmlp::CSC<SYMMETRIC, T> K( n, n, nnz );
+//      K.readmtx<LOWERTRIANGULAR, false>( filename );
+//      /** use non-zero pattern as neighbors */
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      /** routine */
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+//    }
+//  }
+//
+//  /** generate (read) dense spd matrix */
+//  if ( DENSETESTSUIT )
+//  {
+//    using T = float;
+//    {
+//      /** no geometric coordinates provided */
+//      hmlp::Data<T> *X = NULL;
+//      /** filename, problem size */
+//      std::string filename = DATADIR + std::string( "K04N65536.bin" );
+//      n = 65536;
+//      /** dense spd matrix format */
+//      hmlp::spdaskit::SPDMatrix<T> K;
+//      K.resize( n, n );
+//      K.read( n, n, filename );
+//      /** (optional) provide neighbors, leave uninitialized otherwise */
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      /** routine */
+//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+//    }
+//  }
 
 
   /** HMLP API call to terminate the runtime */

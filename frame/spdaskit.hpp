@@ -28,6 +28,7 @@
 #include <tree.hpp>
 #include <skel.hpp>
 #include <data.hpp>
+#include <hfamily.hpp>
 
 /** gpu related */
 #ifdef HMLP_USE_CUDA
@@ -84,6 +85,12 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     /** rhs-by-n all potentials */
     hmlp::Data<T> *u;
 
+    /** rhs-by-n all right hand sides */
+    hmlp::Data<T> *b;
+
+    /** regularization */
+    T lambda = 0.0;
+
 }; // end class Setup
 
 
@@ -91,7 +98,7 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
  *  @brief This class contains all iaskit related data.
  */ 
 template<typename T>
-class Data
+class Data : public hmlp::hfamily::Factor<T>
 {
   public:
 

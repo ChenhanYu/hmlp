@@ -34,6 +34,10 @@ extern "C"
 	  float *alpha,
 	  float *A, int *lda,
 	  float *B, int *ldb );
+  void dpotrf_( const char *uplo, 
+    int *n, double *A, int *lda, int *info );
+  void spotrf_( const char *uplo, 
+    int *n, float *A, int *lda, int *info );
   void dgetrf_(
       int *m, int *n, 
       double *A, int *lda, int *ipiv, int *info );
@@ -316,6 +320,37 @@ void xtrsm
   printf( "xtrsm must enables USE_BLAS.\n" );
 #endif
 };
+
+
+/**
+ *  @brief DPOTRF wrapper
+ */ 
+void xpotrf( const char *uplo, int n, double *A, int lda )
+{
+#ifdef USE_BLAS
+  int info;
+  dpotrf_( uplo, &n, A, &lda, &info );
+#else
+  printf( "xpotrf must enables USE_BLAS.\n" );
+#endif
+};
+
+
+/**
+ *  @brief SPOTRF wrapper
+ */ 
+void xpotrf( const char *uplo, int n, float *A, int lda )
+{
+#ifdef USE_BLAS
+  int info;
+  spotrf_( uplo, &n, A, &lda, &info );
+#else
+  printf( "xpotrf must enables USE_BLAS.\n" );
+#endif
+};
+
+
+
 
 
 /**

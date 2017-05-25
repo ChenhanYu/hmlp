@@ -245,6 +245,8 @@ class ReadWrite
 
     void DependencyAnalysis( ReadWriteType type, Task *task );
 
+    void DependencyCleanUp();
+
   private:
 
 }; // end class ReadWrite

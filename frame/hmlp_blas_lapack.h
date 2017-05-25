@@ -50,6 +50,18 @@ void xtrsm
   double *B, int ldb 
 );
 
+void xpotrf
+(
+  const char *uplo, 
+  int n, double *A, int lda
+);
+
+void xpotrf
+(
+  const char *uplo, 
+  int n, float *A, int lda
+);
+
 void xgetrf
 (
   int m, int n, 

@@ -492,7 +492,13 @@ void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
     read.clear();
   }
 
-}; // end DependencyAnalysis()
+}; /** end DependencyAnalysis() */
+
+void ReadWrite::DependencyCleanUp()
+{
+  read.clear();
+  write.clear();
+}; /** end DependencyCleanUp() */
 
 
 

@@ -15,7 +15,6 @@
 
 #include <hmlp_runtime.hpp>
 #include <data.hpp>
-#include <hfamily.hpp>
 
 //#define DEBUG_TREE 1
 
@@ -795,9 +794,6 @@ class Node : public ReadWrite
 
     /** Per node private data */
     NODEDATA data;
-
-    /** Per node private factor */
-    hmlp::hfamily::Factor<T> factor;
 
     // number of points in this node.
     std::size_t n;

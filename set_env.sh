@@ -74,7 +74,7 @@ echo "HMLP_ANALYSIS_DATA = $HMLP_ANALYSIS_DATA"
 ## Parallel options
 export OMP_NESTED=false
 export OMP_PROC_BIND=spread
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=4
 #export OMP_PLACES=
 #export OMP_PLACES="{0},{2},{4},{6},{8},{10}"
 #export OMP_PLACES="{0},{1},{2},{3},{4},{5}"
