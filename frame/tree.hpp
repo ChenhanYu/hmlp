@@ -885,10 +885,13 @@ class Tree
 {
   public:
 
+    /** data shared by all tree nodes */
     SETUP setup;
 
+    /** number of points */
     size_t n;
 
+    /** maximum leaf node size */
     size_t m;
 
     size_t depth;
@@ -897,12 +900,14 @@ class Tree
 
     std::deque<NODE*> treequeue;
 
-	/** for omp dependent task */
-	char omptasklist[ 1 << 16 ];
+    /** for omp dependent task */
+    char omptasklist[ 1 << 16 ];
 
+    /** constructor */
     Tree() : n( 0 ), m( 0 ), depth( 0 )
     {};
 
+    /** deconstructor */
     ~Tree()
     {
       for ( int i = 0; i < treelist.size(); i ++ )
@@ -916,12 +921,15 @@ class Tree
     };
 
     /**
-     *  
+     *  @brief gid is the index of the lexicographic matrix order.
+     *         lid is the index of the lexicographic storage order.
+     *         These two indices are the same in non-distributed
+     *         environment.
      */ 
     size_t Getlid( size_t gid ) 
     {
       return gid;
-    }; // end void Getlid()
+    }; /** end Getlid() */
 
 
     void Offset( NODE *node, size_t offset )
