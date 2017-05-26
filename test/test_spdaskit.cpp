@@ -1,3 +1,5 @@
+#include <mpi.h>
+
 #include <tuple>
 #include <cmath>
 #include <algorithm>
@@ -712,6 +714,12 @@ int main( int argc, char *argv[] )
     sscanf( argv[ 10 ], "%lu", &d );
   }
 
+
+  int size = -1, rank = -1;
+  MPI_Init( &argc, &argv );
+  MPI_Comm_size( MPI_COMM_WORLD, &size );
+  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+  printf( "size %d rank %d\n", size, rank );
 
   /** HMLP API call to initialize the runtime */
   hmlp_init();
