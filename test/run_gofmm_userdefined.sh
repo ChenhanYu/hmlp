@@ -10,14 +10,14 @@ n=65536
 m=512
 s=512
 k=32
-stol=1E-4
+stol=1E-5
 budget=0.03
 nrhs=512
-if [ -z ${HMLP_USE_MPI+x} ]; then mpiexec=""; else mpiexec="mpirun -n 4"; fi
+if [ -z ${HMLP_USE_MPI+x} ]; then mpiexec=""; else mpiexec="mpirun -n 2"; fi
 # ======= Do not change anything below this line ========
-
+executable=./test_gofmm.x
 echo "@PRIM"
-echo 'spdaskit'
+echo 'gofmm'
 # =======================================================
 
 echo "@SETUP"
@@ -47,9 +47,8 @@ date
 for filename in "${filearray[@]}"
 do
   echo $filename
-  $mpiexec ./test_spdaskit.x $n $m $k $s $nrhs $stol $budget $filename; status=$?
+  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $filename; status=$?
   echo "@STATUS"
   echo $status
 done
-
 # =======================================================

@@ -7,7 +7,7 @@
 
 namespace hmlp
 {
-namespace spdaskit
+namespace gofmm
 {
 namespace gpu
 {
@@ -575,8 +575,8 @@ class LeavesToLeavesVer2Task : public hmlp::Task
 
 
 
-};
-};
-};
+}; /** end namespace gpu */ 
+}; /** end namespace gofmm */  
+}; /** end namespace hmlp */
 
 #endif // define SPDASKIT_GPU_HPP

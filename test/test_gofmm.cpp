@@ -13,9 +13,10 @@
 #include <hmlp_util.hpp>
 #include <limits>
 
+/** TODO: maybe I should only include gofmm? */
 #include <data.hpp>
 #include <tree.hpp>
-#include <spdaskit.hpp>
+#include <gofmm.hpp>
 
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>
@@ -59,16 +60,9 @@ void test_gofmm
 )
 {
   /** instantiation for the Spd-Askit tree */
-  using SETUP = hmlp::spdaskit::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA = hmlp::spdaskit::Data<T>;
-  using NODE = Node<SETUP, N_CHILDREN, DATA, T>;
-  //using SKELTASK = hmlp::spdaskit::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
-  //using PROJTASK = hmlp::spdaskit::InterpolateTask<NODE, T>;
-
-  /** instantiation for the randomisze Spd-Askit tree */
-  //using RKDTSETUP = hmlp::spdaskit::Setup<SPDMATRIX, RKDTSPLITTER, T>;
-  //using RKDTNODE = Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  //using KNNTASK = hmlp::spdaskit::KNNTask<3, SPLIT, RKDTNODE, T>;
+  using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using DATA  = hmlp::gofmm::Data<T>;
+  using NODE  = Node<SETUP, N_CHILDREN, DATA, T>;
  
   /** all timers */
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
@@ -78,7 +72,7 @@ void test_gofmm
   const bool CACHE = true;
 
   /** compress K */
-  auto tree = hmlp::spdaskit::Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
+  auto tree = hmlp::gofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
   ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
 
 
@@ -101,7 +95,7 @@ void test_gofmm
 
   /** Evaluate u ~ K * w */
   hmlp::Data<T> w( nrhs, n ); w.rand();
-  auto u = hmlp::spdaskit::Evaluate<true, false, true, true, CACHE, NODE>( tree, w );
+  auto u = hmlp::gofmm::Evaluate<true, false, true, true, CACHE, NODE>( tree, w );
 
 
 #ifdef HMLP_AVX512
@@ -118,7 +112,7 @@ void test_gofmm
 //  if ( OMPLEVEL ) 
 //  {
 //    printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
-//    u = hmlp::spdaskit::ComputeAll<false, false, true, true, CACHE, NODE>( tree, w );
+//    u = hmlp::gofmm::ComputeAll<false, false, true, true, CACHE, NODE>( tree, w );
 //    printf( "Done.\n" ); fflush( stdout );
 //  }
 //  ref_time = omp_get_wtime() - beg;
@@ -132,7 +126,7 @@ void test_gofmm
 //  beg = omp_get_wtime();
 //  if ( OMPDAGTASK )
 //  {
-//    u = hmlp::spdaskit::ComputeAll<false, true, true, true, CACHE, NODE>( tree, w );
+//    u = hmlp::gofmm::ComputeAll<false, true, true, true, CACHE, NODE>( tree, w );
 //  }
 //  omptask45_time = omp_get_wtime() - beg;
 //
@@ -153,17 +147,17 @@ void test_gofmm
   {
     hmlp::Data<T> potentials;
     /** ASKIT treecode with NN pruning */
-    hmlp::spdaskit::Evaluate<false, true>( tree, i, potentials );
-    auto nnerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
+    hmlp::gofmm::Evaluate<false, true>( tree, i, potentials );
+    auto nnerr = hmlp::gofmm::ComputeError( tree, i, potentials );
     /** ASKIT treecode without NN pruning */
-    hmlp::spdaskit::Evaluate<false, false>( tree, i, potentials );
-    auto nonnerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
+    hmlp::gofmm::Evaluate<false, false>( tree, i, potentials );
+    auto nonnerr = hmlp::gofmm::ComputeError( tree, i, potentials );
     /** get results from GOFMM */
     for ( size_t p = 0; p < potentials.col(); p ++ )
     {
       potentials[ p ] = u( p, i );
     }
-    auto fmmerr = hmlp::spdaskit::ComputeError( tree, i, potentials );
+    auto fmmerr = hmlp::gofmm::ComputeError( tree, i, potentials );
 
     /** only print 10 values. */
     if ( i < 10 )
@@ -192,7 +186,7 @@ void test_gofmm
 
 
   //#ifdef DUMP_ANALYSIS_DATA
-  hmlp::spdaskit::Summary<NODE> summary;
+  hmlp::gofmm::Summary<NODE> summary;
   tree.Summary( summary );
   summary.Print();
 
@@ -221,7 +215,7 @@ template<
   SplitScheme SPLIT,
   typename    T, 
   typename    SPDMATRIX>
-void test_spdaskit_setup
+void test_gofmm_setup
 ( 
   hmlp::Data<T> *X,
   SPDMATRIX &K, 
@@ -248,8 +242,8 @@ void test_spdaskit_setup
     case SPLIT_KERNEL_DISTANCE:
     case SPLIT_ANGLE:
     {
-      using SPLITTER = hmlp::spdaskit::centersplit<SPDMATRIX, N_CHILDREN, T, SPLIT>;
-      using RKDTSPLITTER = hmlp::spdaskit::randomsplit<SPDMATRIX, N_CHILDREN, T, SPLIT>;
+      using SPLITTER     = hmlp::gofmm::centersplit<SPDMATRIX, N_CHILDREN, T, SPLIT>;
+      using RKDTSPLITTER = hmlp::gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T, SPLIT>;
       SPLITTER splitter;
       splitter.Kptr = &K;
       RKDTSPLITTER rkdtsplitter;
@@ -263,7 +257,7 @@ void test_spdaskit_setup
       exit( 1 );
     }
   }
-}; /** end test_spdaskit_setup() */
+}; /** end test_gofmm_setup() */
 
 
 
@@ -347,7 +341,7 @@ int main( int argc, char *argv[] )
     using T = float;
     {
       /** dense spd matrix format */
-      hmlp::spdaskit::SPDMatrix<T> K;
+      hmlp::gofmm::SPDMatrix<T> K;
       K.resize( n, n );
       K.read( n, n, user_matrix_filename );
       /** (optional) provide neighbors, leave uninitialized otherwise */
@@ -355,13 +349,13 @@ int main( int argc, char *argv[] )
       if ( user_points_filename.size() )
       {
         hmlp::Data<T> X( d, n, user_points_filename );
-        test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
         ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
       }
       else
       {
         hmlp::Data<T> *X = NULL;
-        test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
         ( X, K, NN, n, m, k, s, stol, budget, nrhs );
       }
     }
@@ -373,14 +367,14 @@ int main( int argc, char *argv[] )
     /** no geometric coordinates provided */
     hmlp::Data<T> *X = NULL;
     /** dense spd matrix format */
-    hmlp::spdaskit::SPDMatrix<T> K;
+    hmlp::gofmm::SPDMatrix<T> K;
     K.resize( n, n );
     /** random spd initialization */
     K.randspd<USE_LOWRANK>( 0.0, 1.0 );
     /** (optional) provide neighbors, leave uninitialized otherwise */
     hmlp::Data<std::pair<T, std::size_t>> NN;
     /** routine */
-    test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+    test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
     ( X, K, NN, n, m, k, s, stol, budget, nrhs );
   }
 
@@ -405,7 +399,7 @@ int main( int argc, char *argv[] )
 //      /** (optional) provide neighbors, leave uninitialized otherwise */
 //      hmlp::Data<std::pair<T, std::size_t>> NN;
 //      /** routine */
-//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
 //      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
 //    }
 //  }
@@ -426,9 +420,9 @@ int main( int argc, char *argv[] )
 //      hmlp::CSC<SYMMETRIC, T> K( n, n, nnz );
 //      K.readmtx<LOWERTRIANGULAR, false>( filename );
 //      /** use non-zero pattern as neighbors */
-//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::spdaskit::SparsePattern<true, true, T>( n, k, K );
+//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::gofmm::SparsePattern<true, true, T>( n, k, K );
 //      /** routine */
-//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
 //      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
 //    }
 //  }
@@ -444,13 +438,13 @@ int main( int argc, char *argv[] )
 //      std::string filename = DATADIR + std::string( "K04N65536.bin" );
 //      n = 65536;
 //      /** dense spd matrix format */
-//      hmlp::spdaskit::SPDMatrix<T> K;
+//      hmlp::gofmm::SPDMatrix<T> K;
 //      K.resize( n, n );
 //      K.read( n, n, filename );
 //      /** (optional) provide neighbors, leave uninitialized otherwise */
 //      hmlp::Data<std::pair<T, std::size_t>> NN;
 //      /** routine */
-//      test_spdaskit_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
 //      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
 //    }
 //  }

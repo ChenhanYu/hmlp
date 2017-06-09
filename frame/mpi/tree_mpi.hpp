@@ -7,7 +7,7 @@
 
 namespace hmlp
 {
-namespace distributed_tree
+namespace tree_mpi
 {
 
 
@@ -143,7 +143,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>
 }; /** end class Tree */
 
 
-}; /** end namespace distributed_tree */
+}; /** end namespace tree_mpi */
 }; /** end namespace hmlp */
 
 #endif /** define DISTRIBUTED_TREE_HPP */

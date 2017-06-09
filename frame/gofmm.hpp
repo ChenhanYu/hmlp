@@ -33,7 +33,7 @@
 /** gpu related */
 #ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>
-#include <spdaskit_gpu.hpp>
+#include <gofmm_gpu.hpp>
 #endif
 
 
@@ -61,7 +61,7 @@ typedef enum
 
 namespace hmlp
 {
-namespace spdaskit
+namespace gofmm
 {
 
 
@@ -3572,11 +3572,11 @@ template<
   typename    T, 
   typename    SPDMATRIX>
 hmlp::tree::Tree<
-  hmlp::spdaskit::Setup<SPDMATRIX, SPLITTER, T>, 
+  hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
   hmlp::tree::Node<
-    hmlp::spdaskit::Setup<SPDMATRIX, SPLITTER, T>, 
+    hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
     N_CHILDREN,
-    hmlp::spdaskit::Data<T>,
+    hmlp::gofmm::Data<T>,
     T
     >,
   N_CHILDREN,
@@ -3599,19 +3599,19 @@ Compress
   const bool CACHE     = true;
 
   /** instantiation for the Spd-Askit tree */
-  using SETUP              = hmlp::spdaskit::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA               = hmlp::spdaskit::Data<T>;
+  using SETUP              = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using DATA               = hmlp::gofmm::Data<T>;
   using NODE               = hmlp::tree::Node<SETUP, N_CHILDREN, DATA, T>;
   using TREE               = hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>;
-  using SKELTASK           = hmlp::spdaskit::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
-  using PROJTASK           = hmlp::spdaskit::InterpolateTask<NODE, T>;
-  using NEARNODESTASK      = hmlp::spdaskit::NearNodesTask<SYMMETRIC, TREE>;
-  using CACHENEARNODESTASK = hmlp::spdaskit::CacheNearNodesTask<NNPRUNE, NODE>;
+  using SKELTASK           = hmlp::gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
+  using PROJTASK           = hmlp::gofmm::InterpolateTask<NODE, T>;
+  using NEARNODESTASK      = hmlp::gofmm::NearNodesTask<SYMMETRIC, TREE>;
+  using CACHENEARNODESTASK = hmlp::gofmm::CacheNearNodesTask<NNPRUNE, NODE>;
 
   /** instantiation for the randomisze Spd-Askit tree */
-  using RKDTSETUP          = hmlp::spdaskit::Setup<SPDMATRIX, RKDTSPLITTER, T>;
+  using RKDTSETUP          = hmlp::gofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE           = hmlp::tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK            = hmlp::spdaskit::KNNTask<3, SPLIT, RKDTNODE, T>;
+  using KNNTASK            = hmlp::gofmm::KNNTask<3, SPLIT, RKDTNODE, T>;
 
   /** all timers */
   double beg, omptask45_time, omptask_time, ref_time;
@@ -3763,17 +3763,17 @@ Compress
   /** MergeFarNodes */
   beg = omp_get_wtime();
   printf( "MergeFarNodes ...\n" ); fflush( stdout );
-  hmlp::spdaskit::MergeFarNodes<SYMMETRIC>( tree );
+  hmlp::gofmm::MergeFarNodes<SYMMETRIC>( tree );
   mergefarnodes_time = omp_get_wtime() - beg;
 
   /** CacheFarNodes */
   beg = omp_get_wtime();
   printf( "CacheFarNodes ...\n" ); fflush( stdout );
-  hmlp::spdaskit::CacheFarNodes<NNPRUNE, CACHE>( tree );
+  hmlp::gofmm::CacheFarNodes<NNPRUNE, CACHE>( tree );
   cachefarnodes_time = omp_get_wtime() - beg;
 
   /** plot iteraction matrix */  
-  auto exact_ratio = hmlp::spdaskit::DrawInteraction<true>( tree );
+  auto exact_ratio = hmlp::gofmm::DrawInteraction<true>( tree );
 
 #ifdef HMLP_AVX512
   mkl_set_dynamic( 1 );
@@ -3917,7 +3917,7 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 }; /** end ComputeError() */
 
 
-}; /** end namespace spdaskit */
+}; /** end namespace gofmm */
 }; /** end namespace hmlp */
 
 

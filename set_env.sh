@@ -24,7 +24,7 @@ echo "HMLP_GPU_ARCH = $HMLP_GPU_ARCH"
 echo "HMLP_ARCH = $HMLP_ARCH"
 
 ## Distributed environment poptions (if true, compile with MPI)
-export HMLP_USE_MPI=true;
+export HMLP_USE_MPI=true
 echo "HMLP_USE_MPI = $HMLP_USE_MPI"
 
 ## Compiler options (if false, then use GNU compilers)

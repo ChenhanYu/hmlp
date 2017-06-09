@@ -361,24 +361,24 @@ endif()
 
 
 # Build SPDASKIT test suit
-add_executable (test_spdaskit.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit.cpp)
+add_executable (test_gofmm.x ${CMAKE_SOURCE_DIR}/test/test_gofmm.cpp)
 
-target_link_libraries(test_spdaskit.x hmlp ${MPI_CXX_LIBRARIES})
+target_link_libraries(test_gofmm.x hmlp ${MPI_CXX_LIBRARIES})
 
 if (MPI_CXX_COMPILE_FLAG)
-  set_target_properties(test_spdaskit.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+  set_target_properties(test_gofmm.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
 endif()
 
 if(MPI_LINK_FLAGS)
-  set_target_properties(test_spdaskit.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+  set_target_properties(test_gofmm.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
 endif()
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  target_link_libraries(test_spdaskit.x cudart)
-  cuda_add_cublas_to_target(test_spdaskit.x)
+  target_link_libraries(test_gofmm.x cudart)
+  cuda_add_cublas_to_target(test_gofmm.x)
 endif ()
 if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-  target_link_libraries(test_spdaskit.x magma)
+  target_link_libraries(test_gofmm.x magma)
 endif()
 
 

@@ -1,6 +1,6 @@
 namespace hmlp
 {
-namespace spdaskit
+namespace gofmm
 {
 namespace gpu
 {
@@ -38,6 +38,7 @@ void assemble
   assemble_kernel<<< dimGrid, dimBlock, 0, stream >>>( m, n, a, amap, A );
 };
 
-};
-};
-};
+
+}; /** namespace gpu */ 
+}; /** namespace gofmm */
+}; /** namespace hmlp */
