@@ -187,8 +187,8 @@ void test_gofmm
 
 
   /** Factorization */
-  //T lambda = 1.0;
-  //hmlp::hfamily::Factorize<NODE, T>( tree, lambda ); 
+  T lambda = 1.0;
+  hmlp::hfamily::Factorize<NODE, T>( tree, lambda ); 
 
 
   //#ifdef DUMP_ANALYSIS_DATA

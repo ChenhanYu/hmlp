@@ -90,8 +90,8 @@ class Factor
       if ( !SYMMETRIC ) ipiv.resize( n, 0 );
 
       /** LU or Cholesky factorization */
-      if ( SYMMETRIC ) xgetrf(   n, n, Z.data(), n, ipiv.data() );
-      else             xpotrf( "L", n, Z.data(), n );
+      if ( SYMMETRIC ) xpotrf( "L", n, Z.data(), n );
+      else             xgetrf(   n, n, Z.data(), n, ipiv.data() );
     };
 
 
@@ -204,7 +204,7 @@ class Factor
       /** LU( Z ) */
       xgetrf( sl + sr, sl + sr, Z.data(), sl + sr, ipiv.data() );
 
-    };
+    }; /** end Factorize() */
 
 
     /**    
@@ -351,7 +351,7 @@ class Factor
       this->Vr = &Vr;
       this->Bl = &Bl;
       this->Br = &Br;
-    };
+    }; /** end Factorize() */
 
 
     /**
@@ -873,6 +873,27 @@ class FactorizeTask : public hmlp::Task
 
 
 
+/**
+ *
+ */ 
+template<typename NODE, typename T, typename TREE>
+void Solve( TREE &tree )
+{
+  const bool AUTO_DEPENDENCY = true;
+  const bool USE_RUNTIME = true;
+
+  SolveTask<NODE, T> solvetask;
+  tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( solvetask );
+  printf( "SolveTask\n" ); fflush( stdout );
+
+  if ( USE_RUNTIME ) hmlp_run();
+  printf( "Execute Solve\n" ); fflush( stdout );
+
+
+}; /** end Solve() */
+
+
+
 template<typename NODE, typename T, typename TREE>
 void Factorize( TREE &tree, T lambda )
 {
@@ -886,14 +907,14 @@ void Factorize( TREE &tree, T lambda )
   tree.setup.lambda = lambda;
 
   tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( setupfactortask );
+  printf( "SetupFactorTask\n" ); fflush( stdout );
   tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( factorizetask );
+  printf( "FactorTask\n" ); fflush( stdout );
 
   if ( USE_RUNTIME ) hmlp_run();
+  printf( "Factorize\n" ); fflush( stdout );
 
-
-  printf( "Factorize\n" );
-
-}; /** end void Factorize() */
+}; /** end Factorize() */
 
 
 
