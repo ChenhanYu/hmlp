@@ -39,6 +39,14 @@ set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PAT
 
 
 
+# MPI configurations
+# ---------------------------
+if ($ENV{HMLP_USE_MPI} MATCHES "true")
+  find_package(MPI REQUIRED)
+  include_directories(${MPI_CXX_INCLUDE_PATH})
+endif ()
+
+
 
 # Compiler Options (HMLP can use Intel or GNU compilers.)
 # ---------------------------
@@ -350,9 +358,21 @@ if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
   target_link_libraries(test_skel.x magma)
 endif()
 
+
+
 # Build SPDASKIT test suit
 add_executable (test_spdaskit.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit.cpp)
-target_link_libraries(test_spdaskit.x hmlp)
+
+target_link_libraries(test_spdaskit.x hmlp ${MPI_CXX_LIBRARIES})
+
+if (MPI_CXX_COMPILE_FLAG)
+  set_target_properties(test_spdaskit.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+endif()
+
+if(MPI_LINK_FLAGS)
+  set_target_properties(test_spdaskit.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+endif()
+
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   target_link_libraries(test_spdaskit.x cudart)
   cuda_add_cublas_to_target(test_spdaskit.x)
@@ -411,6 +431,11 @@ message ("CXX          =${CMAKE_CXX_COMPILER}")
 message ("CXXFLAGS     =${CMAKE_CXX_FLAGS}")
 message ("CXX Linker   =${CMAKE_CXX_LINK_FLAGS}")
 message ("EXE Linker   =${CMAKE_EXE_LINKER_FLAGS}")
+message ("MPICXX       =${MPI_CXX_COMPILER}")
+message ("MPICXXFLAGS  =${MPI_CXX_COMPILE_FLAGS}")
+message ("MPICXXINCLUDE=${MPI_CXX_INCLUDE_PATH}")
+message ("MPICXX Linker=${MPI_CXX_LINK_FLAGS}")
+message ("MPICXXLIBS   =${MPI_CXX_LIBRARIES}")
 message ("AR           =${CMAKE_AR}")
 message ("RANLIB       =${CMAKE_RANLIB}")
 message ("===================================================")

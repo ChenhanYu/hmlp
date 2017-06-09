@@ -13,6 +13,7 @@ k=32
 stol=1E-4
 budget=0.03
 nrhs=512
+if [ -z ${HMLP_USE_MPI+x} ]; then mpiexec=""; else mpiexec="mpirun -n 4"; fi
 # ======= Do not change anything below this line ========
 
 echo "@PRIM"
@@ -46,7 +47,7 @@ date
 for filename in "${filearray[@]}"
 do
   echo $filename
-  ./test_spdaskit.x $n $m $k $s $nrhs $stol $budget $filename; status=$?
+  $mpiexec ./test_spdaskit.x $n $m $k $s $nrhs $stol $budget $filename; status=$?
   echo "@STATUS"
   echo $status
 done
