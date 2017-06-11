@@ -11,52 +11,72 @@ class View : public ReadWrite
 {
   public:
 
+    /** empty constructor */
     View() {};
 
     /** constructor for the buffer */
-    View( size_t m, size_t n, hmlp::Data<T> *buff )
-    {
-      this->m = m;
-      this->n = n;
-      this->buff = buff;
+    View( hmlp::Data<T> &buff ) { Set( buff ); };
 
-      assert( m == buff->row() );
-      assert( n == buff->col() );
+    /** base case setup */
+    void Set( hmlp::Data<T> &buff )
+    {
+      this->m    = buff.row();
+      this->n    = buff.col();
+      this->offm = 0;
+      this->offn = 0;
+      this->base = NULL;
+      this->buff = &buff;
     };
 
-    void Set( size_t m, size_t n, size_t mb, size_t nb, size_t offm, size_t offn, hmlp::View<T> *base )
+    /** non-base case setup */
+    void Set( size_t m, size_t n, size_t offm, size_t offn, hmlp::View<T> *base )
     {
-      this->m = m;
-      this->n = n;
-      this->mb = mb;
-      this->nb = nb;
+      this->m    = m;
+      this->n    = n;
       this->offm = offm;
       this->offn = offn;
       this->base = base;
       this->buff = base->buff;
     };
 
+    /** A = [ A1; 
+     *        A2; ] */
     void Partition2x1
     (
       hmlp::View<T> &A1,
-      hmlp::View<T> &A2,
-      size_t mb 
+      hmlp::View<T> &A2, size_t mb 
     )
     {
+      /** readjust mb */
       if ( mb > m ) mb = m;
-
-
+      /** setup A1 */
+      A1.Set(     mb, this->n, this->offm,      this->offn, this );
+      /** setup A2 */
+      A2.Set( m - mb, this->n, this->offm + mb, this->offn, this );
     };
 
+    /** A = [ A1, A2; ] */
+    void Partition1x2
+    (
+      hmlp::View<T> &A1, hmlp::View<T> &A2, size_t nb 
+    )
+    {
+      /** readjust mb */
+      if ( nb > n ) nb = n;
+      /** setup A1 */
+      A1.Set( this->m,     nb, this->offm, this->offn,      this );
+      /** setup A2 */
+      A2.Set( this->m, n - nb, this->offm, this->offn + nb, this );
+    };
 
     /** return the row size of the current view */
-    size_t row() { return m };
+    size_t row() { return m; };
 
     /** return the col size of the current view */
-    size_t col() { return n };
+    size_t col() { return n; };
 
     /** return leading dimension of the buffer */
-    size_t ld()  { return buff->row() };
+    size_t ld()  { return buff->row(); };
 
     /** return the pointer of the current view in the buffer */
     T *data()
@@ -70,10 +90,6 @@ class View : public ReadWrite
     size_t m = 0;
 
     size_t n = 0;
-
-    size_t mb = 0;
-
-    size_t nb = 0;
 
     size_t offm = 0;
 

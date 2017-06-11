@@ -79,7 +79,7 @@ class Factor
     };
 
 
-    template<bool SYMMETRIC>
+    template<bool LU>
     void Factorize( hmlp::Data<T> &Kaa ) 
     {
       assert( isleaf );
@@ -87,11 +87,11 @@ class Factor
 
       /** initialize */
       Z = Kaa;
-      if ( !SYMMETRIC ) ipiv.resize( n, 0 );
+      if ( LU ) ipiv.resize( n, 0 );
 
       /** LU or Cholesky factorization */
-      if ( SYMMETRIC ) xpotrf( "L", n, Z.data(), n );
-      else             xgetrf(   n, n, Z.data(), n, ipiv.data() );
+      if ( LU ) xgetrf(   n, n, Z.data(), n, ipiv.data() );
+      else      xpotrf( "L", n, Z.data(), n );
     };
 
 
@@ -254,7 +254,7 @@ class Factor
         assert( Vr.row() == nr ); assert( Vr.col() == sr );
         if ( SYMMETRIC )
         {
-          assert( Clr.row() == sl ); assert( Clr.col() == sr );
+          assert( Crl.row() == sr ); assert( Crl.col() == sl );
         }
         else
         {
@@ -309,23 +309,24 @@ class Factor
             1.0, Vr.data(), nr, Ur.data(), nr, 
             0.0, VrtUr.data(), sr );
 
-        /** ClrVrtUr */
-        xgemm( "N", "N", sl, sr, sr,
-            1.0, Clr.data(), sl, VrtUr.data(), sr, 
+        /** CrlVltUl */
+        xgemm( "N", "N", sr, sl, sl,
+            1.0, Crl.data(), sr, VltUl.data(), sl, 
             0.0, Z.data() + sl, sl + sr );
+
 
         if ( SYMMETRIC )
         {
-          /** Clr'VltUl */
-          xgemm( "T", "N", sr, sl, sl,
-              1.0, Clr.data(), sl, VltUl.data(), sl, 
+          /** Crl'VrtUr */
+          xgemm( "T", "N", sl, sr, sr,
+              1.0, Crl.data(), sr, VrtUr.data(), sr, 
               0.0, Z.data() + Z.row() * sl, sl + sr );
         }
         else
         {
-          /** CrlVltUl */
-          xgemm( "N", "N", sr, sl, sl, 
-              1.0, Crl.data(), sr, VltUl.data(), sl, 
+          /** ClrVrtUr */
+          xgemm( "N", "N", sl, sr, sr,
+              1.0, Clr.data(), sl, VrtUr.data(), sr, 
               0.0, Z.data() + Z.row() * sl, sl + sr );
         }
       }
@@ -356,11 +357,14 @@ class Factor
 
     /**
      *
-     */ 
+     */
+    template<bool SYMMETRIC>
     void Solve( hmlp::View<T> &b ) 
     {
       if ( isleaf )
       {
+        //printf( "b.row() %lu b.col() %lu b.ld() %lu\n", b.row(), b.col(), b.ld() );
+        assert( b.data() && Z.data() && ipiv.data() );
         /** LU solver */
         xgetrs
         ( 
@@ -386,14 +390,25 @@ class Factor
             1.0, Vr->data(), nr, 
                    b.data(), b.ld(), 
             0.0,  br.data(), sr );
-        /** Clr * Vr' * br */
-        xgemm( "N", "N", sl, br.col(), sr,
-            1.0, Clr.data(), sl, 
-                  br.data(), sr, 
-            0.0,   x.data(), sl + sr );
-        /** Clr' * Vl' * bl */
-        xgemm( "T", "N", sr, bl.col(), sl,
-            1.0, Clr.data(), sl, 
+        if ( SYMMETRIC )
+        {
+          /** Crl' * Vr' * br */
+          xgemm( "T", "N", sl, br.col(), sr,
+              1.0, Crl.data(), sr, 
+                    br.data(), sr, 
+              0.0,   x.data(), sl + sr );
+        }
+        else
+        {
+          /** Clr * Vr' * br */
+          xgemm( "N", "N", sl, br.col(), sr,
+              1.0, Clr.data(), sl, 
+                    br.data(), sr, 
+              0.0,   x.data(), sl + sr );
+        }
+        /** Crl * Vl' * bl */
+        xgemm( "N", "N", sr, bl.col(), sl,
+            1.0, Crl.data(), sr, 
                   bl.data(), sl, 
             0.0,   x.data() + sl, sl + sr );
         /** inv( Z ) * x */
@@ -560,6 +575,10 @@ class Factor
     /** Crl, sr-by-sl (or 0-by-0) */
     hmlp::Data<T> Crl;
 
+    /** a correspinding view of the right hand side of this node */
+    hmlp::View<T> b;
+
+
     /** pointers to children's factors */
     hmlp::Data<T> *Ul = NULL;
     hmlp::Data<T> *Ur = NULL;
@@ -660,25 +679,66 @@ class SetupFactorTask : public hmlp::Task
 
 
 
+/** */
 template<typename NODE, typename T>
-void Solve( NODE *node, hmlp::View<T> &b )
+void SetupSolver( NODE *node, hmlp::Data<T> &b )
 {
+  if ( !node->parent ) node->data.b.Set( b );
+
+  if ( !node->isleaf )
+  {
+    /** b = [ bl; br; ] */
+    node->data.b.Partition2x1( node->lchild->data.b, 
+                               node->rchild->data.b, node->lchild->n );
+    /** recurs */
+    SetupSolver( node->lchild, b );
+    SetupSolver( node->rchild, b );
+  }
+}; /** end SetupSolver() */
+
+
+
+
+/**
+ *  @brief 
+ */ 
+template<bool TRANS, typename NODE, typename T>
+void Solve( NODE *node )
+{
+  
   auto &data = node->data;
-  data.Solve( b );
+  auto &setup = node->setup;
+  auto &K = *setup->K;
+  auto &b = data.b;
+  
+  /** TODO: need to decide to use LU or not */
+  printf( "%lu, m %lu n %lu\n", node->treelist_id, b.row(), b.col() );
+  data.Solve<true>( b );
+ 
+
+  if ( node->isleaf )
+  {
+    printf( "Solve %lu\n", node->treelist_id );
+  }
+  else
+  {
+    printf( "inner Solve %lu\n", node->treelist_id );
+  }
+
+  //auto &data = node->data;
+  //data.Solve( b );
 }; /** end Solve() */
 
 
 /**
  *  @brief
  */ 
-template<typename NODE, typename T>
+template<bool TRANS, typename NODE, typename T>
 class SolveTask : public hmlp::Task
 {
   public:
 
     NODE *arg;
-
-    hmlp::View<T> b;
 
     void Set( NODE *user_arg )
     {
@@ -702,53 +762,76 @@ class SolveTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-
-      if ( !arg->isleaf )
+      if ( TRANS )
       {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        if ( arg->parent )
+          arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+      else
+      {
+        /** clean up dependencies */
+        arg->DependencyCleanUp();
+        arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+
+        if ( !arg->isleaf )
+        {
+          arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+          arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        }
+        else
+        {
+          this->Enqueue();
+        }
       }
     };
 
     void Execute( Worker* user_worker )
     {
-      Solve<NODE, T>( arg, b );
+      Solve<TRANS, NODE, T>( arg );
     };
 
 }; /** end class SolveTask */
 
 
+
+
+/**
+ *
+ */ 
 template<typename NODE, typename T, typename TREE>
-void Solve( TREE &tree, hmlp::Data<T> &b )
+void Solve( TREE &tree, hmlp::Data<T> &potentials )
 {
   const bool AUTO_DEPENDENCY = true;
-  const bool USE_RUNTIME = true;
+  const bool USE_RUNTIME     = true;
 
-  SolveTask<NODE, T> solvetask;
+  SolveTask<false, NODE, T> solvetask1;
+  SolveTask<true,  NODE, T> solvetask2;
 
   /** attach the pointer to the tree structure */
-  tree.setup.b = &b;
+  tree.setup.u = &potentials;
 
-  /** permute weights into w_leaf */
+  /** permute potentials into u_leaf */
   //printf( "Forward permute ...\n" ); fflush( stdout );
-  //beg = omp_get_wtime();
   //int n_nodes = ( 1 << tree.depth );
   //auto level_beg = tree.treelist.begin() + n_nodes - 1;
   //#pragma omp parallel for
   //for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   //{
   //  auto *node = *(level_beg + node_ind);
-  //  weights.GatherColumns<true>( node->lids, node->data.w_leaf );
+  //  potentials.GatherColumns<true>( node->lids, node->data.u_leaf );
   //}
 
+  /** need a downward setup for view  */
+  SetupSolver( tree.treelist[ 0 ], potentials );
 
+  /** */
+  tree.template TraverseUp  <AUTO_DEPENDENCY, USE_RUNTIME>( solvetask1 );
+  //tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( solvetask2 );
+  printf( "SolveTask\n" ); fflush( stdout );
 
-
-
-  tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( solvetask );
-
-
+  hmlp_run();
+  printf( "Execute Solve\n" ); fflush( stdout );
 
 }; /** end Solve() */
 
@@ -776,7 +859,6 @@ void Factorize( NODE *node )
   /** we use this to replace those nop arguments */
   hmlp::Data<T> dummy;
 
-
   if ( node->isleaf )
   {
     auto lambda = setup->lambda;
@@ -787,7 +869,7 @@ void Factorize( NODE *node )
     for ( size_t i = 0; i < Kaa.row(); i ++ ) 
       Kaa[ i * Kaa.row() + i ] += lambda;
     /** LU factorization */
-    data.Factorize<SYMMETRIC>( Kaa );
+    data.Factorize<true>( Kaa );
     /** U = inv( Kaa ) * proj' */
     data.Telescope<SYMMETRIC,  true>( data.U, proj, dummy, dummy );
     /** V = proj' */
@@ -806,7 +888,7 @@ void Factorize( NODE *node )
     /** evluate the skeleton rows and columns */
     auto &amap = node->lchild->data.skels;
     auto &bmap = node->rchild->data.skels;
-    node->data.Clr = K( amap, bmap );
+    node->data.Crl = K( bmap, amap );
     /** SMW factorization */
     data.Factorize<true, true>( Ul, Ur, Vl, Vr, Bl, Br );
     /** telescope U and V */
@@ -817,6 +899,7 @@ void Factorize( NODE *node )
       /** V = [ Vl; Vr ] * proj' */
       data.Telescope<SYMMETRIC, false>( data.V, proj, Vl, Vr );
     }
+    printf( "inner Factorize %lu\n", node->treelist_id );
   }
 }; /** end void Factorize() */
 
@@ -873,25 +956,6 @@ class FactorizeTask : public hmlp::Task
 
 
 
-/**
- *
- */ 
-template<typename NODE, typename T, typename TREE>
-void Solve( TREE &tree )
-{
-  const bool AUTO_DEPENDENCY = true;
-  const bool USE_RUNTIME = true;
-
-  SolveTask<NODE, T> solvetask;
-  tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( solvetask );
-  printf( "SolveTask\n" ); fflush( stdout );
-
-  if ( USE_RUNTIME ) hmlp_run();
-  printf( "Execute Solve\n" ); fflush( stdout );
-
-
-}; /** end Solve() */
-
 
 
 template<typename NODE, typename T, typename TREE>
@@ -909,7 +973,7 @@ void Factorize( TREE &tree, T lambda )
   tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( setupfactortask );
   printf( "SetupFactorTask\n" ); fflush( stdout );
   tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( factorizetask );
-  printf( "FactorTask\n" ); fflush( stdout );
+  //printf( "FactorTask\n" ); fflush( stdout );
 
   if ( USE_RUNTIME ) hmlp_run();
   printf( "Factorize\n" ); fflush( stdout );

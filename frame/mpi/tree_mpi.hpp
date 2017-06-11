@@ -1,16 +1,21 @@
-#ifndef DISTRIBUTED_TREE_HPP
-#define DISTRIBUTED_TREE_HPP
+#ifndef TREE_MPI_HPP
+#define TREE_MPI_HPP
 
 #include <mpi.h>
-
 #include <tree.hpp>
 
 namespace hmlp
 {
-namespace tree_mpi
+namespace tree
+{
+/** Obviously, this is the distributed version with mpi. */
+namespace mpi
 {
 
 
+/**
+ *
+ */ 
 template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
 class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 {
@@ -19,20 +24,20 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     /** inherit all parameters from hmlp::tree::Node */
 
 
-    Node
-    (
-      SETUP *user_setup,
-      size_t n, size_t l, 
-      Node *parent 
-    ) : hmlp::tree::Node( setup, )
-    {
-    };
+    //Node
+    //(
+    //  SETUP *user_setup,
+    //  size_t n, size_t l, 
+    //  Node *parent 
+    //) : hmlp::tree::Node( user_setup, n, l, parent )
+    //{
+    //};
 
-    void Split()
-    {
+    //void Split()
+    //{
 
-      child = new Node( setup,  );
-    };
+    //  child = new Node( setup,  );
+    //};
 
   private:
 
@@ -73,7 +78,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>
     int ierr = 0;
 
     /** inherit constructor */
-    Tree() : hmlp::tree::Tree::Tree() 
+    Tree() 
     {
       ierr = MPI_Comm_size( worldcomm, &worldsize );
       ierr = MPI_Comm_rank( worldcomm, &worldrank );
@@ -81,7 +86,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>
     };
 
     /** inherit deconstructor */
-    ~Tree() : hmlp::tree::Tree::~Tree() {};
+    ~Tree() {};
 
     /** */
     void Allocate( NODE *node )
@@ -133,7 +138,15 @@ class Tree : public hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>
       KNNTASK &dummy
     )
     {
-    };
+      /** k-by-N */
+      hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
+
+
+
+      return NN;
+
+    }; /** end AllNearestNeighbor() */
+
     
   private:
 
@@ -143,7 +156,8 @@ class Tree : public hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>
 }; /** end class Tree */
 
 
-}; /** end namespace tree_mpi */
+}; /** end namespace mpi */
+}; /** end namespace tree */
 }; /** end namespace hmlp */
 
-#endif /** define DISTRIBUTED_TREE_HPP */
+#endif /** define TREE_MPI_HPP */

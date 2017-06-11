@@ -67,6 +67,9 @@ else ($ENV{HMLP_USE_INTEL} MATCHES "true")
 endif ()
 
 
+
+
+
 # Project specification.
 # project (HMLP)
 # set (HMLP_VERSION_MAJOR 1)
@@ -161,6 +164,13 @@ endif ()
 # ---------------------------
 # set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_PTHREAD_RUNTIME")
 
+
+# MPI
+# ---------------------------
+if ($ENV{HMLP_USE_MPI} MATCHES "true")
+  set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DHMLP_USE_MPI")
+endif ()
+
 # Dump analysis data to google site
 # ---------------------------
 if ($ENV{HMLP_ANALYSIS_DATA} MATCHES "true")
@@ -203,7 +213,7 @@ endif()
 
 # Headers.
 # ---------------------------
-include_directories ("include" "frame")
+include_directories ("include" "frame" "frame/mpi")
 include_directories ( "kernel/reference" "kernel/${HMLP_ARCH}" )
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")

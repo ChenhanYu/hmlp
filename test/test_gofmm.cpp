@@ -1,3 +1,4 @@
+/** TODO: this header needs a precompiled region */
 #include <mpi.h>
 
 #include <tuple>
@@ -8,19 +9,7 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <math.h>
-#include <hmlp.h>
-#include <hmlp_blas_lapack.h>
-#include <hmlp_util.hpp>
 #include <limits>
-
-/** TODO: maybe I should only include gofmm? */
-#include <data.hpp>
-#include <tree.hpp>
-#include <gofmm.hpp>
-
-#ifdef HMLP_USE_CUDA
-#include <hmlp_gpu.hpp>
-#endif
 
 #ifdef HMLP_AVX512
 /** this is for hbw_malloc() and hnw_free */
@@ -31,13 +20,24 @@
 #include <mkl.h>
 #endif
 
-using namespace hmlp::tree;
+//#ifdef HMLP_USE_MPI
+//#include <gofmm_mpi.hpp>
+//#else
+#include <gofmm.hpp>
+//#endif
+
+#ifdef HMLP_USE_CUDA
+#include <hmlp_gpu.hpp>
+#endif
 
 #define GFLOPS 1073741824 
 #define TOLERANCE 1E-13
 
 /** by default, we use binary tree */
 #define N_CHILDREN 2
+
+using namespace hmlp::tree;
+using namespace hmlp::gofmm;
 
 
 template<
@@ -62,7 +62,11 @@ void test_gofmm
   /** instantiation for the Spd-Askit tree */
   using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA  = hmlp::gofmm::Data<T>;
+//#ifdef HMLP_USE_MPI
+//  using NODE  = hmlp::tree::mpi::Node<SETUP, N_CHILDREN, DATA, T>;
+//#else
   using NODE  = Node<SETUP, N_CHILDREN, DATA, T>;
+//#endif
  
   /** all timers */
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
@@ -72,8 +76,13 @@ void test_gofmm
   const bool CACHE = true;
 
   /** compress K */
-  auto tree = hmlp::gofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
+//#ifdef HMLP_USE_MPI
+//  auto tree = hmlp::gofmm::mpi::Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
+//  ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+//#else
+  auto tree = Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
   ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+//#endif
 
 
   // ------------------------------------------------------------------------
@@ -95,7 +104,11 @@ void test_gofmm
 
   /** Evaluate u ~ K * w */
   hmlp::Data<T> w( nrhs, n ); w.rand();
-  auto u = hmlp::gofmm::Evaluate<true, false, true, true, CACHE, NODE>( tree, w );
+//#ifdef HMLP_USE_MPI
+//  auto u = hmlp::gofmm::mpi::Evaluate<true, false, true, true, CACHE, NODE>( tree, w );
+//#else
+  auto u = Evaluate<true, false, true, true, CACHE, NODE>( tree, w );
+//#endif
 
 
 #ifdef HMLP_AVX512
@@ -147,17 +160,17 @@ void test_gofmm
   {
     hmlp::Data<T> potentials;
     /** ASKIT treecode with NN pruning */
-    hmlp::gofmm::Evaluate<false, true>( tree, i, potentials );
-    auto nnerr = hmlp::gofmm::ComputeError( tree, i, potentials );
+    Evaluate<false, true>( tree, i, potentials );
+    auto nnerr = ComputeError( tree, i, potentials );
     /** ASKIT treecode without NN pruning */
-    hmlp::gofmm::Evaluate<false, false>( tree, i, potentials );
-    auto nonnerr = hmlp::gofmm::ComputeError( tree, i, potentials );
+    Evaluate<false, false>( tree, i, potentials );
+    auto nonnerr = ComputeError( tree, i, potentials );
     /** get results from GOFMM */
     for ( size_t p = 0; p < potentials.col(); p ++ )
     {
       potentials[ p ] = u( p, i );
     }
-    auto fmmerr = hmlp::gofmm::ComputeError( tree, i, potentials );
+    auto fmmerr = ComputeError( tree, i, potentials );
 
     /** only print 10 values. */
     if ( i < 10 )
@@ -184,13 +197,17 @@ void test_gofmm
   T lambda = 1.0;
   hmlp::hfamily::Factorize<NODE, T>( tree, lambda ); 
 
+  /** Solving */
+  hmlp::Data<T> rhs( n, nrhs ); rhs.rand();
+  hmlp::hfamily::Solve<NODE, T>( tree, rhs );
+
+
+
 
   //#ifdef DUMP_ANALYSIS_DATA
   hmlp::gofmm::Summary<NODE> summary;
   tree.Summary( summary );
   summary.Print();
-
-
 
 
 
@@ -261,6 +278,9 @@ void test_gofmm_setup
 
 
 
+/**
+ *
+ */ 
 int main( int argc, char *argv[] )
 {
   /** default adaptive scheme */
@@ -325,6 +345,7 @@ int main( int argc, char *argv[] )
   }
 
 
+  /** Message Passing Interface */
   int size = -1, rank = -1;
   MPI_Init( &argc, &argv );
   MPI_Comm_size( MPI_COMM_WORLD, &size );
@@ -453,5 +474,9 @@ int main( int argc, char *argv[] )
   /** HMLP API call to terminate the runtime */
   hmlp_finalize();
 
+  /** Message Passing Interface */
+  MPI_Finalize();
+
   return 0;
-};
+
+}; /** end main() */

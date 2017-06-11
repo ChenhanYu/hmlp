@@ -94,7 +94,7 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     hmlp::Data<T> *u;
 
     /** rhs-by-n all right hand sides */
-    hmlp::Data<T> *b;
+    //hmlp::Data<T> *b;
 
     /** regularization */
     T lambda = 0.0;

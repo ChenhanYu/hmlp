@@ -101,7 +101,7 @@ class PermuteTask : public hmlp::Task
         gids.insert( gids.end(), rgids.begin(), rgids.end() );
       }
     };
-}; // end class SkeletonizeTask
+}; /** end class PermuteTask */
 
 
 template<typename NODE>
@@ -1119,9 +1119,10 @@ class Tree
     };
 
 
-	template<bool UPWARD = true, bool UNORDERED = true, bool DOWNWARD = true, class TASK1, class TASK2, class TASK3>
-	void UpDown( TASK1 &dummy1, TASK2 &dummy2, TASK3 &dummy3 )
-	{
+    template<bool UPWARD = true, bool UNORDERED = true, bool DOWNWARD = true, 
+      class TASK1, class TASK2, class TASK3>
+    void UpDown( TASK1 &dummy1, TASK2 &dummy2, TASK3 &dummy3 )
+    {
       if ( UPWARD )
       {
         #pragma omp parallel
@@ -1185,22 +1186,22 @@ class Tree
 
     template<class TASK>
     inline void OMPTraverseUp( TASK &dummy )
-	{
+    {
       for ( int me = treelist.size(); me >= 1; me -- )
-	  {
-	    int lchild = me * 2;
-	    int rchild = lchild + 1;
+      {
+        int lchild = me * 2;
+        int rchild = lchild + 1;
         #pragma omp task depend(in:omptasklist[lchild],omptasklist[rchild]) depend(out:omptasklist[me])
-	    {
+        {
           auto *node = treelist[ me - 1 ];
-	  	  auto *task = new TASK();
-	  	  task->Set( node );
-	  	  task->Execute( NULL );
-	  	  delete task;
-	      //printf( "me %d\n", me );
-	    }
-	  }
-	}; // end OMPTraverseUp()
+          auto *task = new TASK();
+          task->Set( node );
+          task->Execute( NULL );
+          delete task;
+          //printf( "me %d\n", me );
+        }
+      }
+    }; // end OMPTraverseUp()
 
 
     template<class TASK>
