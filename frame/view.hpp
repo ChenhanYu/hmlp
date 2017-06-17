@@ -17,6 +17,9 @@ class View : public ReadWrite
     /** constructor for the buffer */
     View( hmlp::Data<T> &buff ) { Set( buff ); };
 
+    /** destructor */
+    //~View() { printf( "~View()\n" ); fflush( stdout ); };
+
     /** base case setup */
     void Set( hmlp::Data<T> &buff )
     {
@@ -24,13 +27,15 @@ class View : public ReadWrite
       this->n    = buff.col();
       this->offm = 0;
       this->offn = 0;
-      this->base = NULL;
+      this->base = this;
       this->buff = &buff;
     };
 
     /** non-base case setup */
     void Set( size_t m, size_t n, size_t offm, size_t offn, hmlp::View<T> *base )
     {
+      assert( offm <= base->buff->row() );
+      assert( offn <= base->buff->col() );
       this->m    = m;
       this->n    = n;
       this->offm = offm;
@@ -38,6 +43,16 @@ class View : public ReadWrite
       this->base = base;
       this->buff = base->buff;
     };
+
+    /** subview operator */
+    template<typename TINDEX>
+    T & operator () ( TINDEX i, TINDEX j )
+    {
+      assert( offm + i < buff->row() );
+      assert( offn + j < buff->col() );
+      return *( data() + j * ld() + i );
+    };
+
 
     /** A = [ A1; 
      *        A2; ] */
@@ -84,6 +99,13 @@ class View : public ReadWrite
       assert( buff );
       return ( buff->data() + offn * buff->row() + offm );
     };
+
+    /** print out all information */
+    void Print()
+    {
+      printf( "[ %5lu+%5lu:%5lu ][ %5lu+%5lu:%5lu ]\n",
+          offm, m, buff->row(), offn, n, buff->col() );
+    }; 
 
   private:
 

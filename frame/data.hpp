@@ -177,13 +177,20 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       return std::make_tuple( m, n );
     };
 
+    /** ESSENTIAL: return number of coumns */
+    std::size_t row() { return m; };
+
+    /** ESSENTIAL: return number of rows */
+    std::size_t col() { return n; };
+
+    /** ESSENTIAL: return an element */
     template<typename TINDEX>
-    inline T operator()( TINDEX i, TINDEX j )
+    inline T & operator()( TINDEX i, TINDEX j )
     {
       return (*this)[ m * j + i ];
     };
 
-
+    /** ESSENTIAL: return a submatrix */
     template<typename TINDEX>
     inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
@@ -323,10 +330,6 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     template<bool USE_LOWRANK>
     void randspd() { randspd<USE_LOWRANK>( 0.0, 1.0 ); };
 
-    std::size_t row() { return m; };
-
-    std::size_t col() { return n; };
-
     void Print()
     {
       printf( "Data in %lu * %lu\n", m, n );
@@ -387,7 +390,6 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       DeviceMemory<T>::FetchD2H( dev, m * n * sizeof(T), this->data() );
     };
 #endif
-
 
   private:
 

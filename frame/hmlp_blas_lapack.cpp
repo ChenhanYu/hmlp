@@ -10,34 +10,51 @@
 
 extern "C"
 {
-  void dgemm_( const char *transA, const char *transB, 
+  /** BLAS level-1 */
+  double ddot_(
+      int *n,
+      double *dx, int *incx,
+      double *dy, int *incy );
+  float sdot_(
+      int *n,
+      float *dx, int *incx,
+      float *dy, int *incy );
+  /** BLAS level-3 */
+  void dgemm_( 
+      const char *transA, const char *transB, 
       int *m, int *n, int *k, 
       double *alpha,
       double *A, int *lda, 
       double *B, int *ldb, double *beta, 
       double *C, int *ldc );
-  void sgemm_( const char *transA, const char *transB, 
+  void sgemm_( 
+      const char *transA, const char *transB, 
       int *m, int *n, int *k, 
       float *alpha,
       float *A, int *lda, 
       float *B, int *ldb, float *beta, 
       float *C, int *ldc );
-  void dtrsm_( const char *side, const char *uplo,
-	  const char *transA, const char *diag,
-	  int *m, int *n,
-	  double *alpha,
-	  double *A, int *lda,
-	  double *B, int *ldb );
-  void strsm_( const char *side, const char *uplo,
-	  const char *transA, const char *diag,
-	  int *m, int *n,
-	  float *alpha,
-	  float *A, int *lda,
-	  float *B, int *ldb );
-  void dpotrf_( const char *uplo, 
-    int *n, double *A, int *lda, int *info );
-  void spotrf_( const char *uplo, 
-    int *n, float *A, int *lda, int *info );
+  void dtrsm_( 
+      const char *side, const char *uplo,
+      const char *transA, const char *diag,
+      int *m, int *n,
+      double *alpha,
+      double *A, int *lda,
+      double *B, int *ldb );
+  void strsm_( 
+      const char *side, const char *uplo,
+      const char *transA, const char *diag,
+      int *m, int *n,
+      float *alpha,
+      float *A, int *lda,
+      float *B, int *ldb );
+  /** LAPACK */
+  void dpotrf_( 
+      const char *uplo, 
+      int *n, double *A, int *lda, int *info );
+  void spotrf_( 
+      const char *uplo, 
+      int *n, float *A, int *lda, int *info );
   void dgetrf_(
       int *m, int *n, 
       double *A, int *lda, int *ipiv, int *info );
@@ -48,12 +65,26 @@ extern "C"
       const char *trans,
       int *m, int *nrhs, 
       double *A, int *lda, int *ipiv,
-      double *B, int *ldb, int *info);
+      double *B, int *ldb, int *info );
   void sgetrs_(
       const char *trans,
       int *m, int *nrhs, 
       float *A, int *lda, int *ipiv,
-      float *B, int *ldb, int *info);
+      float *B, int *ldb, int *info );
+  void dgecon_(
+      const char *norm,
+      int *n,
+      double *A, int *lda, 
+      double *anorm, 
+      double *rcond, 
+      double *work, int *iwork, int *info );
+  void sgecon_(
+      const char *norm,
+      int *n,
+      float *A, int *lda, 
+      float *anorm, 
+      float *rcond, 
+      float *work, int *iwork, int *info );
   void dgeqrf_(
       int *m, int *n, 
       double *A, int *lda, 
@@ -110,19 +141,52 @@ extern "C"
       float *A, int *lda,
       float *B, int *ldb,
       float *work, int *lwork, int *info );
-  double ddot_(
-      int *n,
-      double *dx, int *incx,
-      double *dy, int *incy );
-  float sdot_(
-      int *n,
-      float *dx, int *incx,
-      float *dy, int *incy );
-};
+}; /** end extern "C" */
 
 
 namespace hmlp
 {
+
+/** 
+ *  BLAS level-1 wrappers: DOT 
+ */
+
+
+/**
+ *  @brief DDOT wrapper
+ */ 
+double xdot( int n, double *dx, int incx, double *dy, int incy )
+{
+  double ret_val;
+#ifdef USE_BLAS
+  ret_val = ddot_( &n, dx, &incx, dy, &incy );
+#else
+  printf( "xdot must enables USE_BLAS.\n" );
+#endif
+  return ret_val;
+}; /** end xdot() */
+
+
+
+/**
+ *  @brief SDOT wrapper
+ */ 
+float xdot( int n, float *dx, int incx, float *dy, int incy )
+{
+  float ret_val;
+#ifdef USE_BLAS
+  ret_val = sdot_( &n, dx, &incx, dy, &incy );
+#else
+  printf( "xdot must enables USE_BLAS.\n" );
+#endif
+  return ret_val;
+}; /** end xdot() */
+
+
+/** 
+ *  BLAS level-3 wrappers: GEMM, TRSM 
+ */
+
 
 /**
  *  @brief DGEMM wrapper
@@ -323,6 +387,12 @@ void xtrsm
 
 
 /**
+ *  LAPACK routine wrappers: POTR(F,S), GETR(F,S), GECON, GEQRF, 
+ *  ORGQR, ORMQR, GEQP3, GELS
+ */
+
+
+/**
  *  @brief DPOTRF wrapper
  */ 
 void xpotrf( const char *uplo, int n, double *A, int lda )
@@ -333,7 +403,7 @@ void xpotrf( const char *uplo, int n, double *A, int lda )
 #else
   printf( "xpotrf must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xpotrf() */
 
 
 /**
@@ -347,54 +417,36 @@ void xpotrf( const char *uplo, int n, float *A, int lda )
 #else
   printf( "xpotrf must enables USE_BLAS.\n" );
 #endif
-};
-
-
+}; /** end xpotrf() */
 
 
 
 /**
  *  @brief DGETRF wrapper
  */ 
-void xgetrf
-(
-  int m, int n, 
-  double *A, int lda, int *ipiv
-)
+void xgetrf( int m, int n, double *A, int lda, int *ipiv )
 {
 #ifdef USE_BLAS
   int info;
-  dgetrf_
-  (
-    &m, &n, 
-    A, &lda, ipiv, &info
-  );
+  dgetrf_( &m, &n, A, &lda, ipiv, &info );
 #else
   printf( "xgetrf must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xgetrf() */
 
 
 /**
  *  @brief SGETRF wrapper
  */ 
-void xgetrf
-(
-  int m, int n, 
-  float *A, int lda, int *ipiv
-)
+void xgetrf( int m, int n, float *A, int lda, int *ipiv )
 {
 #ifdef USE_BLAS
   int info;
-  sgetrf_
-  (
-    &m, &n, 
-    A, &lda, ipiv, &info
-  );
+  sgetrf_( &m, &n, A, &lda, ipiv, &info );
 #else
   printf( "xgetrf must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xgetrf() */
 
 
 /**
@@ -420,7 +472,7 @@ void xgetrs
 #else
   printf( "xgetrs must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xgetrs() */
 
 
 /**
@@ -446,9 +498,68 @@ void xgetrs
 #else
   printf( "xgetrs must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xgetrs() */
 
 
+/**
+ *  @brief DGECON wrapper
+ */ 
+void xgecon
+(
+  const char *norm,
+  int n,
+  double *A, int lda, 
+  double anorm, 
+  double *rcond, 
+  double *work, int *iwork 
+)
+{
+#ifdef USE_BLAS
+  int info;
+  dgecon_
+  (
+    norm,
+    &n,
+    A, &lda,
+    &anorm,
+    rcond,
+    work, iwork, &info
+  );
+#else
+  printf( "xgecon must enables USE_BLAS.\n" );
+#endif
+}; /** end xgecon() */
+
+
+
+/**
+ *  @brief SGECON wrapper
+ */ 
+void xgecon
+(
+  const char *norm,
+  int n,
+  float *A, int lda, 
+  float anorm, 
+  float *rcond, 
+  float *work, int *iwork 
+)
+{
+#ifdef USE_BLAS
+  int info;
+  sgecon_
+  (
+    norm,
+    &n,
+    A, &lda,
+    &anorm,
+    rcond,
+    work, iwork, &info
+  );
+#else
+  printf( "xgecon must enables USE_BLAS.\n" );
+#endif
+}; /** end xgecon() */
 
 
 /**
@@ -478,7 +589,7 @@ void xgeqrf
 #else
   printf( "xgeqrf must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xgeqrf() */
 
 
 
@@ -509,7 +620,7 @@ void xgeqrf
 #else
   printf( "xgeqrf must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xgeqrf() */
 
 
 /**
@@ -535,7 +646,8 @@ void xorgqr
 #else
   printf( "xorgqr must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xorgqr() */
+
 
 /**
  *  @brief SORGQR wrapper
@@ -560,7 +672,7 @@ void xorgqr
 #else
   printf( "xorgqr must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xorgqr() */
 
 
 /**
@@ -590,7 +702,7 @@ void xormqr
 #else
   printf( "xormqr must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xormqr() */
 
 
 /**
@@ -620,11 +732,7 @@ void xormqr
 #else
   printf( "xormqr must enables USE_BLAS.\n" );
 #endif
-};
-
-
-
-
+}; /** end xormqr() */
 
 
 /**
@@ -654,7 +762,7 @@ void xgeqp3
 #else
   printf( "xgeqp3 must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end geqp3() */
 
 
 /**
@@ -684,7 +792,7 @@ void xgeqp3
 #else
   printf( "xgeqp3 must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end geqp3() */
 
 
 /**
@@ -716,7 +824,7 @@ void xgels
 #else
   printf( "xgels must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end gels() */
 
 
 /**
@@ -748,57 +856,8 @@ void xgels
 #else
   printf( "xgels must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end gels() */
 
 
-/**
- *  @brief DDOT wrapper
- */ 
-double xdot
-(
-  int n,
-  double *dx, int incx,
-  double *dy, int incy
-)
-{
-  double ret_val;
-#ifdef USE_BLAS
-  ret_val =  ddot_
-             (
-               &n,
-               dx, &incx,
-               dy, &incy
-             );
-#else
-  printf( "xdot must enables USE_BLAS.\n" );
-#endif
-  return ret_val;
-};
 
-
-/**
- *  @brief SDOT wrapper
- */ 
-float xdot
-(
-  int n,
-  float *dx, int incx,
-  float *dy, int incy
-)
-{
-  float ret_val;
-#ifdef USE_BLAS
-  ret_val =  sdot_
-             (
-               &n,
-               dx, &incx,
-               dy, &incy
-             );
-#else
-  printf( "xdot must enables USE_BLAS.\n" );
-#endif
-  return ret_val;
-};
-
-
-}; // end namespace hmlp
+}; /** end namespace hmlp */

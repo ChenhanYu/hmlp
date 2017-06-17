@@ -16,7 +16,9 @@
 #include <skel.hpp>
 #include <view.hpp>
 
-#define DEBUG_IASKIT 1
+#include <gofmm.hpp>
+
+//#define DEBUG_IGOFMM 1
 
 namespace hmlp
 {
@@ -87,29 +89,38 @@ class Factor
 
       /** initialize */
       Z = Kaa;
-      if ( LU ) ipiv.resize( n, 0 );
 
       /** LU or Cholesky factorization */
-      if ( LU ) xgetrf(   n, n, Z.data(), n, ipiv.data() );
-      else      xpotrf( "L", n, Z.data(), n );
-    };
+      if ( LU ) 
+      {
+        ipiv.resize( n, 0 );
 
+        /** compute 1-norm of Z */
+        T nrm1 = 0.0;
+        for ( size_t i = 0; i < Z.size(); i ++ ) 
+          nrm1 += std::abs( Z[ i ] );
+        printf( "1-norm\n" ); fflush( stdout );
 
-    /** also compute inv( K ) * P' */
-    //void Factorize( hmlp::Data<T> &K, hmlp::Data<T> &P ) 
-    //{
-    //  /** s-by-n */
-    //  assert( P.row() == s ); assert( P.col() == n );
+        /** pivoted LU factorization */
+        xgetrf(   n, n, Z.data(), n, ipiv.data() );
+        printf( "getrf\n" ); fflush( stdout );
 
-    //  /** n-by-s; inv( K )* U = inv( K ) * P' */
-    //  U.resize( n, s );
-    //  for ( size_t j = 0; j < n; j ++ )
-    //    for ( size_t i = 0; i < s; i ++ )
-    //      U[ i * n + j ] = P[ j * s + i ];
-
-    //  /** K = LU, and compute inv( K ) * P' */
-    //  Factorize( K );
-    //};
+        /** compute 1-norm condition number */
+        T rcond1 = 0.0;
+        hmlp::Data<T> work( Z.row(), 4 );
+        std::vector<int> iwork( Z.row() );
+        xgecon( "1", Z.row(), Z.data(), Z.row(), nrm1, 
+            &rcond1, work.data(), iwork.data() );
+        if ( 1.0 / rcond1 > 1E+6 )
+          printf( "Warning! large 1-norm condition number %3.1E, nrm1( Z ) %3.1E\n", 
+              1.0 / rcond1, nrm1 );
+      }
+      else /** Cholesky factorization */ 
+      {
+        printf( "bug\n" ); exit( 1 );
+        xpotrf( "L", n, Z.data(), n );
+      }
+    }; /** end Factorize() */
 
 
     /** generate symmetric factorization I + UCU' = ( I + UXU' )( I + UXU' )' */
@@ -234,44 +245,33 @@ class Factor
       hmlp::Data<T> &Ul, 
       /** Ur,  nr-by-sr */
       hmlp::Data<T> &Ur, 
-      /** Vl,  nl-by-sl (or 0-by-0) */
+      /** Vl,  nl-by-sr */
       hmlp::Data<T> &Vl,
-      /** Vr,  nr-by-sr (or 0-by-0) */
-      hmlp::Data<T> &Vr,
-      /** Vl,  nl-by-sr (or 0-by-0) */
-      hmlp::Data<T> &Bl,
-      /** Vr,  nr-by-sl (or 0-by-0) */
-      hmlp::Data<T> &Br
+      /** Vr,  nr-by-sr */
+      hmlp::Data<T> &Vr
     )
     {
       assert( !isleaf );
       assert( Ul.row() == nl ); assert( Ul.col() == sl );
       assert( Ur.row() == nr ); assert( Ur.col() == sr );
+      assert( Vl.row() == nl ); assert( Vl.col() == sl );
+      assert( Vr.row() == nr ); assert( Vr.col() == sr );
 
-      if ( TWOSIDED )
+      if ( SYMMETRIC )
       {
-        assert( Vl.row() == nl ); assert( Vl.col() == sl );
-        assert( Vr.row() == nr ); assert( Vr.col() == sr );
-        if ( SYMMETRIC )
-        {
-          assert( Crl.row() == sr ); assert( Crl.col() == sl );
-        }
-        else
-        {
-          assert( Clr.row() == sl ); assert( Clr.col() == sr );
-          assert( Crl.row() == sr ); assert( Crl.col() == sl );
-        }
+        assert( Crl.row() == sr ); assert( Crl.col() == sl );
       }
       else
       {
-        assert( Bl.row() == nl ); assert( Bl.col() == sr );
-        assert( Br.row() == nr ); assert( Br.col() == sl );
+        assert( Clr.row() == sl ); assert( Clr.col() == sr );
+        assert( Crl.row() == sr ); assert( Crl.col() == sl );
       }
      
       /**  I + CVtU =  [        I  ClrVrtUr
         *                CrlVltUl         I ] 
         *  I +  BtU =  [        I     BrtUr
         *                   BltUl         I ] */
+      Z.resize( 0, 0 );
       Z.resize( sl + sr, sl + sr, 0.0 );
 
       /** pivoting row indices */
@@ -294,147 +294,306 @@ class Factor
         }
       }
 
-      if ( TWOSIDED )
+      std::vector<T> VltUl( sl * sl, 0.0 );
+      std::vector<T> VrtUr( sr * sr, 0.0 );
+
+      /** VltUl */
+      xgemm( "T", "N", sl, sl, nl, 
+          1.0,    Vl.data(), nl, 
+                  Ul.data(), nl, 
+          0.0, VltUl.data(), sl );
+
+      /** VrtUr */
+      xgemm( "T", "N", sr, sr, nr, 
+          1.0,    Vr.data(), nr, 
+                  Ur.data(), nr, 
+          0.0, VrtUr.data(), sr );
+
+      /** CrlVltUl */
+      xgemm( "N", "N", sr, sl, sl,
+          1.0,   Crl.data(), sr, 
+               VltUl.data(), sl, 
+          0.0,     Z.data() + sl, sl + sr );
+
+
+      if ( SYMMETRIC )
       {
-        std::vector<T> VltUl( sl * sl, 0.0 );
-        std::vector<T> VrtUr( sr * sr, 0.0 );
-
-        /** VltUl */
-        xgemm( "T", "N", sl, sl, nl, 
-            1.0, Vl.data(), nl, Ul.data(), nl, 
-            0.0, VltUl.data(), sl );
-
-        /** VrtUr */
-        xgemm( "T", "N", sr, sr, nr, 
-            1.0, Vr.data(), nr, Ur.data(), nr, 
-            0.0, VrtUr.data(), sr );
-
-        /** CrlVltUl */
-        xgemm( "N", "N", sr, sl, sl,
-            1.0, Crl.data(), sr, VltUl.data(), sl, 
-            0.0, Z.data() + sl, sl + sr );
-
-
-        if ( SYMMETRIC )
-        {
-          /** Crl'VrtUr */
-          xgemm( "T", "N", sl, sr, sr,
-              1.0, Crl.data(), sr, VrtUr.data(), sr, 
-              0.0, Z.data() + Z.row() * sl, sl + sr );
-        }
-        else
-        {
-          /** ClrVrtUr */
-          xgemm( "N", "N", sl, sr, sr,
-              1.0, Clr.data(), sl, VrtUr.data(), sr, 
-              0.0, Z.data() + Z.row() * sl, sl + sr );
-        }
+        /** Crl'VrtUr */
+        xgemm( "T", "N", sl, sr, sr,
+            1.0,   Crl.data(), sr, 
+                 VrtUr.data(), sr, 
+            0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
       }
       else
       {
-        /** BltUl */
-        xgemm( "T", "N", sr, sl, nl, 
-            1.0, Bl.data(), nl, Ul.data(), nl, 
-            0.0, Z.data() + sl, sl + sr );
-        /** BrtUr */
-        xgemm( "T", "N", sl, sr, nr, 
-            1.0, Br.data(), nr, Ur.data(), nr, 
-            0.0, Z.data() + Z.row() * sl, sl + sr );
+        printf( "bug\n" ); exit( 1 );
+        /** ClrVrtUr */
+        xgemm( "N", "N", sl, sr, sr,
+            1.0,   Clr.data(), sl, 
+                 VrtUr.data(), sr, 
+            0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
       }
 
+      /** compute 1-norm of Z */
+      T nrm1 = 0.0;
+      for ( size_t i = 0; i < Z.size(); i ++ ) 
+        nrm1 += std::abs( Z[ i ] );
+      printf( "Compute 1-norm Z.size() %lu\n", Z.size() ); fflush(stdout );
+
       /** LU factorization */
+      printf( "Z.row() %lu Z.col() %lu ipiv.size() %lu\n",
+          Z.row(), Z.col(), ipiv.size() ); fflush( stdout );
       xgetrf( Z.row(), Z.col(), Z.data(), Z.row(), ipiv.data() );
+      printf( "getrf\n" ); fflush( stdout );
 
       /** record points of children factors */
       this->Ul = &Ul;
       this->Ur = &Ur;
       this->Vl = &Vl;
       this->Vr = &Vr;
-      this->Bl = &Bl;
-      this->Br = &Br;
+      printf( "store pointers\n" ); fflush( stdout );
+
+      /** compute 1-norm condition number */
+      T rcond1 = 0.0;
+      hmlp::Data<T> work( Z.row(), 4 );
+      std::vector<int> iwork( Z.row() );
+      xgecon( "1", Z.row(), Z.data(), Z.row(), nrm1, 
+          &rcond1, work.data(), iwork.data() );
+      if ( 1.0 / rcond1 > 1E+6 )
+        printf( "Warning! large 1-norm condition number %3.1E\n", 
+            1.0 / rcond1 ); fflush( stdout );
+
     }; /** end Factorize() */
 
-
-    /**
+    /** 
      *
      */
     template<bool SYMMETRIC>
-    void Solve( hmlp::View<T> &b ) 
+    void Multiply( hmlp::View<T> &bl, hmlp::View<T> &br )
     {
-      if ( isleaf )
+      assert( !isleaf );
+     
+      std::vector<T> ta( ( sl + sr ) * nrhs );
+      std::vector<T> tl(      sl * nrhs );
+      std::vector<T> tr(      sr * nrhs );
+
+      /** Vl' * bl */
+      xgemm( "T", "N", sl, nrhs, nl,
+          1.0, Vl->data(), nl, 
+                bl.data(), bl.ld(), 
+          0.0,  tl.data(), sl );
+      /** Vr' * br */
+      xgemm( "T", "N", sr, nrhs, nr,
+          1.0, Vr->data(), nr, 
+                br.data(), br.ld(), 
+          0.0,  tr.data(), sr );
+
+      /** Crl * Vl' * bl */
+      xgemm( "N", "N", sr, nrhs, sl,
+          1.0, Crl.data(), sr, 
+                tl.data(), sl, 
+          0.0,  ta.data() + sl, sl + sr );
+
+      if ( SYMMETRIC )
       {
-        //printf( "b.row() %lu b.col() %lu b.ld() %lu\n", b.row(), b.col(), b.ld() );
-        assert( b.data() && Z.data() && ipiv.data() );
-        /** LU solver */
-        xgetrs
-        ( 
-          "N", b.row(), b.col(), 
-          Z.data(), Z.row(), ipiv.data(), 
-          b.data(), b.ld() 
-        );
+        /** Crl' * Vr' * br */
+        xgemm( "T", "N", sl, nrhs, sr,
+            1.0, Crl.data(), sr, 
+                  tr.data(), sr, 
+            0.0,  ta.data(), sl + sr );
       }
       else
       {
-        /** SMW solver, b - U * inv( Z ) * C * V' * b */
-        hmlp::Data<T> x( sl + sr, b.col() );
-        hmlp::Data<T> bl( sl, b.col() );
-        hmlp::Data<T> br( sr, b.col() );
-
-        /** Vl' * bl */
-        xgemm( "T", "N", sl, b.col(), nl,
-            1.0, Vl->data(), nl, 
-                   b.data(), b.ld(), 
-            0.0,  bl.data(), sl ); 
-        /** Vr' * br */
-        xgemm( "T", "N", sr, b.col(), nr,
-            1.0, Vr->data(), nr, 
-                   b.data(), b.ld(), 
-            0.0,  br.data(), sr );
-        if ( SYMMETRIC )
-        {
-          /** Crl' * Vr' * br */
-          xgemm( "T", "N", sl, br.col(), sr,
-              1.0, Crl.data(), sr, 
-                    br.data(), sr, 
-              0.0,   x.data(), sl + sr );
-        }
-        else
-        {
-          /** Clr * Vr' * br */
-          xgemm( "N", "N", sl, br.col(), sr,
-              1.0, Clr.data(), sl, 
-                    br.data(), sr, 
-              0.0,   x.data(), sl + sr );
-        }
-        /** Crl * Vl' * bl */
-        xgemm( "N", "N", sr, bl.col(), sl,
-            1.0, Crl.data(), sr, 
-                  bl.data(), sl, 
-            0.0,   x.data() + sl, sl + sr );
-        /** inv( Z ) * x */
-        xgetrs
-        ( 
-          "N", x.row(), x.col(), 
-          Z.data(), Z.row(), ipiv.data(), 
-          x.data(), x.row() 
-        );
-        /** bl - Ul * xl */
-        xgemm( "N", "N", nl, b.col(), sl,
-           -1.0, Ul->data(), nl, 
-                   x.data(), sl + sr, 
-            1.0,   b.data(), b.ld() ); 
-        /** br - Ur * xr */
-        xgemm( "N", "N", nr, b.col(), sr,
-           -1.0, Ur->data(), nr, 
-                   x.data() + sr, sl + sr, 
-            1.0,   b.data() + nl, b.ld() );
+        printf( "bug here !!!!!\n" ); fflush( stdout ); exit( 1 );
+        /** Clr * Vr' * br */
+        xgemm( "N", "N", sl, nrhs, sr,
+            1.0, Clr.data(), sl, 
+                  tr.data(), sr, 
+            0.0,  ta.data(), sl + sr );
       }
+
+      /** bl += Ul * xl */
+      xgemm( "N", "N", nl, nrhs, sl,
+        -1.0, Ul->data(), nl, 
+               ta.data(), sl + sr, 
+         1.0,  bl.data(), bl.ld() );
+
+      /** br += Ur * xr */
+      xgemm( "N", "N", nr, nrhs, sr,
+         -1.0, Ur->data(), nr, 
+                ta.data() + sl, sl + sr, 
+          1.0,  br.data(), br.ld() );
     };
+
+    /**
+     *  @brief Solver for leaf nodes
+     */
+    template<bool LU>
+    void Solve( hmlp::View<T> &rhs ) 
+    {
+      /** assure this is a leaf node */
+      assert( isleaf );
+      assert( rhs.data() && Z.data() );
+
+      //rhs.Print();
+
+      size_t nrhs = rhs.col();
+
+      if ( LU )
+      {
+        assert( ipiv.data() );
+        /** LU solver */
+        xgetrs ( "N", rhs.row(), nrhs, 
+            Z.data(), Z.row(), ipiv.data(), 
+            rhs.data(), rhs.ld() );
+      }
+      else
+      {
+        printf( "bug solve\n" ); exit( 1 );
+        /** triangular solver */
+      }
+    }; /** end Solve() */
+
+
+
+    /**
+     *  @brief b - U * inv( Z ) * C * V' * b 
+     */
+    template<bool SYMMETRIC>
+    void Solve( hmlp::View<T> &bl, hmlp::View<T> &br ) 
+    {
+      size_t nrhs = bl.col();
+
+      //bl.Print();
+      //br.Print();
+
+      /** assertion */
+      assert( bl.col() == br.col() );
+      assert( bl.row() == nl );
+      assert( br.row() == nr );
+      assert( Ul && Ur && Vl && Vr );
+
+      /** buffer */
+//      hmlp::Data<T> ta( sl + sr, nrhs );
+//      hmlp::Data<T> tl(      sl, nrhs );
+//      hmlp::Data<T> tr(      sr, nrhs );
+
+      std::vector<T> ta( ( sl + sr ) * nrhs );
+      std::vector<T> tl(      sl * nrhs );
+      std::vector<T> tr(      sr * nrhs );
+
+
+      ///** views of buffer */
+      //hmlp::View<T> xa( ta ), xl, xr;
+
+      ///** xa = [ xl; xr; ] */
+      //xa.Partition2x1
+      //( 
+      //  xl, 
+      //  xr, sl
+      //);
+
+      /** Vl' * bl */
+      xgemm( "T", "N", sl, nrhs, nl,
+          1.0, Vl->data(), nl, 
+                bl.data(), bl.ld(), 
+          0.0,  tl.data(), sl );
+      /** Vr' * br */
+      xgemm( "T", "N", sr, nrhs, nr,
+          1.0, Vr->data(), nr, 
+                br.data(), br.ld(), 
+          0.0,  tr.data(), sr );
+
+      /** Crl * Vl' * bl */
+      xgemm( "N", "N", sr, nrhs, sl,
+          1.0, Crl.data(), sr, 
+                tl.data(), sl, 
+          0.0,  ta.data() + sl, sl + sr );
+
+
+      if ( SYMMETRIC )
+      {
+        /** Crl' * Vr' * br */
+        xgemm( "T", "N", sl, nrhs, sr,
+            1.0, Crl.data(), sr, 
+                  tr.data(), sr, 
+            0.0,  ta.data(), sl + sr );
+      }
+      else
+      {
+        printf( "bug here !!!!!\n" ); fflush( stdout ); exit( 1 );
+        /** Clr * Vr' * br */
+        xgemm( "N", "N", sl, nrhs, sr,
+            1.0, Clr.data(), sl, 
+                  tr.data(), sr, 
+            0.0,  ta.data(), sl + sr );
+      }
+
+      /** inv( Z ) * x */
+      xgetrs( "N", sl + sr, nrhs, 
+        Z.data(), Z.row(), ipiv.data(), 
+        ta.data(), sl + sr );
+
+      /** bl -= Ul * xl */
+      xgemm( "N", "N", nl, nrhs, sl,
+        -1.0, Ul->data(), nl, 
+               ta.data(), sl + sr, 
+         1.0,  bl.data(), bl.ld() );
+
+      /** br -= Ur * xr */
+      xgemm( "N", "N", nr, nrhs, sr,
+         -1.0, Ur->data(), nr, 
+                ta.data() + sl, sl + sr, 
+          1.0,  br.data(), br.ld() );
+
+    }; /** end Solve() */
+
+
+    template<bool LU, bool DO_INVERSE>
+    void Telescope
+    ( 
+      /** n-by-s */
+      hmlp::Data<T> &Pa,
+      /** s-by-(sl+sr) */
+      hmlp::Data<T> &Palr 
+    )
+    {
+      assert( isleaf ); 
+      /** Initialize Pa */
+      Pa.resize( n, s, 0.0 );
+
+      /** create view and subviews for Pa */
+      hmlp::View<T> Xa;
+
+      Xa.Set( Pa ); 
+
+      assert( Palr.row() == s ); assert( Palr.col() == n );
+      /** Pa = Palr' */
+      for ( size_t j = 0; j < s; j ++ )
+        for ( size_t i = 0; i < n; i ++ )
+          Pa[ j * n + i ] = Palr( j, i );
+
+      if ( DO_INVERSE )
+      {
+        assert( ipiv.size() );
+        /** LU solver */
+        xgetrs( "N", n, s, Z.data(), n, ipiv.data(), Pa.data(), n );
+      }
+      else
+      {
+      }
+
+
+      //printf( "call solve from telescope\n" ); fflush( stdout );
+      //if ( DO_INVERSE ) Solve<true>( Xa );
+      //printf( "call solve from telescope (exist)\n" ); fflush( stdout );
+
+    }; /** end Telescope() */
 
 
     /** RIGHT: V = [ P(:, 0:st-1) * Vl , P(:,st:st+sb-1) * Vr ] 
      *  LEFT:  U = [ Ul * P(:, 0:st-1)'; Ur * P(:,st:st+sb-1) ] */
-    template<bool SYMMETRIC, bool DO_INVERSE>
+    template<bool LU, bool DO_INVERSE>
     void Telescope
     ( 
       /** n-by-s */
@@ -447,91 +606,118 @@ class Factor
       hmlp::Data<T> &Pr
     ) 
     {
+      /** Initialize Pa */
+      Pa.resize( 0, 0 );
       Pa.resize( n, s, 0.0 );
+
+
+      assert( !isleaf );
+      assert( ipiv.size() );
+
+      /** create view and subviews for Pa */
+      //hmlp::View<T> Xa;
+
+      //Xa.Set( Pa ); 
+      //assert( Xa.row() == Pa.row() ); 
+      //assert( Xa.col() == Pa.col() ); 
+
       if ( isleaf )
       {
-        assert( Palr.row() == s ); assert( Palr.col() == n );
-        /** Pa = Palr' */
-        for ( size_t j = 0; j < s; j ++ )
-          for ( size_t i = 0; i < n; i ++ )
-            Pa[ j * n + i ] = Palr( j, i );
+        printf( "bug\n" ); exit( 1 );
+        //assert( Palr.row() == s ); assert( Palr.col() == n );
+        //printf( "leaf telescope\n" ); fflush( stdout );
+        ///** Pa = Palr' */
+        //for ( size_t j = 0; j < s; j ++ )
+        //  for ( size_t i = 0; i < n; i ++ )
+        //    Pa[ j * n + i ] = Palr( j, i );
+
+        //printf( "call solve from telescope\n" ); fflush( stdout );
+        ////if ( DO_INVERSE ) Solve<true>( Xa );
+        //printf( "call solve from telescope (exist)\n" ); fflush( stdout );
       }
       else
       {
+        assert( Palr.row() == s  ); assert( Palr.col() == ( sl + sr ) );
+        assert(   Pl.row() == nl ); assert(   Pl.col() ==          sl );
+        assert(   Pr.row() == nr ); assert(   Pr.col() ==          sr );
+        assert( n == nl + nr );
+
+        ///** */
+        //hmlp::View<T> Xl, Xr;
+
+        ///** Xa = [ Xl; Xr; ] */
+        //Xa.Partition2x1
+        //( 
+        //  Xl, 
+        //  Xr, nl
+        //);
+
+        //assert( Xl.row() == nl );
+        //assert( Xr.row() == nr );
+        //assert( Xl.col() == s );
+        //assert( Xr.col() == s );
+        
+
         /** Pa( 0:nl-1, : ) = Pl * Palr( :, 0:sl-1 )' */
         xgemm( "N", "T", nl, s, sl, 
-            1.0, Pl.data(), nl, Palr.data(), s, 
-            0.0, Pa.data(), n );
+            1.0,   Pl.data(), nl, 
+                 Palr.data(), s, 
+            0.0,   Pa.data(), n );
         /** Pa( nl:n-1, : ) = Pr * Palr( :, sl:sl+sr-1 )' */
         xgemm( "N", "T", nr, s, sr, 
-            1.0, Pr.data(), nr, Palr.data() + s * sl, s, 
-            0.0, Pa.data() + nl, n );
-      }
-      /** Pa = inv( I + UCV' ) * Pa */
-      if ( DO_INVERSE )
-      {
-        if ( isleaf )
+            1.0,   Pr.data(), nr, 
+                 Palr.data() + s * sl, s, 
+            0.0,   Pa.data() + nl, n );
+
+        
+
+        //if ( DO_INVERSE ) Solve<true>( Xl, Xr );
+        //printf( "end inner solve from telescope\n" ); fflush( stdout );
+
+        if ( DO_INVERSE )
         {
-          if ( SYMMETRIC )
-            /** triangular solver */
-            xtrsm( "L", "L", "N", "N", n, s, 1.0, Z.data(), n, Pa.data(), n );
-          else             
-            /** LU solver */
-            xgetrs( "N", n, s, Z.data(), n, ipiv.data(), Pa.data(), n );
-        }
-        else
-        {
-          hmlp::Data<T> b( sl + sr, s );
+          hmlp::Data<T> x( sl + sr, s );
           hmlp::Data<T> xl( sl, s );
           hmlp::Data<T> xr( sr, s );
 
-          if ( SYMMETRIC )
-          {
-            /** ( I - V * inv( Z ) * V' ) * Pa */
+          /** xl = Vlt * Pa( 0:nl-1, : ) */
+          xgemm( "T", "N", sl, s, nl, 
+              1.0, Vl->data(), nl, 
+                    Pa.data(), n, 
+              0.0,  xl.data(), sl );
+          /** xr = Vrt * Pa( nl:n-1, : ) */
+          xgemm( "T", "N", sr, s, nr, 
+              1.0, Vr->data(), nr, 
+                    Pa.data() + nl, n, 
+              0.0,  xr.data(), sr );
 
-            /** xl = Vlt * Pa( 0:nl-1, : ) */
-            xgemm( "T", "N", sl, s, nl, 
-                1.0, Vl->data(), nl, Pa.data(), n, 
-                0.0, xl.data(), sl );
-            /** xr = Vrt * Pa( nl:n-1, : ) */
-            xgemm( "T", "N", sr, s, nr, 
-                1.0, Vr->data(), nr, Pa.data() + nl, n, 
-                0.0, xr.data(), sr );
-          }
-          else
-          {
-            /** xl = Vlt * Pa( 0:nl-1, : ) */
-            xgemm( "T", "N", sl, s, nl, 
-                1.0, Vl->data(), nl, Pa.data(), n, 
-                0.0, xl.data(), sl );
-            /** xr = Vrt * Pa( nl:n-1, : ) */
-            xgemm( "T", "N", sr, s, nr, 
-                1.0, Vr->data(), nr, Pa.data() + nl, n, 
-                0.0, xr.data(), sr );
-            /** b = [ Clr * xr; Clr' * xl ] */
-            xgemm( "N", "N", sl, s, sr, 
-                1.0, Clr.data(), sl, xr.data(), sr, 
-                0.0, b.data(), sl + sr );
-            xgemm( "T", "N", sr, s, sl, 
-                1.0, Clr.data(), sl, xl.data(), sl, 
-                0.0, b.data() + sl, sl + sr );
-            /** b = inv( Z ) * b */
-            xgetrs
-              ( 
-               "N", b.row(), b.col(), 
-               Z.data(), Z.row(), ipiv.data(), 
-               b.data(), b.row() 
-              );
-            /** Pa( 0:nl-1, : ) -= Ul * b( 0:sl-1, : ) */
-            xgemm( "N", "N", nl, s, sl, 
-                -1.0, Ul->data(), nl, b.data(), sl + sr, 
-                1.0, Pa.data(), n );
-            /** Pa( nl:n-1, : ) -= Ur * b( sl:sl+sr-1, : ) */
-            xgemm( "N", "N", nr, s, sr, 
-                -1.0, Ur->data(), nr, b.data() + sl, sl + sr, 
-                1.0, Pa.data() + nl, n );
-          }
-        }
+          /** b = [ Crl' * xr;
+           *        Crl  * xl; ] */
+          xgemm( "T", "N", sl, s, sr, 
+              1.0, Crl.data(), sr, 
+                    xr.data(), sr, 
+              0.0,   x.data(), sl + sr );
+          xgemm( "N", "N", sr, s, sl, 
+              1.0, Crl.data(), sr, 
+                    xl.data(), sl, 
+              0.0,   x.data() + sl, sl + sr );
+
+          /** b = inv( Z ) * b */
+          xgetrs( "N", x.row(), x.col(), 
+             Z.data(), Z.row(), ipiv.data(), 
+             x.data(), x.row() );
+
+          /** Pa( 0:nl-1, : ) -= Ul * b( 0:sl-1, : ) */
+          xgemm( "N", "N", nl, s, sl, 
+              -1.0, Ul->data(), nl, 
+                      x.data(), sl + sr, 
+               1.0,  Pa.data(), n );
+          /** Pa( nl:n-1, : ) -= Ur * b( sl:sl+sr-1, : ) */
+          xgemm( "N", "N", nr, s, sr, 
+              -1.0, Ur->data(), nr, 
+                      x.data() + sl, sl + sr, 
+               1.0,  Pa.data() + nl, n );
+        } /** end if ( DO_INVERSE ) */
       }
     };
 
@@ -567,7 +753,7 @@ class Factor
     hmlp::Data<T> V; 
 
     /** U, n-by-? (or 0-by-0) */
-    hmlp::Data<T> B;
+    //hmlp::Data<T> B;
 
     /** Clr, sl-by-sr (or 0-by-0) */
     hmlp::Data<T> Clr;
@@ -578,25 +764,28 @@ class Factor
     /** a correspinding view of the right hand side of this node */
     hmlp::View<T> b;
 
-
     /** pointers to children's factors */
     hmlp::Data<T> *Ul = NULL;
     hmlp::Data<T> *Ur = NULL;
     hmlp::Data<T> *Vl = NULL;
     hmlp::Data<T> *Vr = NULL;
-    hmlp::Data<T> *Bl = NULL;
-    hmlp::Data<T> *Br = NULL;
 
-};
+  private: /** this class will be public inherit by gofmm::Data<T> */
+
+}; /** end class Factor */
 
 
 /**
- *
+ *  @brief 
  */ 
 template<typename NODE, typename T>
 void SetupFactor( NODE *node )
 {
   size_t n, nl, nr, s, sl, sr;
+
+#ifdef DEBUG_IGOFMM
+  printf( "begin SetupFactor %lu\n", node->treelist_id ); fflush( stdout );
+#endif
 
   n  = node->n;
   nl = 0;
@@ -619,6 +808,10 @@ void SetupFactor( NODE *node )
     n, nl, nr,
     s, sl, sr 
   );
+
+#ifdef DEBUG_IGOFMM
+  printf( "end SetupFactor %lu\n", node->treelist_id ); fflush( stdout );
+#endif
 
 }; /** end void SetupFactor() */
 
@@ -657,17 +850,17 @@ class SetupFactorTask : public hmlp::Task
     {
       /** remove all previous read/write records */
       arg->DependencyCleanUp();
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      arg->DependencyAnalysis( hmlp::ReadWriteType::W, this );
 
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      }
-      else
-      {
+      //if ( !arg->isleaf )
+      //{
+      //  arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      //  arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      //}
+      //else
+      //{
         this->Enqueue();
-      }
+      //}
     };
 
     void Execute( Worker* user_worker )
@@ -679,22 +872,162 @@ class SetupFactorTask : public hmlp::Task
 
 
 
-/** */
-template<typename NODE, typename T>
-void SetupSolver( NODE *node, hmlp::Data<T> &b )
+/** 
+ *  @brief This task creates an hierarchical tree view for a matrix.
+ */
+template<typename NODE>
+class TreeViewTask : public hmlp::Task
 {
-  if ( !node->parent ) node->data.b.Set( b );
+  public:
 
-  if ( !node->isleaf )
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      name = std::string( "TreeView" );
+      arg = user_arg;
+      cost = 1.0;
+      ss << arg->treelist_id;
+      label = ss.str();
+    };
+
+    void GetEventRecord()
+    {
+      double flops = 0.0, mops = 0.0;
+      event.Set( label + name, flops, mops );
+    };
+
+    /** preorder dependencies (with a single source node) */
+    void DependencyAnalysis()
+    {
+      if ( !arg->parent ) this->Enqueue();
+      /** clean up dependencies */
+      arg->DependencyCleanUp();
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      if ( arg->parent )
+        arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      auto *node   = arg;
+      auto &input  = *(node->setup->input);
+      auto &output = *(node->setup->output);
+
+      //printf( "TreeView %lu\n", node->treelist_id );
+
+      /** create contigious view for output */
+      if ( !node->parent ) node->data.view.Set( output );
+
+      /** tree view (hierarchical views) */
+      if ( !node->isleaf )
+      {
+        /** A = [ A1; A2; ] */
+        node->data.view.Partition2x1
+        ( 
+          node->lchild->data.view, 
+          node->rchild->data.view, node->lchild->n 
+        );
+      }
+    };
+
+}; /** end class TreeViewTask */
+
+
+
+/**
+ *  @brief doward traversal to create matrix views, at the leaf
+ *         level execute explicit permutation.
+ */ 
+template<bool FORWARD, typename NODE>
+class MatrixPermuteTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      name = std::string( "MatrixPermutation" );
+      arg = user_arg;
+      cost = 1.0;
+    };
+
+    void GetEventRecord()
+    {
+      double flops = 0.0, mops = 0.0;
+      event.Set( label + name, flops, mops );
+    };
+
+    /** depends on previous task */
+    void DependencyAnalysis()
+    {
+      if ( FORWARD )
+      {
+        arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      }
+      else
+      {
+        this->Enqueue();
+      }
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      auto *node   = arg;
+      auto &gids   = node->gids;
+      auto &input  = *(node->setup->input);
+      auto &output = *(node->setup->output);
+      auto &A      = node->data.view;
+
+      assert( A.row() == gids.size() );
+      assert( A.col() == input.col() );
+
+      //printf( "PermuteMatrix %lu\n", node->treelist_id );
+
+      /** perform permutation and output */
+      for ( size_t j = 0; j < input.col(); j ++ )
+        for ( size_t i = 0; i < gids.size(); i ++ )
+          /** foward  permutation */
+          if ( FORWARD ) A( i, j ) = input( gids[ i ], j );
+          /** inverse permutation */
+          else           input( gids[ i ], j ) = A( i, j );
+    };
+
+}; /** end class MatrixPermuteTask */
+
+
+
+/**
+ *  @brief
+ */ 
+template<typename NODE, typename T>
+void Apply( NODE *node )
+{
+  auto &data = node->data;
+  auto &setup = node->setup;
+  auto &K = *setup->K;
+
+  if ( node->isleaf )
   {
-    /** b = [ bl; br; ] */
-    node->data.b.Partition2x1( node->lchild->data.b, 
-                               node->rchild->data.b, node->lchild->n );
-    /** recurs */
-    SetupSolver( node->lchild, b );
-    SetupSolver( node->rchild, b );
+    auto lambda = setup->lambda;
+    auto &amap = node->lids;
+    /** evaluate the diagonal block */
+    auto Kaa = K( amap, amap );
+    /** apply the regularization */
+    for ( size_t i = 0; i < Kaa.row(); i ++ ) 
+      Kaa[ i * Kaa.row() + i ] += lambda;
+    /** LU factorization */
+    //data.Apply<true>( Kaa );
   }
-}; /** end SetupSolver() */
+  else
+  {
+    auto &bl = node->lchild->data.view;
+    auto &br = node->rchild->data.view;
+    data.Apply<true>( bl, br );
+  }
+}; /** end Apply() */
 
 
 
@@ -709,24 +1042,27 @@ void Solve( NODE *node )
   auto &data = node->data;
   auto &setup = node->setup;
   auto &K = *setup->K;
-  auto &b = data.b;
-  
-  /** TODO: need to decide to use LU or not */
-  printf( "%lu, m %lu n %lu\n", node->treelist_id, b.row(), b.col() );
-  data.Solve<true>( b );
- 
 
+
+  //printf( "%lu beg Solve\n", node->treelist_id ); fflush( stdout );
+
+  /** TODO: need to decide to use LU or not */
   if ( node->isleaf )
   {
-    printf( "Solve %lu\n", node->treelist_id );
+    auto &b = data.view;
+    data.Solve<true>( b );
+    //printf( "Solve %lu, m %lu n %lu\n", node->treelist_id, b.row(), b.col() );
   }
   else
   {
-    printf( "inner Solve %lu\n", node->treelist_id );
+    auto &bl = node->lchild->data.view;
+    auto &br = node->rchild->data.view;
+    data.Solve<true>( bl, br );
+    //printf( "Solve %lu, m %lu n %lu\n", node->treelist_id, bl.row(), bl.col() );
   }
 
-  //auto &data = node->data;
-  //data.Solve( b );
+  //printf( "%lu end Solve\n", node->treelist_id ); fflush( stdout );
+
 }; /** end Solve() */
 
 
@@ -770,19 +1106,16 @@ class SolveTask : public hmlp::Task
       }
       else
       {
-        /** clean up dependencies */
-        arg->DependencyCleanUp();
         arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-
         if ( !arg->isleaf )
         {
           arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
           arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
         }
-        else
-        {
-          this->Enqueue();
-        }
+        //else
+        //{
+        //  this->Enqueue();
+        //}
       }
     };
 
@@ -800,45 +1133,92 @@ class SolveTask : public hmlp::Task
  *
  */ 
 template<typename NODE, typename T, typename TREE>
-void Solve( TREE &tree, hmlp::Data<T> &potentials )
+void Solve( TREE &tree, hmlp::Data<T> &input )
 {
   const bool AUTO_DEPENDENCY = true;
   const bool USE_RUNTIME     = true;
 
-  SolveTask<false, NODE, T> solvetask1;
-  SolveTask<true,  NODE, T> solvetask2;
+  /** copy input to output */
+  auto *output = new hmlp::Data<T>( input.row(), input.col() );
+
+  TreeViewTask<NODE>             treeviewtask;
+  MatrixPermuteTask<true,  NODE> forwardpermutetask;
+  MatrixPermuteTask<false, NODE> inversepermutetask;
+  SolveTask<false, NODE, T>      solvetask1;
+  //SolveTask<true,  NODE, T>      solvetask2;
 
   /** attach the pointer to the tree structure */
-  tree.setup.u = &potentials;
-
-  /** permute potentials into u_leaf */
-  //printf( "Forward permute ...\n" ); fflush( stdout );
-  //int n_nodes = ( 1 << tree.depth );
-  //auto level_beg = tree.treelist.begin() + n_nodes - 1;
-  //#pragma omp parallel for
-  //for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-  //{
-  //  auto *node = *(level_beg + node_ind);
-  //  potentials.GatherColumns<true>( node->lids, node->data.u_leaf );
-  //}
+  tree.setup.input  = &input;
+  tree.setup.output = output;
 
   /** need a downward setup for view  */
-  SetupSolver( tree.treelist[ 0 ], potentials );
+  //SetupSolver( tree.treelist[ 0 ], potentials );
+
+  auto original = input;
+
 
   /** */
-  tree.template TraverseUp  <AUTO_DEPENDENCY, USE_RUNTIME>( solvetask1 );
+  tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( treeviewtask );
+  tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( forwardpermutetask );
+  tree.template TraverseUp   <AUTO_DEPENDENCY, USE_RUNTIME>( solvetask1 );
   //tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( solvetask2 );
-  printf( "SolveTask\n" ); fflush( stdout );
+  //printf( "SolveTask\n" ); fflush( stdout );
 
   hmlp_run();
-  printf( "Execute Solve\n" ); fflush( stdout );
+  //printf( "Execute Solve\n" ); fflush( stdout );
+
+  tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( inversepermutetask );
+  hmlp_run();
+  //printf( "Inverse Permutetation\n" ); fflush( stdout );
+
+  /** delete buffer space */
+  delete output;
 
 }; /** end Solve() */
 
 
 
+/**
+ *  @brief Compute relative Forbenius error for two-sided 
+ *  interpolative decomposition.
+ */ 
+template<typename NODE, typename T>
+void LowRankError( NODE *node )
+{
+  auto &data = node->data;
+  auto &setup = node->setup;
+  auto &K = *setup->K;
+
+  if ( !node->isleaf )
+  {
+    auto Krl = K( node->rchild->gids, node->lchild->gids );
+
+    auto nrm2 = hmlp_norm( Krl.row(),  Krl.col(), 
+                           Krl.data(), Krl.row() ); 
 
 
+    hmlp::Data<T> VrCrl( data.nr, data.sl );
+
+    /** VrCrl = Vr * Crl */
+    xgemm( "N", "N", data.nr, data.sl, data.sr,
+        1.0, data.Vr->data(), data.nr,
+             data.Crl.data(), data.sr,
+        0.0, VrCrl.data(), data.nr );
+
+    /** Krl - VrCrlVl' */
+    xgemm( "N", "T", data.nr, data.nl, data.sl,
+       -1.0, VrCrl.data(), data.nr,
+             data.Vl->data(), data.nl,
+        1.0, Krl.data(), data.nr );
+
+    auto err = hmlp_norm( Krl.row(),  Krl.col(), 
+                          Krl.data(), Krl.row() ); 
+
+    printf( "%4lu ||Krl -VrCrlVl|| %3.1E\n", 
+        node->treelist_id, std::sqrt( err / nrm2 ) );
+  }
+
+}; /** end LowRankError() */
 
 
 
@@ -856,51 +1236,76 @@ void Factorize( NODE *node )
   auto &K = *setup->K;
   auto &proj = data.proj;
 
-  /** we use this to replace those nop arguments */
-  hmlp::Data<T> dummy;
-
   if ( node->isleaf )
   {
     auto lambda = setup->lambda;
     auto &amap = node->lids;
     /** evaluate the diagonal block */
-    auto Kaa = K( amap, amap );
+    hmlp::Data<T> Kaa = K( amap, amap );
     /** apply the regularization */
-    for ( size_t i = 0; i < Kaa.row(); i ++ ) 
-      Kaa[ i * Kaa.row() + i ] += lambda;
+    //for ( size_t i = 0; i < Kaa.row(); i ++ ) 
+    //  Kaa[ i * Kaa.row() + i ] += lambda;
+
+    for ( size_t j = 0; j < Kaa.col(); j ++ )
+    {
+      for ( size_t i = 0; i < Kaa.row(); i ++ )
+      {
+        assert( Kaa( i, j ) == Kaa( j, i ) );
+        if ( i == j ) Kaa( i, j ) += lambda;
+      }
+    }
+
+
     /** LU factorization */
     data.Factorize<true>( Kaa );
+    //printf( "leaf Factorize %lu\n", node->treelist_id ); fflush( stdout );
+
     /** U = inv( Kaa ) * proj' */
-    data.Telescope<SYMMETRIC,  true>( data.U, proj, dummy, dummy );
+    data.Telescope<true,  true>( data.U, proj );
+    //printf( "leaf inverse telescoping\n" ); fflush( stdout );
     /** V = proj' */
-    data.Telescope<SYMMETRIC, false>( data.V, proj, dummy, dummy );
-      
-    printf( "Factorize %lu\n", node->treelist_id );
+    data.Telescope<true, false>( data.V, proj );
+    
+    //printf( "end leaf forward telescoping\n" ); fflush( stdout );
   }
   else
   {
     auto &Ul = node->lchild->data.U;
-    auto &Ur = node->rchild->data.U;
     auto &Vl = node->lchild->data.V;
+    auto &Ur = node->rchild->data.U;
     auto &Vr = node->rchild->data.V;
-    auto &Bl = dummy;
-    auto &Br = dummy;
+
     /** evluate the skeleton rows and columns */
     auto &amap = node->lchild->data.skels;
     auto &bmap = node->rchild->data.skels;
+
+    /** get the skeleton rows and columns */
     node->data.Crl = K( bmap, amap );
+    //printf( "%lu get Crl\n", node->treelist_id ); fflush( stdout );
+
     /** SMW factorization */
-    data.Factorize<true, true>( Ul, Ur, Vl, Vr, Bl, Br );
+    data.Factorize<true, true>( Ul, Ur, Vl, Vr );
+    //printf( "%lu inner Factorize\n", node->treelist_id ); fflush( stdout );
+
     /** telescope U and V */
     if ( !node->data.isroot )
     {
       /** U = inv( I + UCV' ) * [ Ul; Ur ] * proj' */
-      data.Telescope<SYMMETRIC,  true>( data.U, proj, Ul, Ur );
+      data.Telescope<true,  true>( data.U, proj, Ul, Ur );
+      //printf( "foward telescoping\n" ); fflush( stdout );
       /** V = [ Vl; Vr ] * proj' */
-      data.Telescope<SYMMETRIC, false>( data.V, proj, Vl, Vr );
+      data.Telescope<true, false>( data.V, proj, Vl, Vr );
     }
-    printf( "inner Factorize %lu\n", node->treelist_id );
+    else
+    {
+      //printf( "at the root level, no telescoping %lu\n", node->treelist_id ); fflush( stdout );
+    }
+    //printf( "%lu end telescope\n", node->treelist_id ); fflush( stdout );
+
+    /** check the offdiagonal block accuracy */
+    LowRankError<NODE, T>( node );
   }
+
 }; /** end void Factorize() */
 
 
@@ -937,18 +1342,24 @@ class FactorizeTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
+      arg->DependencyCleanUp();
       arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-
       if ( !arg->isleaf )
       {
         arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
         arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
       }
+      else
+      {
+        this->Enqueue();
+      }
     };
 
     void Execute( Worker* user_worker )
-    {
+    { 
+      //printf( "%lu Enter Factorize\n", arg->treelist_id );
       Factorize<NODE, T>( arg );
+      //printf( "%lu Exit  Factorize\n", arg->treelist_id );
     };
 
 }; /** end class FactorizeTask */
@@ -957,28 +1368,103 @@ class FactorizeTask : public hmlp::Task
 
 
 
-
+/**
+ *  @biref Top level factorization routine.
+ */ 
 template<typename NODE, typename T, typename TREE>
 void Factorize( TREE &tree, T lambda )
 {
   const bool AUTO_DEPENDENCY = true;
   const bool USE_RUNTIME = true;
 
+  /** all task instances */
   SetupFactorTask<NODE, T> setupfactortask; 
   FactorizeTask<NODE, T> factorizetask; 
 
   /** setup the regularization parameter lambda */
   tree.setup.lambda = lambda;
 
+  /** setup  */
   tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( setupfactortask );
-  printf( "SetupFactorTask\n" ); fflush( stdout );
-  tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( factorizetask );
-  //printf( "FactorTask\n" ); fflush( stdout );
-
   if ( USE_RUNTIME ) hmlp_run();
-  printf( "Factorize\n" ); fflush( stdout );
+  //printf( "Execute setupfactortask\n" ); fflush( stdout );
+
+  /** factorization */
+  tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( factorizetask );
+  //printf( "Create factorizetask\n" ); fflush( stdout );
+  if ( USE_RUNTIME ) hmlp_run();
+  //printf( "Execute factorizetask\n" ); fflush( stdout );
 
 }; /** end Factorize() */
+
+
+
+/**
+ *  @brief Compute the average 2-norm error. That is given
+ *         lambda and weights, 
+ */ 
+template<typename NODE, typename TREE, typename T>
+void ComputeError( TREE &tree, T lambda, 
+    hmlp::Data<T> weights, hmlp::Data<T> potentials )
+{
+  /** assure the dimension matches */
+  assert( weights.row() == potentials.row() );
+  assert( weights.col() == potentials.col() );
+
+  size_t nrhs = weights.row();
+  size_t n = weights.col();
+
+  /** shift lambda and make it a column vector */
+  hmlp::Data<T> rhs( n, nrhs );
+  for ( size_t j = 0; j < nrhs; j ++ )
+    for ( size_t i = 0; i < n; i ++ )
+      rhs( i, j ) = potentials( j, i ) + lambda * weights( j, i );
+
+  /** potentials = inv( K + lambda * I ) * potentials */
+  hmlp::hfamily::Solve<NODE, T>( tree, rhs );
+
+
+  /** compute relative error = sqrt( err / nrm2 ) for each rhs */
+  printf( "========================================================\n" );
+  printf( "Inverse accuracy report\n" );
+  printf( "========================================================\n" );
+  printf( "#rhs,  max err,        @,  min err,        @,  relative \n" );
+  printf( "========================================================\n" );
+  size_t ntest = 10;
+  T total_err  = 0.0;
+  for ( size_t j = 0; j < std::min( nrhs, ntest ); j ++ )
+  {
+    /** counters */
+    T nrm2 = 0.0, err2 = 0.0;
+    T max2 = 0.0, min2 = std::numeric_limits<T>::max(); 
+    /** indecies */
+    size_t maxi = 0, mini = 0;
+
+    for ( size_t i = 0; i < n; i ++ )
+    {
+      T sse = rhs( i, j ) - weights( j, i );
+      assert( rhs( i, j ) == rhs( i, j ) );
+      sse = sse * sse;
+
+      nrm2 += weights( j, i ) * weights( j, i );
+      err2 += sse;
+
+      if ( sse > max2 ) { max2 = sse; maxi = i; }
+      if ( sse < min2 ) { min2 = sse; mini = i; }
+    }
+    total_err += std::sqrt( err2 / nrm2 );
+
+    printf( "%4lu,  %3.1E,  %7lu,  %3.1E,  %7lu,   %3.1E\n", 
+        j, std::sqrt( max2 ), maxi, std::sqrt( min2 ), mini, 
+        std::sqrt( err2 / nrm2 ) );
+  }
+  printf( "========================================================\n" );
+  printf( "                             avg over %2lu rhs,   %3.1E \n",
+      std::min( nrhs, ntest ), total_err / std::min( nrhs, ntest ) );
+  printf( "========================================================\n\n" );
+
+}; /** end ComputeError() */
+
 
 
 

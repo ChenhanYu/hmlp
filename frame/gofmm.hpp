@@ -84,7 +84,7 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     /** relative error for rank-revealed QR */
     T stol;
 
-    /** the SPDMATRIX (dense, CSC or OOC) */
+    /** the SPDMATRIX (accessed with gids: dense, CSC or OOC) */
     SPDMATRIX *K;
 
     /** rhs-by-n all weights */
@@ -93,8 +93,9 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     /** rhs-by-n all potentials */
     hmlp::Data<T> *u;
 
-    /** rhs-by-n all right hand sides */
-    //hmlp::Data<T> *b;
+    /** buffer space, either dimension needs to be n  */
+    hmlp::Data<T> *input;
+    hmlp::Data<T> *output;
 
     /** regularization */
     T lambda = 0.0;
@@ -103,7 +104,9 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
 
 
 /**
- *  @brief This class contains all iaskit related data.
+ *  @brief This class contains all GOFMM related data.
+ *         For Inv-GOFMM, all factors are inherit from hfamily::Factor<T>.
+ *
  */ 
 template<typename T>
 class Data : public hmlp::hfamily::Factor<T>
@@ -112,6 +115,7 @@ class Data : public hmlp::hfamily::Factor<T>
 
     Data() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
 
+    /** the omp (or pthread) lock */
     Lock lock;
 
     /** whether the node can be compressed */
@@ -119,6 +123,9 @@ class Data : public hmlp::hfamily::Factor<T>
 
     /** whether the coefficient mathx has been computed */
     bool hasproj = false;
+
+    /** tree view of the input or output data */
+    hmlp::View<T> view;
 
     /** my skeletons */
     std::vector<size_t> skels;
@@ -173,7 +180,7 @@ class Data : public hmlp::hfamily::Factor<T>
     double knn_acc = 0.0;
     size_t num_acc = 0;
 
-}; // end class Data
+}; /** end class Data */
 
 
 /**
@@ -186,7 +193,7 @@ class SPDMatrix : public hmlp::Data<T>
 {
   public:
   private:
-}; // end class SPDMatrix
+}; /** end class SPDMatrix */
 
 
 /**
@@ -344,7 +351,7 @@ struct centersplit
 
     SPDMATRIX &K = *Kptr;
     std::vector<std::vector<std::size_t>> split( N_SPLIT );
-    size_t n = lids.size();
+    size_t n = gids.size();
     std::vector<T> temp( n, 0.0 );
 
     beg = omp_get_wtime();
@@ -357,11 +364,11 @@ struct centersplit
       {
         case SPLIT_KERNEL_DISTANCE:
         {
-          temp[ i ] = K( lids[ i ], lids[ i ] );
+          temp[ i ] = K( gids[ i ], gids[ i ] );
           for ( size_t j = 0; j < n_centroid_samples; j ++ )
           {
             /** important sample ( Kij, j ) if provided */
-            std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
+            std::pair<T, size_t> sample = K.ImportantSample( gids[ i ] );
             temp[ i ] -= ( 2.0 / n_centroid_samples ) * sample.first;
           }
           break;
@@ -372,9 +379,9 @@ struct centersplit
           for ( size_t j = 0; j < n_centroid_samples; j ++ )
           {
             /** important sample ( Kij, j ) if provided */
-            std::pair<T, size_t> sample = K.ImportantSample( lids[ i ] );
+            std::pair<T, size_t> sample = K.ImportantSample( gids[ i ] );
             T kij = sample.first;
-            T kii = K( lids[ i ], lids[ i ] );
+            T kii = K( gids[ i ], gids[ i ] );
             T kjj = K( sample.second, sample.second );
             temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
           }
@@ -403,14 +410,14 @@ struct centersplit
       {
         case SPLIT_KERNEL_DISTANCE:
         {
-          temp[ i ] = K( lids[ i ], lids[ i ] ) - 2.0 * K( lids[ i ], lids[ idf2c ] );
+          temp[ i ] = K( gids[ i ], gids[ i ] ) - 2.0 * K( gids[ i ], gids[ idf2c ] );
           break;
         }
         case SPLIT_ANGLE:
         {
-          T kij = K( lids[ i ],     lids[ idf2c ] );
-          T kii = K( lids[ i ],     lids[ i ]     );
-          T kjj = K( lids[ idf2c ], lids[ idf2c ] );
+          T kij = K( gids[ i ],     gids[ idf2c ] );
+          T kii = K( gids[ i ],     gids[ i ]     );
+          T kjj = K( gids[ idf2c ], gids[ idf2c ] );
           temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
           break;
         }
@@ -442,16 +449,16 @@ struct centersplit
       {
         case SPLIT_KERNEL_DISTANCE:
         {
-          temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+          temp[ i ] = K( gids[ i ], gids[ idf2f ] ) - K( gids[ i ], gids[ idf2c ] );
           break;
         }
         case SPLIT_ANGLE:
         {
-          T kip = K( lids[ i ],     lids[ idf2f ] );
-          T kiq = K( lids[ i ],     lids[ idf2c ] );
-          T kii = K( lids[ i ],     lids[ i ]     );
-          T kpp = K( lids[ idf2f ], lids[ idf2f ] );
-          T kqq = K( lids[ idf2c ], lids[ idf2c ] );
+          T kip = K( gids[ i ],     gids[ idf2f ] );
+          T kiq = K( gids[ i ],     gids[ idf2c ] );
+          T kii = K( gids[ i ],     gids[ i ]     );
+          T kpp = K( gids[ idf2f ], gids[ idf2f ] );
+          T kqq = K( gids[ idf2c ], gids[ idf2c ] );
           /** ingore 1 from both terms */
           temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
           break;
@@ -543,16 +550,16 @@ struct randomsplit
       {
         case SPLIT_KERNEL_DISTANCE:
         {
-          temp[ i ] = K( lids[ i ], lids[ idf2f ] ) - K( lids[ i ], lids[ idf2c ] );
+          temp[ i ] = K( gids[ i ], gids[ idf2f ] ) - K( gids[ i ], gids[ idf2c ] );
           break;
         }
         case SPLIT_ANGLE:
         {
-          T kip = K( lids[ i ], lids[ idf2f ] );
-          T kiq = K( lids[ i ], lids[ idf2c ] );
-          T kii = K( lids[ i ], lids[ i ] );
-          T kpp = K( lids[ idf2f ], lids[ idf2f ] );
-          T kqq = K( lids[ idf2c ], lids[ idf2c ] );
+          T kip = K( gids[ i ],     gids[ idf2f ] );
+          T kiq = K( gids[ i ],     gids[ idf2c ] );
+          T kii = K( gids[ i ],     gids[ i ] );
+          T kpp = K( gids[ idf2f ], gids[ idf2f ] );
+          T kqq = K( gids[ idf2c ], gids[ idf2c ] );
           /** ingore 1 from both terms */
           temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
           break;
@@ -622,7 +629,6 @@ struct randomsplit
 }; // end struct randomsplit
 
 
-
 /**
  *  @brief This is the task wrapper of the exact KNN search we
  *         perform in the leaf node of the randomized tree.
@@ -654,13 +660,13 @@ class KNNTask : public hmlp::Task
 
       //--------------------------------------
       double flops, mops;
-      auto &lids = arg->lids;
+      auto &gids = arg->gids;
       auto &NN = *arg->setup->NN;
-      flops = lids.size();
-      flops *= 4.0 * lids.size();
+      flops = gids.size();
+      flops *= 4.0 * gids.size();
       // Heap select worst case
-      mops = (size_t)std::log( NN.row() ) * lids.size();
-      mops *= lids.size();
+      mops = (size_t)std::log( NN.row() ) * gids.size();
+      mops *= gids.size();
       // Access K
       mops += flops;
       event.Set( name + label, flops, mops );
@@ -672,25 +678,25 @@ class KNNTask : public hmlp::Task
       auto &K = *arg->setup->K;
       auto &X = *arg->setup->X;
       auto &NN = *arg->setup->NN;
-      auto &lids = arg->lids;
+      auto &gids = arg->gids;
      
       #pragma omp parallel for
-      for ( size_t j = 0; j < lids.size(); j ++ )
+      for ( size_t j = 0; j < gids.size(); j ++ )
       {
         std::set<size_t> NNset;
 
         for ( size_t i = 0; i < NN.row(); i ++ )
         {
-          size_t jlid = lids[ j ];
-          NNset.insert( NN[ jlid * NN.row() + i ].second );
+          size_t jgid = gids[ j ];
+          NNset.insert( NN[ jgid * NN.row() + i ].second );
         }
 
-        for ( size_t i = 0; i < lids.size(); i ++ )
+        for ( size_t i = 0; i < gids.size(); i ++ )
         {
-          size_t ilid = lids[ i ];
-          size_t jlid = lids[ j ];
+          size_t igid = gids[ i ];
+          size_t jgid = gids[ j ];
 
-          if ( !NNset.count( ilid ) )
+          if ( !NNset.count( igid ) )
           {
             T dist = 0;
             switch ( SPLIT )
@@ -699,19 +705,19 @@ class KNNTask : public hmlp::Task
               {
                 size_t d = X.row();
                 for ( size_t p = 0; p < d; p ++ )
-                  dist += std::pow( X[ ilid * d + p ] - X[ jlid * d + p ], 2 );
+                  dist += std::pow( X[ igid * d + p ] - X[ jgid * d + p ], 2 );
                 break;
               }
               case SPLIT_KERNEL_DISTANCE:
               {
-                dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
+                dist = K( igid, igid ) + K( jgid, jgid ) - 2.0 * K( igid, jgid );
                 break;
               }
               case SPLIT_ANGLE:
               {
-                T kij = K( ilid, jlid );
-                T kii = K( ilid, ilid );
-                T kjj = K( jlid, jlid );
+                T kij = K( igid, jgid );
+                T kii = K( igid, igid );
+                T kjj = K( jgid, jgid );
                 dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
                 break;
               }
@@ -721,8 +727,8 @@ class KNNTask : public hmlp::Task
                 exit( 1 );
               }
             }
-            std::pair<T, size_t> query( dist, ilid );
-            hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
+            std::pair<T, size_t> query( dist, igid );
+            hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jgid * NN.row() );
           }
           else
           {
@@ -737,9 +743,9 @@ class KNNTask : public hmlp::Task
       size_t num_acc = 0;
 
       /** loop over all points in this leaf node */
-      for ( size_t j = 0; j < lids.size(); j ++ )
+      for ( size_t j = 0; j < gids.size(); j ++ )
       {
-        if ( lids[ j ] >= NUM_TEST ) continue;
+        if ( gids[ j ] >= NUM_TEST ) continue;
 
         std::set<size_t> NNset;
         hmlp::Data<std::pair<T, size_t>> nn_test( NN.row(), 1 );
@@ -747,16 +753,16 @@ class KNNTask : public hmlp::Task
         /** initialize nn_test to be the same as NN */
         for ( size_t i = 0; i < NN.row(); i ++ )
         {
-          nn_test[ i ] = NN( i, lids[ j ] );
+          nn_test[ i ] = NN( i, gids[ j ] );
           NNset.insert( nn_test[ i ].second );
         }
 
         /** loop over all references */
         for ( size_t i = 0; i < K.row(); i ++ )
-        {
-          size_t ilid = i;
-          size_t jlid = lids[ j ];
-          if ( !NNset.count( ilid ) )
+       {
+          size_t igid = i;
+          size_t jgid = gids[ j ];
+          if ( !NNset.count( igid ) )
           {
             T dist = 0;
             switch ( SPLIT )
@@ -764,18 +770,18 @@ class KNNTask : public hmlp::Task
               case SPLIT_POINT_DISTANCE:
                 size_t d = X.row();
                 for ( size_t p = 0; p < d; p ++ )
-                  dist += std::pow( X[ ilid * d + p ] - X[ jlid * d + p ], 2 );
+                  dist += std::pow( X[ igid * d + p ] - X[ jgid * d + p ], 2 );
                 break;
               case SPLIT_KERNEL_DISTANCE:
-                dist = K( ilid, ilid ) + K( jlid, jlid ) - 2.0 * K( ilid, jlid );
+                dist = K( igid, igid ) + K( jgid, jgid ) - 2.0 * K( igid, jgid );
                 break;
               case SPLIT_ANGLE:
                 // Take the opposite since the heap select finds minimum distances
                 //dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
                 {
-                  T kij = K( ilid, jlid );
-                  T kii = K( ilid, ilid );
-                  T kjj = K( jlid, jlid );
+                  T kij = K( igid, jgid );
+                  T kii = K( igid, igid );
+                  T kjj = K( jgid, jgid );
                   //dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
                   dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
                   break;
@@ -783,10 +789,10 @@ class KNNTask : public hmlp::Task
               default:
                 exit( 1 );
             }
-            std::pair<T, size_t> query( dist, ilid );
+            std::pair<T, size_t> query( dist, igid );
             //hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
             hmlp::HeapSelect( 1, NN.row(), &query, nn_test.data() );
-            NNset.insert( ilid );
+            NNset.insert( igid );
           }
         }
 
@@ -796,7 +802,7 @@ class KNNTask : public hmlp::Task
         for ( size_t i = 0; i < NN.row(); i ++ ) NNset.insert( nn_test[ i ].second );
         for ( size_t i = 0; i < NN.row(); i ++ ) 
         {
-          if ( NNset.count( NN( i, lids[ j ] ).second ) ) correct ++;
+          if ( NNset.count( NN( i, gids[ j ] ).second ) ) correct ++;
         }
         knn_acc += (double)correct / NN.row();
         num_acc ++;
@@ -2490,92 +2496,92 @@ void PrintSet( std::set<NODE*> &set )
 }; /** end PrintSet() */
 
 
-template<typename NODE>
-void RemoveClique( NODE *node )
-{
-  assert( node->NNNearNodes.count( node ) );
-  node->NNNearNodes.erase( node );
-};
-
-template<typename NODE>
-void RemoveClique( NODE *node1, NODE *node2 )
-{
-  if ( node1->isleaf )
-  {
-    if ( node2->isleaf )
-    {
-      node1->NNNearNodes.erase( node2 );
-    }
-    else
-    {
-      RemoveClique( node1, node2->lchild );
-      RemoveClique( node1, node2->rchild );
-    }
-  }
-  else
-  {
-    RemoveClique( node1->lchild, node2 );
-    RemoveClique( node1->rchild, node2 );
-  }
-};
-
-
-template<typename NODE>
-bool NearNodeClique( NODE *node1, NODE *node2 )
-{
-  bool isclique = false;
-
-  if ( node1->isleaf )
-  {
-    if ( node2->isleaf )
-    {
-      isclique = node1->NNNearNodes.count( node2 );
-    }
-    else
-    {
-      isclique = 
-        NearNodeClique( node1, node2->lchild ) &&
-        NearNodeClique( node1, node2->rchild );
-    }
-  }
-  else
-  {
-    isclique = 
-      NearNodeClique( node1->lchild, node2 ) &&
-      NearNodeClique( node1->rchild, node2 );
-  }
-
-  return isclique;
-};
-
-template<typename NODE>
-bool NearNodeClique( NODE *node )
-{
-  if ( node->isleaf )
-  {
-    return true;
-  }
-  else
-  {
-    bool ll = NearNodeClique( node->lchild );
-    bool rr = NearNodeClique( node->rchild );
-    bool lr = NearNodeClique( node->lchild, node->rchild );
-    bool rl = NearNodeClique( node->rchild, node->lchild );
-
-    if ( ll && rr && lr && rl )
-    {
-      printf( "clique at level %lu\n", node->l );
-    }
-
-    return ( ll && rr && lr && rl );
-  }
-};
-
-template<typename TREE>
-void FindClique( TREE &tree )
-{
-
-};
+//template<typename NODE>
+//void RemoveClique( NODE *node )
+//{
+//  assert( node->NNNearNodes.count( node ) );
+//  node->NNNearNodes.erase( node );
+//};
+//
+//template<typename NODE>
+//void RemoveClique( NODE *node1, NODE *node2 )
+//{
+//  if ( node1->isleaf )
+//  {
+//    if ( node2->isleaf )
+//    {
+//      node1->NNNearNodes.erase( node2 );
+//    }
+//    else
+//    {
+//      RemoveClique( node1, node2->lchild );
+//      RemoveClique( node1, node2->rchild );
+//    }
+//  }
+//  else
+//  {
+//    RemoveClique( node1->lchild, node2 );
+//    RemoveClique( node1->rchild, node2 );
+//  }
+//};
+//
+//
+//template<typename NODE>
+//bool NearNodeClique( NODE *node1, NODE *node2 )
+//{
+//  bool isclique = false;
+//
+//  if ( node1->isleaf )
+//  {
+//    if ( node2->isleaf )
+//    {
+//      isclique = node1->NNNearNodes.count( node2 );
+//    }
+//    else
+//    {
+//      isclique = 
+//        NearNodeClique( node1, node2->lchild ) &&
+//        NearNodeClique( node1, node2->rchild );
+//    }
+//  }
+//  else
+//  {
+//    isclique = 
+//      NearNodeClique( node1->lchild, node2 ) &&
+//      NearNodeClique( node1->rchild, node2 );
+//  }
+//
+//  return isclique;
+//};
+//
+//template<typename NODE>
+//bool NearNodeClique( NODE *node )
+//{
+//  if ( node->isleaf )
+//  {
+//    return true;
+//  }
+//  else
+//  {
+//    bool ll = NearNodeClique( node->lchild );
+//    bool rr = NearNodeClique( node->rchild );
+//    bool lr = NearNodeClique( node->lchild, node->rchild );
+//    bool rl = NearNodeClique( node->rchild, node->lchild );
+//
+//    if ( ll && rr && lr && rl )
+//    {
+//      printf( "clique at level %lu\n", node->l );
+//    }
+//
+//    return ( ll && rr && lr && rl );
+//  }
+//};
+//
+//template<typename TREE>
+//void FindClique( TREE &tree )
+//{
+//
+//};
 
 
 
@@ -2704,6 +2710,7 @@ void FindNearNodes( TREE &tree, double budget )
     }
 #endif
   }
+
 }; /** end FindNearNodes() */
 
 
@@ -2993,22 +3000,36 @@ void MergeFarNodes( TREE &tree )
           lFarNodes.erase( *it ); rFarNodes.erase( *it );
         }
 
+
+
         /**
          *  case: NNPRUNE (FMM specific)
          */ 
-        pFarNodes =   node->NNFarNodes;
-        lFarNodes = lchild->NNFarNodes;
-        rFarNodes = rchild->NNFarNodes;
+        auto &pNNFarNodes =   node->NNFarNodes;
+        auto &lNNFarNodes = lchild->NNFarNodes;
+        auto &rNNFarNodes = rchild->NNFarNodes;
+
+        //printf( "node %lu\n", node->treelist_id );
+        //PrintSet( pNNFarNodes );
+        //PrintSet( lNNFarNodes );
+        //PrintSet( rNNFarNodes );
+
+
         /** Far( parent ) = Far( lchild ) intersects Far( rchild ) */
-        for ( auto it = lFarNodes.begin(); it != lFarNodes.end(); ++ it )
+        for ( auto it = lNNFarNodes.begin(); it != lNNFarNodes.end(); ++ it )
         {
-          if ( rFarNodes.count( *it ) ) pFarNodes.insert( *it );
+          if ( rNNFarNodes.count( *it ) ) pNNFarNodes.insert( *it );
         }
         /** Far( lchild ) \= Far( parent ); Far( rchild ) \= Far( parent ) */
-        for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
+        for ( auto it = pNNFarNodes.begin(); it != pNNFarNodes.end(); it ++ )
         {
-          lFarNodes.erase( *it ); rFarNodes.erase( *it );
+          lNNFarNodes.erase( *it ); 
+          rNNFarNodes.erase( *it );
         }
+
+        //PrintSet( pNNFarNodes );
+        //PrintSet( lNNFarNodes );
+        //PrintSet( rNNFarNodes );
       }
     }
   }
@@ -3116,6 +3137,9 @@ void CacheFarNodes( TREE &tree )
 }; /** end CacheFarNodes() */
 
 
+/**
+ *  @brief 
+ */ 
 template<bool NNPRUNE, typename TREE>
 double DrawInteraction( TREE &tree )
 {
@@ -3289,7 +3313,7 @@ void Evaluate
 
 
 
-}; // end T Evaluate()
+}; /** end Evaluate() */
 
 
 /** @brief Evaluate potentials( gid ) using treecode.
@@ -3332,7 +3356,8 @@ void Evaluate
 
   Evaluate<SYMBOLIC, NNPRUNE>( tree.treelist[ 0 ], lid, nnandi, potentials );
 
-}; // end Evaluate()
+}; /** end Evaluate() */
+
 
 /**
  *  @brief ComputeAll

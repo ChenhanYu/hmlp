@@ -68,7 +68,7 @@ bool IsMyParent( size_t me, size_t it )
  *         bottom up traversal.
  */ 
 template<typename NODE>
-class PermuteTask : public hmlp::Task
+class IndexPermuteTask : public hmlp::Task
 {
   public:
 
@@ -101,9 +101,13 @@ class PermuteTask : public hmlp::Task
         gids.insert( gids.end(), rgids.begin(), rgids.end() );
       }
     };
-}; /** end class PermuteTask */
+}; /** end class IndexPermuteTask */
 
 
+/**
+ *  @brief
+ *
+ */ 
 template<typename NODE>
 class SplitTask : public hmlp::Task
 {
@@ -862,17 +866,22 @@ class Setup
 
     ~Setup() {};
 
+    /** maximum leaf node size */
     size_t m;
     
-    // By default we use 4 bits = 0-15 levels.
+    /** by default we use 4 bits = 0-15 levels */
     size_t max_depth = 15;
 
+    /** coordinates (accessed with lids) */
     hmlp::Data<T> *X;
 
+    /** neighbors<distance, gid> (accessed with lids) */
     hmlp::Data<std::pair<T, std::size_t>> *NN;
 
+    /** morton ids */
     std::vector<size_t> morton;
 
+    /** tree splitter */
     SPLITTER splitter;
 };
 
@@ -1110,8 +1119,8 @@ class Tree
 
       /** adgust lids and gids to the appropriate order */
       beg = omp_get_wtime();
-      PermuteTask<NODE> permutetask;
-      TraverseUp<false, false>( permutetask );
+      IndexPermuteTask<NODE> indexpermutetask;
+      TraverseUp<false, false>( indexpermutetask );
       permute_time = omp_get_wtime() - beg;
 
       //printf( "alloc %5.3lfs split %5.3lfs morton %5.3lfs permute %5.3lfs\n", 

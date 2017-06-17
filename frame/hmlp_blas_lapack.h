@@ -176,6 +176,26 @@ void xgels
   double *work, int lwork 
 );
 
+void xgecon
+(
+  const char *norm,
+  int n,
+  float *A, int lda, 
+  float anorm, 
+  float *rcond, 
+  float *work, int *iwork 
+);
+
+void xgecon
+(
+  const char *norm,
+  int n,
+  double *A, int lda, 
+  double anorm, 
+  double *rcond, 
+  double *work, int *iwork 
+);
+
 double xdot
 (
   int n,
