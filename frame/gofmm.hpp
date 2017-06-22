@@ -26,7 +26,7 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 #include <tree.hpp>
-#include <skel.hpp>
+#include <lowrank.hpp>
 #include <data.hpp>
 #include <hfamily.hpp>
 
@@ -383,6 +383,7 @@ struct centersplit
             T kij = sample.first;
             T kii = K( gids[ i ], gids[ i ] );
             T kjj = K( sample.second, sample.second );
+
             temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
           }
           temp[ i ] /= n_centroid_samples;
@@ -560,6 +561,7 @@ struct randomsplit
           T kii = K( gids[ i ],     gids[ i ] );
           T kpp = K( gids[ idf2f ], gids[ idf2f ] );
           T kqq = K( gids[ idf2c ], gids[ idf2c ] );
+
           /** ingore 1 from both terms */
           temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
           break;
@@ -679,7 +681,7 @@ class KNNTask : public hmlp::Task
       auto &X = *arg->setup->X;
       auto &NN = *arg->setup->NN;
       auto &gids = arg->gids;
-     
+
       #pragma omp parallel for
       for ( size_t j = 0; j < gids.size(); j ++ )
       {
@@ -718,6 +720,7 @@ class KNNTask : public hmlp::Task
                 T kij = K( igid, jgid );
                 T kii = K( igid, igid );
                 T kjj = K( jgid, jgid );
+
                 dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
                 break;
               }
@@ -735,6 +738,7 @@ class KNNTask : public hmlp::Task
             /** ignore duplication */
           }
         }
+
       } /** end omp parallel for */
 
 #ifdef REPORT_ANN_ACCURACY
@@ -782,7 +786,7 @@ class KNNTask : public hmlp::Task
                   T kij = K( igid, jgid );
                   T kii = K( igid, igid );
                   T kjj = K( jgid, jgid );
-                  //dist = -1.0 * std::abs( kij / std::sqrt( kii * kjj ) );
+
                   dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
                   break;
                 }
@@ -1306,7 +1310,7 @@ void Skeletonize( NODE *node )
   /** We use a tighter Frobenius norm */
   //scaled_stol /= std::sqrt( q );
 
-  hmlp::skel::id<ADAPTIVE, LEVELRESTRICTION>
+  hmlp::lowrank::id<ADAPTIVE, LEVELRESTRICTION>
   ( 
     amap.size(), bmap.size(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
     Kab, skels, proj, jpvt
@@ -1424,7 +1428,9 @@ class SkeletonizeTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+      //printf( "%lu Skel beg\n", arg->treelist_id );
       Skeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+      //printf( "%lu Skel end\n", arg->treelist_id );
     };
 
 }; /** end class SkeletonizeTask */
@@ -2631,7 +2637,7 @@ void FindNearNodes( TREE &tree, double budget )
         node->NNNearNodes.insert( *(level_beg + i) );
       }
     }
-
+    
     /** add myself to the list. */
     node->NearNodes.insert( node );
     node->NNNearNodes.insert( node );
@@ -2644,6 +2650,8 @@ void FindNearNodes( TREE &tree, double budget )
       ballot[ i ].second = i;
     }
 
+    //printf( "before Neighbor\n" ); fflush( stdout );
+
     /** traverse all points and their neighbors. NN is stored as k-by-N */
     for ( size_t j = 0; j < node->lids.size(); j ++ )
     {
@@ -2652,12 +2660,21 @@ void FindNearNodes( TREE &tree, double budget )
       for ( size_t i = NN.row() / 2; i < NN.row(); i ++ )
       {
         size_t neighbor_gid = NN( i, lid ).second;
-        //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
-        size_t neighbor_lid = tree.Getlid( neighbor_gid );
-        size_t neighbor_morton = setup.morton[ neighbor_lid ];
-        //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
-        auto *target = tree.Morton2Node( neighbor_morton );
-        ballot[ target->treelist_id - ( n_nodes - 1 ) ].first += 1;
+
+        /** if this gid is valid, then compute its morton */
+        if ( neighbor_gid > 0 && neighbor_gid < NN.col() )
+        {
+          //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
+          size_t neighbor_lid = tree.Getlid( neighbor_gid );
+          size_t neighbor_morton = setup.morton[ neighbor_lid ];
+          //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
+          auto *target = tree.Morton2Node( neighbor_morton );
+          ballot[ target->treelist_id - ( n_nodes - 1 ) ].first += 1;
+        }
+        else
+        {
+          printf( "illegle gid in neighbor pairs\n" ); fflush( stdout );
+        }
       }
     }
 
@@ -2760,7 +2777,9 @@ class NearNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+      //printf( "NearNode beg\n" ); fflush( stdout );
       FindNearNodes<SYMMETRIC, TREE>( *arg, budget );
+      //printf( "NearNode end\n" ); fflush( stdout );
     };
 
 }; /** end class NearNodesTask */
@@ -2821,6 +2840,8 @@ class CacheNearNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+      //printf( "%lu Cache beg\n", arg->treelist_id ); fflush( stdout );
+
       NODE *node = arg;
       auto *NearNodes = &node->NearNodes;
       if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
@@ -2860,6 +2881,7 @@ class CacheNearNodesTask : public hmlp::Task
       }
 #endif
 
+      //printf( "%lu Cache end\n", arg->treelist_id ); fflush( stdout );
     };
 }; /** end class CacheNearNodesTask */
 
@@ -3684,6 +3706,25 @@ Compress
     printf( "not performed (precomputed or k=0) ...\n" ); fflush( stdout );
   }
   ann_time = omp_get_wtime() - beg;
+
+  /** check illegle values in NN */
+  for ( size_t j = 0; j < NN.col(); j ++ )
+  {
+    for ( size_t i = 0; i < NN.row(); i ++ )
+    {
+      size_t neighbor_gid = NN( i, j ).second;
+      if ( neighbor_gid < 0 || neighbor_gid >= n )
+      {
+        printf( "NN( %lu, %lu ) has illegle values %lu\n", i, j, neighbor_gid );
+        break;
+      }
+    }
+  }
+
+
+
+
+
 
   /** initialize metric ball tree using approximate center split */
   hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T> tree;

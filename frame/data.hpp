@@ -336,9 +336,25 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       hmlp::hmlp_printmatrix( m, n, this->data(), m );
     };
 
+    void WriteFile( char *name )
+    {
+      FILE * pFile;
+      pFile = fopen ( name, "w" );
+      fprintf( pFile, "%s=[\n", name );
+      for ( size_t i = 0; i < m; i ++ )
+      {
+        for ( size_t j = 0; j < n; j ++ )
+        {
+          fprintf( pFile, "%lf,", (*this)( i, j ) );
+        }
+        fprintf( pFile, ";\n" );
+      }
+      fprintf( pFile, "];\n" );
+      fclose( pFile );
+    };
+
     template<typename TINDEX>
     double flops( TINDEX na, TINDEX nb ) { return 0.0; };
-
 
 #ifdef HMLP_USE_CUDA
 

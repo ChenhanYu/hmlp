@@ -21,36 +21,67 @@ class View : public ReadWrite
     //~View() { printf( "~View()\n" ); fflush( stdout ); };
 
     /** base case setup */
+    template<bool TRANS = false>
     void Set( hmlp::Data<T> &buff )
     {
-      this->m    = buff.row();
-      this->n    = buff.col();
-      this->offm = 0;
-      this->offn = 0;
-      this->base = this;
-      this->buff = &buff;
+      this->trans = TRANS;
+      if ( trans )
+      {
+        /** hmlp::Data<T> is stored in column major */
+        this->m = buff.col();
+        this->n = buff.row();
+      }
+      else
+      {
+        this->m = buff.row();
+        this->n = buff.col();
+      }
+      this->offm  = 0;
+      this->offn  = 0;
+      this->base  = this;
+      this->buff  = &buff;
     };
 
     /** non-base case setup */
     void Set( size_t m, size_t n, size_t offm, size_t offn, hmlp::View<T> *base )
     {
-      assert( offm <= base->buff->row() );
-      assert( offn <= base->buff->col() );
-      this->m    = m;
-      this->n    = n;
-      this->offm = offm;
-      this->offn = offn;
-      this->base = base;
-      this->buff = base->buff;
+      this->trans = base->trans;
+      if ( trans )
+      {
+        assert( offm <= base->buff->col() );
+        assert( offn <= base->buff->row() );
+      }
+      else
+      {
+        assert( offm <= base->buff->row() );
+        assert( offn <= base->buff->col() );
+      }
+      this->m     = m;
+      this->n     = n;
+      this->offm  = offm;
+      this->offn  = offn;
+      this->base  = base;
+      this->buff  = base->buff;
     };
 
     /** subview operator */
     template<typename TINDEX>
     T & operator () ( TINDEX i, TINDEX j )
     {
-      assert( offm + i < buff->row() );
-      assert( offn + j < buff->col() );
-      return *( data() + j * ld() + i );
+      size_t offset = 0;
+      if ( trans )
+      {
+        assert( offm + i < buff->col() );
+        assert( offn + j < buff->row() );
+        offset = i * ld() + j;
+      }
+      else
+      {
+        assert( offm + i < buff->row() );
+        assert( offn + j < buff->col() );
+        offset = j * ld() + i;
+      }
+      return *( data() + offset );
     };
 
 
@@ -84,6 +115,16 @@ class View : public ReadWrite
       A2.Set( this->m, n - nb, this->offm, this->offn + nb, this );
     };
 
+    /** A = [ A11, A12; A21, A22; ]; */
+    void Partition2x2
+    (
+      hmlp::View<T> &A11, hmlp::View<T> &A12,
+      hmlp::View<T> &A21, hmlp::View<T> &A22
+    )
+    {
+    };
+
+
     /** return the row size of the current view */
     size_t row() { return m; };
 
@@ -97,17 +138,31 @@ class View : public ReadWrite
     T *data()
     {
       assert( buff );
-      return ( buff->data() + offn * buff->row() + offm );
+      size_t offset;
+      if ( trans ) offset = offm * ld() + offn;
+      else         offset = offn * ld() + offm;
+      return ( buff->data() + offset );
     };
 
     /** print out all information */
     void Print()
     {
-      printf( "[ %5lu+%5lu:%5lu ][ %5lu+%5lu:%5lu ]\n",
-          offm, m, buff->row(), offn, n, buff->col() );
+      if ( trans )
+      {
+        printf( "[ %5lu+%5lu:%5lu ][ %5lu+%5lu:%5lu ]\n",
+            offm, m, buff->col(), offn, n, buff->row() );
+      }
+      else
+      {
+        printf( "[ %5lu+%5lu:%5lu ][ %5lu+%5lu:%5lu ]\n",
+            offm, m, buff->row(), offn, n, buff->col() );
+      }
     }; 
 
   private:
+
+    /** whether this is a transpose view? */
+    bool trans = false;
 
     size_t m = 0;
 

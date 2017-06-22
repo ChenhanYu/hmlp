@@ -1,6 +1,6 @@
-m=3600
-n=4097
-kmin=4
+m=4096
+n=576
+kmin=64
 kmax=500
 kinc=31
 kernel="Gaussian"

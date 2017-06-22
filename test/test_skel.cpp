@@ -27,7 +27,7 @@
 #include <hmlp_blas_lapack.h>
 
 #include <data.hpp>
-#include <skel.hpp>
+#include <lowrank.hpp>
 
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
@@ -36,7 +36,7 @@
 #define GFLOPS 1073741824 
 #define TOLERANCE 1E-13
 
-using namespace hmlp::skel;
+using namespace hmlp::lowrank;
 
 
 template<typename T>

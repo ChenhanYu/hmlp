@@ -48,6 +48,20 @@ extern "C"
       float *alpha,
       float *A, int *lda,
       float *B, int *ldb );
+  void dtrmm_( 
+      const char *side, const char *uplo,
+      const char *transA, const char *diag,
+      int *m, int *n,
+      double *alpha,
+      double *A, int *lda,
+      double *B, int *ldb );
+  void strmm_( 
+      const char *side, const char *uplo,
+      const char *transA, const char *diag,
+      int *m, int *n,
+      float *alpha,
+      float *A, int *lda,
+      float *B, int *ldb );
   /** LAPACK */
   void dpotrf_( 
       const char *uplo, 
@@ -339,11 +353,11 @@ void xtrsm
   dtrsm_
   (
     side, uplo,
-	transA, diag,
-	&m, &n,
-	&alpha,
-	A, &lda,
-	B, &ldb
+	  transA, diag,
+	  &m, &n,
+	  &alpha,
+	  A, &lda,
+	  B, &ldb
   );
 #else
   printf( "xtrsm must enables USE_BLAS.\n" );
@@ -354,7 +368,7 @@ void xtrsm
   printf( "dtrsm m %d n %d, %5.2lf GFLOPS, %5.2lf s\n", 
       m, n, gflops / xtrsm_time, xtrsm_time );
 #endif
-};
+}; /** end xtrsm() */
 
 
 /**
@@ -374,16 +388,74 @@ void xtrsm
   strsm_
   (
     side, uplo,
-	transA, diag,
-	&m, &n,
-	&alpha,
-	A, &lda,
-	B, &ldb
+	  transA, diag,
+	  &m, &n,
+	  &alpha,
+	  A, &lda,
+	  B, &ldb
   );
 #else
   printf( "xtrsm must enables USE_BLAS.\n" );
 #endif
-};
+}; /** end xtrsm() */
+
+
+/**
+ *  @brief DTRMM wrapper
+ */ 
+void xtrmm
+( 
+  const char *side, const char *uplo,
+  const char *transA, const char *diag,
+  int m, int n,
+  double alpha,
+  double *A, int lda,
+  double *B, int ldb 
+)
+{
+#ifdef USE_BLAS
+  dtrmm_
+  (
+    side, uplo,
+	  transA, diag,
+	  &m, &n,
+	  &alpha,
+	  A, &lda,
+	  B, &ldb
+  );
+#else
+  printf( "xtrmm must enables USE_BLAS.\n" );
+#endif
+}; /** end xtrmm() */
+
+
+/**
+ *  @brief DTRMM wrapper
+ */ 
+void strmm
+( 
+  const char *side, const char *uplo,
+  const char *transA, const char *diag,
+  int m, int n,
+  float alpha,
+  float *A, int lda,
+  float *B, int ldb 
+)
+{
+#ifdef USE_BLAS
+  strmm_
+  (
+    side, uplo,
+	  transA, diag,
+	  &m, &n,
+	  &alpha,
+	  A, &lda,
+	  B, &ldb
+  );
+#else
+  printf( "xtrmm must enables USE_BLAS.\n" );
+#endif
+}; /** end xtrmm() */
 
 
 /**

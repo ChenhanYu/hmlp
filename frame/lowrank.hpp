@@ -1,5 +1,5 @@
-#ifndef SKEL_HPP
-#define SKEL_HPP
+#ifndef LOWRANK_HPP
+#define LOWRANK_HPP
 
 #include <assert.h>
 #include <typeinfo>
@@ -18,7 +18,7 @@
 
 namespace hmlp
 {
-namespace skel
+namespace lowrank
 {
 
 
@@ -328,6 +328,34 @@ void id
   
 
 
+/**
+ *  @brief
+ */ 
+template<bool ONESHOT = false,typename T>
+void nystrom( size_t m, size_t n, size_t r, 
+    std::vector<T> &A, std::vector<T> &C, 
+    std::vector<T> &U, std::vector<T> &V )
+{
+  /** if C is not initialized, then sample from A */
+  if ( C.size() != r * r )
+  {
+    /** uniform sampling */
+    
+  }
+  else
+  {
+    /** compute the pseudo-inverse of C using SVD */
+  }
+
+  /** output an approximate  */
+  if ( ONESHOT )
+  {
+  }
+
+
+}; /** end nystrom() */
+
+
 
 
 
@@ -632,7 +660,7 @@ class Task : public hmlp::Task
 
 
 
-}; // end namespace skel
-}; // end namespace hmlp
+}; /** end namespace lowrank */
+}; /** end namespace hmlp */
 
-#endif // define SKEL_HPP
+#endif // define LOWRANK_HPP

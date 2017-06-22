@@ -194,18 +194,15 @@ void test_gofmm
 
 
   /** Factorization */
-  T lambda = 10.0;
+  const bool LU = true;
+  T lambda = 1.0;
   if ( lambda < 10.0 * fmmerr_avg )
     printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
         lambda, fmmerr_avg );
-  hmlp::hfamily::Factorize<NODE, T>( tree, lambda ); 
-
-  /** Solving */
-  //hmlp::Data<T> rhs( n, nrhs ); rhs.rand();
-  //hmlp::hfamily::Solve<NODE, T>( tree, rhs );
+  hmlp::hfamily::Factorize<LU, NODE, T>( tree, lambda ); 
 
   /** compute error */
-  hmlp::hfamily::ComputeError<NODE>( tree, lambda, w, u );
+  hmlp::hfamily::ComputeError<LU, NODE>( tree, lambda, w, u );
 
   //#ifdef DUMP_ANALYSIS_DATA
   hmlp::gofmm::Summary<NODE> summary;
@@ -296,7 +293,7 @@ int main( int argc, char *argv[] )
   // const SplitScheme SPLIT = SPLIT_KERNEL_DISTANCE;
 
   /** test suit options */
-  const bool RANDOMMATRIX = true;
+  const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = false;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
@@ -360,30 +357,33 @@ int main( int argc, char *argv[] )
 
 
   /** run the matrix file provided by users */
-//  if ( user_matrix_filename.size() )
-//  {
-//    using T = float;
-//    {
-//      /** dense spd matrix format */
-//      hmlp::gofmm::SPDMatrix<T> K;
-//      K.resize( n, n );
-//      K.read( n, n, user_matrix_filename );
-//      /** (optional) provide neighbors, leave uninitialized otherwise */
-//      hmlp::Data<std::pair<T, std::size_t>> NN;
-//      if ( user_points_filename.size() )
-//      {
-//        hmlp::Data<T> X( d, n, user_points_filename );
-//        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
-//        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-//      }
-//      else
-//      {
-//        hmlp::Data<T> *X = NULL;
-//        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-//        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-//      }
-//    }
-//  }
+  if ( user_matrix_filename.size() )
+  {
+    using T = float;
+    {
+      /** dense spd matrix format */
+      hmlp::gofmm::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, user_matrix_filename );
+
+      //for ( size_t i = 0; i < n; i ++ ) K( i, i ) += 10.0;
+
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      if ( user_points_filename.size() )
+      {
+        hmlp::Data<T> X( d, n, user_points_filename );
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
+        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+      }
+      else
+      {
+        hmlp::Data<T> *X = NULL;
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+      }
+    }
+  }
 
   /** create a random spd matrix, which is diagonal-dominant */
   if ( RANDOMMATRIX )

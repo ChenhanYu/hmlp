@@ -647,6 +647,7 @@ void conv2d_ref
   T *packA = A;
   T *packB = hmlp_malloc<16, T>( k, n, sizeof(T) ); 
 
+  double beg = omp_get_wtime();
   im2col<T>
   (
     n, k,
@@ -654,6 +655,8 @@ void conv2d_ref
     w0, h0, d0, s, p,
     w1, h1
   );
+  double im2col_t = omp_get_wtime() - beg;
+  printf( "im2col( B ) %3.1Es\n", im2col_t ); fflush( stdout );
 
 #ifdef DEBUG_CONV2D
   printf( "packB\n" );

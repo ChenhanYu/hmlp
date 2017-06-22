@@ -192,8 +192,8 @@ void test_conv2d
   printf( "NN %5d, %5d, %5d, %5.2lf (%5.2lfms), %5.2lf (%5.2lfms);\n", 
       m, n, k, flops / gkmx_time, gkmx_time, flops / ref_time, ref_time );
 #else
-  printf( "%5d, %5.2lf, %5.2lf\n", 
-      k, flops / gkmx_time, flops / ref_time );
+  printf( "%5d, %5.2lf %5.2lfs, %5.2lf, %5.2lfs\n", 
+      k, flops / gkmx_time, gkmx_time, flops / ref_time, ref_time );
 #endif
 
 
