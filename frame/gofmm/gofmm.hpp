@@ -25,15 +25,16 @@
 #include <hmlp_util.hpp>
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
-#include <tree.hpp>
-#include <lowrank.hpp>
-#include <data.hpp>
-#include <hfamily.hpp>
+#include <primitives/lowrank.hpp>
+
+#include <containers/tree.hpp>
+#include <containers/data.hpp>
+#include <gofmm/hfamily.hpp>
 
 /** gpu related */
 #ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>
-#include <gofmm_gpu.hpp>
+#include <gofmm/gofmm_gpu.hpp>
 #endif
 
 

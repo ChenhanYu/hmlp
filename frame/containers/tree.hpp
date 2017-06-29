@@ -14,7 +14,7 @@
 #include <mkl.h>
 
 #include <hmlp_runtime.hpp>
-#include <data.hpp>
+#include <containers/data.hpp>
 
 //#define DEBUG_TREE 1
 

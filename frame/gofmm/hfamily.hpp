@@ -12,11 +12,11 @@
 #include <hmlp_util.hpp>
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
-#include <tree.hpp>
-//#include <low.hpp>
-#include <view.hpp>
 
-#include <gofmm.hpp>
+#include <containers/tree.hpp>
+#include <containers/view.hpp>
+
+#include <gofmm/gofmm.hpp>
 
 //#define DEBUG_IGOFMM 1
 
@@ -970,7 +970,7 @@ class TreeViewTask : public hmlp::Task
         node->data.view.Partition2x1
         ( 
           node->lchild->data.view, 
-          node->rchild->data.view, node->lchild->n 
+          node->rchild->data.view, node->lchild->n, TOP 
         );
       }
     };

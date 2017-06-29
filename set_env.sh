@@ -6,17 +6,12 @@ echo "HMLP_DIR = $HMLP_DIR"
 export HMLP_GPU_ARCH_MAJOR=gpu
 export HMLP_GPU_ARCH_MINOR=kepler
 
-# export HMLP_ARCH_MAJOR=arm
-# export HMLP_ARCH_MINOR=armv8a
-
+## (1) x86_64/sandybridge, 
+## (2) x86_64/haswell, 
+## (3) arm/armv8a
+## (4) mic/knl
 export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=sandybridge
-
-# export HMLP_ARCH_MAJOR=x86_64
-# export HMLP_ARCH_MINOR=haswell
-
-# export HMLP_ARCH_MAJOR=mic
-# export HMLP_ARCH_MINOR=knl
 
 export HMLP_GPU_ARCH=$HMLP_GPU_ARCH_MAJOR/$HMLP_GPU_ARCH_MINOR
 export HMLP_ARCH=$HMLP_ARCH_MAJOR/$HMLP_ARCH_MINOR
@@ -24,7 +19,7 @@ echo "HMLP_GPU_ARCH = $HMLP_GPU_ARCH"
 echo "HMLP_ARCH = $HMLP_ARCH"
 
 ## Distributed environment poptions (if true, compile with MPI)
-export HMLP_USE_MPI=true
+export HMLP_USE_MPI=false
 echo "HMLP_USE_MPI = $HMLP_USE_MPI"
 
 ## Compiler options (if false, then use GNU compilers)
@@ -60,9 +55,9 @@ export HMLP_MIC_AVX512=false
 ## Manually set the mkl path
 export HMLP_MKL_DIR=$MKLROOT
 #export HMLP_MKL_DIR=$TACC_MKL_DIR
-#export HMLP_MKL_DIR=/opt/intel/mkl
+export HMLP_MKL_DIR=/opt/intel/mkl
 # export HMLP_MKL_DIR=/opt/apps/sysnet/intel/16/mkl
-echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
+# echo "HMLP_MKL_DIR = $HMLP_MKL_DIR"
 
 ## Manually set the qsml path
 export HMLP_QSML_DIR=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android

@@ -1,5 +1,5 @@
-// GSKS templates
-#include <gsks.hpp>
+/** GSKS templates */
+#include <primitives/gsks.hpp>
 
 // Sandy-bridge
 #include <rank_k_d8x4.hpp>

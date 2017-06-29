@@ -1,5 +1,7 @@
 /** TODO: this header needs a precompiled region */
+#ifdef HMLP_USE_MPI
 #include <mpi.h>
+#endif
 
 #include <tuple>
 #include <cmath>
@@ -23,8 +25,12 @@
 //#ifdef HMLP_USE_MPI
 //#include <gofmm_mpi.hpp>
 //#else
-#include <gofmm.hpp>
+#include <gofmm/gofmm.hpp>
 //#endif
+
+/** use an implicit kernel matrix (only coordinates are stored) */
+#include <containers/kernel.hpp>
+
 
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>
@@ -344,13 +350,14 @@ int main( int argc, char *argv[] )
     sscanf( argv[ 10 ], "%lu", &d );
   }
 
-
+#ifdef HMLP_USE_MPI
   /** Message Passing Interface */
   int size = -1, rank = -1;
   MPI_Init( &argc, &argv );
   MPI_Comm_size( MPI_COMM_WORLD, &size );
   MPI_Comm_rank( MPI_COMM_WORLD, &rank );
   printf( "size %d rank %d\n", size, rank );
+#endif
 
   /** HMLP API call to initialize the runtime */
   hmlp_init();
@@ -403,31 +410,31 @@ int main( int argc, char *argv[] )
   }
 
   /** generate a Gaussian kernel matrix from the coordinates */
-//  if ( KERNELTESTSUIT )
-//  {
-//    /** set the Gaussian kernel bandwidth */
-//    T h = 0.1;
-//    {
-//      /** filename, number of points, dimension */
-//      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
-//      n = 100000;
-//      d = 54;
-//      /** read the coordinates from the file */
-//      hmlp::Data<T> X( d, n, filename );
-//      /** setup the kernel object as Gaussian */
-//      kernel_s<T> kernel;
-//      kernel.type = KS_GAUSSIAN;
-//      kernel.scal = -0.5 / ( h * h );
-//      /** spd kernel matrix format (implicitly create) */
-//      hmlp::Kernel<T> K( n, n, d, kernel, X );
-//      /** (optional) provide neighbors, leave uninitialized otherwise */
-//      hmlp::Data<std::pair<T, std::size_t>> NN;
-//      /** routine */
-//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-//      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-//    }
-//  }
-//
+  if ( KERNELTESTSUIT )
+  {
+    /** set the Gaussian kernel bandwidth */
+    T h = 0.1;
+    {
+      /** filename, number of points, dimension */
+      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+      n = 100000;
+      d = 54;
+      /** read the coordinates from the file */
+      hmlp::Data<T> X( d, n, filename );
+      /** setup the kernel object as Gaussian */
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5 / ( h * h );
+      /** spd kernel matrix format (implicitly create) */
+      hmlp::Kernel<T> K( n, n, d, kernel, X );
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      /** routine */
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+    }
+  }
+
 //  /** generate (read) a CSC sparse matrix */
 //  if ( SPARSETESTSUIT )
 //  {
@@ -477,8 +484,10 @@ int main( int argc, char *argv[] )
   /** HMLP API call to terminate the runtime */
   hmlp_finalize();
 
+#ifdef HMLP_USE_MPI
   /** Message Passing Interface */
   MPI_Finalize();
+#endif
 
   return 0;
 

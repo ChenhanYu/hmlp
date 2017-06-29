@@ -16,8 +16,8 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
-// For USE_STRASSEN
-#include <strassen.hpp>
+/** for USE_STRASSEN */
+#include <primitives/strassen.hpp>
 
 namespace hmlp
 {

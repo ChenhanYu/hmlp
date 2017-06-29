@@ -1,7 +1,7 @@
-// CNN templates
-#include <cnn.hpp>
+/** CNN templates */
+#include <primitives/cnn.hpp>
 
-// Sandy-bridge
+/** Sandy-bridge micro-kernel */
 #include <rank_k_d8x4.hpp>
 
 using namespace hmlp::cnn;

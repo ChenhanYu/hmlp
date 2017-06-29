@@ -26,8 +26,8 @@
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
 
-#include <data.hpp>
-#include <lowrank.hpp>
+#include <containers/data.hpp>
+#include <primitives/lowrank.hpp>
 
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>

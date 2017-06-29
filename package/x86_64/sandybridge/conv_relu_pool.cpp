@@ -1,7 +1,7 @@
-// GKMX templates
-#include <gkmx.hpp>
+/** GKMX templates */
+#include <primitives/gkmx.hpp>
 
-// Sandy-bridge
+/** Sandy-bridge micro-kernels */
 #include <rank_k_d8x4.hpp>
 #include <conv_relu_pool2x2_d8x4.hpp>
 

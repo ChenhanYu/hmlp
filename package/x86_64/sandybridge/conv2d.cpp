@@ -1,7 +1,7 @@
-// GKMX templates
-#include <conv2d.hpp>
+/** CONV2D templates */
+#include <primitives/conv2d.hpp>
 
-// Sandy-bridge
+/** Sandy-bridge */
 #include <rank_k_d8x4.hpp>
 
 using namespace hmlp::cnn;

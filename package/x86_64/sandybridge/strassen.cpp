@@ -1,7 +1,7 @@
-// GKMX templates
-#include <strassen.hpp>
+/** STRASSEN templates */
+#include <primitives/strassen.hpp>
 
-// Sandy-bridge
+/** Sandy-bridge micro-kernel */
 #include <stra_k_d8x4.hpp>
 //#include <rank_k_d8x4.hpp>
 

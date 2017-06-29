@@ -22,11 +22,11 @@
 #include <random>
 
 /** hmlp */
-#include <hmlp.h>
-#include <hmlp_blas_lapack.h>
-#include <hmlp_util.hpp>
+//#include <hmlp.h>
+//#include <hmlp_blas_lapack.h>
+//#include <hmlp_util.hpp>
 #include <hmlp_device.hpp>
-#include <hmlp_thread.hpp>
+//#include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
 /** -lmemkind */
@@ -48,31 +48,33 @@ template<class T>
 class managed_allocator
 {
   public:
-    using value_type = T;
 
-    value_type* allocate(size_t n)
+    T* allocate( size_t n )
     {
-      value_type* result = nullptr;
+      T* result = nullptr;
 
-      cudaError_t error = cudaMallocManaged(&result, n*sizeof(T), cudaMemAttachGlobal);
+      cudaError_t error = cudaMallocManaged( 
+          &result, n * sizeof(T), cudaMemAttachGlobal );
 
-      if(error != cudaSuccess)
+      if ( error != cudaSuccess )
       {
-        throw thrust::system_error(error, thrust::cuda_category(), "managed_allocator::allocate(): cudaMallocManaged");
+        throw thrust::system_error( error, thrust::cuda_category(), 
+            "managed_allocator::allocate(): cudaMallocManaged" );
       }
 
       return result;
-    }
+    }; /** end allocate() */
 
-    void deallocate(value_type* ptr, size_t)
+    void deallocate( T* ptr, size_t )
     {
-      cudaError_t error = cudaFree(ptr);
+      cudaError_t error = cudaFree( ptr );
 
-      if(error != cudaSuccess)
+      if ( error != cudaSuccess )
       {
-        throw thrust::system_error(error, thrust::cuda_category(), "managed_allocator::deallocate(): cudaFree");
+        throw thrust::system_error( error, thrust::cuda_category(), 
+            "managed_allocator::deallocate(): cudaFree" );
       }
-    }
+    }; /** end deallocate() */
 };
 #endif // ifdef HMLP_USE_CUDA
 
@@ -85,10 +87,13 @@ namespace hmlp
 {
 
 #ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
 template<class T, class Allocator = hbw::allocator<T> >
 #elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
 template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
+/** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >
 #endif
 class Data : public ReadWrite, public std::vector<T, Allocator>
@@ -102,37 +107,39 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     /** the default constructor */
     Data() : m( 0 ), n( 0 ) {};
 
-    Data( std::size_t m, std::size_t n ) : std::vector<T, Allocator>( m * n )
+    Data( std::size_t m, std::size_t n ) 
+      : std::vector<T, Allocator>( m * n )
     { 
       this->m = m;
       this->n = n;
     };
 
-    Data( std::size_t m, std::size_t n, T initT ) : std::vector<T, Allocator>( m * n, initT )
+    Data( std::size_t m, std::size_t n, T initT ) 
+      : std::vector<T, Allocator>( m * n, initT )
     { 
       this->m = m;
       this->n = n;
     };
 
-    Data( std::size_t m, std::size_t n, std::string &filename ) : std::vector<T, Allocator>( m * n )
+    Data( std::size_t m, std::size_t n, std::string &filename ) 
+      : std::vector<T, Allocator>( m * n )
     {
       this->m = m;
       this->n = n;
+      this->read( m, n, filename );
 
-      std::cout << filename << std::endl;
+      //std::cout << filename << std::endl;
 
-      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
-      if ( file.is_open() )
-      {
-        auto size = file.tellg();
-        assert( size == m * n * sizeof(T) );
-        file.seekg( 0, std::ios::beg );
-        file.read( (char*)this->data(), size );
-        file.close();
-      }
+      //std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
+      //if ( file.is_open() )
+      //{
+      //  auto size = file.tellg();
+      //  assert( size == m * n * sizeof(T) );
+      //  file.seekg( 0, std::ios::beg );
+      //  file.read( (char*)this->data(), size );
+      //  file.close();
+      //}
     };
-
-    //enum Pattern : int { STAR = -1 };
 
     void resize( std::size_t m, std::size_t n )
     { 
@@ -207,6 +214,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       return submatrix;
     }; 
 
+    /** ESSENTIAL: */
     template<typename TINDEX>
     std::pair<T, TINDEX> ImportantSample( TINDEX j )
     {
@@ -274,7 +282,10 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     };
 
     template<bool SYMMETRIC = false>
-    void rand() { rand<SYMMETRIC>( 0.0, 1.0 ); };
+    void rand() 
+    { 
+      rand<SYMMETRIC>( 0.0, 1.0 ); 
+    };
 
     void randn( T mu, T sd )
     {
@@ -286,7 +297,10 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       }
     };
 
-    void randn() { randn( 0.0, 1.0 ); };
+    void randn() 
+    { 
+      randn( 0.0, 1.0 ); 
+    };
 
     template<bool USE_LOWRANK>
     void randspd( T a, T b )
@@ -328,12 +342,15 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     };
 
     template<bool USE_LOWRANK>
-    void randspd() { randspd<USE_LOWRANK>( 0.0, 1.0 ); };
+    void randspd() 
+    { 
+      randspd<USE_LOWRANK>( 0.0, 1.0 ); 
+    };
 
     void Print()
     {
       printf( "Data in %lu * %lu\n", m, n );
-      hmlp::hmlp_printmatrix( m, n, this->data(), m );
+      //hmlp::hmlp_printmatrix( m, n, this->data(), m );
     };
 
     void WriteFile( char *name )
@@ -857,244 +874,251 @@ class OOC : public ReadWrite
 }; // end class OOC
 
 
-#ifdef HMLP_MIC_AVX512
-template<typename T, class Allocator = hbw::allocator<T> >
-#else
-template<typename T, class Allocator = std::allocator<T> >
-#endif
-class Kernel : public ReadWrite
-{
-  public:
+//#ifdef HMLP_MIC_AVX512
+//template<typename T, class Allocator = hbw::allocator<T> >
+//#else
+//template<typename T, class Allocator = std::allocator<T> >
+//#endif
+//class Kernel : public ReadWrite
+//{
+//  public:
+//
+//    // Symmetric kernel matrix
+//    template<typename TINDEX>
+//    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources )
+//    : sources( sources ), targets( sources )
+//    {
+//      this->m = m;
+//      this->n = n;
+//      this->d = d;
+//      this->kernel = kernel;
+//    };
+//
+//    // Nonsymmetric kernel matrix
+//    template<typename TINDEX>
+//    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources, Data<T> &targets )
+//    : sources( sources ), targets( targets )
+//    {
+//      this->m = m;
+//      this->n = n;
+//      this->d = d;
+//      this->kernel = kernel;
+//    };
+//
+//    ~Kernel() {};
+//
+//    template<typename TINDEX>
+//    inline T operator()( TINDEX i, TINDEX j )
+//    {
+//      T Kij = 0;
+//
+//      switch ( kernel.type )
+//      {
+//        case KS_GAUSSIAN:
+//          {
+//            for ( TINDEX k = 0; k < d; k++ )
+//            {
+//              Kij += std::pow( targets[ i * d + k] - sources[ j * d + k ], 2 );
+//            }
+//            Kij = exp( kernel.scal * Kij );
+//            break;
+//          }
+//        default:
+//          {
+//            printf( "invalid kernel type\n" );
+//            exit( 1 );
+//            break;
+//          }
+//      }
+//
+//      return Kij;
+//    };
+//
+//
+//    //template<typename TINDEX>
+//    //inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+//    //{
+//    //  hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+//    //  #pragma omp parallel for
+//    //  for ( int j = 0; j < jmap.size(); j ++ )
+//    //  {
+//    //    for ( int i = 0; i < imap.size(); i ++ )
+//    //    {
+//    //      submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
+//    //    }
+//    //  }
+//    //  return submatrix;
+//    //};
+//
+//
+//    template<typename TINDEX>
+//    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+//    {
+//      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+//
+//      if ( !submatrix.size() ) return submatrix;
+//
+//      // Get coordinates of sources and targets
+//      hmlp::Data<T> itargets = targets( imap );
+//      hmlp::Data<T> jsources = sources( jmap );
+//
+//      assert( itargets.col() == submatrix.row() );
+//      assert( itargets.row() == d );
+//      assert( jsources.col() == submatrix.col() );
+//      assert( jsources.row() == d );
+//
+//      // Compute inner products
+//      xgemm
+//      (
+//        "T", "N",
+//        imap.size(), jmap.size(), d,
+//        -2.0, itargets.data(),   itargets.row(),
+//              jsources.data(),   jsources.row(),
+//         0.0, submatrix.data(), submatrix.row()
+//      );
+//
+//      // Compute square norms
+//      std::vector<T> target_sqnorms( imap.size() );
+//      std::vector<T> source_sqnorms( jmap.size() );
+//      #pragma omp parallel for
+//      for ( TINDEX i = 0; i < imap.size(); i ++ )
+//      {
+//        target_sqnorms[ i ] = xdot
+//                              (
+//                                d,
+//                                itargets.data() + i * d, 1,
+//                                itargets.data() + i * d, 1
+//                              );
+//      }
+//      #pragma omp parallel for
+//      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+//      {
+//        source_sqnorms[ j ] = xdot
+//                              (
+//                                d,
+//                                jsources.data() + j * d, 1,
+//                                jsources.data() + j * d, 1
+//                              );
+//      }
+//
+//      // Add square norms to inner products to get pairwise square distances
+//      #pragma omp parallel for
+//      for ( TINDEX j = 0; j < jmap.size(); j ++ )
+//      {
+//        for ( TINDEX i = 0; i < imap.size(); i ++ )
+//        {
+//          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
+//        }
+//      }
+//
+//      switch ( kernel.type )
+//      {
+//        case KS_GAUSSIAN:
+//          {
+//            // Apply the scaling factor and exponentiate
+//            #pragma omp parallel for
+//            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
+//            {
+//              submatrix[ i ] = std::exp( kernel.scal * submatrix[ i ] );
+//            }
+//
+//            // gemm: 2 * i * j * d
+//            // compute sqnorms: 2 * ( i + j ) * d
+//            // add sqnorms: 2 * i * j
+//            // scale and exponentiate: 2 * i * j
+//            //flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
+//            //           + 4 * imap.size() * jmap.size();
+//            break;
+//          }
+//        default:
+//          {
+//            printf( "invalid kernel type\n" );
+//            exit( 1 );
+//            break;
+//          }
+//      }
+//
+//      return submatrix;
+//    }; 
+//
+//    template<typename TINDEX>
+//    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+//    {
+//      TINDEX i = std::rand() % m;
+//      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+//      return sample; 
+//    };
+//
+//    void Print()
+//    {
+//      for ( size_t j = 0; j < n; j ++ )
+//      {
+//        printf( "%8lu ", j );
+//      }
+//      printf( "\n" );
+//      for ( size_t i = 0; i < m; i ++ )
+//      {
+//        for ( size_t j = 0; j < n; j ++ )
+//        {
+//          printf( "% 3.1E ", (*this)( i, j ) );
+//        }
+//        printf( "\n" );
+//      }
+//    }; // end Print()
+//
+//    std::size_t row() { return m; };
+//
+//    std::size_t col() { return n; };
+//
+//    std::size_t dim() { return d; };
+//
+//    /** flops required for Kab */
+//    template<typename TINDEX>
+//    double flops( TINDEX na, TINDEX nb ) 
+//    {
+//      double flopcount = 0.0;
+//
+//      switch ( kernel.type )
+//      {
+//        case KS_GAUSSIAN:
+//          {
+//            flopcount = na * nb * ( 2.0 * d + 35.0 );
+//            break;
+//          }
+//        default:
+//          {
+//            printf( "invalid kernel type\n" );
+//            exit( 1 );
+//            break;
+//          }
+//      }
+//      return flopcount; 
+//    };
+//
+//
+//  private:
+//
+//    std::size_t m;
+//
+//    std::size_t n;
+//
+//    std::size_t d;
+//
+//    Data<T> &sources;
+//
+//    Data<T> &targets;
+//
+//    kernel_s<T> kernel;
+//
+//}; // end class Kernel
 
-    // Symmetric kernel matrix
-    template<typename TINDEX>
-    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources )
-    : sources( sources ), targets( sources )
-    {
-      this->m = m;
-      this->n = n;
-      this->d = d;
-      this->kernel = kernel;
-    };
-
-    // Nonsymmetric kernel matrix
-    template<typename TINDEX>
-    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources, Data<T> &targets )
-    : sources( sources ), targets( targets )
-    {
-      this->m = m;
-      this->n = n;
-      this->d = d;
-      this->kernel = kernel;
-    };
-
-    ~Kernel() {};
-
-    template<typename TINDEX>
-    inline T operator()( TINDEX i, TINDEX j )
-    {
-      T Kij = 0;
-
-      switch ( kernel.type )
-      {
-        case KS_GAUSSIAN:
-          {
-            for ( TINDEX k = 0; k < d; k++ )
-            {
-              Kij += std::pow( targets[ i * d + k] - sources[ j * d + k ], 2 );
-            }
-            Kij = exp( kernel.scal * Kij );
-            break;
-          }
-        default:
-          {
-            printf( "invalid kernel type\n" );
-            exit( 1 );
-            break;
-          }
-      }
-
-      return Kij;
-    };
 
 
-    //template<typename TINDEX>
-    //inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
-    //{
-    //  hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-    //  #pragma omp parallel for
-    //  for ( int j = 0; j < jmap.size(); j ++ )
-    //  {
-    //    for ( int i = 0; i < imap.size(); i ++ )
-    //    {
-    //      submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
-    //    }
-    //  }
-    //  return submatrix;
-    //};
 
 
-    template<typename TINDEX>
-    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
-    {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-
-      if ( !submatrix.size() ) return submatrix;
-
-      // Get coordinates of sources and targets
-      hmlp::Data<T> itargets = targets( imap );
-      hmlp::Data<T> jsources = sources( jmap );
-
-      assert( itargets.col() == submatrix.row() );
-      assert( itargets.row() == d );
-      assert( jsources.col() == submatrix.col() );
-      assert( jsources.row() == d );
-
-      // Compute inner products
-      xgemm
-      (
-        "T", "N",
-        imap.size(), jmap.size(), d,
-        -2.0, itargets.data(),   itargets.row(),
-              jsources.data(),   jsources.row(),
-         0.0, submatrix.data(), submatrix.row()
-      );
-
-      // Compute square norms
-      std::vector<T> target_sqnorms( imap.size() );
-      std::vector<T> source_sqnorms( jmap.size() );
-      #pragma omp parallel for
-      for ( TINDEX i = 0; i < imap.size(); i ++ )
-      {
-        target_sqnorms[ i ] = xdot
-                              (
-                                d,
-                                itargets.data() + i * d, 1,
-                                itargets.data() + i * d, 1
-                              );
-      }
-      #pragma omp parallel for
-      for ( TINDEX j = 0; j < jmap.size(); j ++ )
-      {
-        source_sqnorms[ j ] = xdot
-                              (
-                                d,
-                                jsources.data() + j * d, 1,
-                                jsources.data() + j * d, 1
-                              );
-      }
-
-      // Add square norms to inner products to get pairwise square distances
-      #pragma omp parallel for
-      for ( TINDEX j = 0; j < jmap.size(); j ++ )
-      {
-        for ( TINDEX i = 0; i < imap.size(); i ++ )
-        {
-          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
-        }
-      }
-
-      switch ( kernel.type )
-      {
-        case KS_GAUSSIAN:
-          {
-            // Apply the scaling factor and exponentiate
-            #pragma omp parallel for
-            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
-            {
-              submatrix[ i ] = std::exp( kernel.scal * submatrix[ i ] );
-            }
-
-            // gemm: 2 * i * j * d
-            // compute sqnorms: 2 * ( i + j ) * d
-            // add sqnorms: 2 * i * j
-            // scale and exponentiate: 2 * i * j
-            //flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
-            //           + 4 * imap.size() * jmap.size();
-            break;
-          }
-        default:
-          {
-            printf( "invalid kernel type\n" );
-            exit( 1 );
-            break;
-          }
-      }
-
-      return submatrix;
-    }; 
-
-    template<typename TINDEX>
-    std::pair<T, TINDEX> ImportantSample( TINDEX j )
-    {
-      TINDEX i = std::rand() % m;
-      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
-      return sample; 
-    };
-
-    void Print()
-    {
-      for ( size_t j = 0; j < n; j ++ )
-      {
-        printf( "%8lu ", j );
-      }
-      printf( "\n" );
-      for ( size_t i = 0; i < m; i ++ )
-      {
-        for ( size_t j = 0; j < n; j ++ )
-        {
-          printf( "% 3.1E ", (*this)( i, j ) );
-        }
-        printf( "\n" );
-      }
-    }; // end Print()
-
-    std::size_t row() { return m; };
-
-    std::size_t col() { return n; };
-
-    std::size_t dim() { return d; };
-
-    /** flops required for Kab */
-    template<typename TINDEX>
-    double flops( TINDEX na, TINDEX nb ) 
-    {
-      double flopcount = 0.0;
-
-      switch ( kernel.type )
-      {
-        case KS_GAUSSIAN:
-          {
-            flopcount = na * nb * ( 2.0 * d + 35.0 );
-            break;
-          }
-        default:
-          {
-            printf( "invalid kernel type\n" );
-            exit( 1 );
-            break;
-          }
-      }
-      return flopcount; 
-    };
 
 
-  private:
 
-    std::size_t m;
-
-    std::size_t n;
-
-    std::size_t d;
-
-    Data<T> &sources;
-
-    Data<T> &targets;
-
-    kernel_s<T> kernel;
-
-}; // end class Kernel
-
-}; // end namespace hmlp
+}; /** end namespace hmlp */
 
 #endif //define DATA_HPP

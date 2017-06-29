@@ -1,7 +1,7 @@
 #ifndef HMLP_BLAS_LAPACK_H
 #define HMLP_BLAS_LAPACK_H
 
-#include <view.hpp>
+#include <containers/view.hpp>
 
 #ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>
