@@ -22,12 +22,8 @@
 #include <mkl.h>
 #endif
 
-//#ifdef HMLP_USE_MPI
-//#include <gofmm_mpi.hpp>
-//#else
-#include <gofmm/gofmm.hpp>
-//#endif
 
+#include <gofmm/gofmm.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
 #include <containers/kernel.hpp>
 
@@ -68,11 +64,7 @@ void test_gofmm
   /** instantiation for the Spd-Askit tree */
   using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA  = hmlp::gofmm::Data<T>;
-//#ifdef HMLP_USE_MPI
-//  using NODE  = hmlp::tree::mpi::Node<SETUP, N_CHILDREN, DATA, T>;
-//#else
   using NODE  = Node<SETUP, N_CHILDREN, DATA, T>;
-//#endif
  
   /** all timers */
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
@@ -82,12 +74,9 @@ void test_gofmm
   const bool CACHE = true;
 
   /** compress K */
-//#ifdef HMLP_USE_MPI
-//  auto tree = hmlp::gofmm::mpi::Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
-//  ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
-//#else
   auto tree = Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
   ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+
 //#endif
 
 
@@ -110,11 +99,7 @@ void test_gofmm
 
   /** Evaluate u ~ K * w */
   hmlp::Data<T> w( nrhs, n ); w.rand();
-//#ifdef HMLP_USE_MPI
-//  auto u = hmlp::gofmm::mpi::Evaluate<true, false, true, true, CACHE, NODE>( tree, w );
-//#else
-  auto u = Evaluate<true, false, true, true, CACHE, NODE>( tree, w );
-//#endif
+  auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
 
 
 #ifdef HMLP_AVX512
@@ -299,8 +284,9 @@ int main( int argc, char *argv[] )
   // const SplitScheme SPLIT = SPLIT_KERNEL_DISTANCE;
 
   /** test suit options */
+  const bool SIMPLE = true;
   const bool RANDOMMATRIX = false;
-  const bool USE_LOWRANK = false;
+  const bool USE_LOWRANK = true;
   const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
   const bool KERNELTESTSUIT = false;
@@ -364,33 +350,55 @@ int main( int argc, char *argv[] )
 
 
   /** run the matrix file provided by users */
-  if ( user_matrix_filename.size() )
+  //if ( user_matrix_filename.size() )
+  //{
+  //  using T = float;
+  //  {
+  //    /** dense spd matrix format */
+  //    hmlp::gofmm::SPDMatrix<T> K;
+  //    K.resize( n, n );
+  //    K.read( n, n, user_matrix_filename );
+
+  //    //for ( size_t i = 0; i < n; i ++ ) K( i, i ) += 10.0;
+
+  //    /** (optional) provide neighbors, leave uninitialized otherwise */
+  //    hmlp::Data<std::pair<T, std::size_t>> NN;
+  //    if ( user_points_filename.size() )
+  //    {
+  //      hmlp::Data<T> X( d, n, user_points_filename );
+  //      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
+  //      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+  //    }
+  //    else
+  //    {
+  //      hmlp::Data<T> *X = NULL;
+  //      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+  //      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+  //    }
+  //  }
+  //}
+
+  /** test simple interface */
+  if ( SIMPLE )
   {
-    using T = float;
+    hmlp::gofmm::SPDMatrix<T> K;
+    K.resize( n, n );
+    K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+    auto tree = hmlp::gofmm::Compress<T>( K, stol, budget );
+    size_t nrhs = 1;
+    hmlp::Data<T> w( nrhs, n ); w.rand();
+    auto u = hmlp::gofmm::Evaluate( tree, w );
+    size_t ntest = 10;
+    for ( size_t i = 0; i < ntest; i ++ )
     {
-      /** dense spd matrix format */
-      hmlp::gofmm::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, user_matrix_filename );
-
-      //for ( size_t i = 0; i < n; i ++ ) K( i, i ) += 10.0;
-
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      if ( user_points_filename.size() )
-      {
-        hmlp::Data<T> X( d, n, user_points_filename );
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
-        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-      }
-      else
-      {
-        hmlp::Data<T> *X = NULL;
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-      }
+      hmlp::Data<T> potentials( 1, nrhs );
+      for ( size_t p = 0; p < potentials.col(); p ++ )
+        potentials[ p ] = u( p, i );
+      auto fmmerr = ComputeError( tree, i, potentials );
+      printf( "fmmerr %3.1E\n", fmmerr );
     }
   }
+
 
   /** create a random spd matrix, which is diagonal-dominant */
   if ( RANDOMMATRIX )
@@ -410,30 +418,30 @@ int main( int argc, char *argv[] )
   }
 
   /** generate a Gaussian kernel matrix from the coordinates */
-  if ( KERNELTESTSUIT )
-  {
-    /** set the Gaussian kernel bandwidth */
-    T h = 0.1;
-    {
-      /** filename, number of points, dimension */
-      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
-      n = 100000;
-      d = 54;
-      /** read the coordinates from the file */
-      hmlp::Data<T> X( d, n, filename );
-      /** setup the kernel object as Gaussian */
-      kernel_s<T> kernel;
-      kernel.type = KS_GAUSSIAN;
-      kernel.scal = -0.5 / ( h * h );
-      /** spd kernel matrix format (implicitly create) */
-      hmlp::Kernel<T> K( n, n, d, kernel, X );
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      /** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-    }
-  }
+//  if ( KERNELTESTSUIT )
+//  {
+//    /** set the Gaussian kernel bandwidth */
+//    T h = 0.1;
+//    {
+//      /** filename, number of points, dimension */
+//      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+//      n = 100000;
+//      d = 54;
+//      /** read the coordinates from the file */
+//      hmlp::Data<T> X( d, n, filename );
+//      /** setup the kernel object as Gaussian */
+//      kernel_s<T> kernel;
+//      kernel.type = KS_GAUSSIAN;
+//      kernel.scal = -0.5 / ( h * h );
+//      /** spd kernel matrix format (implicitly create) */
+//      hmlp::Kernel<T> K( n, n, d, kernel, X );
+//      /** (optional) provide neighbors, leave uninitialized otherwise */
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      /** routine */
+//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+//    }
+//  }
 
 //  /** generate (read) a CSC sparse matrix */
 //  if ( SPARSETESTSUIT )

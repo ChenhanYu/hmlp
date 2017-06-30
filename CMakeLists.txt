@@ -116,6 +116,13 @@ set (CMAKE_RELEASE_POSTFIX "")
 set (CMAKE_DEBUG_POSTFIX "-debug")
 
 
+# Python support
+# ---------------------------
+find_package(PythonLibs REQUIRED)
+include_directories(${PYTHON_INCLUDE_DIRS})
+message("${PYTHON_LIBRARIES}")
+message("${PYTHON_INCLUDE_DIRS}")
+
 
 
 # (OPTIONAL) MPI configurations
@@ -171,7 +178,7 @@ endif()
 # ---------------------------
 if ($ENV{HMLP_USE_VML} MATCHES "true")
   if ($ENV{HMLP_USE_INTEL} MATCHES "true")
-    set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_VML")
+    set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_VML -mkl=parallel")
   endif ()
 endif ()
 
@@ -256,10 +263,10 @@ file (GLOB PACKAGE_CU_SRC  ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 # Build the static library.
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  cuda_add_library (hmlp STATIC ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+  cuda_add_library (hmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${FRAME_CU_SRC} ${PACKAGE_CU_SRC})
 else ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  add_library (hmlp STATIC ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+  add_library (hmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
   #if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND NOT ($ENV{HMLP_USE_INTEL} MATCHES "true"))
   #  target_link_libraries (hmlp ${BLAS_LIBRARIES})

@@ -889,10 +889,13 @@ class Setup
 /**
  *
  */ 
-template<class SETUP, class NODE, int N_CHILDREN, typename T>
+template<class SETUP, class NODEDATA, int N_CHILDREN, typename T>
 class Tree
 {
   public:
+
+    /** define our tree node type as NODE */
+    typedef Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
 
     /** data shared by all tree nodes */
     SETUP setup;

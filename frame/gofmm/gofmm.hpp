@@ -19,6 +19,9 @@
 #include <omp.h>
 #include <time.h>
 
+/** Python embedding */
+#include <Python.h>
+
 /** hmlp */
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
@@ -328,10 +331,10 @@ class Summary
  *
  */ 
 template<
-typename SPDMATRIX, 
-int N_SPLIT, 
-typename T, 
-SplitScheme SPLIT>
+  typename    SPDMATRIX, 
+  int         N_SPLIT, 
+  typename    T, 
+  SplitScheme SPLIT>
 struct centersplit
 {
   /** closure */
@@ -3386,14 +3389,13 @@ void Evaluate
  *  @brief ComputeAll
  */ 
 template<
-bool USE_RUNTIME, 
-bool USE_OMP_TASK, 
-bool SYMMETRIC_PRUNE, 
-bool NNPRUNE, 
-bool CACHE, 
-typename NODE, 
-typename TREE, 
-typename T>
+  bool     USE_RUNTIME = true, 
+  bool     USE_OMP_TASK = false, 
+  bool     SYMMETRIC_PRUNE = true, 
+  bool     NNPRUNE = true, 
+  bool     CACHE = true, 
+  typename TREE, 
+  typename T>
 hmlp::Data<T> Evaluate
 ( 
   TREE &tree,
@@ -3401,6 +3403,9 @@ hmlp::Data<T> Evaluate
 )
 {
   const bool AUTO_DEPENDENCY = true;
+
+  /** get type NODE = TREE::NODE */
+  using NODE = typename TREE::NODE;
 
   /** all timers */
   double beg, time_ratio, evaluation_time = 0.0;
@@ -3608,6 +3613,8 @@ hmlp::Data<T> Evaluate
 
 
 
+
+
 /**
  *  @brielf template of the compress routine
  */ 
@@ -3621,12 +3628,7 @@ template<
   typename    SPDMATRIX>
 hmlp::tree::Tree<
   hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  hmlp::tree::Node<
-    hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-    N_CHILDREN,
-    hmlp::gofmm::Data<T>,
-    T
-    >,
+  hmlp::gofmm::Data<T>,
   N_CHILDREN,
   T
   > 
@@ -3650,7 +3652,7 @@ Compress
   using SETUP              = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA               = hmlp::gofmm::Data<T>;
   using NODE               = hmlp::tree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using TREE               = hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>;
+  using TREE               = hmlp::tree::Tree<SETUP, DATA, N_CHILDREN, T>;
   using SKELTASK           = hmlp::gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
   using PROJTASK           = hmlp::gofmm::InterpolateTask<NODE, T>;
   using NEARNODESTASK      = hmlp::gofmm::NearNodesTask<SYMMETRIC, TREE>;
@@ -3690,7 +3692,7 @@ Compress
   const size_t n_iter = 10;
   const bool SORTED = false;
   /** do not change anything below this line */
-  hmlp::tree::Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
+  hmlp::tree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
   rkdt.setup.X = X;
   rkdt.setup.K = &K;
   rkdt.setup.splitter = rkdtsplitter;
@@ -3728,7 +3730,7 @@ Compress
 
 
   /** initialize metric ball tree using approximate center split */
-  hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T> tree;
+  hmlp::tree::Tree<SETUP, DATA, N_CHILDREN, T> tree;
   tree.setup.X = X;
   tree.setup.K = &K;
   tree.setup.splitter = splitter;
@@ -3881,10 +3883,76 @@ Compress
 
 
 
+/**
+ *  @brielf A simple template for the compress routine.
+ */ 
+template<
+  typename    T, 
+  typename    SPDMATRIX>
+hmlp::tree::Tree<
+  hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>, T>, 
+  hmlp::gofmm::Data<T>,
+  2,
+  T
+  > 
+Compress( SPDMATRIX &K, double stol, double budget )
+{
+  const bool ADAPTIVE = true;
+  const bool LEVELRESTRICTION = false;
+  using SPLITTER     = centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>;
+  using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T, SPLIT_ANGLE>;
+  hmlp::Data<T> *X = NULL;
+  hmlp::Data<std::pair<T, std::size_t>> NN;
+  SPLITTER splitter;
+  splitter.Kptr = &K;
+  RKDTSPLITTER rkdtsplitter;
+  rkdtsplitter.Kptr = &K;
+  size_t n = K.row();
+  size_t m = 128;
+  size_t k = 16;
+  size_t s = m;
+
+  return Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT_ANGLE, SPLITTER, RKDTSPLITTER>
+         ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+
+}; /** end Compress() */
 
 
 
 
+
+
+///**
+// *  @brief Python wrapper for Compress()
+// */ 
+//static PyObject * Compress_wrapper( PyObject *self, PyObject *args )
+//{
+//  hmlp::Data<double> *K;
+//  double stol = 0.0, budget = 0.0;
+//
+//  /** parse arguments */
+//  if ( !PyArg_ParseTuple( args, "Odd", K, &stol, &budget ) ) 
+//  {
+//    return NULL;
+//  }
+//
+//  /** run the actual function */
+//  auto tree = Compress<double>( *K, stol, budget );
+//
+//  return Py_BuildValue( "O", &tree );
+//
+//}; /** end Compress_wrapper() */
+//
+//
+//static PyMethodDef CompressMethods[] = {
+//  {"Compress",  Compress_wrapper, METH_VARARGS, "Execute Compress."},
+//  {NULL, NULL, 0, NULL}        /* Sentinel */
+//};
+//
+//PyMODINIT_FUNC initCompress(void)
+//{
+//  Py_InitModule("Compress", CompressMethods);
+//};
 
 
 
