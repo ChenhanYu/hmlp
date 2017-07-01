@@ -122,7 +122,15 @@ find_package(PythonLibs REQUIRED)
 include_directories(${PYTHON_INCLUDE_DIRS})
 message("${PYTHON_LIBRARIES}")
 message("${PYTHON_INCLUDE_DIRS}")
-
+find_program(PYTHON "python")
+if (PYTHON)
+  set(SETUP_PY_IN ${CMAKE_SOURCE_DIR}/python/setup.in.py)
+  set(SETUP_PY    ${CMAKE_BINARY_DIR}/python/setup.py)
+  #replace all cmake variables with the correct values
+  configure_file(${SETUP_PY_IN} ${SETUP_PY})
+  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --prefix=${CMAKE_BINARY_DIR})")
+  #install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install)")
+endif()
 
 
 # (OPTIONAL) MPI configurations
