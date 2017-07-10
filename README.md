@@ -60,19 +60,25 @@ nvcc (for NVIDIA GPU with capability > 2.0).
 
 Edit set_env.sh for compilation options.
 
+You MUST manually setup each environment variable in the "REQUIRED"
+CONGIFURATION if any of those variables were not defined properly
+on you system.
+
+
 ```
-Set HMLP_USE_INTEL = true  to use Intel compilers.
-Set HMLP_USE_INTEL = false to use GNU compilers.
+export CC             = icc    to use Intel C compilers
+export CXX            = icpc   to use Intel C++ compilers
+export CC             = gcc    to use GNU C compilers
+export CXX            = g++    to use GNU C++ compilers
+export HMLP_USE_BLAS  = false  if you don't have a BLAS library.
+export MKLROOT        = xxx    to_the_path_of_intel_mkl
 Set HMLP_USE_CUDA  = true  to compile code with cuda templates. 
-Set HMLP_USE_BLAS  = false if you don't have a BLAS library.
-Set HMLP_USE_VNL   = true  to activate Intel VML.
 ```
 
-The default BLAS library for Intel compiler is MKL.
-
-The default BLAS for GNU is Netlib (-lblas). 
-
-The default BLAS for nvcc is CUBLAS.
+The default BLAS library for Intel compiler is MKL. For GNU compilers, cmake
+will try to find a proper BLAS/LAPACK library on you system. If cmake fails
+to locate BLAS/LAPACK, then the compilation will fail as well. You need to
+manually setup the path in the cmake file.
 
 
 **Installation:**

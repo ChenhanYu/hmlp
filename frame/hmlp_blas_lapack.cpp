@@ -432,7 +432,7 @@ void xtrmm
 /**
  *  @brief DTRMM wrapper
  */ 
-void strmm
+void xtrmm
 ( 
   const char *side, const char *uplo,
   const char *transA, const char *diag,

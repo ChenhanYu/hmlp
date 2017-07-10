@@ -60,6 +60,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     find_package (LAPACK REQUIRED)
     message("${LAPACK_LINKER_FLAGS}")
     message("${LAPACK_LIBRARIES}")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
   endif()
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   # using Intel C++
@@ -73,6 +74,9 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     #message("${BLAS_LIBRARIES}")
     set(BLA_VENDOR "Intel")
     find_package (LAPACK REQUIRED)
+    set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_VML -mkl=parallel")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
+		include_directories ("$ENV{MKLROOT}/include")
   endif()
 endif()
 
@@ -88,6 +92,14 @@ if ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm")
   set (CMAKE_OSX_SYSROOT      "")
   set (CMAKE_C_LINK_FLAGS     "")
   set (CMAKE_CXX_LINK_FLAGS   "")
+	## using QSML
+  if ($ENV{HMLP_USE_BLAS} MATCHES "true")
+		if (DEFINED QSML_DIR)
+      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
+    #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
+    include_directories ("${QSML_DIR}/include")
+	  endif()
+  endif()
 endif ()
 
 # Vectorization 
@@ -99,7 +111,7 @@ if ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -march=armv8-a+fp+simd")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -mcpu=cortex-a57.cortex-a53")
 elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "knl")
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -xMIC-AVX512 -DHMLP_AVX512")
+	set (HMLP_CFLAGS            "${HMLP_CFLAGS} -xMIC-AVX512 -DHMLP_MIC_AVX512")
   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lmemkind")
 elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "sandybridge")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -mavx")
@@ -189,19 +201,8 @@ if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
 endif()
 
 
-
-
-
-
-
 # BLAS and VML options
 # ---------------------------
-if ($ENV{HMLP_USE_VML} MATCHES "true")
-  if ($ENV{HMLP_USE_INTEL} MATCHES "true")
-    set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_VML -mkl=parallel")
-  endif ()
-endif ()
-
 if ($ENV{HMLP_USE_BLAS} MATCHES "true")
   # set(BLA_STATIC on)
   find_package (BLAS REQUIRED)
@@ -230,35 +231,34 @@ set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS}")
 
 # Software dependencies.
 # ---------------------------
-set (MKL_DIR  $ENV{HMLP_MKL_DIR})
 set (QSML_DIR $ENV{HMLP_QSML_DIR})
 
 
 # Linking infos.
 # ---------------------------
-if (($ENV{HMLP_USE_BLAS} MATCHES "true") OR ($ENV{HMLP_USE_VML} MATCHES "true"))
-  if ($ENV{HMLP_USE_INTEL} MATCHES "true")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
-    include_directories ("${MKL_DIR}/include")
-  else ($ENV{HMLP_USE_INTEL} MATCHES "true")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-  endif ()
-endif ()
+#if (($ENV{HMLP_USE_BLAS} MATCHES "true") OR ($ENV{HMLP_USE_VML} MATCHES "true"))
+#  if ($ENV{HMLP_USE_INTEL} MATCHES "true")
+#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
+#    include_directories ("${MKL_DIR}/include")
+#  else ($ENV{HMLP_USE_INTEL} MATCHES "true")
+#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
+#  endif ()
+#endif ()
 
-if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm"))
-  if (DEFINED QSML_DIR)
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
-    #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
-    include_directories ("${QSML_DIR}/include")
-  endif()
-endif()
+#if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm"))
+#  if (DEFINED QSML_DIR)
+#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
+#    #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
+#    include_directories ("${QSML_DIR}/include")
+#  endif()
+#endif()
 
 
 
-# Headers.
+# Headers
 # ---------------------------
 include_directories ("include" "frame" "frame/mpi")
-include_directories ( "kernel/reference" "kernel/${HMLP_ARCH}" )
+include_directories ("kernel/reference" "kernel/${HMLP_ARCH}")
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   include_directories ( "${CUDA_TOOLKIT_ROOT_DIR}/include" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_GPU_ARCH}")
@@ -269,6 +269,7 @@ install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 
 
 # Library dependencies
+# ---------------------------
 file (GLOB FRAME_CC_SRC    ${CMAKE_SOURCE_DIR}/frame/*.c)
 file (GLOB FRAME_CXX_SRC   ${CMAKE_SOURCE_DIR}/frame/*.cpp)
 file (GLOB FRAME_CU_SRC    ${CMAKE_SOURCE_DIR}/frame/*.cu)
@@ -498,7 +499,7 @@ message ("HOST_COMPILER=${CUDA_HOST_COMPILER}")
 message ("NVCC_VERSION =${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR}")
 message ("NVCCFLAGS    =${CUDA_NVCC_FLAGS}")
 message ("===================================================")
-message ("MKLDIR       =${MKL_DIR}")
+message ("MKLROOT      =$ENV{MKLROOT}")
 message ("QSMLDIR      =${QSML_DIR}")
 message ("BLAS_LIBRARY =${BLAS_LIBRARIES}")
 message ("BLAS_LINKER  =${BLAS_LINKER_FLAGS}")

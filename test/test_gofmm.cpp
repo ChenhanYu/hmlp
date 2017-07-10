@@ -352,33 +352,33 @@ int main( int argc, char *argv[] )
 
 
   /** run the matrix file provided by users */
-  if ( user_matrix_filename.size() )
-  {
-    using T = float;
-    {
-      /** dense spd matrix format */
-      hmlp::gofmm::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, user_matrix_filename );
-
-      //for ( size_t i = 0; i < n; i ++ ) K( i, i ) += 10.0;
-
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-      if ( user_points_filename.size() )
-      {
-        hmlp::Data<T> X( d, n, user_points_filename );
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
-        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-      }
-      else
-      {
-        hmlp::Data<T> *X = NULL;
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-      }
-    }
-  }
+//  if ( user_matrix_filename.size() )
+//  {
+//    using T = float;
+//    {
+//      /** dense spd matrix format */
+//      hmlp::gofmm::SPDMatrix<T> K;
+//      K.resize( n, n );
+//      K.read( n, n, user_matrix_filename );
+//
+//      //for ( size_t i = 0; i < n; i ++ ) K( i, i ) += 10.0;
+//
+//      /** (optional) provide neighbors, leave uninitialized otherwise */
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      if ( user_points_filename.size() )
+//      {
+//        hmlp::Data<T> X( d, n, user_points_filename );
+//        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
+//        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+//      }
+//      else
+//      {
+//        hmlp::Data<T> *X = NULL;
+//        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+//      }
+//    }
+//  }
 
   /** test simple interface */
   if ( SIMPLE )

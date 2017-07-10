@@ -13,7 +13,10 @@ k=32
 stol=1E-5
 budget=0.03
 nrhs=512
-if [ -z ${HMLP_USE_MPI+x} ]; then mpiexec=""; else mpiexec="mpirun -n 2"; fi
+if [ -z ${HMLP_USE_MPI+x} ]; 
+then mpiexec="mpirun -n 2"; 
+else mpiexec=""; 
+fi
 # ======= Do not change anything below this line ========
 executable=./test_gofmm.x
 echo "@PRIM"
