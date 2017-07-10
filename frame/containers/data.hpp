@@ -184,6 +184,30 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       return std::make_tuple( m, n );
     };
 
+		template<typename TINDEX>
+		T getvalue( TINDEX i )
+		{
+			return (*this)[ i ];
+		};
+
+		template<typename TINDEX>
+		T getvalue( TINDEX i, TINDEX j )
+		{
+			return (*this)[ m * j + i ];
+		};
+
+		template<typename TINDEX>
+		void setvalue( TINDEX i, T v )
+		{
+			(*this)[ i ] = v;
+		};
+
+		template<typename TINDEX>
+		void setvalue( TINDEX i, TINDEX j, T v )
+		{
+			(*this)[ m * j + i ] = v;
+		};
+
     /** ESSENTIAL: return number of coumns */
     std::size_t row() { return m; };
 
@@ -312,7 +336,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
       if ( USE_LOWRANK )
       {
-        hmlp::Data<T> X( ( std::rand() % n ) / 2 + 1, n );
+        hmlp::Data<T> X( ( std::rand() % n ) / 10 + 1, n );
         X.rand();
         xgemm
         (
@@ -323,7 +347,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
           0.0, this->data(), this->row()
         );
       }
-      else // diagonal dominating
+      else /** diagonal dominating */
       {
         for ( std::size_t j = 0; j < n; j ++ )
         {
@@ -334,17 +358,16 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
             else
               (*this)[ j * m + i ] = (*this)[ i * m + j ];
 
-            // Make sure diagonal dominated
+            /** Make sure diagonal dominated */
             (*this)[ j * m + j ] += std::abs( (*this)[ j * m + i ] );
           }
         }
       }
     };
 
-    template<bool USE_LOWRANK>
     void randspd() 
     { 
-      randspd<USE_LOWRANK>( 0.0, 1.0 ); 
+      randspd<true>( 0.0, 1.0 ); 
     };
 
     void Print()

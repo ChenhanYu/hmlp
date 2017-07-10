@@ -5,6 +5,7 @@ echo "HMLP_DIR = $HMLP_DIR"
 ## Add our default building path  
 export DYLD_LIBRARY_PATH=${DYLD_LIBRARY_PATH}:${HMLP_DIR}/build/lib/
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HMLP_DIR}/build/lib/
+export PYTHONPATH=${PYTHONPATH}:${HMLP_DIR}/build/python/
 export PYTHONPATH=${PYTHONPATH}:${HMLP_DIR}/build/lib/
 export PYTHONPATH=${PYTHONPATH}:${HMLP_DIR}/build/lib/python2.7/site-packages/
 

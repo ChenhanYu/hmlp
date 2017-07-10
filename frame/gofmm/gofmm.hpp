@@ -19,9 +19,6 @@
 #include <omp.h>
 #include <time.h>
 
-/** Python embedding */
-#include <Python.h>
-
 /** hmlp */
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
@@ -3630,9 +3627,8 @@ hmlp::tree::Tree<
   hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
   hmlp::gofmm::Data<T>,
   N_CHILDREN,
-  T
-  > 
-Compress
+  T> 
+*Compress
 ( 
   hmlp::Data<T> *X,
   SPDMATRIX &K, 
@@ -3730,7 +3726,8 @@ Compress
 
 
   /** initialize metric ball tree using approximate center split */
-  hmlp::tree::Tree<SETUP, DATA, N_CHILDREN, T> tree;
+  auto *tree_ptr = new hmlp::tree::Tree<SETUP, DATA, N_CHILDREN, T>();
+	auto &tree = *tree_ptr;
   tree.setup.X = X;
   tree.setup.K = &K;
   tree.setup.splitter = splitter;
@@ -3875,9 +3872,13 @@ Compress
   printf( "========================================================\n\n");
 
   /** return the hierarhical compreesion of K as a binary tree */
-  return tree;
+  //return tree;
+  return tree_ptr;
 
 }; /** end Compress() */
+
+
+
 
 
 
@@ -3893,9 +3894,8 @@ hmlp::tree::Tree<
   hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>, T>, 
   hmlp::gofmm::Data<T>,
   2,
-  T
-  > 
-Compress( SPDMATRIX &K, double stol, double budget )
+  T> 
+*Compress( SPDMATRIX &K, T stol, T budget )
 {
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
@@ -3912,11 +3912,28 @@ Compress( SPDMATRIX &K, double stol, double budget )
   size_t k = 16;
   size_t s = m;
 
+	/** call the complete interface and return tree_ptr */
   return Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT_ANGLE, SPLITTER, RKDTSPLITTER>
          ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
 
 }; /** end Compress() */
 
+/**
+ *
+ */ 
+template<typename T>
+hmlp::tree::Tree<
+  hmlp::gofmm::Setup<
+	  SPDMatrix<T>, 
+    centersplit<SPDMatrix<T>, 2, T, SPLIT_ANGLE>, 
+    T>, 
+  hmlp::gofmm::Data<T>,
+  2,
+  T>
+*Compress( SPDMatrix<T> &K, T stol, T budget )
+{
+	return Compress<T, SPDMatrix<T>>( K, stol, budget );
+}; /** end Compress() */
 
 
 
@@ -4050,6 +4067,61 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 
   return err / nrm2;
 }; /** end ComputeError() */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ *  Instantiation types for double and single precision
+ */ 
+typedef SPDMatrix<double> dSPDMatrix_t;
+typedef SPDMatrix<float > sSPDMatrix_t;
+
+typedef hmlp::gofmm::Setup<SPDMatrix<double>, 
+    centersplit<SPDMatrix<double>, 2, double, SPLIT_ANGLE>, double> dSetup_t;
+
+typedef hmlp::gofmm::Setup<SPDMatrix<float>, 
+    centersplit<SPDMatrix<float >, 2,  float, SPLIT_ANGLE>,  float> sSetup_t;
+
+typedef hmlp::tree::Tree<dSetup_t, hmlp::gofmm::Data<double>, 2, double> dTree_t;
+typedef hmlp::tree::Tree<sSetup_t, hmlp::gofmm::Data<float >, 2, float > sTree_t;
+
+
+
+
+
+/** 
+ *  PyCompress prototype. Notice that all pass-by-reference
+ *  arguments are replaced by pass-by-pointer. There implementaion
+ *  can be found at hmlp/package/$HMLP_ARCH/gofmm.gpp
+ **/
+hmlp::Data<double> Evaluate( dTree_t *tree, hmlp::Data<double> *weights );
+hmlp::Data<float>  Evaluate( dTree_t *tree, hmlp::Data<float > *weights );
+
+dTree_t *Compress( dSPDMatrix_t *K, double stol, double budget );
+sTree_t *Compress( sSPDMatrix_t *K,  float stol,  float budget );
+
+double ComputeError( dTree_t *tree, size_t gid, hmlp::Data<double> *potentials );
+float  ComputeError( sTree_t *tree, size_t gid, hmlp::Data<float>  *potentials );
+
+
+
+
+
+
+
+
 
 
 }; /** end namespace gofmm */

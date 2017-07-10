@@ -74,8 +74,9 @@ void test_gofmm
   const bool CACHE = true;
 
   /** compress K */
-  auto tree = Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
+  auto *tree_ptr = Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
   ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+	auto &tree = *tree_ptr;
 
 //#endif
 
@@ -200,7 +201,8 @@ void test_gofmm
   tree.Summary( summary );
   summary.Print();
 
-
+	/** delete tree_ptr */
+  delete tree_ptr;
 
 }; /** end test_gofmm() */
 
@@ -350,41 +352,43 @@ int main( int argc, char *argv[] )
 
 
   /** run the matrix file provided by users */
-  //if ( user_matrix_filename.size() )
-  //{
-  //  using T = float;
-  //  {
-  //    /** dense spd matrix format */
-  //    hmlp::gofmm::SPDMatrix<T> K;
-  //    K.resize( n, n );
-  //    K.read( n, n, user_matrix_filename );
+  if ( user_matrix_filename.size() )
+  {
+    using T = float;
+    {
+      /** dense spd matrix format */
+      hmlp::gofmm::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, user_matrix_filename );
 
-  //    //for ( size_t i = 0; i < n; i ++ ) K( i, i ) += 10.0;
+      //for ( size_t i = 0; i < n; i ++ ) K( i, i ) += 10.0;
 
-  //    /** (optional) provide neighbors, leave uninitialized otherwise */
-  //    hmlp::Data<std::pair<T, std::size_t>> NN;
-  //    if ( user_points_filename.size() )
-  //    {
-  //      hmlp::Data<T> X( d, n, user_points_filename );
-  //      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
-  //      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-  //    }
-  //    else
-  //    {
-  //      hmlp::Data<T> *X = NULL;
-  //      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-  //      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-  //    }
-  //  }
-  //}
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      if ( user_points_filename.size() )
+      {
+        hmlp::Data<T> X( d, n, user_points_filename );
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
+        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+      }
+      else
+      {
+        hmlp::Data<T> *X = NULL;
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+      }
+    }
+  }
 
   /** test simple interface */
   if ( SIMPLE )
   {
+		n = 5000;
     hmlp::gofmm::SPDMatrix<T> K;
     K.resize( n, n );
     K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-    auto tree = hmlp::gofmm::Compress<T>( K, stol, budget );
+    auto *tree_ptr = hmlp::gofmm::Compress<T>( K, stol, budget );
+		auto &tree = *tree_ptr;
     size_t nrhs = 1;
     hmlp::Data<T> w( nrhs, n ); w.rand();
     auto u = hmlp::gofmm::Evaluate( tree, w );
@@ -397,6 +401,8 @@ int main( int argc, char *argv[] )
       auto fmmerr = ComputeError( tree, i, potentials );
       printf( "fmmerr %3.1E\n", fmmerr );
     }
+		/** delete tree_ptr */
+		delete tree_ptr;
   }
 
 
