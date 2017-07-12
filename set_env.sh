@@ -31,6 +31,14 @@ export OMP_NUM_THREADS=20
 
 
 
+## ARTIFACT FOR REPRODUCIABILITY
+## ======================================
+
+## If you also want to compile those artifact files, then specify the path.
+export HMLP_ARTIFACT_PATH=sc17gofmm
+
+
+
 ## ADVANCE OPTIONS
 ## ======================================
 

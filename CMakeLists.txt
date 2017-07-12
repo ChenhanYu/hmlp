@@ -424,7 +424,7 @@ if (MPI_CXX_COMPILE_FLAG)
   set_target_properties(test_gofmm.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
 endif()
 
-if(MPI_LINK_FLAGS)
+if (MPI_LINK_FLAGS)
   set_target_properties(test_gofmm.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
 endif()
 
@@ -437,6 +437,18 @@ if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
 endif()
 
 
+# Also build 
+set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
+if (ARTIFACT_PATH MATCHES "sc17gofmm")
+	set(ARTIFACT_PATH "${CMAKE_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")
+	file (GLOB ARTIFACT_CXX_SRC    ${ARTIFACT_PATH}/*.cpp)
+  foreach( artifactsrc ${ARTIFACT_CXX_SRC} )
+    string( REPLACE ".cpp" ".x" artifactexe ${artifactsrc} )
+		get_filename_component( artifactexe ${artifactsrc} NAME_WE )
+	  add_executable( "${artifactexe}.x" ${artifactsrc} )
+    target_link_libraries( "${artifactexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
+  endforeach( artifactsrc ${ARTIFACT_CXX_SRC} )
+endif()
 
 
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)

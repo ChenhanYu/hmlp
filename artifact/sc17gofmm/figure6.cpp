@@ -1,3 +1,4 @@
+/** TODO: this header needs a precompiled region */
 #ifdef HMLP_USE_MPI
 #include <mpi.h>
 #endif
@@ -22,7 +23,6 @@
 #endif
 
 
-/** GOFMM templates */
 #include <gofmm/gofmm.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
 #include <containers/kernel.hpp>
@@ -77,6 +77,8 @@ void test_gofmm
   auto *tree_ptr = Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
   ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
 	auto &tree = *tree_ptr;
+
+//#endif
 
 
   // ------------------------------------------------------------------------
@@ -285,9 +287,11 @@ int main( int argc, char *argv[] )
 
   /** test suit options */
   const bool SIMPLE = true;
-  const bool RANDOMMATRIX = true;
+  const bool RANDOMMATRIX = false;
   const bool USE_LOWRANK = true;
+  const bool DENSETESTSUIT = false;
   const bool SPARSETESTSUIT = false;
+  const bool KERNELTESTSUIT = false;
 
   /** default data directory */
   std::string DATADIR( "/" );
@@ -298,16 +302,9 @@ int main( int argc, char *argv[] )
   /** read all parameters */
   size_t n, m, d, k, s, nrhs;
   double stol, budget;
-
-	/** (optional) */
-  size_t nnz; 
-	std::string distance_type;
-	std::string spdmatrix_type;
+  size_t nnz; /** optional */
   std::string user_matrix_filename;
   std::string user_points_filename;
-
-  /** (optional) set the default Gaussian kernel bandwidth */
-  float h = 1.0;
 
   /** number of columns and rows, i.e. problem size */
   sscanf( argv[ 1 ], "%lu", &n );
@@ -330,46 +327,16 @@ int main( int argc, char *argv[] )
   /** the maximum percentage of direct matrix-multiplication */
   sscanf( argv[ 7 ], "%lf", &budget );
 
-	/** specify distance type */
-	distance_type = argv[ 8 ];
+  /** optional provide the path to the matrix file */
+  if ( argc > 8 ) user_matrix_filename = argv[ 8 ];
+    
 
-	/** specify what kind of spdmatrix is used */
-  spdmatrix_type = argv[ 9 ];
-
-	if ( !spdmatrix_type.compare( "testsuit" ) )
-	{
-		/** do nothing */
-	}
-	else if ( !spdmatrix_type.compare( "userdefine" ) )
-	{
-		/** do nothing */
-	}
-	else if ( !spdmatrix_type.compare( "dense" ) )
-	{
-    /** (optional) provide the path to the matrix file */
-    user_matrix_filename = argv[ 10 ];
-    if ( argc > 11 ) 
-    {
-      /** (optional) provide the path to the data file */
-      user_points_filename = argv[ 11 ];
-		  /** dimension of the data set */
-      sscanf( argv[ 12 ], "%lu", &d );
-    }
-	}
-	else if ( !spdmatrix_type.compare( "kernel" ) )
-	{
-    user_points_filename = argv[ 10 ];
-		/** number of attributes (dimensions) */
-    sscanf( argv[ 11 ], "%lu", &d );
-		/** (optional) provide Gaussian kernel bandwidth */
-    if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
-	}
-	else
-	{
-		printf( "%s is not supported\n", argv[ 9 ] );
-		exit( 1 );
-	}
-
+  /** optional provide the path to the data file */
+  if ( argc > 9 ) 
+  {
+    user_points_filename = argv[ 9 ];
+    sscanf( argv[ 10 ], "%lu", &d );
+  }
 
 #ifdef HMLP_USE_MPI
   /** Message Passing Interface */
@@ -380,82 +347,49 @@ int main( int argc, char *argv[] )
   printf( "size %d rank %d\n", size, rank );
 #endif
 
-
-
-
   /** HMLP API call to initialize the runtime */
   hmlp_init();
 
+
   /** run the matrix file provided by users */
-  if ( !spdmatrix_type.compare( "dense" ) && user_matrix_filename.size() )
-  {
-    using T = float;
-    {
-      /** dense spd matrix format */
-      hmlp::gofmm::SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, user_matrix_filename );
-
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-
-			/** (optional) provide coordinates */
-      if ( user_points_filename.size() )
-      {
-        hmlp::Data<T> X( d, n, user_points_filename );
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
-        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-      }
-      else
-      {
-        hmlp::Data<T> *X = NULL;
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-      }
-    }
-  }
-
-
-  /** generate a Gaussian kernel matrix from the coordinates */
-  if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
-  {
-    using T = double;
-    {
-      /** read the coordinates from the file */
-      hmlp::Data<T> X( d, n, user_points_filename );
-
-      /** setup the kernel object as Gaussian */
-      kernel_s<T> kernel;
-      kernel.type = KS_GAUSSIAN;
-      kernel.scal = -0.5 / ( h * h );
-
-      /** spd kernel matrix format (implicitly create) */
-      hmlp::Kernel<T> K( n, n, d, kernel, X );
-
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
-
-      /** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
-    }
-  }
+//  if ( user_matrix_filename.size() )
+//  {
+//    using T = float;
+//    {
+//      /** dense spd matrix format */
+//      hmlp::gofmm::SPDMatrix<T> K;
+//      K.resize( n, n );
+//      K.read( n, n, user_matrix_filename );
+//
+//      //for ( size_t i = 0; i < n; i ++ ) K( i, i ) += 10.0;
+//
+//      /** (optional) provide neighbors, leave uninitialized otherwise */
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      if ( user_points_filename.size() )
+//      {
+//        hmlp::Data<T> X( d, n, user_points_filename );
+//        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
+//        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+//      }
+//      else
+//      {
+//        hmlp::Data<T> *X = NULL;
+//        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+//      }
+//    }
+//  }
 
   /** test simple interface */
-	if ( !spdmatrix_type.compare( "testsuit" ) && SIMPLE )
+  if ( SIMPLE )
   {
 		n = 5000;
-    size_t nrhs = 1;
-
-    /** dense spd matrix format */
     hmlp::gofmm::SPDMatrix<T> K;
     K.resize( n, n );
     K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-
-		/** */
     auto *tree_ptr = hmlp::gofmm::Compress<T>( K, stol, budget );
 		auto &tree = *tree_ptr;
-
+    size_t nrhs = 1;
     hmlp::Data<T> w( nrhs, n ); w.rand();
     auto u = hmlp::gofmm::Evaluate( tree, w );
     size_t ntest = 10;
@@ -473,7 +407,7 @@ int main( int argc, char *argv[] )
 
 
   /** create a random spd matrix, which is diagonal-dominant */
-	if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
+  if ( RANDOMMATRIX )
   {
     /** no geometric coordinates provided */
     hmlp::Data<T> *X = NULL;
@@ -489,6 +423,31 @@ int main( int argc, char *argv[] )
     ( X, K, NN, n, m, k, s, stol, budget, nrhs );
   }
 
+  /** generate a Gaussian kernel matrix from the coordinates */
+//  if ( KERNELTESTSUIT )
+//  {
+//    /** set the Gaussian kernel bandwidth */
+//    T h = 0.1;
+//    {
+//      /** filename, number of points, dimension */
+//      std::string filename = DATADIR + std::string( "covtype.100k.trn.X.bin" );
+//      n = 100000;
+//      d = 54;
+//      /** read the coordinates from the file */
+//      hmlp::Data<T> X( d, n, filename );
+//      /** setup the kernel object as Gaussian */
+//      kernel_s<T> kernel;
+//      kernel.type = KS_GAUSSIAN;
+//      kernel.scal = -0.5 / ( h * h );
+//      /** spd kernel matrix format (implicitly create) */
+//      hmlp::Kernel<T> K( n, n, d, kernel, X );
+//      /** (optional) provide neighbors, leave uninitialized otherwise */
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
+//      /** routine */
+//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+//    }
+//  }
 
 //  /** generate (read) a CSC sparse matrix */
 //  if ( SPARSETESTSUIT )
@@ -507,6 +466,28 @@ int main( int argc, char *argv[] )
 //      K.readmtx<LOWERTRIANGULAR, false>( filename );
 //      /** use non-zero pattern as neighbors */
 //      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::gofmm::SparsePattern<true, true, T>( n, k, K );
+//      /** routine */
+//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+//    }
+//  }
+//
+//  /** generate (read) dense spd matrix */
+//  if ( DENSETESTSUIT )
+//  {
+//    using T = float;
+//    {
+//      /** no geometric coordinates provided */
+//      hmlp::Data<T> *X = NULL;
+//      /** filename, problem size */
+//      std::string filename = DATADIR + std::string( "K04N65536.bin" );
+//      n = 65536;
+//      /** dense spd matrix format */
+//      hmlp::gofmm::SPDMatrix<T> K;
+//      K.resize( n, n );
+//      K.read( n, n, filename );
+//      /** (optional) provide neighbors, leave uninitialized otherwise */
+//      hmlp::Data<std::pair<T, std::size_t>> NN;
 //      /** routine */
 //      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
 //      ( X, K, NN, n, m, k, s, stol, budget, nrhs );

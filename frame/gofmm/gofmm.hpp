@@ -51,6 +51,13 @@
 #define OMPRECTASK 0
 #define OMPDAGTASK 0
 
+typedef enum
+{
+	GEOMETRIC_DISTANCE,
+  KERNEL_DISTANCE,
+	ANGLE_DISTANCE
+} DistanceType;
+
 
 typedef enum 
 {
@@ -708,7 +715,11 @@ class KNNTask : public hmlp::Task
               {
                 size_t d = X.row();
                 for ( size_t p = 0; p < d; p ++ )
-                  dist += std::pow( X[ igid * d + p ] - X[ jgid * d + p ], 2 );
+								{
+									T xip = X[ igid * d + p ];
+									T xjp = X[ jgid * d + p ];
+									dist += ( xip - xjp ) * ( xip - xjp );
+								}
                 break;
               }
               case SPLIT_KERNEL_DISTANCE:
@@ -773,26 +784,34 @@ class KNNTask : public hmlp::Task
             switch ( SPLIT )
             {
               case SPLIT_POINT_DISTANCE:
+							{
                 size_t d = X.row();
                 for ( size_t p = 0; p < d; p ++ )
-                  dist += std::pow( X[ igid * d + p ] - X[ jgid * d + p ], 2 );
+								{
+									T xip = X[ igid * d + p ];
+									T xjp = X[ jgid * d + p ];
+									dist += ( xip - xjp ) * ( xip - xjp );
+								}
                 break;
+							}
               case SPLIT_KERNEL_DISTANCE:
+							{
                 dist = K( igid, igid ) + K( jgid, jgid ) - 2.0 * K( igid, jgid );
                 break;
+							}
               case SPLIT_ANGLE:
-                // Take the opposite since the heap select finds minimum distances
-                //dist = -std::abs( K( ilid, jlid ) / ( K( jlid, jlid ) * K( ilid, ilid ) ) );
-                {
-                  T kij = K( igid, jgid );
-                  T kii = K( igid, igid );
-                  T kjj = K( jgid, jgid );
+              {
+                T kij = K( igid, jgid );
+                T kii = K( igid, igid );
+                T kjj = K( jgid, jgid );
 
-                  dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-                  break;
-                }
+                dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
+                break;
+              }
               default:
+							{
                 exit( 1 );
+							}
             }
             std::pair<T, size_t> query( dist, igid );
             //hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
@@ -3745,14 +3764,14 @@ hmlp::tree::Tree<
 #ifdef HMLP_AVX512
   /** if we are using KNL, use nested omp construct */
   assert( omp_get_max_threads() == 68 );
-  mkl_set_dynamic( 0 );
-  mkl_set_num_threads( 4 );
+  //mkl_set_dynamic( 0 );
+  //mkl_set_num_threads( 4 );
   hmlp_set_num_workers( 17 );
 #else
-  mkl_set_dynamic( 0 );
+  //mkl_set_dynamic( 0 );
   if ( omp_get_max_threads() > 8 )
   {
-    mkl_set_num_threads( 2 );
+    //mkl_set_num_threads( 2 );
     hmlp_set_num_workers( omp_get_max_threads() / 2 );
   }
   printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
@@ -3781,11 +3800,11 @@ hmlp::tree::Tree<
 
 
 #ifdef HMLP_AVX512
-  mkl_set_dynamic( 1 );
-  mkl_set_num_threads( omp_get_max_threads() );
+  //mkl_set_dynamic( 1 );
+  //mkl_set_num_threads( omp_get_max_threads() );
 #else
-  mkl_set_dynamic( 1 );
-  mkl_set_num_threads( omp_get_max_threads() );
+  //mkl_set_dynamic( 1 );
+ // mkl_set_num_threads( omp_get_max_threads() );
 #endif
 
 
@@ -3842,11 +3861,11 @@ hmlp::tree::Tree<
   auto exact_ratio = hmlp::gofmm::DrawInteraction<true>( tree );
 
 #ifdef HMLP_AVX512
-  mkl_set_dynamic( 1 );
-  mkl_set_num_threads( omp_get_max_threads() );
+  //mkl_set_dynamic( 1 );
+  //mkl_set_num_threads( omp_get_max_threads() );
 #else
-  mkl_set_dynamic( 1 );
-  mkl_set_num_threads( omp_get_max_threads() );
+  //mkl_set_dynamic( 1 );
+  //mkl_set_num_threads( omp_get_max_threads() );
 #endif
 
   compress_time += ann_time;
@@ -3876,6 +3895,38 @@ hmlp::tree::Tree<
   return tree_ptr;
 
 }; /** end Compress() */
+
+
+
+/**
+ *  @brielf A simple template for the compress routine.
+ */ 
+template<
+  typename    T, 
+  typename    SPDMATRIX>
+hmlp::tree::Tree<
+  hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>, T>, 
+  hmlp::gofmm::Data<T>,
+  2,
+  T> 
+*Compress( SPDMATRIX &K, T stol, T budget, size_t m, size_t k, size_t s )
+{
+  const bool ADAPTIVE = true;
+  const bool LEVELRESTRICTION = false;
+  using SPLITTER     = centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>;
+  using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T, SPLIT_ANGLE>;
+  hmlp::Data<T> *X = NULL;
+  hmlp::Data<std::pair<T, std::size_t>> NN;
+  SPLITTER splitter;
+  splitter.Kptr = &K;
+  RKDTSPLITTER rkdtsplitter;
+  rkdtsplitter.Kptr = &K;
+  size_t n = K.row();
+
+	/** call the complete interface and return tree_ptr */
+  return Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT_ANGLE, SPLITTER, RKDTSPLITTER>
+         ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+}; /** end Compress */
 
 
 
@@ -4111,6 +4162,12 @@ hmlp::Data<float>  Evaluate( dTree_t *tree, hmlp::Data<float > *weights );
 
 dTree_t *Compress( dSPDMatrix_t *K, double stol, double budget );
 sTree_t *Compress( sSPDMatrix_t *K,  float stol,  float budget );
+
+dTree_t *Compress( dSPDMatrix_t *K, double stol, double budget, 
+		size_t m, size_t k, size_t s );
+sTree_t *Compress( sSPDMatrix_t *K,  float stol,  float budget, 
+		size_t m, size_t k, size_t s );
+
 
 double ComputeError( dTree_t *tree, size_t gid, hmlp::Data<double> *potentials );
 float  ComputeError( sTree_t *tree, size_t gid, hmlp::Data<float>  *potentials );
