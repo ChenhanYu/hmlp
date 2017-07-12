@@ -12,6 +12,7 @@
 #include <math.h>
 #include <limits>
 
+
 #ifdef HMLP_AVX512
 /** this is for hbw_malloc() and hnw_free */
 #include <hbwmalloc.h>
@@ -45,7 +46,6 @@ using namespace hmlp::gofmm;
 template<
   bool        ADAPTIVE, 
   bool        LEVELRESTRICTION, 
-  SplitScheme SPLIT,
   typename    SPLITTER, 
   typename    RKDTSPLITTER, 
   typename    T, 
@@ -55,6 +55,7 @@ void test_gofmm
   hmlp::Data<T> *X,
   SPDMATRIX &K, 
   hmlp::Data<std::pair<T, std::size_t>> &NN,
+  DistanceMetric metric,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
   size_t n, size_t m, size_t k, size_t s, 
@@ -73,9 +74,14 @@ void test_gofmm
 
   const bool CACHE = true;
 
+	/** creatgin configuration for all user-define arguments */
+	Configuration<T> config( metric, n, m, k, s, stol, budget );
+
   /** compress K */
-  auto *tree_ptr = Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
-  ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+  auto *tree_ptr = Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+  ( X, K, NN, //metric, 
+		splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
+	  config );
 	auto &tree = *tree_ptr;
 
 
@@ -214,50 +220,54 @@ void test_gofmm
 
 
 
-
-
-
-template<
-  bool        ADAPTIVE, 
-  bool        LEVELRESTRICTION, 
-  SplitScheme SPLIT,
-  typename    T, 
-  typename    SPDMATRIX>
+/**
+ *  @brief Instantiate the splitters here.
+ */ 
+template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T, typename SPDMATRIX>
 void test_gofmm_setup
 ( 
   hmlp::Data<T> *X,
   SPDMATRIX &K, 
   hmlp::Data<std::pair<T, std::size_t>> &NN,
+  DistanceMetric metric,
   size_t n, size_t m, size_t k, size_t s, 
-  double stol, double budget, size_t nrhs 
+  double stol, double budget, size_t nrhs
 )
 {
-  switch ( SPLIT )
+  switch ( metric )
   {
-    case SPLIT_POINT_DISTANCE:
+    case GEOMETRY_DISTANCE:
     {
       assert( X );
-      using SPLITTER = hmlp::tree::centersplit<N_CHILDREN, T>;
+			/** using geometric splitters from hmlp::tree */
+      using SPLITTER     = hmlp::tree::centersplit<N_CHILDREN, T>;
       using RKDTSPLITTER = hmlp::tree::randomsplit<N_CHILDREN, T>;
+			/** GOFMM tree splitter */
       SPLITTER splitter;
       splitter.Coordinate = X;
+			/** randomized tree splitter */
       RKDTSPLITTER rkdtsplitter;
       rkdtsplitter.Coordinate = X;
-      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
+      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
       break;
     }
-    case SPLIT_KERNEL_DISTANCE:
-    case SPLIT_ANGLE:
+    case KERNEL_DISTANCE:
+    case ANGLE_DISTANCE:
     {
-      using SPLITTER     = hmlp::gofmm::centersplit<SPDMATRIX, N_CHILDREN, T, SPLIT>;
-      using RKDTSPLITTER = hmlp::gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T, SPLIT>;
+			/** using geometric-oblivious splitters from hmlp::gofmm */
+      using SPLITTER     = hmlp::gofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
+      using RKDTSPLITTER = hmlp::gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
+			/** GOFMM tree splitter */
       SPLITTER splitter;
       splitter.Kptr = &K;
+			splitter.metric = metric;
+			/** randomized tree splitter */
       RKDTSPLITTER rkdtsplitter;
       rkdtsplitter.Kptr = &K;
-      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLIT, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
+			rkdtsplitter.metric = metric;
+      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
       break;
     }
     default:
@@ -270,7 +280,7 @@ void test_gofmm_setup
 
 
 /**
- *
+ *  @brief Top level driver that reads arguments from the command line.
  */ 
 int main( int argc, char *argv[] )
 {
@@ -279,9 +289,7 @@ int main( int argc, char *argv[] )
   const bool LEVELRESTRICTION = false;
 
   /** default geometric-oblivious scheme */
-  const SplitScheme SPLIT = SPLIT_ANGLE;
-  // const SplitScheme SPLIT = SPLIT_POINT_DISTANCE;
-  // const SplitScheme SPLIT = SPLIT_KERNEL_DISTANCE;
+  DistanceMetric metric = ANGLE_DISTANCE;
 
   /** test suit options */
   const bool SIMPLE = true;
@@ -332,6 +340,25 @@ int main( int argc, char *argv[] )
 
 	/** specify distance type */
 	distance_type = argv[ 8 ];
+
+	if ( !distance_type.compare( "geometry" ) )
+	{
+    metric = GEOMETRY_DISTANCE;
+	}
+	else if ( !distance_type.compare( "kernel" ) )
+	{
+    metric = KERNEL_DISTANCE;
+	}
+	else if ( !distance_type.compare( "angle" ) )
+	{
+    metric = ANGLE_DISTANCE;
+	}
+	else
+	{
+		printf( "%s is not supported\n", argv[ 9 ] );
+		exit( 1 );
+	}
+
 
 	/** specify what kind of spdmatrix is used */
   spdmatrix_type = argv[ 9 ];
@@ -403,14 +430,14 @@ int main( int argc, char *argv[] )
       if ( user_points_filename.size() )
       {
         hmlp::Data<T> X( d, n, user_points_filename );
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT_POINT_DISTANCE, T>
-        ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
       else
       {
         hmlp::Data<T> *X = NULL;
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-        ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
     }
   }
@@ -436,8 +463,8 @@ int main( int argc, char *argv[] )
       hmlp::Data<std::pair<T, std::size_t>> NN;
 
       /** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-      ( &X, K, NN, n, m, k, s, stol, budget, nrhs );
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
     }
   }
 
@@ -475,18 +502,37 @@ int main( int argc, char *argv[] )
   /** create a random spd matrix, which is diagonal-dominant */
 	if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
   {
-    /** no geometric coordinates provided */
-    hmlp::Data<T> *X = NULL;
-    /** dense spd matrix format */
-    hmlp::gofmm::SPDMatrix<T> K;
-    K.resize( n, n );
-    /** random spd initialization */
-    K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-    /** (optional) provide neighbors, leave uninitialized otherwise */
-    hmlp::Data<std::pair<T, std::size_t>> NN;
-    /** routine */
-    test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
-    ( X, K, NN, n, m, k, s, stol, budget, nrhs );
+		using T = float;
+		{
+			/** no geometric coordinates provided */
+			hmlp::Data<T> *X = NULL;
+			/** dense spd matrix format */
+			hmlp::gofmm::SPDMatrix<T> K;
+			K.resize( n, n );
+			/** random spd initialization */
+			K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+			/** (optional) provide neighbors, leave uninitialized otherwise */
+			hmlp::Data<std::pair<T, std::size_t>> NN;
+			/** routine */
+			test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+				( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+		}
+		{
+      d = 6;
+			/** generate coordinates from normal(0,1) distribution */
+			hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
+      /** setup the kernel object as Gaussian */
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5 / ( h * h );
+      /** spd kernel matrix format (implicitly create) */
+      hmlp::Kernel<T> K( n, n, d, kernel, X );
+			/** (optional) provide neighbors, leave uninitialized otherwise */
+			hmlp::Data<std::pair<T, std::size_t>> NN;
+			/** routine */
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+		}
   }
 
 
@@ -508,7 +554,7 @@ int main( int argc, char *argv[] )
 //      /** use non-zero pattern as neighbors */
 //      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::gofmm::SparsePattern<true, true, T>( n, k, K );
 //      /** routine */
-//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, SPLIT, T>
+//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, metric, T>
 //      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
 //    }
 //  }

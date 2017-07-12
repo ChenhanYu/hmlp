@@ -51,20 +51,20 @@
 #define OMPRECTASK 0
 #define OMPDAGTASK 0
 
-typedef enum
-{
-	GEOMETRIC_DISTANCE,
-  KERNEL_DISTANCE,
-	ANGLE_DISTANCE
-} DistanceType;
+//typedef enum
+//{
+//	GEOMETRIC_DISTANCE,
+//  KERNEL_DISTANCE,
+//	ANGLE_DISTANCE
+//} DistanceType;
 
 
 typedef enum 
 {
-  SPLIT_POINT_DISTANCE,
-  SPLIT_KERNEL_DISTANCE,
-  SPLIT_ANGLE
-} SplitScheme;
+  GEOMETRY_DISTANCE,
+  KERNEL_DISTANCE,
+  ANGLE_DISTANCE
+} DistanceMetric;
 
 
 namespace hmlp
@@ -72,6 +72,67 @@ namespace hmlp
 namespace gofmm
 {
 
+/**
+ *  @brief Configuration contains all user-defined parameters.
+ */ 
+template<typename T>
+class Configuration
+{
+	public:
+
+		Configuration
+	  ( 
+		  DistanceMetric metric,
+		  size_t n, size_t m, size_t k, size_t s, 
+			T stol, T budget 
+	  ) 
+		{
+			this->metric = metric;
+			this->n = n;
+			this->m = m;
+			this->k = k;
+			this->s = s;
+			this->stol = stol;
+			this->budget = budget;
+		};
+
+		DistanceMetric MetricType() { return metric; };
+
+		size_t ProblemSize() { return n; };
+
+		size_t LeafNodeSize() { return m; };
+
+		size_t NeighborSize() { return k; };
+
+		size_t MaximumRank() { return s; };
+
+		T Tolerance() { return stol; };
+
+		T Budget() { return budget; };
+
+	private:
+
+		/** (default) metric type */
+		DistanceMetric metric = ANGLE_DISTANCE;
+
+		/** (default) problem size */
+		size_t n = 0;
+
+		/** (default) maximum leaf node size */
+		size_t m = 64;
+
+		/** (default) number of neighbors */
+		size_t k = 32;
+
+		/** (default) maximum off-diagonal ranks */
+		size_t s = 64;
+
+		/** (default) user tolerance */
+		T stol = 1E-3;
+
+		/** (default) user computation budget */
+		T budget = 0.03;
+}; /** end class Configuration */
 
 
 /**
@@ -84,26 +145,29 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
   public:
 
     /** humber of neighbors */
-    size_t k;
+    size_t k = 32;
 
     /** maximum rank */
-    size_t s;
+    size_t s = 64;
 
     /** relative error for rank-revealed QR */
-    T stol;
+    T stol = 1E-3;
+
+		/** (default) distance type */
+		DistanceMetric metric = ANGLE_DISTANCE;
 
     /** the SPDMATRIX (accessed with gids: dense, CSC or OOC) */
-    SPDMATRIX *K;
+    SPDMATRIX *K = NULL;
 
     /** rhs-by-n all weights */
-    hmlp::Data<T> *w;
+    hmlp::Data<T> *w = NULL;
 
     /** rhs-by-n all potentials */
-    hmlp::Data<T> *u;
+    hmlp::Data<T> *u = NULL;
 
     /** buffer space, either dimension needs to be n  */
-    hmlp::Data<T> *input;
-    hmlp::Data<T> *output;
+    hmlp::Data<T> *input = NULL;
+    hmlp::Data<T> *output = NULL;
 
     /** regularization */
     T lambda = 0.0;
@@ -334,16 +398,16 @@ class Summary
  *         the matrix is sparse.
  *
  */ 
-template<
-  typename    SPDMATRIX, 
-  int         N_SPLIT, 
-  typename    T, 
-  SplitScheme SPLIT>
+template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct centersplit
 {
   /** closure */
   SPDMATRIX *Kptr = NULL;
 
+	/** (default) using angle distance from the Gram vector space */
+  DistanceMetric metric = ANGLE_DISTANCE;
+
+	/** overload the operator */
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
     std::vector<std::size_t>& gids,
@@ -368,9 +432,9 @@ struct centersplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      switch ( SPLIT )
+      switch ( metric )
       {
-        case SPLIT_KERNEL_DISTANCE:
+        case KERNEL_DISTANCE:
         {
           temp[ i ] = K( gids[ i ], gids[ i ] );
           for ( size_t j = 0; j < n_centroid_samples; j ++ )
@@ -381,7 +445,7 @@ struct centersplit
           }
           break;
         }
-        case SPLIT_ANGLE:
+        case ANGLE_DISTANCE:
         {
           temp[ i ] = 0.0;
           for ( size_t j = 0; j < n_centroid_samples; j ++ )
@@ -402,7 +466,7 @@ struct centersplit
           printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
           exit( 1 );
         }
-      } /** end switch ( SPLIT ) */
+      } /** end switch ( metric ) */
     }
     d2c_time = omp_get_wtime() - beg;
 
@@ -415,14 +479,14 @@ struct centersplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      switch ( SPLIT )
+      switch ( metric )
       {
-        case SPLIT_KERNEL_DISTANCE:
+        case KERNEL_DISTANCE:
         {
           temp[ i ] = K( gids[ i ], gids[ i ] ) - 2.0 * K( gids[ i ], gids[ idf2c ] );
           break;
         }
-        case SPLIT_ANGLE:
+        case ANGLE_DISTANCE:
         {
           T kij = K( gids[ i ],     gids[ idf2c ] );
           T kii = K( gids[ i ],     gids[ i ]     );
@@ -454,14 +518,14 @@ struct centersplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      switch ( SPLIT )
+      switch ( metric )
       {
-        case SPLIT_KERNEL_DISTANCE:
+        case KERNEL_DISTANCE:
         {
           temp[ i ] = K( gids[ i ], gids[ idf2f ] ) - K( gids[ i ], gids[ idf2c ] );
           break;
         }
-        case SPLIT_ANGLE:
+        case ANGLE_DISTANCE:
         {
           T kip = K( gids[ i ],     gids[ idf2f ] );
           T kiq = K( gids[ i ],     gids[ idf2c ] );
@@ -523,19 +587,23 @@ struct centersplit
  *         the matrix is sparse.
  *
  */ 
-template<typename SPDMATRIX, int N_SPLIT, typename T, SplitScheme SPLIT>
+template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct randomsplit
 {
   /** closure */
-  SPDMATRIX *Kptr;
+  SPDMATRIX *Kptr = NULL;
 
+	/** (default) using angle distance from the Gram vector space */
+  DistanceMetric metric = ANGLE_DISTANCE;
+
+	/** overload with the operator */
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
     std::vector<std::size_t>& gids,
     std::vector<std::size_t>& lids
   ) const 
   {
-    assert( N_SPLIT == 2 );
+    assert( Kptr && ( N_SPLIT == 2 ) );
 
     SPDMATRIX &K = *Kptr;
     size_t n = lids.size();
@@ -555,14 +623,14 @@ struct randomsplit
     #pragma omp parallel for
     for ( size_t i = 0; i < n; i ++ )
     {
-      switch ( SPLIT )
+      switch ( metric )
       {
-        case SPLIT_KERNEL_DISTANCE:
+        case KERNEL_DISTANCE:
         {
           temp[ i ] = K( gids[ i ], gids[ idf2f ] ) - K( gids[ i ], gids[ idf2c ] );
           break;
         }
-        case SPLIT_ANGLE:
+        case ANGLE_DISTANCE:
         {
           T kip = K( gids[ i ],     gids[ idf2f ] );
           T kiq = K( gids[ i ],     gids[ idf2c ] );
@@ -650,12 +718,15 @@ struct randomsplit
  *  @TODO  Improve the heap to deal with unique id.
  *
  */ 
-template<int NUM_TEST, SplitScheme SPLIT, class NODE, typename T>
+template<int NUM_TEST, class NODE, typename T>
 class KNNTask : public hmlp::Task
 {
   public:
 
     NODE *arg;
+   
+	  /** (default) using angle distance from the Gram vector space */
+	  DistanceMetric metric = ANGLE_DISTANCE;
 
     void Set( NODE *user_arg )
     {
@@ -665,8 +736,12 @@ class KNNTask : public hmlp::Task
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
-      // Need an accurate cost model.
+      // TODO: Need an accurate cost model.
       cost = 1.0;
+
+      /** use the same distance as the tree */
+      metric = arg->setup->metric;
+
 
       //--------------------------------------
       double flops, mops;
@@ -709,9 +784,9 @@ class KNNTask : public hmlp::Task
           if ( !NNset.count( igid ) )
           {
             T dist = 0;
-            switch ( SPLIT )
+            switch ( metric )
             {
-              case SPLIT_POINT_DISTANCE:
+              case GEOMETRY_DISTANCE:
               {
                 size_t d = X.row();
                 for ( size_t p = 0; p < d; p ++ )
@@ -722,12 +797,12 @@ class KNNTask : public hmlp::Task
 								}
                 break;
               }
-              case SPLIT_KERNEL_DISTANCE:
+              case KERNEL_DISTANCE:
               {
                 dist = K( igid, igid ) + K( jgid, jgid ) - 2.0 * K( igid, jgid );
                 break;
               }
-              case SPLIT_ANGLE:
+              case ANGLE_DISTANCE:
               {
                 T kij = K( igid, jgid );
                 T kii = K( igid, igid );
@@ -781,9 +856,9 @@ class KNNTask : public hmlp::Task
           if ( !NNset.count( igid ) )
           {
             T dist = 0;
-            switch ( SPLIT )
+            switch ( metric )
             {
-              case SPLIT_POINT_DISTANCE:
+              case GEOMETRY_DISTANCE:
 							{
                 size_t d = X.row();
                 for ( size_t p = 0; p < d; p ++ )
@@ -794,12 +869,12 @@ class KNNTask : public hmlp::Task
 								}
                 break;
 							}
-              case SPLIT_KERNEL_DISTANCE:
+              case KERNEL_DISTANCE:
 							{
                 dist = K( igid, igid ) + K( jgid, jgid ) - 2.0 * K( igid, jgid );
                 break;
 							}
-              case SPLIT_ANGLE:
+              case ANGLE_DISTANCE:
               {
                 T kij = K( igid, jgid );
                 T kii = K( igid, igid );
@@ -3637,7 +3712,6 @@ hmlp::Data<T> Evaluate
 template<
   bool        ADAPTIVE, 
   bool        LEVELRESTRICTION, 
-  SplitScheme SPLIT,
   typename    SPLITTER, 
   typename    RKDTSPLITTER, 
   typename    T, 
@@ -3652,12 +3726,23 @@ hmlp::tree::Tree<
   hmlp::Data<T> *X,
   SPDMATRIX &K, 
   hmlp::Data<std::pair<T, std::size_t>> &NN,
+  //DistanceMetric metric,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
-  size_t n, size_t m, size_t k, size_t s, 
-  double stol, double budget 
+  //size_t n, size_t m, size_t k, size_t s, 
+  //double stol, double budget,
+	Configuration<T> &config
 )
 {
+  /** get all user-defined parameters */
+  DistanceMetric metric = config.MetricType();
+  size_t n = config.ProblemSize();
+	size_t m = config.LeafNodeSize();
+	size_t k = config.NeighborSize(); 
+	size_t s = config.MaximumRank(); 
+  T stol = config.Tolerance();
+	T budget = config.Budget(); 
+
   /** options */
   const bool SYMMETRIC = true;
   const bool NNPRUNE   = true;
@@ -3676,7 +3761,7 @@ hmlp::tree::Tree<
   /** instantiation for the randomisze Spd-Askit tree */
   using RKDTSETUP          = hmlp::gofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE           = hmlp::tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK            = hmlp::gofmm::KNNTask<3, SPLIT, RKDTNODE, T>;
+  using KNNTASK            = hmlp::gofmm::KNNTask<3, RKDTNODE, T>;
 
   /** all timers */
   double beg, omptask45_time, omptask_time, ref_time;
@@ -3710,6 +3795,7 @@ hmlp::tree::Tree<
   hmlp::tree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
   rkdt.setup.X = X;
   rkdt.setup.K = &K;
+	rkdt.setup.metric = metric; 
   rkdt.setup.splitter = rkdtsplitter;
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
   printf( "NeighborSearch ...\n" ); fflush( stdout );
@@ -3749,6 +3835,7 @@ hmlp::tree::Tree<
 	auto &tree = *tree_ptr;
   tree.setup.X = X;
   tree.setup.K = &K;
+	tree.setup.metric = metric; 
   tree.setup.splitter = splitter;
   tree.setup.NN = &NN;
   tree.setup.m = m;
@@ -3901,11 +3988,9 @@ hmlp::tree::Tree<
 /**
  *  @brielf A simple template for the compress routine.
  */ 
-template<
-  typename    T, 
-  typename    SPDMATRIX>
+template<typename T, typename SPDMATRIX>
 hmlp::tree::Tree<
-  hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>, T>, 
+  hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
   hmlp::gofmm::Data<T>,
   2,
   T> 
@@ -3913,19 +3998,28 @@ hmlp::tree::Tree<
 {
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
-  using SPLITTER     = centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>;
-  using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T, SPLIT_ANGLE>;
+  using SPLITTER     = centersplit<SPDMATRIX, 2, T>;
+  using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T>;
   hmlp::Data<T> *X = NULL;
   hmlp::Data<std::pair<T, std::size_t>> NN;
+	/** GOFMM tree splitter */
   SPLITTER splitter;
   splitter.Kptr = &K;
+	splitter.metric = ANGLE_DISTANCE;
+	/** randomized tree splitter */
   RKDTSPLITTER rkdtsplitter;
   rkdtsplitter.Kptr = &K;
+	rkdtsplitter.metric = ANGLE_DISTANCE;
   size_t n = K.row();
 
+	/** creatgin configuration for all user-define arguments */
+	Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
+
 	/** call the complete interface and return tree_ptr */
-  return Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT_ANGLE, SPLITTER, RKDTSPLITTER>
-         ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+  return Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER>
+         ( X, K, NN, //ANGLE_DISTANCE, 
+					 splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
+					 config );
 }; /** end Compress */
 
 
@@ -3938,11 +4032,9 @@ hmlp::tree::Tree<
 /**
  *  @brielf A simple template for the compress routine.
  */ 
-template<
-  typename    T, 
-  typename    SPDMATRIX>
+template<typename T, typename SPDMATRIX>
 hmlp::tree::Tree<
-  hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>, T>, 
+  hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
   hmlp::gofmm::Data<T>,
   2,
   T> 
@@ -3950,22 +4042,32 @@ hmlp::tree::Tree<
 {
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
-  using SPLITTER     = centersplit<SPDMATRIX, 2, T, SPLIT_ANGLE>;
-  using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T, SPLIT_ANGLE>;
+  using SPLITTER     = centersplit<SPDMATRIX, 2, T>;
+  using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T>;
   hmlp::Data<T> *X = NULL;
   hmlp::Data<std::pair<T, std::size_t>> NN;
+	/** GOFMM tree splitter */
   SPLITTER splitter;
   splitter.Kptr = &K;
+  splitter.metric = ANGLE_DISTANCE;
+	/** randomized tree splitter */
   RKDTSPLITTER rkdtsplitter;
   rkdtsplitter.Kptr = &K;
+  rkdtsplitter.metric = ANGLE_DISTANCE;
   size_t n = K.row();
   size_t m = 128;
   size_t k = 16;
   size_t s = m;
 
+	/** creatgin configuration for all user-define arguments */
+	Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
+
 	/** call the complete interface and return tree_ptr */
-  return Compress<ADAPTIVE, LEVELRESTRICTION, SPLIT_ANGLE, SPLITTER, RKDTSPLITTER>
-         ( X, K, NN, splitter, rkdtsplitter, n, m, k, s, stol, budget );
+  return Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER>
+         ( X, K, NN, //ANGLE_DISTANCE, 
+					 splitter, rkdtsplitter, 
+					 //n, m, k, s, stol, budget, 
+					 config );
 
 }; /** end Compress() */
 
@@ -3974,10 +4076,7 @@ hmlp::tree::Tree<
  */ 
 template<typename T>
 hmlp::tree::Tree<
-  hmlp::gofmm::Setup<
-	  SPDMatrix<T>, 
-    centersplit<SPDMatrix<T>, 2, T, SPLIT_ANGLE>, 
-    T>, 
+  hmlp::gofmm::Setup<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
   hmlp::gofmm::Data<T>,
   2,
   T>
@@ -4140,10 +4239,10 @@ typedef SPDMatrix<double> dSPDMatrix_t;
 typedef SPDMatrix<float > sSPDMatrix_t;
 
 typedef hmlp::gofmm::Setup<SPDMatrix<double>, 
-    centersplit<SPDMatrix<double>, 2, double, SPLIT_ANGLE>, double> dSetup_t;
+    centersplit<SPDMatrix<double>, 2, double>, double> dSetup_t;
 
 typedef hmlp::gofmm::Setup<SPDMatrix<float>, 
-    centersplit<SPDMatrix<float >, 2,  float, SPLIT_ANGLE>,  float> sSetup_t;
+    centersplit<SPDMatrix<float >, 2,  float>,  float> sSetup_t;
 
 typedef hmlp::tree::Tree<dSetup_t, hmlp::gofmm::Data<double>, 2, double> dTree_t;
 typedef hmlp::tree::Tree<sSetup_t, hmlp::gofmm::Data<float >, 2, float > sTree_t;
