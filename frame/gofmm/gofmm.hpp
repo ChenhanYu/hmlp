@@ -3520,7 +3520,7 @@ hmlp::Data<T> Evaluate
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
     auto *node = *(level_beg + node_ind);
-    weights.GatherColumns<true>( node->lids, node->data.w_leaf );
+    weights.GatherColumns( true, node->lids, node->data.w_leaf );
   }
   forward_permute_time = omp_get_wtime() - beg;
 

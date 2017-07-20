@@ -442,7 +442,7 @@ void ContinueWith3x1To2x1
     case BOTTOM:
     {
       AT = A0;
-      Ab.ContinueWith( A1,
+      AB.ContinueWith( A1,
                        A2 );
       break;
     }
@@ -565,7 +565,7 @@ void ContinueWith3x3To2x2
       ATL = A00;
       ATR.ContinueWith1x2( A01, A02 );
       ABL.ContinueWith2x1( A10,
-                           A20,     );
+                           A20      );
       ABR.ContinueWith2x2( A11, A12,
                            A21, A22 );
       break;

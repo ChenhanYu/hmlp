@@ -339,7 +339,7 @@ void xgemm_var1(
                          A0,  A1, A2, b, RIGHT );
 
     /** repartition B */
-    Repartition2x1To3x1( BT, /**/ B0
+    Repartition2x1To3x1( BT, /**/ B0,
                              /**/ B1,
                          BB, /**/ B2, b, BOTTOM );
 

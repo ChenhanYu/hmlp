@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <cstddef>
+#include <cassert>
 #include <map>
 #include <set>
 #include <omp.h>
