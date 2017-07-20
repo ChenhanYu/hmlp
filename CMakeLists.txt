@@ -438,17 +438,17 @@ endif()
 
 
 # Also build 
-set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
-if (ARTIFACT_PATH MATCHES "sc17gofmm")
-	set(ARTIFACT_PATH "${CMAKE_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")
-	file (GLOB ARTIFACT_CXX_SRC    ${ARTIFACT_PATH}/*.cpp)
-  foreach( artifactsrc ${ARTIFACT_CXX_SRC} )
-    string( REPLACE ".cpp" ".x" artifactexe ${artifactsrc} )
-		get_filename_component( artifactexe ${artifactsrc} NAME_WE )
-	  add_executable( "${artifactexe}.x" ${artifactsrc} )
-    target_link_libraries( "${artifactexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
-  endforeach( artifactsrc ${ARTIFACT_CXX_SRC} )
-endif()
+#set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
+#if (ARTIFACT_PATH MATCHES "sc17gofmm")
+#	set(ARTIFACT_PATH "${CMAKE_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")
+#	file (GLOB ARTIFACT_CXX_SRC    ${ARTIFACT_PATH}/*.cpp)
+#  foreach( artifactsrc ${ARTIFACT_CXX_SRC} )
+#    string( REPLACE ".cpp" ".x" artifactexe ${artifactsrc} )
+#		get_filename_component( artifactexe ${artifactsrc} NAME_WE )
+#	  add_executable( "${artifactexe}.x" ${artifactsrc} )
+#    target_link_libraries( "${artifactexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
+#  endforeach( artifactsrc ${ARTIFACT_CXX_SRC} )
+#endif()
 
 
 # add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)

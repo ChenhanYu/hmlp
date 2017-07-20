@@ -1347,50 +1347,50 @@ void Factorize( NODE *node )
       auto *c3 = cr->lchild;
       auto *c4 = cr->rchild;
 
-      hmlp::Data<T> C21 = K( c2->data.skels, c1->data.skels );
-      hmlp::Data<T> C31 = K( c3->data.skels, c1->data.skels );
-      hmlp::Data<T> C41 = K( c4->data.skels, c1->data.skels );
-      hmlp::Data<T> C32 = K( c3->data.skels, c2->data.skels );
-      hmlp::Data<T> C42 = K( c4->data.skels, c2->data.skels );
-      hmlp::Data<T> C43 = K( c4->data.skels, c3->data.skels );
+      //hmlp::Data<T> C21 = K( c2->data.skels, c1->data.skels );
+      //hmlp::Data<T> C31 = K( c3->data.skels, c1->data.skels );
+      //hmlp::Data<T> C41 = K( c4->data.skels, c1->data.skels );
+      //hmlp::Data<T> C32 = K( c3->data.skels, c2->data.skels );
+      //hmlp::Data<T> C42 = K( c4->data.skels, c2->data.skels );
+      //hmlp::Data<T> C43 = K( c4->data.skels, c3->data.skels );
 
-      C21.WriteFile( "C21.m" );
-      C31.WriteFile( "C31.m" );
-      C41.WriteFile( "C41.m" );
-      C32.WriteFile( "C32.m" );
-      C42.WriteFile( "C42.m" );
-      C43.WriteFile( "C43.m" );
+      //C21.WriteFile( "C21.m" );
+      //C31.WriteFile( "C31.m" );
+      //C41.WriteFile( "C41.m" );
+      //C32.WriteFile( "C32.m" );
+      //C42.WriteFile( "C42.m" );
+      //C43.WriteFile( "C43.m" );
 
 
-      hmlp::Data<T> V11( c1->data.V.col(), c1->data.V.col() );
-      hmlp::Data<T> V22( c2->data.V.col(), c2->data.V.col() );
-      hmlp::Data<T> V33( c3->data.V.col(), c3->data.V.col() );
-      hmlp::Data<T> V44( c4->data.V.col(), c4->data.V.col() );
+      //hmlp::Data<T> V11( c1->data.V.col(), c1->data.V.col() );
+      //hmlp::Data<T> V22( c2->data.V.col(), c2->data.V.col() );
+      //hmlp::Data<T> V33( c3->data.V.col(), c3->data.V.col() );
+      //hmlp::Data<T> V44( c4->data.V.col(), c4->data.V.col() );
 
-      xgemm( "T", "N", c1->data.V.col(), c1->data.V.col(), c1->data.V.row(),
-          1.0, c1->data.V.data(), c1->data.V.row(),
-               c1->data.V.data(), c1->data.V.row(), 
-          0.0,        V11.data(), V11.row() );
+      //xgemm( "T", "N", c1->data.V.col(), c1->data.V.col(), c1->data.V.row(),
+      //    1.0, c1->data.V.data(), c1->data.V.row(),
+      //         c1->data.V.data(), c1->data.V.row(), 
+      //    0.0,        V11.data(), V11.row() );
 
-      xgemm( "T", "N", c2->data.V.col(), c2->data.V.col(), c2->data.V.row(),
-          1.0, c2->data.V.data(), c2->data.V.row(),
-               c2->data.V.data(), c2->data.V.row(), 
-          0.0,        V22.data(), V22.row() );
+      //xgemm( "T", "N", c2->data.V.col(), c2->data.V.col(), c2->data.V.row(),
+      //    1.0, c2->data.V.data(), c2->data.V.row(),
+      //         c2->data.V.data(), c2->data.V.row(), 
+      //    0.0,        V22.data(), V22.row() );
 
-      xgemm( "T", "N", c3->data.V.col(), c3->data.V.col(), c3->data.V.row(),
-          1.0, c3->data.V.data(), c3->data.V.row(),
-               c3->data.V.data(), c3->data.V.row(), 
-          0.0,        V33.data(), V33.row() );
+      //xgemm( "T", "N", c3->data.V.col(), c3->data.V.col(), c3->data.V.row(),
+      //    1.0, c3->data.V.data(), c3->data.V.row(),
+      //         c3->data.V.data(), c3->data.V.row(), 
+      //    0.0,        V33.data(), V33.row() );
 
-      xgemm( "T", "N", c4->data.V.col(), c4->data.V.col(), c4->data.V.row(),
-          1.0, c4->data.V.data(), c4->data.V.row(),
-               c4->data.V.data(), c4->data.V.row(), 
-          0.0,        V44.data(), V44.row() );
+      //xgemm( "T", "N", c4->data.V.col(), c4->data.V.col(), c4->data.V.row(),
+      //    1.0, c4->data.V.data(), c4->data.V.row(),
+      //         c4->data.V.data(), c4->data.V.row(), 
+      //    0.0,        V44.data(), V44.row() );
 
-      V11.WriteFile( "V11.m" );
-      V22.WriteFile( "V22.m" );
-      V33.WriteFile( "V33.m" );
-      V44.WriteFile( "V44.m" );
+      //V11.WriteFile( "V11.m" );
+      //V22.WriteFile( "V22.m" );
+      //V33.WriteFile( "V33.m" );
+      //V44.WriteFile( "V44.m" );
     }
     //printf( "end inner forward telescoping\n" ); fflush( stdout );
 

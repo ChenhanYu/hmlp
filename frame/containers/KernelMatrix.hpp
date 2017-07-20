@@ -5,7 +5,10 @@
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
 #include <hbw_allocator.h>
-#endif // ifdef HMLP}_MIC_AVX512
+#endif
+
+/** kernel matrix uses VirtualMatrix<T> as base */
+#include <containers/VirtualMatrix.hpp>
 
 
 namespace hmlp
@@ -16,37 +19,66 @@ template<typename T, class Allocator = hbw::allocator<T> >
 #else
 template<typename T, class Allocator = std::allocator<T> >
 #endif
-class Kernel : public ReadWrite
+/**
+ *  @brief
+ */ 
+class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
 {
   public:
 
     /** symmetric kernel matrix */
     template<typename TINDEX>
-    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources )
-    : sources( sources ), targets( sources )
+    KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources )
+    : sources( sources ), targets( sources ), VirtualMatrix<T>( m, n )
     {
-      this->m = m;
-      this->n = n;
       this->d = d;
       this->kernel = kernel;
     };
 
     /** unsymmetric kernel matrix */
     template<typename TINDEX>
-    Kernel( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources, Data<T> &targets )
-    : sources( sources ), targets( targets )
+    KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources, Data<T> &targets )
+    : sources( sources ), targets( targets ), VirtualMatrix<T>( m, n )
     {
-      this->m = m;
-      this->n = n;
       this->d = d;
       this->kernel = kernel;
     };
 
-    ~Kernel() {};
+    ~KernelMatrix() {};
 
     /** ESSENTIAL: return  K( i, j ) */
-    template<typename TINDEX>
-    inline T operator()( TINDEX i, TINDEX j )
+    //template<typename TINDEX>
+    //T operator()( TINDEX i, TINDEX j )
+    //{
+    //  T Kij = 0.0;
+
+    //  switch ( kernel.type )
+    //  {
+    //    case KS_GAUSSIAN:
+    //    {
+    //      for ( TINDEX k = 0; k < d; k++ )
+    //      {
+		//				T tar = targets[ i * d + k ];
+		//				T src = sources[ j * d + k ];
+    //        Kij += ( tar - src ) * ( tar - src );
+    //      }
+    //      Kij = exp( kernel.scal * Kij );
+    //      break;
+    //    }
+    //    default:
+    //    {
+    //      printf( "invalid kernel type\n" );
+    //      exit( 1 );
+    //      break;
+    //    }
+    //  }
+
+    //  return Kij;
+    //};
+
+
+		/** ESSENTIAL: override the virtual function */
+    T operator()( std::size_t i, std::size_t j )
     {
       T Kij = 0.0;
 
@@ -54,9 +86,11 @@ class Kernel : public ReadWrite
       {
         case KS_GAUSSIAN:
         {
-          for ( TINDEX k = 0; k < d; k++ )
+          for ( size_t k = 0; k < d; k++ )
           {
-            Kij += std::pow( targets[ i * d + k] - sources[ j * d + k ], 2 );
+						T tar = targets[ i * d + k ];
+						T src = sources[ j * d + k ];
+            Kij += ( tar - src ) * ( tar - src );
           }
           Kij = exp( kernel.scal * Kij );
           break;
@@ -67,14 +101,14 @@ class Kernel : public ReadWrite
           exit( 1 );
           break;
         }
-      }
-
+			}
       return Kij;
-    };
+		};
 
     /** ESSENTIAL: return K( imap, jmap ) */
     template<typename TINDEX>
-    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    hmlp::Data<T> operator()
+		  ( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
 
@@ -168,33 +202,27 @@ class Kernel : public ReadWrite
     template<typename TINDEX>
     std::pair<T, TINDEX> ImportantSample( TINDEX j )
     {
-      TINDEX i = std::rand() % m;
+      TINDEX i = std::rand() % this->col();
       std::pair<T, TINDEX> sample( (*this)( i, j ), i );
       return sample; 
     };
 
     void Print()
     {
-      for ( size_t j = 0; j < n; j ++ )
+      for ( size_t j = 0; j < this->col(); j ++ )
       {
         printf( "%8lu ", j );
       }
       printf( "\n" );
-      for ( size_t i = 0; i < m; i ++ )
+      for ( size_t i = 0; i < this->row(); i ++ )
       {
-        for ( size_t j = 0; j < n; j ++ )
+        for ( size_t j = 0; j < this->col(); j ++ )
         {
           printf( "% 3.1E ", (*this)( i, j ) );
         }
         printf( "\n" );
       }
     }; // end Print()
-
-    /** ESSENTIAL: return number of rows */
-    std::size_t row() { return m; };
-
-    /** ESSENTIAL: return number of columns */
-    std::size_t col() { return n; };
 
     /** return number of attributes */
     std::size_t dim() { return d; };
@@ -224,12 +252,6 @@ class Kernel : public ReadWrite
 
   private:
 
-    /** ESSENTIAL */
-    std::size_t m;
-
-    /** ESSENTIAL */
-    std::size_t n;
-
     std::size_t d;
 
     Data<T> &sources;
@@ -238,7 +260,7 @@ class Kernel : public ReadWrite
 
     kernel_s<T> kernel;
 
-}; /** end class Kernel */
+}; /** end class KernelMatrix */
 
 }; /** end namespace hmlp */
 
