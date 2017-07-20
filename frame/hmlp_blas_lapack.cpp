@@ -6,6 +6,9 @@
 
 // #define DEBUG_XGEMM 1
 
+#ifndef USE_BLAS
+#warning BLAS/LAPACK routines are not compiled (-HMLP_USE_BLAS=false)
+#endif
 
 
 extern "C"
@@ -176,6 +179,7 @@ double xdot( int n, double *dx, int incx, double *dy, int incy )
   ret_val = ddot_( &n, dx, &incx, dy, &incy );
 #else
   printf( "xdot must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
   return ret_val;
 }; /** end xdot() */
@@ -192,6 +196,7 @@ float xdot( int n, float *dx, int incx, float *dy, int incy )
   ret_val = sdot_( &n, dx, &incx, dy, &incy );
 #else
   printf( "xdot must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
   return ret_val;
 }; /** end xdot() */

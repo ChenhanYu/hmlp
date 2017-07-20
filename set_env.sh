@@ -27,6 +27,7 @@ export HMLP_USE_BLAS=true
 export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
+#export OPENBLASROOT=${OPENBLASROOT}
 export OPENBLASROOT=/h1/chenhan/Projects/OpenBLAS-0.2.19
 
 ## Setup the maximum number of threads.
@@ -57,7 +58,7 @@ export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=sandybridge
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
-export HMLP_QSML_DIR=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
+export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 
 ## Distributed environment poptions (if true, compile with MPI)
 export HMLP_USE_MPI=false
@@ -173,7 +174,7 @@ echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 echo "HMLP_USE_BLAS = $HMLP_USE_BLAS"
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
-echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
+echo "QSMLROOT = $QSMLROOT"
 
 ## Distributed environment poptions (if true, compile with MPI)
 echo "HMLP_USE_MPI = $HMLP_USE_MPI"

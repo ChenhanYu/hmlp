@@ -27,14 +27,14 @@ set (HMLP_GPU_ARCH       ${HMLP_GPU_ARCH_MAJOR}/${HMLP_GPU_ARCH_MINOR})
 # Detecting MacOS (mac cannot export $CC to change compilers)
 # ---------------------------
 if ( APPLE )
-  message("MacOS")
+  message( STATUS "MacOS detected")
   set (CMAKE_MACOSX_RPATH TRUE)
   if ($ENV{HMLP_USE_INTEL} MATCHES "true")
     set (CMAKE_C_COMPILER      icc)
     set (CMAKE_CXX_COMPILER    icpc)
     set (CMAKE_C_COMPILER_ID   Intel)
     set (CMAKE_CXX_COMPILER_ID Intel)
-  else ($ENV{HMLP_USE_INTEL} MATCHES "true")
+  else ()
     set (CMAKE_C_COMPILER      gcc)
     set (CMAKE_CXX_COMPILER    g++)
     set (CMAKE_C_COMPILER_ID   GNU)
@@ -42,47 +42,93 @@ if ( APPLE )
   endif()
 endif ()
 
+
+
+# Software dependencies.
+# ---------------------------
+set (MKLROOT $ENV{MKLROOT})
+set (OPENBLASROOT $ENV{OPENBLASROOT})
+set (QSMLROOT $ENV{QSMLROOT})
+
+
+
 # Compiler Options (HMLP can use Intel or GNU compilers.)
 # ---------------------------
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+
   # using Clang or AppleClang
-  message("(Apple)Clang compiler is not supported.") 
-  message("You must have a generic GNU or Intel compiler.")
+  message( STATUS "Clang compiler." ) 
+  message( WARNING "(Apple)Clang compiler is not supported." ) 
+  message( FATAL_ERROR "You must have a generic GNU or Intel compiler." )
+
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+
   # using GCC
-  message("GNU compiler.") 
+  message( STATUS "GNU compiler." ) 
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -std=c++11 -O3 -fopenmp")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -fPIC")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
+
+  # try to detect and link BLAS/LAPACK
   if ($ENV{HMLP_USE_BLAS} MATCHES "true")
+
     find_package (BLAS REQUIRED)
-    message("${BLAS_LINKER_FLAGS}")
-    message("${BLAS_LIBRARIES}")
     find_package (LAPACK REQUIRED)
-    message("${LAPACK_LINKER_FLAGS}")
-    message("${LAPACK_LIBRARIES}")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L$ENV{OPENBLASROOT} -lopenblas")
-    include_directories ("$ENV{OPENBLASROOT}/include")
-  endif()
+    set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
+
+    if ( OPENBLASROOT )
+      message( STATUS "use OpenBLAS for BLAS/LAPACK" )
+      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L$ENV{OPENBLASROOT} -lopenblas")
+    else ()
+      if ( BLAS_LINKER_FLAGS )
+        message( "${BLAS_LINKER_FLAGS}" )
+        message( "${BLAS_LIBRARIES}" )
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
+      else ()
+        message( WARNING "cmake FindBLAS fails to generate a proper linker for BLAS" )
+        message( FATAL_ERROR "fail to link to a BLAS library. Try to set HMLP_USE_BLAS=false." )  
+      endif ()
+
+      if ( LAPACK_LINKER_FLAGS )
+        message("${LAPACK_LINKER_FLAGS}")
+        message("${LAPACK_LIBRARIES}")
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
+      else ()
+        message( WARNING "cmake FindBLAS fails to generate a proper linker for LAPACK" )
+        message( FATAL_ERROR "fail to link to a LAPACK library. Try to set HMLP_USE_BLAS=false." )  
+      endif ()
+
+    endif ()
+
+  else ()
+    message( WARNING "compile without BLAS/LAPACK. GOFMM will not be available.")
+  endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
+
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+
   # using Intel C++
-  message("Intel compiler.")
+  message( STATUS "Intel compiler." )
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -std=c++11 -O3 -qopenmp")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Werror -Wall -pedantic -fPIC")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_INTEL")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp")
-  # using mkl 
+
+  # using mkl (still we use FindBLAS to detect Intel MKL) 
   if ($ENV{HMLP_USE_BLAS} MATCHES "true")
     set(ENV{BLA_VENDOR} "Intel10_64lp")
     find_package (BLAS REQUIRED)
-    #message("${BLAS_LIBRARIES}")
     set(BLA_VENDOR "Intel")
     find_package (LAPACK REQUIRED)
-    set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_VML -mkl=parallel")
+    set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_BLAS -DUSE_VML")
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
-		include_directories ("$ENV{MKLROOT}/include")
-  endif()
+    include_directories ("$ENV{MKLROOT}/include")
+  else ()
+    message( WARNING "compile without BLAS/LAPACK. GOFMM will not be available.")
+  endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
+
 endif()
+
+
 
 # Cross compilation for Android OS
 # ---------------------------
@@ -96,15 +142,24 @@ if ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm")
   set (CMAKE_OSX_SYSROOT      "")
   set (CMAKE_C_LINK_FLAGS     "")
   set (CMAKE_CXX_LINK_FLAGS   "")
-	## using QSML
+
+  ## using QSML
   if ($ENV{HMLP_USE_BLAS} MATCHES "true")
-		if (DEFINED QSML_DIR)
-      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
-    #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
-    include_directories ("${QSML_DIR}/include")
-	  endif()
-  endif()
+    if ( DEFINED QSMLROOT )
+      set (QSML_LINKER_FLAGS "-L${QSMLROOT}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
+      #set (QSML_LINKER_FLAGS "-L${QSMLROOT}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
+      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${QSML_LINKER_FLAGS}")
+      include_directories ("${QSMLROOT}/include")
+    else()
+      message( WARNING "QSMLROOT is not defined" )
+      message( FATAL_ERROR "fail to link to a LAPACK library. Try to set HMLP_USE_BLAS=false." )  
+    endif()
+  else ()
+    message( WARNING "compile without BLAS/LAPACK. GOFMM will not be available.")
+  endif ()
 endif ()
+
+
 
 # Vectorization 
 # ---------------------------
@@ -115,7 +170,7 @@ if ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -march=armv8-a+fp+simd")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -mcpu=cortex-a57.cortex-a53")
 elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "knl")
-	set (HMLP_CFLAGS            "${HMLP_CFLAGS} -xMIC-AVX512 -DHMLP_MIC_AVX512")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -xMIC-AVX512 -DHMLP_MIC_AVX512")
   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lmemkind")
 elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "sandybridge")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -mavx")
@@ -144,20 +199,20 @@ if (PYTHON)
   set(SETUP_PY    ${CMAKE_BINARY_DIR}/python/setup.py)
   #replace all cmake variables with the correct values
   configure_file(${SETUP_PY_IN} ${SETUP_PY})
-	set(HMLP_PYX_IN ${CMAKE_SOURCE_DIR}/python/hmlp.pyx)
-	set(HMLP_PYX    ${CMAKE_BINARY_DIR}/python/hmlp.pyx)
-	configure_file(${HMLP_PYX_IN} ${HMLP_PYX})
-	#set(CHMLP_PXD_IN ${CMAKE_SOURCE_DIR}/python/chmlp.pxd)
-	#set(CHMLP_PXD    ${CMAKE_BINARY_DIR}/python/chmlp.pxd)
-	#configure_file(${CHMLP_PXD_IN} ${CHMLP_PXD})
-	set(GOFMM_PYX_IN ${CMAKE_SOURCE_DIR}/python/gofmm.pyx)
-	set(GOFMM_PYX    ${CMAKE_BINARY_DIR}/python/gofmm.pyx)
-	configure_file(${GOFMM_PYX_IN} ${GOFMM_PYX})
-	#set(CGOFMM_PXD_IN ${CMAKE_SOURCE_DIR}/python/cgofmm.pxd)
-	#set(CGOFMM_PXD    ${CMAKE_BINARY_DIR}/python/cgofmm.pxd)
-	#configure_file(${CGOFMM_PXD_IN} ${CGOFMM_PXD})
-	install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --prefix=${CMAKE_BINARY_DIR})")
-	#install(CODE "execute_process(COMMAND CC=${CMAKE_C_COMPILER} ${PYTHON} ${SETUP_PY} build_ext -i)")
+  set(HMLP_PYX_IN ${CMAKE_SOURCE_DIR}/python/hmlp.pyx)
+  set(HMLP_PYX    ${CMAKE_BINARY_DIR}/python/hmlp.pyx)
+  configure_file(${HMLP_PYX_IN} ${HMLP_PYX})
+  #set(CHMLP_PXD_IN ${CMAKE_SOURCE_DIR}/python/chmlp.pxd)
+  #set(CHMLP_PXD    ${CMAKE_BINARY_DIR}/python/chmlp.pxd)
+  #configure_file(${CHMLP_PXD_IN} ${CHMLP_PXD})
+  set(GOFMM_PYX_IN ${CMAKE_SOURCE_DIR}/python/gofmm.pyx)
+  set(GOFMM_PYX    ${CMAKE_BINARY_DIR}/python/gofmm.pyx)
+  configure_file(${GOFMM_PYX_IN} ${GOFMM_PYX})
+  #set(CGOFMM_PXD_IN ${CMAKE_SOURCE_DIR}/python/cgofmm.pxd)
+  #set(CGOFMM_PXD    ${CMAKE_BINARY_DIR}/python/cgofmm.pxd)
+  #configure_file(${CGOFMM_PXD_IN} ${CGOFMM_PXD})
+  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --prefix=${CMAKE_BINARY_DIR})")
+  #install(CODE "execute_process(COMMAND CC=${CMAKE_C_COMPILER} ${PYTHON} ${SETUP_PY} build_ext -i)")
 endif()
 
 
@@ -205,16 +260,6 @@ if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
 endif()
 
 
-# BLAS and VML options
-# ---------------------------
-if ($ENV{HMLP_USE_BLAS} MATCHES "true")
-  # set(BLA_STATIC on)
-  find_package (BLAS REQUIRED)
-  find_package (LAPACK REQUIRED)
-  set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
-endif ()
-
-
 # Pthread runtime
 # ---------------------------
 # set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_PTHREAD_RUNTIME")
@@ -231,11 +276,6 @@ endif()
 # ---------------------------
 set (CMAKE_C_FLAGS        "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
 set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS}")
-
-
-# Software dependencies.
-# ---------------------------
-set (QSML_DIR $ENV{HMLP_QSML_DIR})
 
 
 # Linking infos.
@@ -290,7 +330,7 @@ file (GLOB PACKAGE_CU_SRC  ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   cuda_add_library (hmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${FRAME_CU_SRC} ${PACKAGE_CU_SRC})
-else ($ENV{HMLP_USE_CUDA} MATCHES "true")
+else ()
   add_library (hmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
   #if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND NOT ($ENV{HMLP_USE_INTEL} MATCHES "true"))
@@ -420,25 +460,25 @@ endif()
 
 
 # Build SPDASKIT test suit
-add_executable (test_gofmm.x ${CMAKE_SOURCE_DIR}/test/test_gofmm.cpp)
-
-target_link_libraries(test_gofmm.x hmlp ${MPI_CXX_LIBRARIES})
-
-if (MPI_CXX_COMPILE_FLAG)
-  set_target_properties(test_gofmm.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
-endif()
-
-if (MPI_LINK_FLAGS)
-  set_target_properties(test_gofmm.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-endif()
-
-if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  target_link_libraries(test_gofmm.x cudart)
-  cuda_add_cublas_to_target(test_gofmm.x)
-endif ()
-if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-  target_link_libraries(test_gofmm.x magma)
-endif()
+if ($ENV{HMLP_USE_BLAS} MATCHES "true")
+  add_executable (test_gofmm.x ${CMAKE_SOURCE_DIR}/test/test_gofmm.cpp)
+  target_link_libraries(test_gofmm.x hmlp ${MPI_CXX_LIBRARIES})
+  if (MPI_CXX_COMPILE_FLAG)
+    set_target_properties(test_gofmm.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+  endif()
+  if (MPI_LINK_FLAGS)
+    set_target_properties(test_gofmm.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+  endif()
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_gofmm.x cudart)
+    cuda_add_cublas_to_target(test_gofmm.x)
+  endif ()
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_gofmm.x magma)
+  endif()
+else ()
+  message( WARNING "GOFMM is not compiled becuase HMLP_USE_BLAS=false" )
+endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
 
 
 # Also build 
@@ -472,10 +512,10 @@ if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   # target_link_libraries(test_spdaskit_gpu.x hmlp)
   # cuda_add_cublas_to_target(test_spdaskit_gpu.x)
 endif ()
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_gkmm_gpu.x magma)
-    target_link_libraries(test_strassen_gpu.x magma)
-  endif()
+if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+  target_link_libraries(test_gkmm_gpu.x magma)
+  target_link_libraries(test_strassen_gpu.x magma)
+endif()
 
 
 
@@ -516,7 +556,8 @@ message ("NVCC_VERSION =${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR}")
 message ("NVCCFLAGS    =${CUDA_NVCC_FLAGS}")
 message ("===================================================")
 message ("MKLROOT      =$ENV{MKLROOT}")
-message ("QSMLDIR      =${QSML_DIR}")
+message ("OPENBLASROOT =$ENV{OPENBLASROOT}")
+message ("QSMLROOT     =$ENV{QSMLROOT}")
 message ("BLAS_LIBRARY =${BLAS_LIBRARIES}")
 message ("BLAS_LINKER  =${BLAS_LINKER_FLAGS}")
 message ("===================================================")
