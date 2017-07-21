@@ -72,6 +72,7 @@ export CC             = gcc    to use GNU C compilers
 export CXX            = g++    to use GNU C++ compilers
 export HMLP_USE_BLAS  = false  if you don't have a BLAS library.
 export MKLROOT        = xxx    to_the_path_of_intel_mkl
+export OPENBLASROOT   = xxx    to_the_path_of_OpenBLAS
 Set HMLP_USE_CUDA  = true  to compile code with cuda templates. 
 ```
 

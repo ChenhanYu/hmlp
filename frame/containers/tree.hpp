@@ -1129,10 +1129,20 @@ class Tree
     };
 
 
+    /**
+     *  @brief This routine can perform up to e different tree traversals
+     *         together via omp task depend. However, currently gcc/g++
+     *         fail to compile the following conext. Thus, this part of
+     *         the code is only compiled with Intel compilers.
+     *         [WARNING]
+     */ 
     template<bool UPWARD = true, bool UNORDERED = true, bool DOWNWARD = true, 
       class TASK1, class TASK2, class TASK3>
     void UpDown( TASK1 &dummy1, TASK2 &dummy2, TASK3 &dummy3 )
     {
+      
+/** the following code is only compiled with Intel compilers */
+#ifdef USE_INTEL
       if ( UPWARD )
       {
         #pragma omp parallel
@@ -1192,8 +1202,19 @@ class Tree
           }
         } /** end pragma omp */
       }
-    };
 
+#else /** WARNING for other compilers*/
+#warning hmlp::tree::UpDown() is only compiled with Intel compilers
+      printf( "hmlp::tree::UpDown() is only compiled with Intel compilers\n" );
+      exit( 1 );
+#endif /** ifdef USE_INTEL */
+
+    }; /** end UpDown() */
+
+
+    /**
+     *
+     */ 
     template<class TASK>
     inline void OMPTraverseUp( TASK &dummy )
     {
@@ -1211,54 +1232,64 @@ class Tree
           //printf( "me %d\n", me );
         }
       }
-    }; // end OMPTraverseUp()
+    }; /** end OMPTraverseUp() */
 
 
     template<class TASK>
     void OMPTraverseDown( TASK &dummy )
-	{
+    {
       for ( int me = 1; me <= treelist.size(); me ++ )
-	  {
-	    int parent = me / 2;
+      {
+        int parent = me / 2;
         #pragma omp task depend(in:omptasklist[parent]) depend(out:omptasklist[me])
-	    {
+        {
           auto *node = treelist[ me - 1 ];
-	  	  auto *task = new TASK();
-	  	  task->Set( node );
-	  	  task->Execute( NULL );
-	  	  delete task;
-	      //printf( "me %d\n", me );
-	    }
-	  }
-	}; // end OMPTraverseUp()
+          auto *task = new TASK();
+          task->Set( node );
+          task->Execute( NULL );
+          delete task;
+          //printf( "me %d\n", me );
+        }
+      }
+    }; /** end OMPTraverseUp() */
 
 
+    /**
+     *
+     */ 
     template<class TASK>
     void OMPUnordered( TASK &dummy )
-	{
+    {
       for ( int me = treelist.size(); me >= 1; me -- )
-	  {
+      {
         #pragma omp task depend(inout:omptasklist[me])
-	    {
+        {
           auto *node = treelist[ me - 1 ];
-	  	  auto *task = new TASK();
-	  	  task->Set( node );
-	  	  task->Execute( NULL );
-	  	  delete task;
-	      //printf( "me %d\n", me );
-	    }
-	  }
-	}; // end OMPUnordered()
+          auto *task = new TASK();
+          task->Set( node );
+          task->Execute( NULL );
+          delete task;
+          //printf( "me %d\n", me );
+        }
+      }
+    }; /** end OMPUnordered() */
 
 
 
-
-
+    /**
+     *  @brief This routine can perform up to e different tree traversals
+     *         together via omp task depend. However, currently gcc/g++
+     *         fail to compile the following conext. Thus, this part of
+     *         the code is only compiled with Intel compilers.
+     *         [WARNING]
+     */ 
     template<bool RECURSIVE, class TASK>
     void PostOrder( NODE *node, TASK &dummy )
     {
-	  if ( RECURSIVE )
-	  {
+
+#ifdef USE_INTEL
+      if ( RECURSIVE )
+      {
         #pragma omp parallel
         #pragma omp single nowait
         {
@@ -1274,37 +1305,47 @@ class Tree
           {
             auto *task = new TASK();
             task->Set( node );
-	        task->Execute( NULL );
-	        delete task;
-	      }
-	    }
-	  }
-	  else
-	  {
+            task->Execute( NULL );
+            delete task;
+          }
+        }
+      }
+      else
+      {
         #pragma omp parallel
         #pragma omp single
-		{
-		  //int dep[ 1 << 16 ];
+        {
+          //int dep[ 1 << 16 ];
           for ( int me = treelist.size(); me >= 1; me -- )
-		  {
-		    int lchild = me * 2;
-		    int rchild = lchild + 1;
+          {
+            int lchild = me * 2;
+            int rchild = lchild + 1;
             #pragma omp task depend(in:omptasklist[lchild],omptasklist[rchild]) depend(out:omptasklist[me])
-		    {
+            {
               auto *node = treelist[ me - 1 ];
-		  	  auto *task = new TASK();
-		  	  task->Set( node );
-		  	  task->Execute( NULL );
-		  	  delete task;
-		      //printf( "me %d\n", me );
-		    }
-		  }
-		}
-		//printf( "finish omp parallel region\n" ); fflush( stdout );
-	  }
+              auto *task = new TASK();
+              task->Set( node );
+              task->Execute( NULL );
+              delete task;
+              //printf( "me %d\n", me );
+            }
+          }
+        }
+        //printf( "finish omp parallel region\n" ); fflush( stdout );
+      }
       //printf( "finish PostOrder\n" ); fflush( stdout );
-	};
 
+#else /** WARNING for other compilers*/
+#warning hmlp::tree::PostOrder() is only compiled with Intel compilers
+      printf( "hmlp::tree::PostOrder() is only compiled with Intel compilers\n" );
+      exit( 1 );
+#endif
+    };
+
+
+    /**
+     *
+     */ 
     template<bool SORTED, typename KNNTASK>
     hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
     (

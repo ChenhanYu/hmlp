@@ -45,8 +45,6 @@ using namespace hmlp::tree;
 using namespace hmlp::gofmm;
 
 
-double foo( size_t i, size_t j ) { return double( i + j ); };
-
 
 template<
   bool        ADAPTIVE, 
@@ -196,10 +194,10 @@ void test_gofmm
 
   /** Factorization */
   const bool LU = true;
-  T lambda = 1.0;
-  if ( lambda < 10.0 * fmmerr_avg )
+  T lambda = 10.0;
+  if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
     printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
-        lambda, fmmerr_avg );
+        lambda, fmmerr_avg / ntest );
   hmlp::hfamily::Factorize<LU, NODE, T>( tree, lambda ); 
 
   /** compute error */
@@ -413,9 +411,6 @@ int main( int argc, char *argv[] )
 #endif
 
 
-	//hmlp::VirtualMatrix<T> vmatrix( 3, 3, &foo );
-
-	//printf( "%d, %d, %lf\n", 1, 2, vmatrix( 1, 2 ) );
 
 
 
@@ -513,20 +508,20 @@ int main( int argc, char *argv[] )
 	if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
   {
 		using T = float;
-		//{
-		//	/** no geometric coordinates provided */
-		//	hmlp::Data<T> *X = NULL;
-		//	/** dense spd matrix format */
-		//	hmlp::gofmm::SPDMatrix<T> K;
-		//	K.resize( n, n );
-		//	/** random spd initialization */
-		//	K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-		//	/** (optional) provide neighbors, leave uninitialized otherwise */
-		//	hmlp::Data<std::pair<T, std::size_t>> NN;
-		//	/** routine */
-		//	test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-		//		( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-		//}
+		{
+			/** no geometric coordinates provided */
+			hmlp::Data<T> *X = NULL;
+			/** dense spd matrix format */
+			hmlp::gofmm::SPDMatrix<T> K;
+			K.resize( n, n );
+			/** random spd initialization */
+			K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+			/** (optional) provide neighbors, leave uninitialized otherwise */
+			hmlp::Data<std::pair<T, std::size_t>> NN;
+			/** routine */
+			test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+				( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+		}
 		{
       d = 4;
 			/** generate coordinates from normal(0,1) distribution */

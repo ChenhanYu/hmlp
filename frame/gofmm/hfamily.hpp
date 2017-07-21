@@ -77,7 +77,7 @@ class Factor
       hmlp::Data<T> &V
     )
     {
-      Setup( isleaf, isroot, n, nl, nr, s, sl, sr );
+      SetupFactor( isleaf, isroot, n, nl, nr, s, sl, sr );
     };
 
 
@@ -389,8 +389,10 @@ class Factor
     template<bool SYMMETRIC>
     void Multiply( hmlp::View<T> &bl, hmlp::View<T> &br )
     {
-      assert( !isleaf );
-     
+      assert( !isleaf && bl.col() == br.col() );
+    
+      size_t nrhs = bl.col();
+
       std::vector<T> ta( ( sl + sr ) * nrhs );
       std::vector<T> tl(      sl * nrhs );
       std::vector<T> tr(      sr * nrhs );
@@ -593,9 +595,10 @@ class Factor
     }; /** end Solve() */
 
 
-    template<bool LU, bool DO_INVERSE>
     void Telescope
-    ( 
+    (
+      bool LU, 
+      bool DO_INVERSE,
       /** n-by-s */
       hmlp::Data<T> &Pa,
       /** s-by-(sl+sr) */
@@ -642,9 +645,10 @@ class Factor
 
     /** RIGHT: V = [ P(:, 0:st-1) * Vl , P(:,st:st+sb-1) * Vr ] 
      *  LEFT:  U = [ Ul * P(:, 0:st-1)'; Ur * P(:,st:st+sb-1) ] */
-    template<bool LU, bool DO_INVERSE>
     void Telescope
     ( 
+      bool LU,
+      bool DO_INVERSE,
       /** n-by-s */
       hmlp::Data<T> &Pa,
       /** s-by-(sl+sr) */
@@ -1298,10 +1302,10 @@ void Factorize( NODE *node )
     data.Factorize<LU>( Kaa );
 
     /** U = inv( Kaa ) * proj' */
-    data.Telescope<LU, true>( data.U, proj );
+    data.Telescope( LU, true, data.U, proj );
 
     /** V = proj' */
-    if ( LU ) data.Telescope<LU, false>( data.V, proj );
+    if ( LU ) data.Telescope( LU, false, data.V, proj );
     
     //printf( "end leaf forward telescoping\n" ); fflush( stdout );
   }
@@ -1329,10 +1333,10 @@ void Factorize( NODE *node )
     if ( !node->data.isroot )
     {
       /** U = inv( I + UCV' ) * [ Ul; Ur ] * proj' */
-      data.Telescope<LU,  true>( data.U, proj, Ul, Ur );
+      data.Telescope( LU, true, data.U, proj, Ul, Ur );
 
       /** V = [ Vl; Vr ] * proj' */
-      if ( LU ) data.Telescope<LU, false>( data.V, proj, Vl, Vr );
+      if ( LU ) data.Telescope( LU, false, data.V, proj, Vl, Vr );
     }
     else
     {

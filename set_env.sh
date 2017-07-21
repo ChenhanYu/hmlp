@@ -23,8 +23,12 @@ export HMLP_USE_INTEL=true
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
 
-## Make sure MKLROOT is defined propoerly in your system. 
+## Make sure MKLROOT is defined in your system. (icc/icpc)
 export MKLROOT=${MKLROOT}
+
+## Make sure OPENBLASROOT is defined. (gcc/g++)
+#export OPENBLASROOT=${OPENBLASROOT}
+export OPENBLASROOT=/h1/chenhan/Projects/OpenBLAS-0.2.19
 
 ## Setup the maximum number of threads.
 export OMP_NUM_THREADS=20
@@ -54,7 +58,7 @@ export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=sandybridge
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
-export HMLP_QSML_DIR=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
+export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 
 ## Distributed environment poptions (if true, compile with MPI)
 export HMLP_USE_MPI=false
@@ -122,13 +126,37 @@ fi
 echo "===================================================================="
 echo ""
 
+
+## Check if OPENBLASROOT is set
+echo "===================================================================="
+echo "Notice: HMLP and CMAKE use variables OPENBLASROOT to find OpenBLAS."
+echo "        If you are using intel compile and seeing the following:"
+echo ""
+echo "            Variable OPENBLASROOT is unset (REQUIRED by GNU compilers)"
+echo ""
+echo "        then you must first export OPENBLASROOT=/path_to_OpenBLAS..."
+echo "===================================================================="
+if [ -z ${OPENBLASROOT+x} ]; 
+then echo "Variable OPENBLASROOT is unset (REQUIRED by GNU compilers)"; 
+else echo "Variable OPENBLASROOT is set to '$OPENBLASROOT'";
+fi
+echo "===================================================================="
+echo ""
+
+
+
+
 ## setup project source directory
 export HMLP_DIR=$PWD
 echo "HMLP_DIR = $HMLP_DIR"
 
 ## Add our default building path  
 export DYLD_LIBRARY_PATH=${DYLD_LIBRARY_PATH}:${HMLP_DIR}/build/lib/
+export DYLD_LIBRARY_PATH=${DYLD_LIBRARY_PATH}:${MKLROOT}/lib/
+export DYLD_LIBRARY_PATH=${DYLD_LIBRARY_PATH}:${OPENBLASROOT}/:${OPENBLASROOT}/lib/
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${HMLP_DIR}/build/lib/
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MKLROOT}/lib/
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${OPENBLASROOT}/:${OPENBLASROOT}/lib/
 export PYTHONPATH=${PYTHONPATH}:${HMLP_DIR}/build/python/
 export PYTHONPATH=${PYTHONPATH}:${HMLP_DIR}/build/lib/
 export PYTHONPATH=${PYTHONPATH}:${HMLP_DIR}/build/lib/python2.7/site-packages/
@@ -146,7 +174,7 @@ echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 echo "HMLP_USE_BLAS = $HMLP_USE_BLAS"
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
-echo "HMLP_QSML_DIR = $HMLP_QSML_DIR"
+echo "QSMLROOT = $QSMLROOT"
 
 ## Distributed environment poptions (if true, compile with MPI)
 echo "HMLP_USE_MPI = $HMLP_USE_MPI"

@@ -184,7 +184,11 @@ struct gkrm_mrxnr
     for ( int i = 0; i < MR; i ++ )
     {
       TC *cptr = c + i;
+#ifdef USE_INTEL
       #pragma omp atomic update
+#else
+			#pragma omp critical
+#endif
       *c = opreduce( *c, regC[ i ] );
     }
 
