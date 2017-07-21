@@ -519,6 +519,9 @@ void Repartition2x2To3x3
 
 
 
+/**
+ *  @brief
+ */ 
 template<typename T>
 void ContinueWith3x3To2x2
 (

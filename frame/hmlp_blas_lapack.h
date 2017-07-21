@@ -1,8 +1,6 @@
 #ifndef HMLP_BLAS_LAPACK_H
 #define HMLP_BLAS_LAPACK_H
 
-#include <containers/view.hpp>
-
 #ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
@@ -16,20 +14,18 @@ void xgemm
 (
   const char *transA, const char *transB,
   int m, int n, int k, 
-  float alpha,
-  float *A, int lda,
-  float *B, int ldb, float beta,
-  float *C, int ldc
+  float alpha, float *A, int lda,
+               float *B, int ldb, 
+  float beta,  float *C, int ldc
 );
 
 void xgemm
 (
   const char *transA, const char *transB,
   int m, int n, int k, 
-  double alpha,
-  double *A, int lda,
-  double *B, int ldb, double beta,
-  double *C, int ldc
+  double alpha, double *A, int lda,
+                double *B, int ldb, 
+  double beta,  double *C, int ldc
 );
 
 void xtrsm
@@ -37,9 +33,8 @@ void xtrsm
   const char *side, const char *uplo,
   const char *transA, const char *diag,
   int m, int n,
-  float alpha,
-  float *A, int lda,
-  float *B, int ldb 
+  float alpha, float *A, int lda,
+               float *B, int ldb 
 );
 
 void xtrsm
@@ -47,9 +42,8 @@ void xtrsm
   const char *side, const char *uplo,
   const char *transA, const char *diag,
   int m, int n,
-  double alpha,
-  double *A, int lda,
-  double *B, int ldb 
+  double alpha, double *A, int lda,
+                double *B, int ldb 
 );
 
 void xtrmm
@@ -57,9 +51,8 @@ void xtrmm
   const char *side, const char *uplo,
   const char *transA, const char *diag,
   int m, int n,
-  float alpha,
-  float *A, int lda,
-  float *B, int ldb 
+  float alpha, float *A, int lda,
+               float *B, int ldb 
 );
 
 void xtrmm
@@ -67,9 +60,8 @@ void xtrmm
   const char *side, const char *uplo,
   const char *transA, const char *diag,
   int m, int n,
-  double alpha,
-  double *A, int lda,
-  double *B, int ldb 
+  double alpha, double *A, int lda,
+                double *B, int ldb 
 );
 
 void xpotrf
@@ -234,7 +226,8 @@ float xdot
 
 
 #ifdef HMLP_USE_CUDA
-// cublasSgemm wrapper
+
+/** cublasSgemm wrapper */
 void xgemm
 (
   cublasHandle_t &handle,
@@ -246,7 +239,7 @@ void xgemm
   float *C, int ldc
 );
 
-// cublasDgemm wrapper
+/** cublasDgemm wrapper */
 void xgemm
 (
   cublasHandle_t &handle,
@@ -258,7 +251,7 @@ void xgemm
   double *C, int ldc
 );
 
-// cublasSgemmBatched wrapper
+/** cublasSgemmBatched wrapper */
 void xgemm_batched
 (
   cublasHandle_t &handle,
@@ -271,7 +264,7 @@ void xgemm_batched
   int batchSize
 );
 
-// cublasDgemmBatched wrapper
+/** cublasDgemmBatched wrapper */
 void xgemm_batched
 (
   cublasHandle_t &handle,
@@ -306,97 +299,7 @@ void xgeqp3
   double *work, int lwork
 );
 
-#endif
-
-
-/**
- *  @brief
- */ 
-template<size_t NB = 512, typename T>
-void xgemm_var1( 
-    T alpha, hmlp::View<T> &A, 
-             hmlp::View<T> &B, 
-    T beta,  hmlp::View<T> &C )
-{
-  /** all subviews */
-  hmlp::View<T> AL, AR, 
-                A0, A1, A2;
-  hmlp::View<T> BT, BB, 
-                B0, B1, B2;
-  
-  
-  A.partition1x2( AL, AR, 0, TOP);
-  B.partition2x1( BT,
-                  BB, 0, TOP ); 
-
-  while ( AL.col() < A.col() )
-  {
-    size_t b = std::min( AR.col(), NB );
-
-    /** repartition A */
-    Repartition1x2To1x3( AL,      AR,
-                         /** **** */
-                         A0,  A1, A2, b, RIGHT );
-
-    /** repartition B */
-    Repartition2x1To3x1( BT, /**/ B0,
-                             /**/ B1,
-                         BB, /**/ B2, b, BOTTOM );
-
-
-    /** --------------------------------------------------- */
-    xgemmTask( alpha, A, B, beta, C );
-    /** --------------------------------------------------- */
-
-    /** merge B */
-    ContinueWith1x3To1x2( AL,      AR,
-                          /** **** */
-                          A0,  A1, A2, LEFT );
-
-
-    /** merge B */
-    ContinueWith3x1To2x1( BT, /**/ B0,
-                              /**/ B1,
-                          BB, /**/ B2, TOP );
-
-  } /** end while */
-
-}; /** end xgemm_var1() */
-
-
-/**
- *  @brief [ A * BL + CL, A * BR + CR ] 
- */ 
-template<size_t NB = 512, typename T>
-void xgemm_var2( 
-    T alpha, hmlp::View<T> &A, 
-             hmlp::View<T> &B, 
-    T beta,  hmlp::View<T> &C )
-{
-
-}; /** end xgemm_var2() */
-
-
-/**
- *  @brief [ AT * B + CT; AB * B + CB ] 
- */ 
-template<size_t NB = 512, typename T>
-void xgemm_var3( 
-    T alpha, hmlp::View<T> &A, 
-             hmlp::View<T> &B, 
-    T beta,  hmlp::View<T> &C )
-{
-  /** all subviews */
-  hmlp::View<T> AT, A0, CT, C0, 
-                AB, A1, CB, C1,
-                    A2,     C2;
-
-
-
-}; /** end xgemm_var3() */
-
-
-
+#endif /** end ifdef HMLP_USE_CUDA */
 
 }; // end namespace hmlp
 
