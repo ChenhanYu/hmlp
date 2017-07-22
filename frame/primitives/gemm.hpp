@@ -1,7 +1,11 @@
 #ifndef GEMM_HPP
 #define GEMM_HPP
 
-#include <containters/view.hpp>
+#include <hmlp.h>
+#include <hmlp_blas_lapack.h>
+
+/** matrix view */
+#include <containers/view.hpp>
 
 
 namespace hmlp
@@ -16,7 +20,33 @@ void xgemmTask(
              hmlp::View<T> &B, 
     T beta,  hmlp::View<T> &C )
 {
-}; /** end */
+  std::string transA, transB;
+
+  printf( "\n");
+  printf( "alpha %3.1E beta %3.1E\n", alpha, beta );
+  printf( "A: " ); A.Print();
+  printf( "B: " ); B.Print();
+  printf( "C: " ); C.Print();
+
+  if ( A.IsTransposed() ) transA = "Transpose";
+  else                    transA = "No transpose";
+  if ( B.IsTransposed() ) transB = "Transpose";
+  else                    transB = "No transpose";
+
+  size_t m = C.row();
+  size_t n = C.col();
+  size_t k = A.col();
+
+  xgemm
+  ( 
+    transA.data(), transB.data(),
+    m, n, k,
+    alpha, A.data(), A.ld(),
+           B.data(), B.ld(),
+    beta,  C.data(), C.ld()
+  );
+
+}; /** end xgemmTask() */
 
 
 /**
@@ -28,19 +58,25 @@ void xgemm_var1(
              hmlp::View<T> &B, 
     T beta,  hmlp::View<T> &C )
 {
+  printf( "var1\n" ); fflush( stdout );
+
   /** all subviews */
   hmlp::View<T> AL, AR, 
                 A0, A1, A2;
   hmlp::View<T> BT, BB, 
                 B0, B1, B2;
   
-  
-  A.partition1x2( AL, AR, 0, LEFT );
-  B.partition2x1( BT,
+  /** A = [ AL, AR ] */
+  A.Partition1x2( AL, AR, 0, LEFT );
+  /** B = [ BT; BB ] */
+  B.Partition2x1( BT,
                   BB,     0, TOP  ); 
+
+  printf( "AL.col() %lu AR.col() %lu A.col() %lu\n", AL.col(), AR.col(), A.col() );
 
   while ( AL.col() < A.col() )
   {
+    //printf( "AL.col() %lu AR.col() %lu A.col() %lu\n", AL.col(), AR.col(), A.col() );
     size_t b = std::min( AR.col(), NB );
 
     /** repartition A */
@@ -53,7 +89,8 @@ void xgemm_var1(
                          BB, /**/ B2, b, BOTTOM );
 
     /** --------------------------------------------------- */
-    xgemmTask( alpha, A, B, beta, C );
+    xgemmTask( alpha, A1, B1, beta, C );
+    beta = 1.0;
     /** --------------------------------------------------- */
 
     /** merge A */
@@ -67,6 +104,7 @@ void xgemm_var1(
 
   } /** end while */
 
+  printf( "end var1\n" ); fflush( stdout );
 }; /** end xgemm_var1() */
 
 
@@ -79,14 +117,16 @@ void xgemm_var2(
              hmlp::View<T> &B, 
     T beta,  hmlp::View<T> &C )
 {
+  printf( "var2\n" ); fflush( stdout );
+
   /** all subviews */
   hmlp::View<T> CL, CR, 
                 C0, C1, C2;
   hmlp::View<T> BL, BR, 
                 B0, B1, B2;
   
-  C.partition1x2( CL, CR, 0, LEFT );
-  B.partition1x2( BL, BR, 0, LEFT );
+  C.Partition1x2( CL, CR, 0, LEFT );
+  B.Partition1x2( BL, BR, 0, LEFT );
 
   while ( BL.col() < B.col() )
   {
@@ -116,6 +156,7 @@ void xgemm_var2(
 
   } /** end while */
 
+  printf( "end var2\n" ); fflush( stdout );
 }; /** end xgemm_var2() */
 
 
@@ -128,14 +169,16 @@ void xgemm_var3(
              hmlp::View<T> &B, 
     T beta,  hmlp::View<T> &C )
 {
+  printf( "var3\n" ); fflush( stdout );
+
   /** all subviews */
   hmlp::View<T> AT, A0, CT, C0, 
                 AB, A1, CB, C1,
                     A2,     C2;
 
-  A.partition2x1( AT,
+  A.Partition2x1( AT,
                   AB,     0, TOP  ); 
-  C.partition2x1( CT,
+  C.Partition2x1( CT,
                   CB,     0, TOP  ); 
 
   while ( AT.row() < A.row() )
@@ -165,8 +208,40 @@ void xgemm_var3(
                           CB, /**/ C2,  TOP );
   }; /** end while */
 
+  printf( "end var3\n" ); fflush( stdout );
 }; /** end xgemm_var3() */
 
+
+template<typename T>
+void xgemm( 
+    T alpha, hmlp::View<T> &A, 
+             hmlp::View<T> &B, 
+    T beta,  hmlp::View<T> &C )
+{
+  xgemm_var3( alpha, A, B, beta, C );
+}; /** xgemm() */
+
+
+template<typename T>
+void xgemm( 
+    hmlpOperation_t transA, hmlpOperation_t transB, 
+    T alpha, hmlp::Data<T> &A, 
+             hmlp::Data<T> &B, 
+    T beta,  hmlp::Data<T> &C )
+{
+  hmlp::View<T> Aview, Bview, Cview;
+
+  if ( transA == HMLP_OP_T ) Aview.Set<true >( A );
+  else                       Aview.Set<false>( A );
+  if ( transB == HMLP_OP_T ) Bview.Set<true >( B );
+  else                       Bview.Set<false>( B );
+
+  /** C is always not transpose */
+  Cview.Set( C );
+
+  xgemm( alpha, Aview, Bview, beta, Cview );
+  
+}; /** xgemm() */
 
 
 }; /** end namespace gemm */

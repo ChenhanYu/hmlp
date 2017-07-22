@@ -172,6 +172,22 @@ void xgeqp3
   double *work, int lwork 
 );
 
+void xgeqp4
+(
+  int m, int n,
+  float *A, int lda, int *jpvt, 
+  float *tau,
+  float *work, int lwork 
+);
+
+void xgeqp4
+(
+  int m, int n,
+  double *A, int lda, int *jpvt,
+  double *tau,
+  double *work, int lwork 
+);
+
 void xgels
 (
   const char *trans,

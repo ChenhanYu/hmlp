@@ -45,7 +45,7 @@ WITHOUT ANY WARRANTY EXPRESSED OR IMPLIED.
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "NoFLA_HQRRP_WY_blk_var4.h"
+#include "dgeqp4.h"
 
 
 // Matrices with dimensions smaller than THRESHOLD_FOR_DGEQPF are processed 
@@ -74,12 +74,12 @@ WITHOUT ANY WARRANTY EXPRESSED OR IMPLIED.
 // ============================================================================
 // Declaration of local prototypes.
 
-static int NoFLA_Normal_random_matrix( int m_A, int n_A, 
+static int dgeqp4_Normal_random_matrix( int m_A, int n_A, 
                double * buff_A, int ldim_A );
 
-static double NoFLA_Normal_random_number( double mu, double sigma );
+static double dgeqp4_Normal_random_number( double mu, double sigma );
 
-static int NoFLA_Downdate_Y( 
+static int dgeqp4_Downdate_Y( 
                int m_U11, int n_U11, double * buff_U11, int ldim_U11,
                int m_U21, int n_U21, double * buff_U21, int ldim_U21,
                int m_A12, int n_A12, double * buff_A12, int ldim_A12,
@@ -88,34 +88,34 @@ static int NoFLA_Downdate_Y(
                int m_G1, int n_G1, double * buff_G1, int ldim_G1,
                int m_G2, int n_G2, double * buff_G2, int ldim_G2 );
 
-static int NoFLA_Apply_Q_WY_lhfc_blk_var4( 
+static int dgeqp4_Apply_Q_WY_lhfc_blk_var4( 
                int m_U, int n_U, double * buff_U, int ldim_U,
                int m_T, int n_T, double * buff_T, int ldim_T,
                int m_B, int n_B, double * buff_B, int ldim_B );
 
-static int NoFLA_Apply_Q_WY_rnfc_blk_var4( 
+static int dgeqp4_Apply_Q_WY_rnfc_blk_var4( 
                int m_U, int n_U, double * buff_U, int ldim_U,
                int m_T, int n_T, double * buff_T, int ldim_T,
                int m_B, int n_B, double * buff_B, int ldim_B );
 
-static int NoFLA_QRPmod_WY_unb_var4( int pivoting, int num_stages, 
+static int dgeqp4_QRPmod_WY_unb_var4( int pivoting, int num_stages, 
                int m_A, int n_A, double * buff_A, int ldim_A,
                int * buff_p, double * buff_t, 
                int pivot_B, int m_B, double * buff_B, int ldim_B,
                int pivot_C, int m_C, double * buff_C, int ldim_C,
                int build_T, double * buff_T, int ldim_T );
 
-static int NoFLA_QRP_compute_norms(
+static int dgeqp4_QRP_compute_norms(
                int m_A, int n_A, double * buff_A, int ldim_A,
                double * buff_d, double * buff_e );
 
-static int NoFLA_QRP_downdate_partial_norms( int m_A, int n_A,
+static int dgeqp4_QRP_downdate_partial_norms( int m_A, int n_A,
                double * buff_d,  int st_d,
                double * buff_e,  int st_e,
                double * buff_wt, int st_wt,
                double * buff_A,  int ldim_A );
 
-static int NoFLA_QRP_pivot_G_B_C( int j_max_col,
+static int dgeqp4_QRP_pivot_G_B_C( int j_max_col,
                int m_G, double * buff_G, int ldim_G, 
                int pivot_B, int m_B, double * buff_B, int ldim_B, 
                int pivot_C, int m_C, double * buff_C, int ldim_C, 
@@ -255,7 +255,7 @@ void dgeqp4( int * m, int * n, double * A, int * lda, int * jpvt, double * tau,
   // Factorize free columns at the bottom with default values:
   // nb_alg = 64, pp = 10, panel_pivoting = 1.
   if( num_factorized_fixed_cols < mn_A ) {
-    * info = NoFLA_HQRRP_WY_blk_var4( 
+    * info = dgeqp4_HQRRP_WY_blk_var4( 
         m_A - num_factorized_fixed_cols, n_A - num_factorized_fixed_cols, 
         & A[ num_factorized_fixed_cols + num_factorized_fixed_cols * ldim_A ], 
             ldim_A,
@@ -264,7 +264,7 @@ void dgeqp4( int * m, int * n, double * A, int * lda, int * jpvt, double * tau,
         64, 10, 1 );
   }
 
-  // Pivot block above factorized block by NoFLA_HQRRP.
+  // Pivot block above factorized block by dgeqp4_HQRRP.
   if( num_factorized_fixed_cols > 0 ) {
     // Pivot block above factorized block.
     for( j = num_factorized_fixed_cols; j < n_A; j++ ) {
@@ -300,7 +300,7 @@ void dgeqp4( int * m, int * n, double * A, int * lda, int * jpvt, double * tau,
 }
 
 // ============================================================================
-int NoFLA_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
+int dgeqp4_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
         int * buff_jpvt, double * buff_tau,
         int nb_alg, int pp, int panel_pivoting ) {
 //
@@ -352,18 +352,18 @@ int NoFLA_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
   double  d_one  = 1.0;
 
   // Executable Statements.
-  //// printf( "%% NoFLA_HQRRP_WY_blk_var4.\n" );
+  //// printf( "%% dgeqp4_HQRRP_WY_blk_var4.\n" );
 
   // Check arguments.
   if( m_A < 0 ) {
     fprintf( stderr, 
-             "ERROR in NoFLA_HQRRP_WY_blk_var4: m_A is < 0.\n" );
+             "ERROR in dgeqp4_HQRRP_WY_blk_var4: m_A is < 0.\n" );
   } if( n_A < 0 ) {
     fprintf( stderr, 
-             "ERROR in NoFLA_HQRRP_WY_blk_var4: n_A is < 0.\n" );
+             "ERROR in dgeqp4_HQRRP_WY_blk_var4: n_A is < 0.\n" );
   } if( ldim_A < max( 1, m_A ) ) {
     fprintf( stderr, 
-             "ERROR in NoFLA_HQRRP_WY_blk_var4: ldim_A is < max( 1, m_A ).\n" );
+             "ERROR in dgeqp4_HQRRP_WY_blk_var4: ldim_A is < max( 1, m_A ).\n" );
   }
 
   // Some initializations.
@@ -401,7 +401,7 @@ int NoFLA_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
   ldim_G  = m_G;
 
   // Initialize matrices G and Y.
-  NoFLA_Normal_random_matrix( nb_alg + pp, m_A, buff_G, ldim_G );
+  dgeqp4_Normal_random_matrix( nb_alg + pp, m_A, buff_G, ldim_G );
   //// FLA_Gemm( FLA_NO_TRANSPOSE, FLA_NO_TRANSPOSE, 
   ////           FLA_ONE, G, A, FLA_ZERO, Y );
   dgemm_( "No tranpose", "No transpose", & m_Y, & n_Y, & m_A, 
@@ -499,7 +499,7 @@ int NoFLA_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
 
       dlacpy_( "All", & m_V, & n_VR, buff_YR, & ldim_Y,
                                      buff_VR, & ldim_V );
-      NoFLA_QRPmod_WY_unb_var4( 1, b,
+      dgeqp4_QRPmod_WY_unb_var4( 1, b,
           m_V, n_VR, buff_VR, ldim_V, buff_pB, buff_sB,
           1, m_A, buff_AR, ldim_A,
           1, m_Y, buff_YR, ldim_Y,
@@ -517,7 +517,7 @@ int NoFLA_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
     //// FLA_QRPmod_WY_unb_var4( panel_pivoting, -1, AB1, p1, s1, 
     ////                         1, A01, 1, Y1, 1, T1_T );
 
-    NoFLA_QRPmod_WY_unb_var4( panel_pivoting, -1,
+    dgeqp4_QRPmod_WY_unb_var4( panel_pivoting, -1,
         m_AB1, n_AB1, buff_AB1, ldim_A, buff_p1, buff_s1,
         1, j, buff_A01, ldim_A,
         1, m_Y, buff_Y1, ldim_Y,
@@ -534,7 +534,7 @@ int NoFLA_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
       // where QB1 is formed from AB1 and T1_T.
       //// MyFLA_Apply_Q_WY_lhfc_blk_var4( A11, A21, T1_T, A12, A22 );
 
-      NoFLA_Apply_Q_WY_lhfc_blk_var4( 
+      dgeqp4_Apply_Q_WY_lhfc_blk_var4( 
           m_A11 + m_A21, n_A11, buff_A11, ldim_A,
           b, b, buff_T1_T, ldim_W,
           m_A12 + m_A22, n_A12, buff_A12, ldim_A );
@@ -546,7 +546,7 @@ int NoFLA_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
     if ( ! last_iter ) {
       //// MyFLA_Downdate_Y( A11, A21, A12, T1_T, Y2, G1, G2 );
 
-      NoFLA_Downdate_Y(
+      dgeqp4_Downdate_Y(
           m_A11, n_A11, buff_A11, ldim_A,
           m_A21, n_A21, buff_A21, ldim_A,
           m_A12, n_A12, buff_A12, ldim_A,
@@ -572,7 +572,7 @@ int NoFLA_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
 
 
 // ============================================================================
-static int NoFLA_Normal_random_matrix( int m_A, int n_A, 
+static int dgeqp4_Normal_random_matrix( int m_A, int n_A, 
                double * buff_A, int ldim_A ) {
 //
 // It generates a random matrix with normal distribution.
@@ -582,7 +582,7 @@ static int NoFLA_Normal_random_matrix( int m_A, int n_A,
   // Main loop.
   for ( j = 0; j < n_A; j++ ) {
     for ( i = 0; i < m_A; i++ ) {
-      buff_A[ i + j * ldim_A ] = NoFLA_Normal_random_number( 0.0, 1.0 );
+      buff_A[ i + j * ldim_A ] = dgeqp4_Normal_random_number( 0.0, 1.0 );
     }
   }
 
@@ -590,7 +590,7 @@ static int NoFLA_Normal_random_matrix( int m_A, int n_A,
 }
 
 // ============================================================================
-static double NoFLA_Normal_random_number( double mu, double sigma ) {
+static double dgeqp4_Normal_random_number( double mu, double sigma ) {
 //
 // It computes and returns a normal random number.
 //
@@ -617,7 +617,7 @@ static double NoFLA_Normal_random_number( double mu, double sigma ) {
 }
 
 // ============================================================================
-static int NoFLA_Downdate_Y( 
+static int dgeqp4_Downdate_Y( 
                int m_U11, int n_U11, double * buff_U11, int ldim_U11,
                int m_U21, int n_U21, double * buff_U21, int ldim_U21,
                int m_A12, int n_A12, double * buff_A12, int ldim_A12,
@@ -698,7 +698,7 @@ static int NoFLA_Downdate_Y(
   //
   // GR = GR * Q
   //
-  NoFLA_Apply_Q_WY_rnfc_blk_var4( 
+  dgeqp4_Apply_Q_WY_rnfc_blk_var4( 
           m_U11 + m_U21, n_U11, buff_U11, ldim_U11,
           m_T, n_T, buff_T, ldim_T,
           m_G1, n_G1 + n_G2, buff_G1, ldim_G1 );
@@ -711,7 +711,7 @@ static int NoFLA_Downdate_Y(
 }
 
 // ============================================================================
-static int NoFLA_Apply_Q_WY_lhfc_blk_var4( 
+static int dgeqp4_Apply_Q_WY_lhfc_blk_var4( 
                int m_U, int n_U, double * buff_U, int ldim_U,
                int m_T, int n_T, double * buff_T, int ldim_T,
                int m_B, int n_B, double * buff_B, int ldim_B ) {
@@ -743,7 +743,7 @@ static int NoFLA_Apply_Q_WY_lhfc_blk_var4(
 }
 
 // ============================================================================
-static int NoFLA_Apply_Q_WY_rnfc_blk_var4( 
+static int dgeqp4_Apply_Q_WY_rnfc_blk_var4( 
                int m_U, int n_U, double * buff_U, int ldim_U,
                int m_T, int n_T, double * buff_T, int ldim_T,
                int m_B, int n_B, double * buff_B, int ldim_B ) {
@@ -774,7 +774,7 @@ static int NoFLA_Apply_Q_WY_rnfc_blk_var4(
 }
 
 // ============================================================================
-static int NoFLA_QRPmod_WY_unb_var4( int pivoting, int num_stages, 
+static int dgeqp4_QRPmod_WY_unb_var4( int pivoting, int num_stages, 
                int m_A, int n_A, double * buff_A, int ldim_A,
                int * buff_p, double * buff_t, 
                int pivot_B, int m_B, double * buff_B, int ldim_B,
@@ -799,7 +799,7 @@ static int NoFLA_QRPmod_WY_unb_var4( int pivoting, int num_stages,
   double  * buff_d, * buff_e, * buff_workspace, diag;
   int     idamax_();
 
-  //// printf( "NoFLA_QRPmod_WY_unb_var4. pivoting: %d \n", pivoting );
+  //// printf( "dgeqp4_QRPmod_WY_unb_var4. pivoting: %d \n", pivoting );
 
   // Some initializations.
   mn_A    = min( m_A, n_A );
@@ -816,7 +816,7 @@ static int NoFLA_QRPmod_WY_unb_var4( int pivoting, int num_stages,
 
   if( pivoting == 1 ) {
     // Compute initial norms of A into d and e.
-    NoFLA_QRP_compute_norms( m_A, n_A, buff_A, ldim_A, buff_d, buff_e );
+    dgeqp4_QRP_compute_norms( m_A, n_A, buff_A, ldim_A, buff_d, buff_e );
   }
 
   // Main Loop.
@@ -831,7 +831,7 @@ static int NoFLA_QRPmod_WY_unb_var4( int pivoting, int num_stages,
       idx_max_col = idamax_( & n_dB, & buff_d[ j ], & i_one ) - 1;
 
       // Swap columns of A, B, C, pivots, and norms vectors.
-      NoFLA_QRP_pivot_G_B_C( idx_max_col,
+      dgeqp4_QRP_pivot_G_B_C( idx_max_col,
           m_A, & buff_A[ 0 + j * ldim_A ], ldim_A,
           pivot_B, m_B, & buff_B[ 0 + j * ldim_B ], ldim_B,
           pivot_C, m_C, & buff_C[ 0 + j * ldim_C ], ldim_C,
@@ -866,7 +866,7 @@ static int NoFLA_QRPmod_WY_unb_var4( int pivoting, int num_stages,
 
     if( pivoting == 1 ) {
       // Update partial column norms.
-      NoFLA_QRP_downdate_partial_norms( m_A22, n_A22, 
+      dgeqp4_QRP_downdate_partial_norms( m_A22, n_A22, 
           & buff_d[ j+1 ], 1,
           & buff_e[ j+1 ], 1,
           & buff_A[ j + ( j+1 ) * ldim_A ], ldim_A,
@@ -889,7 +889,7 @@ static int NoFLA_QRPmod_WY_unb_var4( int pivoting, int num_stages,
 }
 
 // ============================================================================
-static int NoFLA_QRP_compute_norms(
+static int dgeqp4_QRP_compute_norms(
                int m_A, int n_A, double * buff_A, int ldim_A,
                double * buff_d, double * buff_e ) {
 //
@@ -912,7 +912,7 @@ static int NoFLA_QRP_compute_norms(
 }
 
 // ============================================================================
-static int NoFLA_QRP_downdate_partial_norms( int m_A, int n_A,
+static int dgeqp4_QRP_downdate_partial_norms( int m_A, int n_A,
                double * buff_d,  int st_d,
                double * buff_e,  int st_e,
                double * buff_wt, int st_wt,
@@ -990,7 +990,7 @@ static int NoFLA_QRP_downdate_partial_norms( int m_A, int n_A,
 
 
 // ============================================================================
-static int NoFLA_QRP_pivot_G_B_C( int j_max_col,
+static int dgeqp4_QRP_pivot_G_B_C( int j_max_col,
                int m_G, double * buff_G, int ldim_G, 
                int pivot_B, int m_B, double * buff_B, int ldim_B, 
                int pivot_C, int m_C, double * buff_C, int ldim_C, 

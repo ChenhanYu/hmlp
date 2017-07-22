@@ -146,6 +146,16 @@ extern "C"
       float *A, int *lda, int *jpvt,
       float *tau,
       float *work, int *lwork, int *info );
+  void dgeqp4( 
+      int *m, int *n, 
+      double *A, int *lda, int *jpvt, 
+      double *tau,
+      double *work, int *lwork, int *info );
+  void sgeqp4( 
+      int *m, int *n, 
+      float *A, int *lda, int *jpvt, 
+      float *tau,
+      float *work, int *lwork, int *info );
   void dgels_(
       const char *trans,
       int *m, int *n, int *nrhs,
@@ -870,6 +880,66 @@ void xgeqp3
   printf( "xgeqp3 must enables USE_BLAS.\n" );
 #endif
 }; /** end geqp3() */
+
+
+/**
+ *  @brief DGEQP4 wrapper
+ */ 
+void xgeqp4
+(
+  int m, int n,
+  double *A, int lda, int *jpvt,
+  double *tau,
+  double *work, int lwork 
+)
+{
+#ifdef USE_BLAS
+  int info;
+  dgeqp4
+  (
+    &m, &n, 
+    A, &lda, jpvt,
+    tau,
+    work, &lwork, &info
+  );
+  if ( info ) 
+  {
+    printf( "xgeqp4 has illegal values at parameter %d\n", info );
+  }
+#else
+  printf( "xgeqp4 must enables USE_BLAS.\n" );
+#endif
+}; /** end geqp4() */
+
+
+/**
+ *  @brief SGEQP4 wrapper
+ */ 
+void xgeqp4
+(
+  int m, int n,
+  float *A, int lda, int *jpvt,
+  float *tau,
+  float *work, int lwork 
+)
+{
+#ifdef USE_BLAS
+  int info;
+  sgeqp4
+  (
+    &m, &n, 
+    A, &lda, jpvt,
+    tau,
+    work, &lwork, &info
+  );
+  if ( info ) 
+  {
+    printf( "xgeqp4 has illegal values at parameter %d\n", info );
+  }
+#else
+  printf( "xgeqp4 must enables USE_BLAS.\n" );
+#endif
+}; /** end geqp4() */
 
 
 /**

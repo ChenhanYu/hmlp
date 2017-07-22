@@ -117,7 +117,7 @@ class View : public ReadWrite
       hmlp::View<T> &A2
     )
     {
-      assert( A1.col() == A2.col() );
+      if ( A1.row() && A2.row() ) assert( A1.col() == A2.col() );
       (*this) = A1;
       assert( A2.HasTheSameBuffer( this->buff ) );
       this->m = A1.row() + A2.row();
@@ -144,7 +144,7 @@ class View : public ReadWrite
       hmlp::View<T> &A1, hmlp::View<T> &A2
     )
     {
-      assert( A1.row() == A2.row() );
+      if ( A1.col() && A2.col() ) assert( A1.row() == A2.row() );
       (*this) = A1;
       assert( A2.HasTheSameBuffer( this->buff ) );
       this->n = A1.col() + A2.col();
@@ -217,6 +217,15 @@ class View : public ReadWrite
        this->n = A11.col() + A12.col();
     };
 
+    bool IsTransposed()
+    {
+      return trans;
+    };
+
+    bool HasTheSameBuffer( hmlp::Data<T> *target )
+    {
+      return ( target == buff );
+    };
 
 
     /** return the row size of the current view */
@@ -283,7 +292,7 @@ void Partition1x2
   size_t nb, SideType side 
 )
 {
-  A.Partition1x2( A, A1, A2, nb, side );
+  A.Partition1x2( A1, A2, nb, side );
 }; /** end Partition1x2() */
 
 
@@ -298,8 +307,8 @@ void Partition2x1
   size_t mb, SideType side 
 )
 {
-  A.Partition2x1( A, A1, 
-                     A2, mb, side );
+  A.Partition2x1( A1, 
+                  A2, mb, side );
 }; /** end Partition2x1() */
 
 
@@ -334,14 +343,14 @@ void Repartition1x2To1x3
   {
     case LEFT: 
     {
-      Partition1x2( AL, A0, A1, nb, RIGHT );
+      AL.Partition1x2( A0, A1, nb, RIGHT );
       A2 = AR;
       break;
     }
     case RIGHT:
     {
       A0 = AL;
-      Partition2x1( AL, A0, A1, nb, LEFT );
+      AR.Partition1x2( A1, A2, nb, LEFT );
       break;
     }
     default:
@@ -434,16 +443,16 @@ void ContinueWith3x1To2x1
   {
     case TOP: 
     {
-      AT.ContinueWith( A0,
-                       A1 );
+      AT.ContinueWith2x1( A0,
+                          A1 );
       AB = A2;
       break;
     }
     case BOTTOM:
     {
       AT = A0;
-      AB.ContinueWith( A1,
-                       A2 );
+      AB.ContinueWith2x1( A1,
+                          A2 );
       break;
     }
     default:

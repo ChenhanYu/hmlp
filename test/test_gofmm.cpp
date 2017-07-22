@@ -419,33 +419,33 @@ int main( int argc, char *argv[] )
   hmlp_init();
 
   /** run the matrix file provided by users */
-//  if ( !spdmatrix_type.compare( "dense" ) && user_matrix_filename.size() )
-//  {
-//    using T = float;
-//    {
-//      /** dense spd matrix format */
-//      hmlp::gofmm::SPDMatrix<T> K;
-//      K.resize( n, n );
-//      K.read( n, n, user_matrix_filename );
-//
-//      /** (optional) provide neighbors, leave uninitialized otherwise */
-//      hmlp::Data<std::pair<T, std::size_t>> NN;
-//
-//			/** (optional) provide coordinates */
-//      if ( user_points_filename.size() )
-//      {
-//        hmlp::Data<T> X( d, n, user_points_filename );
-//        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-//        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-//      }
-//      else
-//      {
-//        hmlp::Data<T> *X = NULL;
-//        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-//        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-//      }
-//    }
-//  }
+  if ( !spdmatrix_type.compare( "dense" ) && user_matrix_filename.size() )
+  {
+    using T = float;
+    {
+      /** dense spd matrix format */
+      hmlp::gofmm::SPDMatrix<T> K;
+      K.resize( n, n );
+      K.read( n, n, user_matrix_filename );
+
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+
+			/** (optional) provide coordinates */
+      if ( user_points_filename.size() )
+      {
+        hmlp::Data<T> X( d, n, user_points_filename );
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+      }
+      else
+      {
+        hmlp::Data<T> *X = NULL;
+        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+      }
+    }
+  }
 
 
   /** generate a Gaussian kernel matrix from the coordinates */

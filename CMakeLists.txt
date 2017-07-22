@@ -314,7 +314,7 @@ install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 
 # Library dependencies
 # ---------------------------
-file (GLOB FRAME_CC_SRC    ${CMAKE_SOURCE_DIR}/frame/*.c)
+file (GLOB FRAME_CC_SRC    ${CMAKE_SOURCE_DIR}/frame/*.c ${CMAKE_SOURCE_DIR}/frame/external/*.c)
 file (GLOB FRAME_CXX_SRC   ${CMAKE_SOURCE_DIR}/frame/*.cpp)
 file (GLOB FRAME_CU_SRC    ${CMAKE_SOURCE_DIR}/frame/*.cu)
 file (GLOB KERNEL_SRC      ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.cpp)
@@ -456,6 +456,11 @@ endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
   target_link_libraries(test_skel.x magma)
 endif()
+
+
+## build SUPERMATRIX test suit #
+add_executable (test_supermatrix.x ${CMAKE_SOURCE_DIR}/test/test_supermatrix.cpp)
+target_link_libraries(test_supermatrix.x hmlp)
 
 
 
