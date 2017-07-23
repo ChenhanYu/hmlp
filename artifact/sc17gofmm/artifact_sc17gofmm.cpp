@@ -1,7 +1,3 @@
-#ifdef HMLP_USE_MPI
-#include <mpi.h>
-#endif
-
 #include <tuple>
 #include <cmath>
 #include <algorithm>
@@ -26,7 +22,9 @@
 /** GOFMM templates */
 #include <gofmm/gofmm.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
-#include <containers/kernel.hpp>
+#include <containers/KernelMatrix.hpp>
+/** use an implicit matrix */
+#include <containers/VirtualMatrix.hpp>
 
 
 #ifdef HMLP_USE_CUDA
@@ -41,6 +39,7 @@
 
 using namespace hmlp::tree;
 using namespace hmlp::gofmm;
+
 
 
 template<
@@ -84,65 +83,9 @@ void test_gofmm
 	  config );
 	auto &tree = *tree_ptr;
 
-
-  // ------------------------------------------------------------------------
-  // ComputeAll
-  // ------------------------------------------------------------------------
-#ifdef HMLP_AVX512
-  /** if we are using KNL, use nested omp construct */
-  assert( omp_get_max_threads() == 68 );
-  mkl_set_dynamic( 0 );
-  mkl_set_num_threads( 2 );
-  hmlp_set_num_workers( 34 );
-#else
-  //mkl_set_dynamic( 0 );
-  //mkl_set_num_threads( 2 );
-  //hmlp_set_num_workers( omp_get_max_threads() / 2 );
-  hmlp_set_num_workers( omp_get_max_threads() );
-  printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
-#endif
-
   /** Evaluate u ~ K * w */
   hmlp::Data<T> w( nrhs, n ); w.rand();
   auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
-
-
-#ifdef HMLP_AVX512
-  mkl_set_dynamic( 1 );
-  mkl_set_num_threads( omp_get_max_threads() );
-#else
-  //mkl_set_dynamic( 1 );
-  //mkl_set_num_threads( omp_get_max_threads() );
-#endif
-
-
-//  /** omp level-by-level */
-//  beg = omp_get_wtime();
-//  if ( OMPLEVEL ) 
-//  {
-//    printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
-//    u = hmlp::gofmm::ComputeAll<false, false, true, true, CACHE, NODE>( tree, w );
-//    printf( "Done.\n" ); fflush( stdout );
-//  }
-//  ref_time = omp_get_wtime() - beg;
-//  printf( "Done.\n" ); fflush( stdout );
-//
-//  /** omp recu task */
-//  beg = omp_get_wtime();
-//  omptask_time = omp_get_wtime() - beg;
-//
-//  /** omp recu task depend */
-//  beg = omp_get_wtime();
-//  if ( OMPDAGTASK )
-//  {
-//    u = hmlp::gofmm::ComputeAll<false, true, true, true, CACHE, NODE>( tree, w );
-//  }
-//  omptask45_time = omp_get_wtime() - beg;
-//
-//  printf( "Exact ratio %5.2lf Runtime %5.2lfs level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
-//      exact_ratio, dynamic_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
-//  // ------------------------------------------------------------------------
-
 
   /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
   std::size_t ntest = 100;
@@ -189,35 +132,10 @@ void test_gofmm
   // ------------------------------------------------------------------------
 
 
-  /** Factorization */
-  const bool LU = true;
-  T lambda = 1.0;
-  if ( lambda < 10.0 * fmmerr_avg )
-    printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
-        lambda, fmmerr_avg );
-  hmlp::hfamily::Factorize<LU, NODE, T>( tree, lambda ); 
-
-  /** compute error */
-  hmlp::hfamily::ComputeError<LU, NODE>( tree, lambda, w, u );
-
-  //#ifdef DUMP_ANALYSIS_DATA
-  hmlp::gofmm::Summary<NODE> summary;
-  tree.Summary( summary );
-  summary.Print();
-
 	/** delete tree_ptr */
   delete tree_ptr;
 
 }; /** end test_gofmm() */
-
-
-
-
-
-
-
-
-
 
 
 /**
@@ -284,6 +202,8 @@ void test_gofmm_setup
  */ 
 int main( int argc, char *argv[] )
 {
+  printf( "\n--- Artifact of GOFMM for Super Computing 2017\n" );
+
   /** default adaptive scheme */
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
@@ -292,7 +212,6 @@ int main( int argc, char *argv[] )
   DistanceMetric metric = ANGLE_DISTANCE;
 
   /** test suit options */
-  const bool SIMPLE = true;
   const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
   const bool SPARSETESTSUIT = false;
@@ -301,7 +220,7 @@ int main( int argc, char *argv[] )
   std::string DATADIR( "/" );
 
   /** default precision */
-  using T = double;
+  using T = float;
 
   /** read all parameters */
   size_t n, m, d, k, s, nrhs;
@@ -343,14 +262,17 @@ int main( int argc, char *argv[] )
 
 	if ( !distance_type.compare( "geometry" ) )
 	{
+    printf( "--- using geometry distance\n" );
     metric = GEOMETRY_DISTANCE;
 	}
 	else if ( !distance_type.compare( "kernel" ) )
 	{
+    printf( "--- using Gram vector distance\n" );
     metric = KERNEL_DISTANCE;
 	}
 	else if ( !distance_type.compare( "angle" ) )
 	{
+    printf( "--- using Gram vector consine similarity\n" );
     metric = ANGLE_DISTANCE;
 	}
 	else
@@ -362,6 +284,7 @@ int main( int argc, char *argv[] )
 
 	/** specify what kind of spdmatrix is used */
   spdmatrix_type = argv[ 9 ];
+  printf( "--- mode (%s)\n", spdmatrix_type.data() );
 
 	if ( !spdmatrix_type.compare( "testsuit" ) )
 	{
@@ -375,12 +298,15 @@ int main( int argc, char *argv[] )
 	{
     /** (optional) provide the path to the matrix file */
     user_matrix_filename = argv[ 10 ];
+    printf( "--- dense binary matrix file (%s)\n", user_matrix_filename.data() );
     if ( argc > 11 ) 
     {
       /** (optional) provide the path to the data file */
       user_points_filename = argv[ 11 ];
 		  /** dimension of the data set */
       sscanf( argv[ 12 ], "%lu", &d );
+      printf( "--- with auxilary points in %lu dimensions (%s)\n", 
+          d, user_points_filename.data() );
     }
 	}
 	else if ( !spdmatrix_type.compare( "kernel" ) )
@@ -390,42 +316,29 @@ int main( int argc, char *argv[] )
     sscanf( argv[ 11 ], "%lu", &d );
 		/** (optional) provide Gaussian kernel bandwidth */
     if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
+    printf( "--- Gaussian kernel matrix (h=%5.2f) in %lu dimensions (%s)\n",
+        h, d, user_points_filename.data() );
 	}
 	else
 	{
-		printf( "%s is not supported\n", argv[ 9 ] );
+		printf( "--- mode (%s) is not supported\n", argv[ 9 ] );
 		exit( 1 );
 	}
 
-
-#ifdef HMLP_USE_MPI
-  /** Message Passing Interface */
-  int size = -1, rank = -1;
-  MPI_Init( &argc, &argv );
-  MPI_Comm_size( MPI_COMM_WORLD, &size );
-  MPI_Comm_rank( MPI_COMM_WORLD, &rank );
-  printf( "size %d rank %d\n", size, rank );
-#endif
-
-
-
-
   /** HMLP API call to initialize the runtime */
   hmlp_init();
+  printf( "--- runtime system initialization\n" );
 
   /** run the matrix file provided by users */
   if ( !spdmatrix_type.compare( "dense" ) && user_matrix_filename.size() )
   {
-    using T = float;
     {
       /** dense spd matrix format */
       hmlp::gofmm::SPDMatrix<T> K;
       K.resize( n, n );
       K.read( n, n, user_matrix_filename );
-
       /** (optional) provide neighbors, leave uninitialized otherwise */
       hmlp::Data<std::pair<T, std::size_t>> NN;
-
 			/** (optional) provide coordinates */
       if ( user_points_filename.size() )
       {
@@ -446,63 +359,27 @@ int main( int argc, char *argv[] )
   /** generate a Gaussian kernel matrix from the coordinates */
   if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
   {
-    using T = double;
     {
       /** read the coordinates from the file */
       hmlp::Data<T> X( d, n, user_points_filename );
-
       /** setup the kernel object as Gaussian */
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
-
       /** spd kernel matrix format (implicitly create) */
-      hmlp::Kernel<T> K( n, n, d, kernel, X );
-
+      hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
       /** (optional) provide neighbors, leave uninitialized otherwise */
       hmlp::Data<std::pair<T, std::size_t>> NN;
-
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
       ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
     }
   }
 
-  /** test simple interface */
-	if ( !spdmatrix_type.compare( "testsuit" ) && SIMPLE )
-  {
-		n = 5000;
-    size_t nrhs = 1;
-
-    /** dense spd matrix format */
-    hmlp::gofmm::SPDMatrix<T> K;
-    K.resize( n, n );
-    K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-
-		/** */
-    auto *tree_ptr = hmlp::gofmm::Compress<T>( K, stol, budget );
-		auto &tree = *tree_ptr;
-
-    hmlp::Data<T> w( nrhs, n ); w.rand();
-    auto u = hmlp::gofmm::Evaluate( tree, w );
-    size_t ntest = 10;
-    for ( size_t i = 0; i < ntest; i ++ )
-    {
-      hmlp::Data<T> potentials( 1, nrhs );
-      for ( size_t p = 0; p < potentials.col(); p ++ )
-        potentials[ p ] = u( p, i );
-      auto fmmerr = ComputeError( tree, i, potentials );
-      printf( "fmmerr %3.1E\n", fmmerr );
-    }
-		/** delete tree_ptr */
-		delete tree_ptr;
-  }
-
 
   /** create a random spd matrix, which is diagonal-dominant */
 	if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
   {
-		using T = float;
 		{
 			/** no geometric coordinates provided */
 			hmlp::Data<T> *X = NULL;
@@ -518,7 +395,7 @@ int main( int argc, char *argv[] )
 				( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
 		}
 		{
-      d = 6;
+      d = 4;
 			/** generate coordinates from normal(0,1) distribution */
 			hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
       /** setup the kernel object as Gaussian */
@@ -526,7 +403,7 @@ int main( int argc, char *argv[] )
       kernel.type = KS_GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
       /** spd kernel matrix format (implicitly create) */
-      hmlp::Kernel<T> K( n, n, d, kernel, X );
+      hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
 			/** (optional) provide neighbors, leave uninitialized otherwise */
 			hmlp::Data<std::pair<T, std::size_t>> NN;
 			/** routine */
@@ -536,37 +413,8 @@ int main( int argc, char *argv[] )
   }
 
 
-//  /** generate (read) a CSC sparse matrix */
-//  if ( SPARSETESTSUIT )
-//  {
-//    const bool SYMMETRIC = false;
-//    const bool LOWERTRIANGULAR = true;
-//    {
-//      /** no geometric coordinates provided */
-//      hmlp::Data<T> *X = NULL;
-//      /** filename, problem size, nnz */
-//      std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
-//      n = 1086;
-//      nnz = 11578;
-//      /** CSC format */
-//      hmlp::CSC<SYMMETRIC, T> K( n, n, nnz );
-//      K.readmtx<LOWERTRIANGULAR, false>( filename );
-//      /** use non-zero pattern as neighbors */
-//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::gofmm::SparsePattern<true, true, T>( n, k, K );
-//      /** routine */
-//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, metric, T>
-//      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-//    }
-//  }
-
-
   /** HMLP API call to terminate the runtime */
   hmlp_finalize();
-
-#ifdef HMLP_USE_MPI
-  /** Message Passing Interface */
-  MPI_Finalize();
-#endif
 
   return 0;
 

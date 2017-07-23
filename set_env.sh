@@ -31,7 +31,7 @@ export MKLROOT=${MKLROOT}
 export OPENBLASROOT=/h1/chenhan/Projects/OpenBLAS-0.2.19
 
 ## Setup the maximum number of threads.
-export OMP_NUM_THREADS=20
+export OMP_NUM_THREADS=40
 
 
 

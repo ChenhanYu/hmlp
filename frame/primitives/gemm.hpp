@@ -3,6 +3,7 @@
 
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
+#include <hmlp_runtime.hpp>
 
 /** matrix view */
 #include <containers/view.hpp>
@@ -13,9 +14,54 @@ namespace hmlp
 namespace gemm
 {
 
+template<int NUM_TEST, class NODE, typename T>
+class xgemmTask : public hmlp::Task
+{
+  public:
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "gemm" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+      // TODO: Need an accurate cost model.
+      cost = 1.0;
+
+
+      //--------------------------------------
+      double flops, mops;
+      auto &gids = arg->gids;
+      auto &NN = *arg->setup->NN;
+      flops = gids.size();
+      flops *= 4.0 * gids.size();
+      // Heap select worst case
+      mops = (size_t)std::log( NN.row() ) * gids.size();
+      mops *= gids.size();
+      // Access K
+      mops += flops;
+      event.Set( name + label, flops, mops );
+      //--------------------------------------
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+    };
+
+    void Execute( Worker* user_worker )
+    {
+    };
+
+}; /** end class xgemmTask */
+
+
+
 
 template<typename T>
-void xgemmTask(
+void CreatexgemmTask(
     T alpha, hmlp::View<T> &A, 
              hmlp::View<T> &B, 
     T beta,  hmlp::View<T> &C )
@@ -89,7 +135,7 @@ void xgemm_var1(
                          BB, /**/ B2, b, BOTTOM );
 
     /** --------------------------------------------------- */
-    xgemmTask( alpha, A1, B1, beta, C );
+    CreatexgemmTask( alpha, A1, B1, beta, C );
     beta = 1.0;
     /** --------------------------------------------------- */
 
