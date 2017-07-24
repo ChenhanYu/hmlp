@@ -187,12 +187,16 @@ void dgeqp4( int * m, int * n, double * A, int * lda, int * jpvt, double * tau,
   }
 
   // Use LAPACK's DGEQPF or DGEQP3 for small matrices.
-  if( mn_A < THRESHOLD_FOR_DGEQPF ) {
-    // Call to LAPACK routine.
-    //// printf( "Calling dgeqpf\n" );
-    dgeqpf_( m, n, A, lda, jpvt, tau, work, info );
-    return;
-  } else if( mn_A < THRESHOLD_FOR_DGEQP3 ) {
+  //if( mn_A < THRESHOLD_FOR_DGEQPF ) {
+  //  // Call to LAPACK routine.
+  //  //// printf( "Calling dgeqpf\n" );
+  //  dgeqpf_( m, n, A, lda, jpvt, tau, work, info );
+  //  return;
+  //} else 
+    
+    
+  // Use LAPACK's DGEQP3 for small matrices.
+  if( mn_A < THRESHOLD_FOR_DGEQP3 ) {
     //// printf( "Calling dgeqp3\n" );
     dgeqp3_( m, n, A, lda, jpvt, tau, work, lwork, info );
     return;
