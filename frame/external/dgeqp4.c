@@ -45,6 +45,7 @@ WITHOUT ANY WARRANTY EXPRESSED OR IMPLIED.
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <blas_lapack_prototypes.hpp>
 #include "dgeqp4.h"
 
 

@@ -65,9 +65,9 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 
   # using GCC
   message( STATUS "GNU compiler." ) 
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -std=c++11 -O3 -fopenmp")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -fopenmp")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -fPIC")
-  set (HMLP_PYTHON_CFLAGS     "-g -std=c++11 -O3 -fopenmp")
+  set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
   # try to detect and link BLAS/LAPACK
@@ -109,7 +109,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
 
   # using Intel C++
   message( STATUS "Intel compiler." )
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -std=c++11 -O3 -qopenmp")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -qopenmp")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Werror -Wall -pedantic -fPIC")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_INTEL")
   set (HMLP_PYTHON_CFLAGS     "-g -std=c++11 -O3 -qopenmp")
@@ -277,7 +277,7 @@ endif()
 # Setup all flags
 # ---------------------------
 set (CMAKE_C_FLAGS        "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
-set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS}")
+set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS} -std=c++11")
 
 
 # Linking infos.

@@ -4,8 +4,10 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=${CC}
-export CXX=${CXX}
+export CC=icc
+export CXX=icpc
+#export CC=${CC}
+#export CXX=${CXX}
 
 ##
 ## Ingore this flag if you are "not using" MacOS.
@@ -31,7 +33,7 @@ export MKLROOT=${MKLROOT}
 export OPENBLASROOT=/h1/chenhan/Projects/OpenBLAS-0.2.19
 
 ## Setup the maximum number of threads.
-export OMP_NUM_THREADS=40
+export OMP_NUM_THREADS=68
 
 
 
@@ -54,8 +56,10 @@ export HMLP_GPU_ARCH_MINOR=kepler
 ## (2) x86_64/haswell, 
 ## (3) arm/armv8a
 ## (4) mic/knl
-export HMLP_ARCH_MAJOR=x86_64
-export HMLP_ARCH_MINOR=sandybridge
+#export HMLP_ARCH_MAJOR=x86_64
+#export HMLP_ARCH_MINOR=sandybridge
+export HMLP_ARCH_MAJOR=mic
+export HMLP_ARCH_MINOR=knl
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android

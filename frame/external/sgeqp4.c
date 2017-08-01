@@ -51,6 +51,7 @@ This copy of HQRRP in single precision is modified by Chenhan D. Yu.
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <blas_lapack_prototypes.hpp>
 #include "sgeqp4.h"
 
 

@@ -10,165 +10,14 @@
 #warning BLAS/LAPACK routines are not compiled (-HMLP_USE_BLAS=false)
 #endif
 
-
 extern "C"
 {
-  /** BLAS level-1 */
-  double ddot_(
-      int *n,
-      double *dx, int *incx,
-      double *dy, int *incy );
-  float sdot_(
-      int *n,
-      float *dx, int *incx,
-      float *dy, int *incy );
-  /** BLAS level-3 */
-  void dgemm_( 
-      const char *transA, const char *transB, 
-      int *m, int *n, int *k, 
-      double *alpha,
-      double *A, int *lda, 
-      double *B, int *ldb, double *beta, 
-      double *C, int *ldc );
-  void sgemm_( 
-      const char *transA, const char *transB, 
-      int *m, int *n, int *k, 
-      float *alpha,
-      float *A, int *lda, 
-      float *B, int *ldb, float *beta, 
-      float *C, int *ldc );
-  void dtrsm_( 
-      const char *side, const char *uplo,
-      const char *transA, const char *diag,
-      int *m, int *n,
-      double *alpha,
-      double *A, int *lda,
-      double *B, int *ldb );
-  void strsm_( 
-      const char *side, const char *uplo,
-      const char *transA, const char *diag,
-      int *m, int *n,
-      float *alpha,
-      float *A, int *lda,
-      float *B, int *ldb );
-  void dtrmm_( 
-      const char *side, const char *uplo,
-      const char *transA, const char *diag,
-      int *m, int *n,
-      double *alpha,
-      double *A, int *lda,
-      double *B, int *ldb );
-  void strmm_( 
-      const char *side, const char *uplo,
-      const char *transA, const char *diag,
-      int *m, int *n,
-      float *alpha,
-      float *A, int *lda,
-      float *B, int *ldb );
-  /** LAPACK */
-  void dpotrf_( 
-      const char *uplo, 
-      int *n, double *A, int *lda, int *info );
-  void spotrf_( 
-      const char *uplo, 
-      int *n, float *A, int *lda, int *info );
-  void dgetrf_(
-      int *m, int *n, 
-      double *A, int *lda, int *ipiv, int *info );
-  void sgetrf_(
-      int *m, int *n, 
-      float *A, int *lda, int *ipiv, int *info );
-  void dgetrs_(
-      const char *trans,
-      int *m, int *nrhs, 
-      double *A, int *lda, int *ipiv,
-      double *B, int *ldb, int *info );
-  void sgetrs_(
-      const char *trans,
-      int *m, int *nrhs, 
-      float *A, int *lda, int *ipiv,
-      float *B, int *ldb, int *info );
-  void dgecon_(
-      const char *norm,
-      int *n,
-      double *A, int *lda, 
-      double *anorm, 
-      double *rcond, 
-      double *work, int *iwork, int *info );
-  void sgecon_(
-      const char *norm,
-      int *n,
-      float *A, int *lda, 
-      float *anorm, 
-      float *rcond, 
-      float *work, int *iwork, int *info );
-  void dgeqrf_(
-      int *m, int *n, 
-      double *A, int *lda, 
-      double *tau, 
-      double *work, int *lwork, int *info );
-  void sgeqrf_(
-      int *m, int *n, 
-      float *A, int *lda, 
-      float *tau, 
-      float *work, int *lwork, int *info );
-  void dorgqr_(
-      int *m, int *n, int *k,
-      double *A, int *lda, 
-      double *tau,
-      double *work, int *lwork, int *info );
-  void sorgqr_(
-      int *m, int *n, int *k,
-      float *A, int *lda, 
-      float *tau,
-      float *work, int *lwork, int *info );
-  void dormqr_( 
-      const char *side, const char *trans,
-      int *m, int *n, int *k, 
-      double *A, int *lda, 
-      double *tau,
-      double *C, int *ldc, 
-      double *work, int *lwork, int *info );
-  void sormqr_( 
-      const char *side, const char *trans,
-      int *m, int *n, int *k, 
-      float *A, int *lda, 
-      float *tau,
-      float *C, int *ldc, 
-      float *work, int *lwork, int *info );
-  void dgeqp3_(
-      int *m, int *n,
-      double *A, int *lda, int *jpvt,
-      double *tau,
-      double *work, int *lwork, int *info ); 
-  void sgeqp3_(
-      int *m, int *n,
-      float *A, int *lda, int *jpvt,
-      float *tau,
-      float *work, int *lwork, int *info );
-  void dgeqp4( 
-      int *m, int *n, 
-      double *A, int *lda, int *jpvt, 
-      double *tau,
-      double *work, int *lwork, int *info );
-  void sgeqp4( 
-      int *m, int *n, 
-      float *A, int *lda, int *jpvt, 
-      float *tau,
-      float *work, int *lwork, int *info );
-  void dgels_(
-      const char *trans,
-      int *m, int *n, int *nrhs,
-      double *A, int *lda,
-      double *B, int *ldb,
-      double *work, int *lwork, int *info );
-  void sgels_(
-      const char *trans,
-      int *m, int *n, int *nrhs,
-      float *A, int *lda,
-      float *B, int *ldb,
-      float *work, int *lwork, int *info );
+#include <blas_lapack_prototypes.hpp>
 }; /** end extern "C" */
+
+
+
+
 
 
 namespace hmlp
@@ -1006,5 +855,67 @@ void xgels
 }; /** end gels() */
 
 
+
+/**
+ *  @brief DGESDD wrapper
+ */ 
+void xgesdd
+( 
+  const char *jobz, 
+  int m, int n, 
+  double *A, int lda, 
+  double *S, 
+  double *U, int ldu, 
+  double *VT, int ldvt, 
+  double *work, int lwork, int *iwork
+)
+{
+#ifdef USE_BLAS
+  int info;
+  dgesdd_
+  (
+    jobz,
+    &m, &n,
+    A, &lda,
+    S,
+    U, &ldu,
+    VT, &ldvt,
+    work, &lwork, iwork, &info
+  );
+#else
+  printf( "xgesdd must enables USE_BLAS.\n" );
+#endif
+}; /** end xgesdd() */
+
+/**
+ *  @brief SGESDD wrapper
+ */ 
+void xgesdd
+( 
+  const char *jobz, 
+  int m, int n, 
+  float *A, int lda, 
+  float *S, 
+  float *U, int ldu, 
+  float *VT, int ldvt, 
+  float *work, int lwork, int *iwork
+)
+{
+#ifdef USE_BLAS
+  int info;
+  sgesdd_
+  (
+    jobz,
+    &m, &n,
+    A, &lda,
+    S,
+    U, &ldu,
+    VT, &ldvt,
+    work, &lwork, iwork, &info
+  );
+#else
+  printf( "xgesdd must enables USE_BLAS.\n" );
+#endif
+}; /** end xgesdd() */
 
 }; /** end namespace hmlp */
