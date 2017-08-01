@@ -26,7 +26,8 @@ export HMLP_USE_INTEL=true
 export HMLP_USE_BLAS=true
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
-export MKLROOT=${MKLROOT}
+export MKLROOT=/opt/intel/mkl
+#export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
 #export OPENBLASROOT=${OPENBLASROOT}
@@ -56,10 +57,10 @@ export HMLP_GPU_ARCH_MINOR=kepler
 ## (2) x86_64/haswell, 
 ## (3) arm/armv8a
 ## (4) mic/knl
-#export HMLP_ARCH_MAJOR=x86_64
-#export HMLP_ARCH_MINOR=sandybridge
-export HMLP_ARCH_MAJOR=mic
-export HMLP_ARCH_MINOR=knl
+export HMLP_ARCH_MAJOR=x86_64
+export HMLP_ARCH_MINOR=sandybridge
+#export HMLP_ARCH_MAJOR=mic
+#export HMLP_ARCH_MINOR=knl
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android

@@ -1247,9 +1247,9 @@ class InterpolateTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      printf( "%lu Interpolate beg\n", arg->treelist_id );
+      //printf( "%lu Interpolate beg\n", arg->treelist_id );
       Interpolate<NODE, T>( arg );
-      printf( "%lu Interpolate end\n", arg->treelist_id );
+      //printf( "%lu Interpolate end\n", arg->treelist_id );
     };
 
 }; /** end class InterpolateTask */
@@ -1527,9 +1527,9 @@ class SkeletonizeTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      printf( "%lu Skel beg\n", arg->treelist_id );
+      //printf( "%lu Skel beg\n", arg->treelist_id );
       Skeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
-      printf( "%lu Skel end\n", arg->treelist_id );
+      //printf( "%lu Skel end\n", arg->treelist_id );
     };
 
 }; /** end class SkeletonizeTask */
@@ -2754,7 +2754,7 @@ void FindNearNodes( TREE &tree, double budget )
       ballot[ i ].second = i;
     }
 
-    printf( "before Neighbor\n" ); fflush( stdout );
+    //printf( "before Neighbor\n" ); fflush( stdout );
 
     /** traverse all points and their neighbors. NN is stored as k-by-N */
     for ( size_t j = 0; j < node->lids.size(); j ++ )
@@ -2782,7 +2782,7 @@ void FindNearNodes( TREE &tree, double budget )
       }
     }
 
-    printf( "after Neighbor\n" ); fflush( stdout );
+    //printf( "after Neighbor\n" ); fflush( stdout );
 
     /** sort the ballot list */
     struct 
@@ -2793,9 +2793,9 @@ void FindNearNodes( TREE &tree, double budget )
       }   
     } BallotMore;
 
-    printf( "before sorting\n" ); fflush( stdout );
+    //printf( "before sorting\n" ); fflush( stdout );
     std::sort( ballot.begin(), ballot.end(), BallotMore );
-    printf( "after sorting\n" ); fflush( stdout );
+    //printf( "after sorting\n" ); fflush( stdout );
 
     /** add leaf nodes with the highest votes util reach the budget */
     for ( size_t i = 0; i < n_nodes; i ++ )
@@ -2808,7 +2808,7 @@ void FindNearNodes( TREE &tree, double budget )
       //printf( "\n" );
     }
 
-    printf( "After ballot\n" ); fflush( stdout );
+    //printf( "After ballot\n" ); fflush( stdout );
   }
 
   /** symmetrinize Near( node ) */
@@ -2888,9 +2888,9 @@ class NearNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      printf( "FindNearNode beg\n" ); fflush( stdout );
+      //printf( "FindNearNode beg\n" ); fflush( stdout );
       FindNearNodes<SYMMETRIC, TREE>( *arg, budget );
-      printf( "FindNearNode end\n" ); fflush( stdout );
+      //printf( "FindNearNode end\n" ); fflush( stdout );
     };
 
 }; /** end class NearNodesTask */
@@ -2951,7 +2951,7 @@ class CacheNearNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      printf( "%lu CacheNearNodes beg\n", arg->treelist_id ); fflush( stdout );
+      //printf( "%lu CacheNearNodes beg\n", arg->treelist_id ); fflush( stdout );
 
       NODE *node = arg;
       auto *NearNodes = &node->NearNodes;
@@ -2992,7 +2992,7 @@ class CacheNearNodesTask : public hmlp::Task
       }
 #endif
 
-      printf( "%lu CacheNearNodesTask end\n", arg->treelist_id ); fflush( stdout );
+      //printf( "%lu CacheNearNodesTask end\n", arg->treelist_id ); fflush( stdout );
     };
 }; /** end class CacheNearNodesTask */
 
