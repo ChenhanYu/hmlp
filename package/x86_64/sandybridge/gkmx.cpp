@@ -1,7 +1,7 @@
-// GKMX templates
-#include <gkmx.hpp>
+/** GKMX templates */
+#include <primitives/gkmx.hpp>
 
-// Sandy-bridge
+/** Sandy-bridge micro-kernels */
 #include <rank_k_d8x4.hpp>
 
 using namespace hmlp::gkmx;

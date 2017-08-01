@@ -5,7 +5,7 @@
 #include <hmlp.h>
 #include <hmlp_util.hpp>
 #include <hmlp_internal.hpp>
-#include <gsknn.hpp>
+#include <primitives/gsknn.hpp>
 #include <avx_type.h> // self-defined vector type
 
 struct rnn_r_int_d8x4_row

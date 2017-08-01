@@ -1,3 +1,4 @@
+## all SPD matrix files stored in dense column major format
 declare -a filearray=(
 "/workspace/biros/sc17/data_to_use_65K/K02N65536.bin"
 "/workspace/biros/sc17/data_to_use_65K/K03N65536.bin"
@@ -6,17 +7,38 @@ declare -a filearray=(
 "/workspace/biros/sc17/data_to_use_65K/K06N65536.bin"
 "/workspace/biros/sc17/data_to_use_65K/K07N65536.bin"
 )
-n=65536
-m=512
-s=512
-k=32
-stol=1E-4
-budget=0.03
-nrhs=512
-# ======= Do not change anything below this line ========
 
+## all data files stored in dense d-by-N format
+declare -a dataarray=(
+"covetype100k"
+)
+## problem size
+n=5000
+## maximum leaf node size
+m=64
+## maximum off-diagonal ranks
+s=64
+## number of neighbors
+k=32
+## number of right hand sides
+nrhs=512
+## user tolerance
+stol=1E-5
+## user computation budget
+budget=0.03
+## distance type (geometry, kernel, angle)
+distance="angle"
+## spdmatrix type (testsuit, dense, kernel, userdefine)
+matrixtype="testsuit"
+
+# ======= Do not change anything below this line ========
+if [ -z ${HMLP_USE_MPI+x} ]; 
+then mpiexec="mpirun -n 2"; 
+else mpiexec=""; 
+fi
+executable=./test_gofmm.x
 echo "@PRIM"
-echo 'spdaskit'
+echo 'gofmm'
 # =======================================================
 
 echo "@SETUP"
@@ -32,23 +54,34 @@ echo "s = $s"
 echo "@SETUP"
 echo "k = $k"
 echo "@SETUP"
+echo "nrhs = $nrhs"
+echo "@SETUP"
 echo "stol = $stol"
 echo "@SETUP"
 echo "budget = $budget"
 echo "@SETUP"
-echo "nrhs = $nrhs"
+echo "distance = $distance"
+echo "@SETUP"
+echo "matrixtype = $matrixtype"
 # =======================================================
 
 echo "@DATE"
 date
 # =======================================================
 
-for filename in "${filearray[@]}"
-do
-  echo $filename
-  ./test_spdaskit.x $n $m $k $s $nrhs $stol $budget $filename; status=$?
+if [[ "$matrixtype" == "testsuit" ]] ; then
+  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype status=$?
   echo "@STATUS"
   echo $status
-done
+fi
 
+if [[ "$matrixtype" == "dense" ]] ; then
+	for filename in "${filearray[@]}"
+	do
+		echo $filename
+		$mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $filename; status=$?
+		echo "@STATUS"
+		echo $status
+	done
+fi
 # =======================================================

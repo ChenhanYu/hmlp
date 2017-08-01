@@ -492,7 +492,13 @@ void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
     read.clear();
   }
 
-}; // end DependencyAnalysis()
+}; /** end DependencyAnalysis() */
+
+void ReadWrite::DependencyCleanUp()
+{
+  read.clear();
+  write.clear();
+}; /** end DependencyCleanUp() */
 
 
 
@@ -767,6 +773,7 @@ void* Scheduler::EntryPoint( void* arg )
     if ( nexttask ) nexttask->Prefetch( me );
 
 
+    /** if there is some jobs to do */
     if ( batch )
     {
       idle = 0;
@@ -833,16 +840,23 @@ void* Scheduler::EntryPoint( void* arg )
         if ( target >= 0 && target != me->tid )
         {
           Task *target_task = NULL;
+
+          /** get the lock of the target ready queue */
           scheduler->ready_queue_lock[ target ].Acquire();
           {
             if ( scheduler->ready_queue[ target ].size() ) 
             {
               target_task = scheduler->ready_queue[ target ].back();
-              if ( target_task ) scheduler->ready_queue[ target ].pop_back();
-              scheduler->time_remaining[ target ] -= target_task->cost;
+              if ( target_task ) 
+              {
+                scheduler->ready_queue[ target ].pop_back();
+                scheduler->time_remaining[ target ] -= target_task->cost;
+              }
             }
           }
           scheduler->ready_queue_lock[ target ].Release();
+
+          /** if successfully steal a job */
           if ( target_task )
           {
             //scheduler->ready_queue_lock[ me->tid ].Acquire();
@@ -851,6 +865,12 @@ void* Scheduler::EntryPoint( void* arg )
             //  scheduler->time_remaining[ me->tid ] += target_task->cost;
             //}
             //scheduler->ready_queue_lock[ me->tid ].Release();
+
+            if ( target_task->GetStatus() != QUEUED )
+            {
+              printf( "bug in stolen job\n" ); exit( 1 );
+            }
+
 
             idle = 0;
             target_task->SetStatus( RUNNING );

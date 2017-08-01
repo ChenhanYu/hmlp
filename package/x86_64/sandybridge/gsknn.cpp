@@ -1,7 +1,7 @@
-// GSKNN templates
-#include <gsknn.hpp>
+/** GSKNN templates */
+#include <primitives/gsknn.hpp>
 
-// Sandy-bridge
+/** Sandy-bridge micro-kernels */
 #include <rank_k_d8x4.hpp>
 #include <rnn_r_int_d8x4_row.hpp>
 

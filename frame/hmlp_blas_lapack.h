@@ -14,20 +14,18 @@ void xgemm
 (
   const char *transA, const char *transB,
   int m, int n, int k, 
-  float alpha,
-  float *A, int lda,
-  float *B, int ldb, float beta,
-  float *C, int ldc
+  float alpha, float *A, int lda,
+               float *B, int ldb, 
+  float beta,  float *C, int ldc
 );
 
 void xgemm
 (
   const char *transA, const char *transB,
   int m, int n, int k, 
-  double alpha,
-  double *A, int lda,
-  double *B, int ldb, double beta,
-  double *C, int ldc
+  double alpha, double *A, int lda,
+                double *B, int ldb, 
+  double beta,  double *C, int ldc
 );
 
 void xtrsm
@@ -35,9 +33,8 @@ void xtrsm
   const char *side, const char *uplo,
   const char *transA, const char *diag,
   int m, int n,
-  float alpha,
-  float *A, int lda,
-  float *B, int ldb 
+  float alpha, float *A, int lda,
+               float *B, int ldb 
 );
 
 void xtrsm
@@ -45,9 +42,38 @@ void xtrsm
   const char *side, const char *uplo,
   const char *transA, const char *diag,
   int m, int n,
-  double alpha,
-  double *A, int lda,
-  double *B, int ldb 
+  double alpha, double *A, int lda,
+                double *B, int ldb 
+);
+
+void xtrmm
+(
+  const char *side, const char *uplo,
+  const char *transA, const char *diag,
+  int m, int n,
+  float alpha, float *A, int lda,
+               float *B, int ldb 
+);
+
+void xtrmm
+(
+  const char *side, const char *uplo,
+  const char *transA, const char *diag,
+  int m, int n,
+  double alpha, double *A, int lda,
+                double *B, int ldb 
+);
+
+void xpotrf
+(
+  const char *uplo, 
+  int n, double *A, int lda
+);
+
+void xpotrf
+(
+  const char *uplo, 
+  int n, float *A, int lda
 );
 
 void xgetrf
@@ -146,6 +172,22 @@ void xgeqp3
   double *work, int lwork 
 );
 
+void xgeqp4
+(
+  int m, int n,
+  float *A, int lda, int *jpvt, 
+  float *tau,
+  float *work, int lwork 
+);
+
+void xgeqp4
+(
+  int m, int n,
+  double *A, int lda, int *jpvt,
+  double *tau,
+  double *work, int lwork 
+);
+
 void xgels
 (
   const char *trans,
@@ -164,6 +206,26 @@ void xgels
   double *work, int lwork 
 );
 
+void xgecon
+(
+  const char *norm,
+  int n,
+  float *A, int lda, 
+  float anorm, 
+  float *rcond, 
+  float *work, int *iwork 
+);
+
+void xgecon
+(
+  const char *norm,
+  int n,
+  double *A, int lda, 
+  double anorm, 
+  double *rcond, 
+  double *work, int *iwork 
+);
+
 double xdot
 (
   int n,
@@ -180,7 +242,8 @@ float xdot
 
 
 #ifdef HMLP_USE_CUDA
-// cublasSgemm wrapper
+
+/** cublasSgemm wrapper */
 void xgemm
 (
   cublasHandle_t &handle,
@@ -192,7 +255,7 @@ void xgemm
   float *C, int ldc
 );
 
-// cublasDgemm wrapper
+/** cublasDgemm wrapper */
 void xgemm
 (
   cublasHandle_t &handle,
@@ -204,7 +267,7 @@ void xgemm
   double *C, int ldc
 );
 
-// cublasSgemmBatched wrapper
+/** cublasSgemmBatched wrapper */
 void xgemm_batched
 (
   cublasHandle_t &handle,
@@ -217,7 +280,7 @@ void xgemm_batched
   int batchSize
 );
 
-// cublasDgemmBatched wrapper
+/** cublasDgemmBatched wrapper */
 void xgemm_batched
 (
   cublasHandle_t &handle,
@@ -252,8 +315,7 @@ void xgeqp3
   double *work, int lwork
 );
 
-#endif
-
+#endif /** end ifdef HMLP_USE_CUDA */
 
 }; // end namespace hmlp
 
