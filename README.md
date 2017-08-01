@@ -191,10 +191,10 @@ but many others have contributed input and feedback. Contributors
 are listed acoording to the part they contribute to:
 
 
-  Matrix-free task-base ASKIT
+  GOFMM (Geometry-Oblivious FMM) in SC'17
   
   James Levitt              (The University of Texas at Austin)
-  Severin Reiz 
+  Severin Reiz              (Technische Universität München)
   George Biros              (The University of Texas at Austin)
 
 
@@ -217,12 +217,6 @@ are listed acoording to the part they contribute to:
   Leslie Rice               (The University of Texas at Austin)
 
 
-  General Kernel Matrix Operations on NVIDIA GPUs 
-
-  Cris Cecka                (NVIDIA Corp. Santa Clara)
-  Michael Garland           (NVIDIA Corp.)
-
-
   HMLP on Arm
 
   Jianyu Huang              (The University of Texas at Austin)
@@ -234,11 +228,6 @@ are listed acoording to the part they contribute to:
   Tyler Smith               (The University of Texas at Austin)
   Robert van de Geijn       (The University of Texas at Austin)
   Field Van Zee             (The University of Texas at Austin)
-  
-
-  Improving CMAKE
-
-  Krzysztof Drewniak        (The University of Texas at Austin)
   
 
 The gratitude especially goes to the following individual who walks
