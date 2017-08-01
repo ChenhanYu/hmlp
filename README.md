@@ -3,8 +3,6 @@
 
 ### README
 
-**HMLP currently is not an open source project. Do not distribute!!!**
-
 Thank you for deciding to give HMLP a try!
 This code can be used directly or pluged into many learning tasks such as
 kernel summation, nearest neighbor search, k-means clustering, convolution
