@@ -4,6 +4,7 @@
 #include <time.h>
 #include <tuple>
 #include <algorithm>
+#include <vector>
 #include <deque>
 #include <cstdint>
 #include <cassert>
@@ -191,7 +192,11 @@ class Task
 
     void Enqueue( size_t tid );
 
+    void TryEnqueue();
+
     void ForceEnqueue( size_t tid );
+
+    void CallBackWhileWaiting();
 
     virtual void Execute( Worker* );
 
@@ -227,6 +232,9 @@ class Task
 
     volatile TaskStatus status;
 
+    /**  */
+    bool is_created_in_epoch_session = false;
+
 };
 
 
@@ -249,7 +257,35 @@ class ReadWrite
 
   private:
 
-}; // end class ReadWrite
+}; /** end class ReadWrite */
+
+
+
+class MatrixReadWrite
+{
+  public:
+
+    MatrixReadWrite();
+
+    void Setup( size_t m, size_t n );
+
+    bool HasBeenSetup();
+
+    void DependencyAnalysis( size_t i, size_t j, ReadWriteType type, Task *task );
+
+    void DependencyCleanUp();
+
+  private:
+
+    bool has_been_setup = false;
+
+    size_t m = 0;
+
+    size_t n = 0;
+
+    std::vector<std::vector<ReadWrite> > Submatrices;
+
+}; /** end class MatrixReadWrite */
 
 
 
@@ -275,20 +311,29 @@ class Scheduler
 
     std::deque<Task*> ready_queue[ MAX_WORKER ];
 
+    /** the read queue for nested tasks */
+    std::deque<Task*> nested_queue;
+
     std::deque<Task*> tasklist;
+
+    std::deque<Task*> nested_tasklist;
 
     float time_remaining[ MAX_WORKER ];
 
     void ReportRemainingTime();
 
-    // Manually describe the dependencies.
+    /** manually describe the dependencies */
     static void DependencyAdd( Task *source, Task *target );
 
     void NewTask( Task *task );
 
+    Task *TryDispatchFromNestedQueue();
+
     void Summary();
 
     Lock ready_queue_lock[ MAX_WORKER ];
+
+    Lock nested_queue_lock;
 
     Lock n_task_lock;
 
@@ -321,6 +366,12 @@ class RunTime
 
     void Finalize();
 
+    /** whether the runtime is in a epoch session */
+    bool IsInEpochSession();
+
+    /** consuming nested tasks while in a epoch session */
+    void ExecuteNestedTasksWhileWaiting( Task *waiting_task );
+
     //void pool_init();
 
     //void acquire_memory();
@@ -347,10 +398,9 @@ class RunTime
    
     bool is_init = false;
 
-    //std::size_t pool_size_in_bytes;
+    bool is_in_epoch_session = false;
 
-    //void *pool;
-};
+}; /** end class Runtime */
 
 }; // end namespace hmlp
 
@@ -358,6 +408,7 @@ hmlp::RunTime *hmlp_get_runtime_handle();
 
 hmlp::Device *hmlp_get_device( int i );
 
+bool hmlp_is_in_epoch_session();
 
 
 #endif // define HMLP_RUNTIME_HPP

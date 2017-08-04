@@ -6,9 +6,10 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <math.h>
+
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
-
+#include <hmlp_runtime.hpp>
 #include <containers/data.hpp>
 #include <primitives/gemm.hpp>
 
@@ -21,6 +22,81 @@
 #define TOLERANCE 1E-13
 
 using namespace hmlp::gemm;
+
+template<typename T>
+class NestedTask : public hmlp::Task
+{
+  public:
+
+    T alpha = 0.0;
+
+    hmlp::View<T> A;
+
+    hmlp::View<T> B;
+
+    T beta = 0.0;
+
+    hmlp::View<T> C;
+
+    void Set( 
+        T alpha, hmlp::Data<T> &A,
+                 hmlp::Data<T> &B,
+        T beta,  hmlp::Data<T> &C )
+    {
+      /** main arguments  */
+      this->alpha = alpha;
+      this->A.Set( A );
+      this->B.Set( B );
+      this->beta = beta;
+      this->C.Set( C );
+
+      /** name and label */
+      std::ostringstream ss;
+      name = std::string( "nestedgemm" );
+
+      /** flops, mops, cost and event */
+      double flops, mops;
+      flops = 0.0;
+      mops  = 0.0;
+      cost  = 2.0 * C.row() * C.col();
+      event.Set( name + label, flops, mops );
+    };
+
+    void DependencyAnalysis()
+    {
+      TryEnqueue();
+    };
+
+    void Execute( hmlp::Worker* user_worker )
+    {
+      hmlp::xgemm( alpha, A, B, beta, C );
+    };
+};
+
+
+
+template<typename T>
+void test_nested_gemm_view( size_t m, size_t n, size_t k )
+{
+  T alpha =  2.0;
+  T beta  = -1.0;
+
+  hmlp::Data<T> C( m, n, 1.0 ); 
+  hmlp::Data<T> M( m, n, 1.0 );
+  hmlp::Data<T> A, B;
+  
+  A.resize( m, k );
+  A.rand();
+  B.resize( k, n );
+  B.rand();
+
+  auto *nestedtask = new NestedTask();
+
+  nestedtask->Set( alpha, A, B, beta, C );
+
+
+
+};
 
 
 template<bool TRANSA, bool TRANSB, typename T>
@@ -86,6 +162,7 @@ void test_gemm_view( size_t m, size_t n, size_t k )
           beta,  M.data(), m );
     }
   }
+  hmlp_run();
 
   for ( size_t i = 0; i < m; i ++ )
   {
@@ -116,6 +193,8 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 2 ], "%lu", &n );
   sscanf( argv[ 3 ], "%lu", &k );
   
+  hmlp_init();
+
   using T = double;
 
   /** NN */
@@ -126,6 +205,8 @@ int main( int argc, char *argv[] )
   test_gemm_view< true, false, T>( m, n, k );
   /** TT */
   test_gemm_view< true,  true, T>( m, n, k );
+
+  hmlp_finalize();
 
   return 0;
 };

@@ -28,6 +28,7 @@ struct
 namespace hmlp
 {
 
+/** IMPORTANT: we allocate a static runtime system per (MPI) process */
 static RunTime rt;
 
 range::range( int beg, int end, int inc )
@@ -310,6 +311,8 @@ void Event::MatlabTimeline( FILE *pFile )
  */ 
 Task::Task()
 {
+  /** whether this is a nested task? */
+  is_created_in_epoch_session = rt.IsInEpochSession();
   status = ALLOCATED;
   //rt.scheduler->NewTask( this );
   status = NOTREADY;
@@ -340,6 +343,7 @@ void Task::Submit()
   rt.scheduler->NewTask( this );
 };
 
+/** virtual function */
 void Task::Set( std::string user_name, void (*user_function)(Task*), void *user_arg )
 {
   name = user_name;
@@ -348,6 +352,7 @@ void Task::Set( std::string user_name, void (*user_function)(Task*), void *user_
   status = NOTREADY;
 };
 
+/** virtual function */
 void Task::Prefetch( Worker *user_worker ) {};
 
 void Task::DependenciesUpdate()
@@ -379,10 +384,18 @@ void Task::Execute( Worker *user_worker )
   function( this );
 };
 
+/** virtual function */
 void Task::GetEventRecord() {};
 
+/** virtual function */
 void Task::DependencyAnalysis() {};
 
+/** try to dispatch the task if there is no dependency left */
+void Task::TryEnqueue()
+{
+  if ( status == NOTREADY && !n_dependencies_remaining )
+    Enqueue();
+};
 
 void Task::Enqueue()
 {
@@ -418,7 +431,26 @@ void Task::Enqueue( size_t tid )
   float earliest_t = -1.0;
   int assignment = -1;
 
-  // Determine which work the task should go to using HEFT policy.
+  /** dispatch to nested queue if in the epoch session */
+  if ( is_created_in_epoch_session )
+  {
+    rt.scheduler->nested_queue_lock.Acquire();
+    {
+      /** change status */
+      status = QUEUED;
+      if ( priority )
+        rt.scheduler->nested_queue.push_front( this );
+      else
+        rt.scheduler->nested_queue.push_back( this );
+    }
+    rt.scheduler->nested_queue_lock.Release();
+
+    /** finish and return without further going down */
+    return;
+  };
+
+
+  /** determine which work the task should go to using HEFT policy */
   for ( int p = 0; p < rt.n_worker; p ++ )
   {
     int i = ( tid + p ) % rt.n_worker;
@@ -431,11 +463,6 @@ void Task::Enqueue( size_t tid )
     }
   }
 
-//  if ( assignment == 0 )
-//  {
-//    rt.scheduler->ReportRemainingTime();
-//  }
-//
   rt.scheduler->ready_queue_lock[ assignment ].Acquire();
   {
     float cost = rt.workers[ assignment ].EstimateCost( this );
@@ -452,18 +479,29 @@ void Task::Enqueue( size_t tid )
 };
 
 
+/**
+ *  @brief 
+ **/ 
+void Task::CallBackWhileWaiting()
+{
+  rt.ExecuteNestedTasksWhileWaiting( this );
+}; /** end CallBackWhileWaiting() */
+
 
 /**
  *  @breief ReadWrite
  */ 
 ReadWrite::ReadWrite() {};
 
+/**
+ *  @brief 
+ **/ 
 void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
 {
   if ( type == R || type == RW )
   {
     read.push_back( task );
-    // Read after write (RAW) data dependencies.
+    /** read after write (RAW) data dependencies */
     for ( auto it = write.begin(); it != write.end(); it ++ )
     {
       Scheduler::DependencyAdd( (*it), task );
@@ -477,7 +515,7 @@ void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
 
   if ( type == W || type == RW )
   {
-    // Write after read (WAR) anti-dependencies.
+    /** write after read (WAR) anti-dependencies */
     for ( auto it = read.begin(); it != read.end(); it ++ )
     {
       Scheduler::DependencyAdd( (*it), task );
@@ -492,13 +530,57 @@ void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
     read.clear();
   }
 
-}; /** end DependencyAnalysis() */
+}; /** end ReadWrite::DependencyAnalysis() */
 
+
+/**
+ *
+ *
+ */ 
 void ReadWrite::DependencyCleanUp()
 {
   read.clear();
   write.clear();
+
 }; /** end DependencyCleanUp() */
+
+
+/**
+ *  @breief MatrixReadWrite
+ */ 
+MatrixReadWrite::MatrixReadWrite() {};
+
+
+void MatrixReadWrite::Setup( size_t m, size_t n )
+{
+  //printf( "%lu %lu setup\n", m, n  );
+  this->has_been_setup = true;
+  this->m = m;
+  this->n = n;
+  Submatrices.resize( m );
+  for ( size_t i = 0; i < m; i ++ ) Submatrices[ i ].resize( n );
+};
+
+
+bool MatrixReadWrite::HasBeenSetup()
+{
+  return has_been_setup;
+}
+
+void MatrixReadWrite::DependencyAnalysis( 
+    size_t i, size_t j, ReadWriteType type, Task *task )
+{
+  //printf( "%lu %lu analysis\n", i, j  ); fflush( stdout );
+  assert( i < m && j < n );
+  Submatrices[ i ][ j ]. DependencyAnalysis( type, task );
+};
+
+void MatrixReadWrite::DependencyCleanUp()
+{
+  for ( size_t i = 0; i < m; i ++ )
+    for ( size_t j = 0; j < n; j ++ )
+      Submatrices[ i ][ j ]. DependencyCleanUp();
+};
 
 
 
@@ -591,7 +673,12 @@ void Scheduler::NewTask( Task *task )
 {
   tasklist_lock.Acquire();
   {
-    tasklist.push_back( task );
+    if ( rt.IsInEpochSession() ) 
+    {
+      nested_tasklist.push_back( task );
+    }
+    else                                
+      tasklist.push_back( task );
   }
   tasklist_lock.Release();
 };
@@ -645,17 +732,17 @@ void Scheduler::ReportRemainingTime()
  */ 
 void Scheduler::DependencyAdd( Task *source, Task *target )
 {
-  // Avoid self-loop
+  /** avoid self-loop */
   if ( source == target ) return;
 
-  // Update the source list.
+  /** update the source list */
   source->task_lock.Acquire();
   {
     source->out.push_back( target );
   }
   source->task_lock.Release();
 
-  // Update the target list.
+  /** update the target list */
   target->task_lock.Acquire();
   {
     target->in.push_back( source );
@@ -665,7 +752,37 @@ void Scheduler::DependencyAdd( Task *source, Task *target )
     }
   }
   target->task_lock.Release();
-}; // end DependencyAdd()
+
+}; /** end Scheduler::DependencyAdd() */
+
+
+/**
+ *  @brief  Try to dispatch a task from the nested queue. This routine
+ *          is only invoked by the runtime while nested tasks were
+ *          created during the epoch session.
+ **/ 
+Task *Scheduler::TryDispatchFromNestedQueue()
+{
+  Task *nested_task = NULL;
+
+  nested_queue_lock.Acquire();
+  { /** begin critical session "nested_queue" */
+    if ( nested_queue.size() )
+    {
+      /** fetch the first task in the queue */
+      nested_task = nested_queue.front();
+      /** remove the task from the queue */
+      nested_queue.pop_front();
+    }
+  } /**   end critical session "nested_queue" */
+  nested_queue_lock.Release();
+
+  /** notice that this can be a NULL pointer */
+  return nested_task;
+
+}; /** end Scheduler::TryDispatchFromNestedQueue() */
+
+
 
 
 /**
@@ -727,6 +844,7 @@ void* Scheduler::EntryPoint( void* arg )
   printf( "pthreadid %d\n", me->tid );
 #endif
 
+  /** start to consume all tasks in this epoch session */
   while ( 1 )
   {
     size_t batch_size = 0;
@@ -776,6 +894,7 @@ void* Scheduler::EntryPoint( void* arg )
     /** if there is some jobs to do */
     if ( batch )
     {
+      /** reset the idle counter */
       idle = 0;
       batch->SetStatus( RUNNING );
 
@@ -803,10 +922,32 @@ void* Scheduler::EntryPoint( void* arg )
         }
       }
     }
-    else // No task in my ready_queue. Steal from others.
+    else /** no task in my ready_queue. steal from others. */
     {
+      /** increase the idle counter */
       idle ++;
 
+      /** first try to consume tasks in the nested queue */
+      if ( scheduler->nested_queue.size() )
+      {
+        /** try to get a nested task; (can be a NULL pointer) */
+        Task *nested_task = scheduler->TryDispatchFromNestedQueue();
+
+        if ( nested_task )
+        {
+          /** reset the idle counter */
+          idle = 0;
+
+          nested_task->SetStatus( RUNNING );
+
+          if ( me->Execute( nested_task ) )
+          {
+            nested_task->DependenciesUpdate();
+          }
+        }
+      }
+
+      /** try to steal from others */
       if ( idle > 10 )
       {
         int max_remaining_task = 0;
@@ -885,7 +1026,7 @@ void* Scheduler::EntryPoint( void* arg )
             }
           }
         }
-      }
+      } /** end if ( idle > 10 ) */
     }
 
     if ( scheduler->n_task >= scheduler->tasklist.size() )
@@ -1023,14 +1164,25 @@ void RunTime::Init()
   }
 };
 
+/**
+ *  @brief
+ **/
 void RunTime::Run()
 {
-  if ( !is_init ) 
+  if ( is_in_epoch_session )
   {
-    Init();
+    printf( "Fatal Error: more than one concurrent epoch session!\n" );
+    exit( 1 );
   }
+  if ( !is_init ) Init();
+  /** begin this epoch session */
+  is_in_epoch_session = true;
+  /** schedule jobs to n workers */
   scheduler->Init( n_worker, n_nested_worker );
+  /** clean up */
   scheduler->Finalize();
+  /** finish this epoch session */
+  is_in_epoch_session = false;
 };
 
 void RunTime::Finalize()
@@ -1042,6 +1194,21 @@ void RunTime::Finalize()
       scheduler->Finalize();
       delete scheduler;
       is_init = false;
+    }
+  }
+};
+
+bool RunTime::IsInEpochSession()
+{
+  return is_in_epoch_session;
+};
+
+void RunTime::ExecuteNestedTasksWhileWaiting( Task *waiting_task )
+{
+  if ( IsInEpochSession() )
+  {
+    while ( waiting_task->GetStatus() != DONE )
+    {
     }
   }
 };
@@ -1102,4 +1269,9 @@ hmlp::RunTime *hmlp_get_runtime_handle()
 hmlp::Device *hmlp_get_device( int i )
 {
   return hmlp::rt.device[ i ];
+};
+
+bool hmlp_is_in_epoch_session()
+{
+  return hmlp::rt.IsInEpochSession();
 };

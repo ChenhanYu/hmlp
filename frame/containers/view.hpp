@@ -103,9 +103,9 @@ class View : public ReadWrite
       if ( mb > m ) mb = m;
       if ( side == BOTTOM ) mb = m - mb;
       /** setup A1 */
-      A1.Set(     mb, this->n, this->offm,      this->offn, this );
+      A1.Set(     mb, this->n, this->offm,      this->offn, this->base );
       /** setup A2 */
-      A2.Set( m - mb, this->n, this->offm + mb, this->offn, this );
+      A2.Set( m - mb, this->n, this->offm + mb, this->offn, this->base );
     };
 
 
@@ -133,9 +133,9 @@ class View : public ReadWrite
       if ( nb > n ) nb = n;
       if ( side == RIGHT ) nb = n - nb;
       /** setup A1 */
-      A1.Set( this->m,     nb, this->offm, this->offn,      this );
+      A1.Set( this->m,     nb, this->offm, this->offn,      this->base );
       /** setup A2 */
-      A2.Set( this->m, n - nb, this->offm, this->offn + nb, this );
+      A2.Set( this->m, n - nb, this->offm, this->offn + nb, this->base );
     };
 
     /** A = [ A1, A2; ] */
@@ -191,13 +191,13 @@ class View : public ReadWrite
       }
 
       /** setup A11 */
-      A11.Set(     mb,     nb, offm     , offn     , this );
+      A11.Set(     mb,     nb, offm     , offn     , this->base );
       /** setup A12 */
-      A12.Set(     mb, n - nb, offm     , offn + nb, this );
+      A12.Set(     mb, n - nb, offm     , offn + nb, this->baes );
       /** setup A21 */
-      A21.Set( m - mb,     nb, offm + mb, offn     , this );
+      A21.Set( m - mb,     nb, offm + mb, offn     , this->base );
       /** setup A22 */
-      A21.Set( m - mb, n - nb, offm + mb, offn + nb, this );
+      A21.Set( m - mb, n - nb, offm + mb, offn + nb, this->base );
 
     };
 
@@ -227,6 +227,77 @@ class View : public ReadWrite
       return ( target == buff );
     };
 
+    bool HasUniformBlockSize()
+    {
+      return has_uniform_block_size;
+    };
+
+    void CreateLeafMatrixBlocks( size_t mb, size_t nb )
+    {
+      /** only the base view can have leaf r/w blocks */
+      assert( base == this );
+
+      if ( !rwblocks.HasBeenSetup() )
+      {
+        this->mb = mb;
+        this->nb = nb;
+        rwblocks.Setup(
+          (size_t)std::ceil( (double)m / mb ),
+          (size_t)std::ceil( (double)n / nb ) );
+      }
+
+      assert( this->mb == mb );
+      assert( this->nb == nb );
+    };
+
+    size_t GetRowBlockSize()
+    {
+      if ( base == this ) return mb;
+      else                return base->GetRowBlockSize();
+    };
+
+    size_t GetColumnBlockSize()
+    {
+      if ( base == this ) return nb;
+      else                return base->GetColumnBlockSize();
+    };
+
+    bool HasLeafReadWriteBlocks()
+    {
+      if ( base == this ) return rwblocks.HasBeenSetup();
+      else                return base->HasLeafReadWriteBlocks();
+    };
+
+    /**
+     *  @brief  If leaf r/w blocks were created, then the r/w dependency
+     *          applies to all leaf r/w blocks covered by this view.
+     *          Otherwise, the r/w dependency only applies to this view.
+     */ 
+    void DependencyAnalysis( ReadWriteType type, hmlp::Task *task )
+    {
+      if ( HasLeafReadWriteBlocks() )
+      {
+        for ( size_t j = 0; j < n; j += GetColumnBlockSize() )
+          for ( size_t i = 0; i < m; i += GetRowBlockSize() )
+            DependencyAnalysis( offm + i, offn + j, type, task );
+      }
+      else
+      {
+        ReadWrite::DependencyAnalysis( type, task );
+      }
+    };
+
+    void DependencyAnalysis( size_t i, size_t j, ReadWriteType type, hmlp::Task *task )
+    {
+      if ( base == this )
+      {
+        rwblocks.DependencyAnalysis( i / mb, j / nb, type, task );
+      }
+      else
+      {
+        base->DependencyAnalysis( i, j, type, task );
+      }    
+    };
 
     /** return the row size of the current view */
     size_t row() { return m; };
@@ -278,6 +349,15 @@ class View : public ReadWrite
     hmlp::View<T> *base = NULL;
 
     hmlp::Data<T> *buff = NULL;
+
+    /** we can only have one kind of mb and nb */
+    size_t mb = 0;
+
+    size_t nb = 0;
+
+    bool has_uniform_block_size = true;
+
+    MatrixReadWrite rwblocks;
 
 }; /** end class View */
 
