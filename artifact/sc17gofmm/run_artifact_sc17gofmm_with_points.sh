@@ -1,17 +1,17 @@
 ## all SPD matrix files stored in dense column major format
 declare -a filearray=(
-"/workspace/biros/sc17/data_to_use_65K/K02N65536.bin"
+"datasets/K02N4096.bin"
 )
 
 
 ## data points stored in dense d-by-N format
-points="/workspace/biros/sc17/data_to_use_65K/X2DN65536.points.bin"
+points="datasets/X2DN4096.points.bin"
 ## data dimension
 d=2
 
 
 ## problem size
-n=65536
+n=4096
 ## maximum leaf node size
 m=512
 ## maximum off-diagonal ranks

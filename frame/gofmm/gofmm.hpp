@@ -1,5 +1,26 @@
-#ifndef SPDASKIT_HPP
-#define SPDASKIT_HPP
+/**
+ *  HMLP (High-Performance Machine Learning Primitives)
+ *  
+ *  Copyright (C) 2014-2017, The University of Texas at Austin
+ *  
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *  
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program. If not, see the LICENSE file.
+ *
+ **/  
+
+
+#ifndef GOFMM_HPP
+#define GOFMM_HPP
 
 /** stl and omp */
 #include <set>
@@ -4298,7 +4319,7 @@ float  ComputeError( sTree_t *tree, size_t gid, hmlp::Data<float>  *potentials )
 
 
 }; /** end namespace gofmm */
+
 }; /** end namespace hmlp */
 
-
-#endif // define SPDASKIT_HPP
+#endif /** define GOFMM_HPP */

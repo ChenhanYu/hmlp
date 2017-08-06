@@ -1,3 +1,28 @@
+/**
+ *  HMLP (High-Performance Machine Learning Primitives)
+ *  
+ *  Copyright (C) 2014-2017, The University of Texas at Austin
+ *  
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *  
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program. If not, see the LICENSE file.
+ *
+ **/  
+
+
+
+
+
+
 #ifndef HMLP_THREAD_HPP
 #define HMLP_THREAD_HPP
 
@@ -63,231 +88,16 @@ class thread_communicator
 	  volatile bool barrier_sense;
 
 	  int           barrier_threads_arrived;
-};
+
+}; /** end class thread_communicator */
+
+
 
 
 /**
- *  @brief This class describes devices or accelerators that require
- *         a master thread to control. A device can accept tasks from
- *         multiple workers. All received tasks are expected to be
- *         executed independently in a time-sharing fashion.
- *         Whether these tasks are executed in parallel, sequential
- *         or with some built-in context switching scheme does not
- *         matter.
  *
- */ 
-//class Device
-//{
-//  public:
-//
-//    Device();
-//
-//    virtual void prefetchd2h( void *ptr_h, void *ptr_d, size_t size, int stream_id );
-//
-//    virtual void prefetchh2d( void *ptr_d, void *ptr_h, size_t size, int stream_id );
-//
-//    virtual void wait( int stream_id );
-//
-//    virtual void *malloc( size_t size );
-//
-//    virtual void malloc( void *ptr_d, size_t size );
-//
-//    virtual size_t get_memory_left();
-//
-//    virtual void free( void *ptr_d, size_t size );
-//
-//    DeviceType devicetype;
-//
-//    std::string name;
-//
-//  private:
-//
-//    class Worker *workers;
-//};
-
-
-/**
- *  @brief 
  *
- */ 
-//template<class T>
-//class DeviceMemory
-//{
-//  /** allow other instance to access device_map */
-//  friend class DeviceMemory;
-//
-//  public:
-//
-//    DeviceMemory() 
-//    {
-//      host = &(hmlp_get_runtime_handle()->host);
-//      distribution.insert( host );
-//    };
-//
-//    void Cache( hmlp::Device *dev, size_t size )
-//    {
-//      if ( cache )
-//      {
-//        /** has been cached before, check availability */
-//        if ( cache->isCached( this ) ) return;
-//      }
-//      /** request a new cache location on the device */
-//       
-//    };
-//
-//    /** this will be the cache of target */
-//    void asCache( DeviceMemory *target )
-//    {
-//      cache = target;
-//    };
-//
-//    void AllocateD( hmlp::Device *dev, size_t size )
-//    {
-//      size *= sizeof(T);
-//      
-//      if ( !device_map.count( dev ) )
-//      {
-//        T *ptr_d = (T*)dev->malloc( size );
-//        if ( !ptr_d ) return;
-//        device_map[ dev ] = ptr_d; 
-//      }
-//    };
-//
-//    /** free device memory, remove from the map and the distribution */
-//    void FreeD( hmlp::Device *dev, size_t size )
-//    {
-//      if ( device_map.count( dev ) )
-//      {
-//        if ( !device_map[ dev ] )
-//        {
-//          printf( "NULL device ptr in device_map\n" ); fflush( stdout );
-//        }
-//        dev->free( device_map[ dev ], size );
-//        device_map.erase( dev );
-//        distribution.erase( dev );
-//      }
-//    };
-//
-//
-//    /** */
-//    void PrefetchH2D( hmlp::Device *dev, int stream_id, size_t size, T* ptr_h )
-//    {
-//      size *= sizeof(T);
-//
-//      if ( !distribution.count( dev ) )
-//      {
-//        //printf( "target device does not have the latest copy.\n" );
-//        if ( !device_map.count( dev ) )
-//        {
-//          //printf( "allocate %lu bytes on %s\n", size, dev->name.data() );
-//          T *ptr_d;
-//          //cudaMalloc( (void**)&ptr_d, size );
-//          //dev->malloc( ptr_d, size );
-//          ptr_d = (T*)dev->malloc( size );
-//          if ( !ptr_d ) return;
-//          device_map[ dev ] = ptr_d; 
-//        }
-//        //printf( "memcpy H2D\n" );
-//        dev->prefetchh2d( device_map[ dev ], ptr_h, size, stream_id );
-//        /** TODO: maybe update the distribution here? */
-//        //printf( "redistribute\n" );
-//        Redistribute<false>( dev );
-//      }
-//      else /** the device has the latest copy */
-//      {
-//        assert( device_map.find( dev ) != device_map.end() );
-//      }
-//    };
-//
-//    /** if host does not have the latest copy */
-//    void PrefetchD2H( hmlp::Device *dev, int stream_id, size_t size, T* ptr_h )
-//    {
-//      size *= sizeof(T);
-//
-//      if ( !distribution.count( host ) )
-//      {
-//        assert( device_map.count( dev ) );
-//        dev->prefetchd2h( ptr_h, device_map[ dev ], size, stream_id );
-//        Redistribute<false>( host );
-//      }
-//      else /** the host has the latest copy */
-//      {
-//        assert( device_map.count( host ) );
-//      }
-//    };
-//
-//
-//    /** */
-//    void Wait( hmlp::Device *dev, int stream_id )
-//    {
-//      dev->wait( stream_id );
-//    };
-//
-//    /** */
-//    template<bool OVERWRITE>
-//    void Redistribute( hmlp::Device *dev )
-//    {
-//      assert( dev );
-//      if ( OVERWRITE ) distribution.clear();
-//      distribution.insert( dev );
-//    };
-//
-//    bool is_up_to_date( hmlp::Device *dev )
-//    {
-//      return distribution.count( dev );
-//    };
-//
-//    T* device_data( hmlp::Device *dev )
-//    {
-//      if ( cache )
-//      {
-//        cache->device_map[ dev ];
-//      }
-//      else
-//      {
-//        auto it = device_map.find( dev );
-//        if ( it == device_map.end() )
-//        {
-//          printf( "no device pointer for the target device\n" );
-//          return NULL;
-//        }
-//      }
-//      return device_map[ dev ];
-//    };
-//
-//  private:
-//
-//    hmlp::Device *host = NULL;
-//
-//    /** map a device to its data pointer */
-//    std::map<hmlp::Device*, T*> device_map;
-//   
-//    /** distribution */
-//    std::set<hmlp::Device*> distribution;
-//
-//    DeviceMemory *cache = NULL;
-//
-//    bool isCached( DeviceMemory *target )
-//    {
-//      return ( cache == target );
-//    };
-//
-//}; // end class DeviceMemory
-//
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ **/ 
 class Worker 
 {
   public:
@@ -349,16 +159,9 @@ class Worker
     class Task *current_task;
 
     class Device *device;
-};
 
+}; /** end class Worker */
 
+}; /** end namespace hmlp */
 
-
-
-
-
-}; // end namespace hmlp
-
-
-
-#endif // end define HMLP_THREAD_HPP
+#endif /** end define HMLP_THREAD_HPP */

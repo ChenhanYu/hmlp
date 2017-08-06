@@ -1,4 +1,3 @@
-
 /** BLAS level-1 */
 double ddot_(
     int *n,

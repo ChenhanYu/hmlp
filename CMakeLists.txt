@@ -1,3 +1,9 @@
+
+
+
+
+
+
 # Check cmake version.
 # ---------------------------
 cmake_minimum_required (VERSION 2.8)
@@ -488,12 +494,13 @@ else ()
 endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
 
 
-# Also build 
+## Also build the target paper artifact
 set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
 if (ARTIFACT_PATH MATCHES "sc17gofmm")
   set(ARTIFACT_PATH "${CMAKE_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")
   file (GLOB ARTIFACT_CXX_SRC    ${ARTIFACT_PATH}/*.cpp)
   file (GLOB ARTIFACT_SCRIPTS    ${ARTIFACT_PATH}/*.sh)
+  file (GLOB ARTIFACT_DATASETS   ${ARTIFACT_PATH}/datasets/*.m)
   foreach( artifactsrc ${ARTIFACT_CXX_SRC} )
     string( REPLACE ".cpp" ".x" artifactexe ${artifactsrc} )
     get_filename_component( artifactexe ${artifactsrc} NAME_WE )
@@ -501,6 +508,7 @@ if (ARTIFACT_PATH MATCHES "sc17gofmm")
     target_link_libraries( "${artifactexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
   endforeach( artifactsrc ${ARTIFACT_CXX_SRC} )
   install (FILES ${ARTIFACT_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
+  install (FILES ${ARTIFACT_DATASETS} DESTINATION ${CMAKE_BINARY_DIR}/bin/datasets)
 endif()
 
 

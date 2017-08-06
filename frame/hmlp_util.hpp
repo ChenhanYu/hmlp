@@ -1,3 +1,24 @@
+/**
+ *  HMLP (High-Performance Machine Learning Primitives)
+ *  
+ *  Copyright (C) 2014-2017, The University of Texas at Austin
+ *  
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *  
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program. If not, see the LICENSE file.
+ *
+ **/  
+
+
 #ifndef HMLP_UTIL_HPP
 #define HMLP_UTIL_HPP
 
@@ -453,7 +474,7 @@ void HeapAdjust
     }
     else break;
   }
-};
+}; /** end HeapAdjust() */
 
 template<typename T>
 void HeapSelect
@@ -475,7 +496,7 @@ void HeapSelect
       HeapAdjust<T>( 0, k, NN );
     }
   }
-};
+}; /** end HeapSelect() */
 
 
 /**
@@ -502,8 +523,13 @@ void bubble_sort
       }
     }
   }
-};
+}; /** end bubble_sort() */
 
+
+/**
+ *
+ *
+ **/ 
 class Statistic
 {
   public:
@@ -540,10 +566,8 @@ class Statistic
       printf( "num %5lu min %.1E max %.1E avg %.1E\n", _num, _min, _max, _avg );
     };
   
-}; // end class Statistic
+}; /** end class Statistic */
 
+}; /** end namespace hmlp */
 
-
-}; // end namespace hmlp
-
-#endif // define HMLP_UTIL_HPP
+#endif /** define HMLP_UTIL_HPP */

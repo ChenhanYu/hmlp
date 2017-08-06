@@ -1,22 +1,21 @@
-//#include <tree.hpp>
-//
-//#define N_CHILDREN 2
-//
-//using namespace hmlp::tree;
-//
-//using T = double;
-//using DATA = hmlp::Data<T>;
-//using SPLITTER = centersplit<N_CHILDREN, T>;
-//using NODE = Node<SPLITTER, N_CHILDREN, DATA, T>;
-//
-////std::vector<Node<centersplit<2, double>, 2, double>*> TreePartition
-//std::vector<NODE*> TreePartition
-//(
-//  int d, int n, int m, int lmax,
-//  std::vector<T> &X,
-//  std::vector<long> &gids,
-//  std::vector<long> &lids
-//)
-//{
-//  return TreePartition( d, n, m, lmax, X, gids, lids );
-//}
+/**
+ *  HMLP (High-Performance Machine Learning Primitives)
+ *  
+ *  Copyright (C) 2014-2017, The University of Texas at Austin
+ *  
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *  
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program. If not, see the LICENSE file.
+ *
+ **/  
+
+

@@ -1,12 +1,6 @@
-HMLP (High Performance Machine Learning Primitives)
-License
----
-
-The HMLP library is licensed under the following license, typically
-known as the GPL-3.0 license.
+HMLP (High-Performance Machine Learning Primitives)
 
 Copyright (C) 2014-2017, The University of Texas at Austin
-
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,7 +13,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program. If not, see the following.
+along with this program. If not, see the LICENSE file.
 
 ---
 
