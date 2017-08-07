@@ -2,19 +2,20 @@
 
 ## TACC module
 ## ======================================
-
+taccmachine=$(dnsdomainname)
 
 module load TACC
 module load intel
 module load cmake
 module load python
 
-taccmachine=$(dnsdomainname)
 if [[ ${taccmachine} == *"maverick"* ]]; then
 	module load intel/15.0.3
   module load cxx11
 fi
-
+if [[ ${taccmachine} == *"stampede."* ]]; then
+  module load cxx11
+fi
 
 
 
@@ -50,6 +51,18 @@ export OPENBLASROOT=${OPENBLASROOT}
 ## Setup the maximum number of threads.
 export OMP_NUM_THREADS=10
 
+if [[ ${taccmachine} == *"ls5"* ]]; then
+  export OMP_NUM_THREADS=24
+fi
+if [[ ${taccmachine} == *"maverick"* ]]; then
+  export OMP_NUM_THREADS=20
+fi
+if [[ ${taccmachine} == *"stampede"* ]]; then
+  export OMP_NUM_THREADS=20
+fi
+if [[ ${taccmachine} == *"stampede2"* ]]; then
+  export OMP_NUM_THREADS=68
+fi
 
 
 ## ARTIFACT FOR REPRODUCIABILITY
@@ -73,8 +86,15 @@ export HMLP_GPU_ARCH_MINOR=kepler
 ## (4) mic/knl
 export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=sandybridge
-#export HMLP_ARCH_MAJOR=mic
-#export HMLP_ARCH_MINOR=knl
+
+if [[ ${taccmachine} == *"ls5"* ]]; then
+  export HMLP_ARCH_MAJOR=x86_64
+  export HMLP_ARCH_MINOR=haswell
+fi
+if [[ ${taccmachine} == *"stampede2"* ]]; then
+  export HMLP_ARCH_MAJOR=mic
+  export HMLP_ARCH_MINOR=knl
+fi
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
