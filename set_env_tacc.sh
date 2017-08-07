@@ -2,10 +2,19 @@
 
 ## TACC module
 ## ======================================
+
+
 module load TACC
 module load intel
 module load cmake
 module load python
+
+taccmachine=$(dnsdomainname)
+if [[ ${taccmachine} == *"maverick"* ]]; then
+	module load intel/15.0.3
+  module load cxx11
+fi
+
 
 
 
