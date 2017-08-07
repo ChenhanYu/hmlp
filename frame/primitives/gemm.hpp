@@ -390,12 +390,15 @@ void xgemm(
              hmlp::Data<T> &B, 
     T beta,  hmlp::Data<T> &C )
 {
+  const bool TRANS = true;
+  const bool NOTRANS = true;
+
   hmlp::View<T> Aview, Bview, Cview;
 
-  if ( transA == HMLP_OP_T ) Aview.Set<true >( A );
-  else                       Aview.Set<false>( A );
-  if ( transB == HMLP_OP_T ) Bview.Set<true >( B );
-  else                       Bview.Set<false>( B );
+  if ( transA == HMLP_OP_T ) Aview.Set( true, A );
+  else                       Aview.Set( false, A );
+  if ( transB == HMLP_OP_T ) Bview.Set( true, B );
+  else                       Bview.Set( false, B );
 
   /** C is always not transpose */
   Cview.Set( C );

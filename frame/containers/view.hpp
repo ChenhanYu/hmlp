@@ -50,8 +50,7 @@ class View : public ReadWrite
     //~View() { printf( "~View()\n" ); fflush( stdout ); };
 
     /** base case setup */
-    template<bool TRANS = false>
-    void Set( hmlp::Data<T> &buff )
+    void Set( bool TRANS, hmlp::Data<T> &buff )
     {
       this->trans = TRANS;
       if ( trans )
@@ -69,6 +68,12 @@ class View : public ReadWrite
       this->offn  = 0;
       this->base  = this;
       this->buff  = &buff;
+    };
+
+    void Set( hmlp::Data<T> &buff )
+    {
+      /** default is none transpose  */
+      Set( false, buff );
     };
 
     /** non-base case setup */

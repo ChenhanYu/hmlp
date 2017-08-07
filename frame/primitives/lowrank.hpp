@@ -216,7 +216,8 @@ void id
     work.data(), lwork
   );
 #else
-  hmlp::xgeqp4
+  //hmlp::xgeqp4
+  hmlp::xgeqp3
   (
     m, n, 
     A_tmp.data(), m,

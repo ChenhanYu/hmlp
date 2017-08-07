@@ -246,6 +246,7 @@ void xtrsm
   );
 #else
   printf( "xtrsm must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
   
   xtrsm_time = omp_get_wtime() - beg;
@@ -281,6 +282,7 @@ void xtrsm
   );
 #else
   printf( "xtrsm must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xtrsm() */
 
@@ -310,6 +312,7 @@ void xtrmm
   );
 #else
   printf( "xtrmm must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xtrmm() */
 
@@ -339,6 +342,7 @@ void xtrmm
   );
 #else
   printf( "xtrmm must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xtrmm() */
 
@@ -359,6 +363,7 @@ void xpotrf( const char *uplo, int n, double *A, int lda )
   dpotrf_( uplo, &n, A, &lda, &info );
 #else
   printf( "xpotrf must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xpotrf() */
 
@@ -373,6 +378,7 @@ void xpotrf( const char *uplo, int n, float *A, int lda )
   spotrf_( uplo, &n, A, &lda, &info );
 #else
   printf( "xpotrf must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xpotrf() */
 
@@ -388,6 +394,7 @@ void xgetrf( int m, int n, double *A, int lda, int *ipiv )
   dgetrf_( &m, &n, A, &lda, ipiv, &info );
 #else
   printf( "xgetrf must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgetrf() */
 
@@ -402,6 +409,7 @@ void xgetrf( int m, int n, float *A, int lda, int *ipiv )
   sgetrf_( &m, &n, A, &lda, ipiv, &info );
 #else
   printf( "xgetrf must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgetrf() */
 
@@ -428,6 +436,7 @@ void xgetrs
   );
 #else
   printf( "xgetrs must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgetrs() */
 
@@ -454,6 +463,7 @@ void xgetrs
   );
 #else
   printf( "xgetrs must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgetrs() */
 
@@ -484,6 +494,7 @@ void xgecon
   );
 #else
   printf( "xgecon must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgecon() */
 
@@ -515,6 +526,7 @@ void xgecon
   );
 #else
   printf( "xgecon must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgecon() */
 
@@ -545,6 +557,7 @@ void xgeqrf
   }
 #else
   printf( "xgeqrf must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgeqrf() */
 
@@ -576,6 +589,7 @@ void xgeqrf
   }
 #else
   printf( "xgeqrf must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgeqrf() */
 
@@ -602,6 +616,7 @@ void xorgqr
   );
 #else
   printf( "xorgqr must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xorgqr() */
 
@@ -628,6 +643,7 @@ void xorgqr
   );
 #else
   printf( "xorgqr must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xorgqr() */
 
@@ -658,6 +674,7 @@ void xormqr
   );
 #else
   printf( "xormqr must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xormqr() */
 
@@ -688,6 +705,7 @@ void xormqr
   );
 #else
   printf( "xormqr must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xormqr() */
 
@@ -718,6 +736,7 @@ void xgeqp3
   }
 #else
   printf( "xgeqp3 must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end geqp3() */
 
@@ -748,6 +767,7 @@ void xgeqp3
   }
 #else
   printf( "xgeqp3 must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end geqp3() */
 
@@ -778,6 +798,7 @@ void xgeqp4
   }
 #else
   printf( "xgeqp4 must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end geqp4() */
 
@@ -808,6 +829,7 @@ void xgeqp4
   }
 #else
   printf( "xgeqp4 must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end geqp4() */
 
@@ -840,6 +862,7 @@ void xgels
   }
 #else
   printf( "xgels must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end gels() */
 
@@ -872,6 +895,7 @@ void xgels
   }
 #else
   printf( "xgels must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end gels() */
 
@@ -905,6 +929,7 @@ void xgesdd
   );
 #else
   printf( "xgesdd must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgesdd() */
 
@@ -936,6 +961,7 @@ void xgesdd
   );
 #else
   printf( "xgesdd must enables USE_BLAS.\n" );
+  exit( 1 );
 #endif
 }; /** end xgesdd() */
 

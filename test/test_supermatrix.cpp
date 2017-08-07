@@ -113,9 +113,9 @@ void test_nested_gemm_view( size_t m, size_t n, size_t k )
   B.resize( k, n );
   B.rand();
 
-  auto *nestedtask = new NestedTask();
+  //auto *nestedtask = new NestedTask();
 
-  nestedtask->Set( alpha, A, B, beta, C );
+  //nestedtask->Set( alpha, A, B, beta, C );
 
 
 

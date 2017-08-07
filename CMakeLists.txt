@@ -116,7 +116,8 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   # using Intel C++
   message( STATUS "Intel compiler." )
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -qopenmp")
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Werror -Wall -pedantic -fPIC")
+  #set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Werror -Wall -pedantic -fPIC")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Wall -pedantic -fPIC")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_INTEL")
   set (HMLP_PYTHON_CFLAGS     "-g -std=c++11 -O3 -qopenmp")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp")
@@ -322,7 +323,9 @@ install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 
 # Library dependencies
 # ---------------------------
-file (GLOB FRAME_CC_SRC    ${CMAKE_SOURCE_DIR}/frame/*.c ${CMAKE_SOURCE_DIR}/frame/external/*.c)
+if ($ENV{HMLP_USE_BLAS} MATCHES "true")
+  file (GLOB FRAME_CC_SRC    ${CMAKE_SOURCE_DIR}/frame/*.c ${CMAKE_SOURCE_DIR}/frame/external/*.c)
+endif ()
 file (GLOB FRAME_CXX_SRC   ${CMAKE_SOURCE_DIR}/frame/*.cpp)
 file (GLOB FRAME_CU_SRC    ${CMAKE_SOURCE_DIR}/frame/*.cu)
 file (GLOB KERNEL_SRC      ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.cpp)

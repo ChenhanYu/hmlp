@@ -4,10 +4,8 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=icc
-export CXX=icpc
-#export CC=${CC}
-#export CXX=${CXX}
+export CC=${CC}
+export CXX=${CXX}
 
 ##
 ## Ingore this flag if you are "not using" MacOS.
@@ -26,15 +24,13 @@ export HMLP_USE_INTEL=true
 export HMLP_USE_BLAS=true
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
-export MKLROOT=/opt/intel/mkl
-#export MKLROOT=${MKLROOT}
+export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
-#export OPENBLASROOT=${OPENBLASROOT}
-export OPENBLASROOT=/h1/chenhan/Projects/OpenBLAS-0.2.19
+export OPENBLASROOT=${OPENBLASROOT}
 
 ## Setup the maximum number of threads.
-export OMP_NUM_THREADS=68
+export OMP_NUM_THREADS=10
 
 
 
@@ -42,7 +38,6 @@ export OMP_NUM_THREADS=68
 ## ======================================
 
 ## If you also want to compile those artifact files, then specify the path.
-#export HMLP_ARTIFACT_PATH=
 export HMLP_ARTIFACT_PATH=sc17gofmm
 
 
