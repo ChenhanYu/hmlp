@@ -2787,7 +2787,7 @@ void FindNearNodes( TREE &tree, double budget )
         size_t neighbor_gid = NN( i, lid ).second;
 
         /** if this gid is valid, then compute its morton */
-        if ( neighbor_gid > 0 && neighbor_gid < NN.col() )
+        if ( neighbor_gid >= 0 && neighbor_gid < NN.col() )
         {
           //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
           size_t neighbor_lid = tree.Getlid( neighbor_gid );
