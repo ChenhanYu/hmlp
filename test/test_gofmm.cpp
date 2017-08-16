@@ -216,15 +216,15 @@ void test_gofmm
 
 
   /** Factorization */
-  const bool LU = true;
+  const bool do_ulv_factorization = true;
   T lambda = 10.0;
   if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
     printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
         lambda, fmmerr_avg / ntest );
-  hmlp::hfamily::Factorize<LU, NODE, T>( tree, lambda ); 
+  hmlp::hfamily::Factorize<NODE, T>( do_ulv_factorization, tree, lambda ); 
 
   /** compute error */
-  hmlp::hfamily::ComputeError<LU, NODE>( tree, lambda, w, u );
+  hmlp::hfamily::ComputeError<NODE>( tree, lambda, w, u );
 
   //#ifdef DUMP_ANALYSIS_DATA
   hmlp::gofmm::Summary<NODE> summary;
@@ -530,7 +530,7 @@ int main( int argc, char *argv[] )
   /** create a random spd matrix, which is diagonal-dominant */
 	if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
   {
-		using T = float;
+		using T = double;
 		{
 			/** no geometric coordinates provided */
 			hmlp::Data<T> *X = NULL;

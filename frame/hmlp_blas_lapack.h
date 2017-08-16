@@ -85,6 +85,18 @@ void xtrmm
                 double *B, int ldb 
 );
 
+void xlaswp
+( 
+  int n, double *A, int lda, 
+  int k1, int k2, int *ipiv, int incx 
+);
+
+void xlaswp
+( 
+  int n, float *A, int lda, 
+  int k1, int k2, int *ipiv, int incx 
+);
+
 void xpotrf
 (
   const char *uplo, 

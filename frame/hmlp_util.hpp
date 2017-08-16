@@ -348,12 +348,12 @@ void hmlp_printmatrix
         }
         else
         {
-          printf( "% .2E ", (double) A[ j * lda + i ] );
+          printf( "% .4E ", (double) A[ j * lda + i ] );
         }
       }
       else
       {
-        printf( "% .2E ", (double) A[ j * lda + i ] );
+        printf( "% .4E ", (double) A[ j * lda + i ] );
       }
     }
     printf(";\n");

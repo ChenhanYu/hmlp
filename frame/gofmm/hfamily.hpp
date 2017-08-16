@@ -48,6 +48,36 @@ namespace hfamily
 {
 
 
+
+/**
+ *
+ * for each level 
+ *   for each alpha
+ *     
+ *     if ( leaf ) 
+ *       
+ *       LL' = Chol( Kaa )
+ *       U   = inv( L ) * proj' or
+ *       U'  = proj * inv( L' )
+ *       QR  = qr( U ) or 
+ *       LQ' = lq( U' )
+ *
+ *     else
+ *       
+ *       LL' = Chol( I + k.R * C * k.R' )
+ *
+ *       if ( not root )
+ *
+ *         U   = inv( L ) * [ l.R        * proj' or
+ *                               r.R ]
+ *         U'  = proj' *  [ l.R        * inv( L' )
+ *                             r.R ]
+ *         QR  = qr( U ) or
+ *         LQ' = lq( U' )
+ *
+ **/ 
+
+
 typedef enum 
 {
   HODLR,
@@ -74,14 +104,18 @@ class Factor
     Factor() {};
     
     void SetupFactor
-    ( 
-      bool isleaf, bool isroot,
+    (
+      bool issymmetric, bool do_ulv_factorization,
+      bool isleft, bool isleaf, bool isroot,
       /** n == nl + nr (left + right) */
       std::size_t n, std::size_t nl, std::size_t nr,
       /** s <= sl + sr */
       std::size_t s, std::size_t sl, std::size_t sr
     )
     {
+      this->issymmetric = issymmetric;
+      this->do_ulv_factorization = do_ulv_factorization;
+      this->isleft = isleft;
       this->isleaf = isleaf;
       this->isroot = isroot;
       this->n = n; this->nl = nl; this->nr = nr;
@@ -90,7 +124,8 @@ class Factor
 
     void SetupFactor
     (
-      bool isleaf, bool isroot,
+      bool issymmetric, bool do_ulv_factorization,
+      bool isleft, bool isleaf, bool isroot,
       std::size_t n, std::size_t nl, std::size_t nr,
       std::size_t s, std::size_t sl, std::size_t sr,
       /** n-by-?; its rank depends on mu sibling */
@@ -99,11 +134,41 @@ class Factor
       hmlp::Data<T> &V
     )
     {
-      SetupFactor( isleaf, isroot, n, nl, nr, s, sl, sr );
+      SetupFactor( issymmetric, do_ulv_factorization, 
+          isleft, isleaf, isroot, n, nl, nr, s, sl, sr );
     };
 
 
-    template<bool LU>
+    void CheckCondition()
+    {
+      assert( do_ulv_factorization && issymmetric );
+      T max_diag = 0.0;
+      T min_diag = 0.0;
+
+      for ( size_t i = 0; i < Z.row(); i ++ )
+      {
+        T abs_diag =  std::abs( Z( i, i ) );
+
+        if ( !i )
+        {
+          max_diag = abs_diag;
+          min_diag = abs_diag;
+        }
+
+        if ( abs_diag > max_diag ) max_diag = abs_diag;
+        if ( abs_diag < min_diag ) min_diag = abs_diag;
+      }
+
+      printf( "condiditon( Z ): min_diag %3.1E max_diag %3.1E ratio %3.1E\n",
+          min_diag, max_diag, min_diag / max_diag );
+    };
+
+
+
+    /**
+     *
+     *
+     **/ 
     void Factorize( hmlp::Data<T> &Kaa ) 
     {
       assert( isleaf );
@@ -113,7 +178,21 @@ class Factor
       Z = Kaa;
 
       /** LU or Cholesky factorization */
-      if ( LU ) 
+      if ( do_ulv_factorization && issymmetric ) 
+      {
+        /** Cholesky factorization */
+        if ( 1 )
+        {
+          xpotrf( "Lower", n, Z.data(), n );
+          CheckCondition();
+        }
+        else
+        {
+          ipiv.resize( n, 0 );
+          xgetrf( n, n, Z.data(), n, ipiv.data() );
+        }
+      }
+      else
       {
         ipiv.resize( n, 0 );
 
@@ -137,126 +216,6 @@ class Factor
           printf( "Warning! large 1-norm condition number %3.1E, nrm1( Z ) %3.1E\n", 
               1.0 / rcond1, nrm1 );
       }
-      else /** Cholesky factorization */ 
-      {
-        xpotrf( "L", n, Z.data(), n );
-      }
-    }; /** end Factorize() */
-
-
-    /** generate symmetric factorization I + UCU' = ( I + UXU' )( I + UXU' )' */
-    void Factorize
-    (
-      /** Ul,  nl-by-sl */
-      hmlp::Data<T> &Ul, 
-      /** Ur,  nr-by-sr */
-      hmlp::Data<T> &Ur
-    )
-    {
-      assert( !isleaf );
-      assert( Ul.row() == nl ); assert( Ul.col() == sl );
-      assert( Ur.row() == nr ); assert( Ur.col() == sr );
-
-      /** skeleton rows and columns of lower triangular  */
-      assert( Crl.row() == sr ); assert( Crl.col() == sl );
-
-      /**  inv( L' ) * ( M - I ) * inv( L ) */
-      Z.resize( sl + sr, sl + sr, 0.0 );
-
-      /** pivoting row indices */
-      ipiv.resize( Z.row(), 0 );
-
-      for ( size_t j = 0; j < sl + sr; j ++ )
-      {
-        for ( size_t i = 0; i < sl + sr; i ++ ) 
-        {
-          if ( i == j ) Z[ j * Z.row() + i ] = 1.0;
-        }
-      }
-
-      /** U'U */
-      std::vector<T> UltUl( sl * sl, 0.0 );
-      std::vector<T> UrtUr( sr * sr, 0.0 );
-
-      /** Lr * Crl * Ll' */
-      auto LrCrlLlt = Crl;
-
-      /** UltUl, TODO: syrk */
-      xgemm( "T", "N", sl, sl, nl, 
-          1.0, Ul.data(), nl, Ul.data(), nl, 
-          0.0, UltUl.data(), sl );
-      /** UrtUr, TODO: syrk */
-      xgemm( "T", "N", sr, sr, nr, 
-          1.0, Ur.data(), nr, Ur.data(), nr, 
-          0.0, UrtUr.data(), sr );
-      /** Ll = POTRF( UltUl ) */
-      xpotrf( "L", sl, UltUl.data(), sl );
-      /** Lr = POTRF( UrtUr ) */
-      xpotrf( "L", sr, UrtUr.data(), sr );
-      /** Lr * Crl */
-      xtrmm( "L", "L", "N", "N", sr, sl, 
-          1.0, UrtUr.data(), sr, LrCrlLlt.data(), sr );
-      /** Crl * Ll' */
-      xtrmm( "R", "L", "T", "N", sr, sl, 
-          1.0, UltUl.data(), sl, LrCrlLlt.data(), sr );
-      /** Z = I */
-      for ( size_t i = 0; i < sl + sr; i ++ ) 
-            Z[ i * Z.row() + i ] = 1.0;
-      /** Zrl = LrCrlLlt */
-      for ( size_t j = 0; j < sl; j ++ )
-        for ( size_t i = sl; i < sl + sr; i ++ ) 
-          Z[ j * Z.row() + i ] = LrCrlLlt( i - sl, j );
-
-      /** 
-       *  X = L^{-T}( M - I )L^{1}, to solve ( I + UXU')^{-1},
-       *  Z = X^{-1} + U'U = L( M - I )^{-1}L' + LL'
-       *  Z = L( ( M - I )^{-1} + I )L'
-       */
-
-
-      /** M = POTRF( Z ) */
-      xpotrf( "L", sl + sr, Z.data(), sl + sr );
-      printf( "potrf\n" ); fflush( stdout );
-
-      /** Z = ( M - I ), lower triangular */
-      for ( size_t j = 0; j < Z.col(); j ++ )
-        for ( size_t i = 0; i < Z.row(); i ++ )
-          Z( i, j ) -= 1.0;
-
-      /** M = Z, Z = identity  */
-      hmlp::Data<T> M = Z;
-      for ( size_t j = 0; j < Z.col(); j ++ )
-      {
-        for ( size_t i = 0; i < Z.row(); i ++ )
-        {
-          if ( i == j ) Z( i, j ) = 1.0;
-          else          Z( i, j ) = 0.0;
-        }
-      }
-
-      /** Z = inv( M - I ), lower trianular */
-      xtrsm( "L", "L", "N", "N", sl + sr, sl + sr, 
-          1.0, M.data(), sl + sr, Z.data(),                   sl + sr );
-
-      /** ( M - I )^{-1} + I */
-      for ( size_t j = 0; j < Z.col(); j ++ )
-        for ( size_t i = 0; i < Z.row(); i ++ )
-          Z( i, j ) += 1.0;
-
-      /** L * Z */
-      xtrmm( "L", "L", "N", "N", sl, sl + sr, 
-          1.0, UltUl.data(), sl, Z.data(),                    sl + sr );
-      xtrmm( "L", "L", "N", "N", sr, sl + sr, 
-          1.0, UrtUr.data(), sr, Z.data() + sl,               sl + sr );
-      /** Z * L' */
-      xtrmm( "R", "L", "T", "N", sl + sr, sl, 
-          1.0, UltUl.data(), sl, Z.data(),                    sl + sr );
-      xtrmm( "R", "L", "T", "N", sl + sr, sr, 
-          1.0, UrtUr.data(), sr, Z.data() + ( sl + sr ) * sl, sl + sr );
-
-      /** LU( Z ) */
-      ipiv.resize( Z.row(), 0 );
-      xgetrf( sl + sr, sl + sr, Z.data(), sl + sr, ipiv.data() );
 
     }; /** end Factorize() */
 
@@ -295,10 +254,10 @@ class Factor
     )
     {
       assert( !isleaf );
-      assert( Ul.row() == nl ); assert( Ul.col() == sl );
-      assert( Ur.row() == nr ); assert( Ur.col() == sr );
-      assert( Vl.row() == nl ); assert( Vl.col() == sl );
-      assert( Vr.row() == nr ); assert( Vr.col() == sr );
+      //assert( Ul.row() == nl ); assert( Ul.col() == sl );
+      //assert( Ur.row() == nr ); assert( Ur.col() == sr );
+      //assert( Vl.row() == nl ); assert( Vl.col() == sl );
+      //assert( Vr.row() == nr ); assert( Vr.col() == sr );
 
       /** even SYMMETRIC this routine uses LU factorization */
       if ( SYMMETRIC )
@@ -311,96 +270,155 @@ class Factor
         assert( Crl.row() == sr ); assert( Crl.col() == sl );
       }
      
-      /**  I + CVtU =  [        I  ClrVrtUr
-        *                CrlVltUl         I ] 
-        *  I +  BtU =  [        I     BrtUr
-        *                   BltUl         I ] */
+      /** 
+       *  clean up and begin with Z = eye( sl + sr ) =     | sl  sr
+       *                                                ------------
+       *                                                sl | Zrl Ztr
+       *                                                sr | Zbl Zbr 
+       **/
       Z.resize( 0, 0 );
       Z.resize( sl + sr, sl + sr, 0.0 );
+      for ( size_t i = 0; i < sl + sr; i ++ ) Z[ i * Z.row() + i ] = 1.0;
 
-      /** pivoting row indices */
-      ipiv.resize( Z.row(), 0 );
-      
-      /**     | sl  sr
-       *   -----------
-       *   sl | Zrl Ztr
-       *   sr | Zbl Zbr   
-       *
-       *   I + CVtU =  [        I  ClrVrtUr
-       *                 CrlVltUl         I ] 
-       *   I +  BtU =  [        I     BrtUr
-       *                    BltUl         I ] */
-      for ( size_t j = 0; j < sl + sr; j ++ )
+
+
+      if ( do_ulv_factorization )
       {
-        for ( size_t i = 0; i < sl + sr; i ++ ) 
+        /**
+         *  Z = I + UR * C * VR' = [                 I  URl * Clr * VRr'
+         *                            URr * Crl * VRl'                 I ]
+         **/
+        if ( SYMMETRIC ) /** Cholesky */
         {
-          if ( i == j ) Z[ j * Z.row() + i ] = 1.0;
+          /** Zbl = URr * Crl * VRl' */
+          hmlp::Data<T> Zbl = Crl;
+
+          //printf( "Crl\n" );
+          //Crl.Print();
+
+
+          /** trmm */
+          xtrmm
+          ( 
+            "Right", "Upper", "Transpose", "Non-unit",
+            Zbl.row(), Zbl.col(),
+            1.0,  Ul.data(),  Ul.row(),
+                 Zbl.data(), Zbl.row()
+          );
+          //printf( "Ul.row() %lu Zbl.row() %lu Zbl.col() %lu\n",
+          //    Ul.row(), Zbl.row(), Zbl.col() );
+
+          /** trmm */
+          xtrmm
+          ( 
+            "Left", "Upper", "Non-transpose", "Non-unit",
+            Zbl.row(), Zbl.col(),
+            1.0,  Ur.data(),  Ur.row(),
+                 Zbl.data(), Zbl.row()
+          );
+          //printf( "Ur.row() %lu Zbl.row() %lu Zbl.col() %lu\n",
+          //    Ur.row(), Zbl.row(), Zbl.col() );
+
+          /** Zbl */
+          for ( size_t j = 0; j < sl; j ++ )
+            for ( size_t i = 0; i < sr; i ++ )
+            {
+              Z( sl + i, j ) = Zbl( i, j );
+              Z( j, sl + i ) = Zbl( i, j );
+            }
+
+          /** LL' = potrf( Z ) */
+          if ( 1 )
+          {
+            xpotrf( "Lower", Z.row(), Z.data(), Z.row() );
+            CheckCondition();
+          }
+          else
+          {
+            /** pivoting row indices */
+            ipiv.resize( Z.row(), 0 );
+            xgetrf( Z.row(), Z.col(), Z.data(), Z.row(), ipiv.data() );
+          }
+        }
+        else /** LU */
+        {
+          /** pivoting row indices */
+          ipiv.resize( Z.row(), 0 );
         }
       }
-
-      std::vector<T> VltUl( sl * sl, 0.0 );
-      std::vector<T> VrtUr( sr * sr, 0.0 );
-
-      /** VltUl */
-      xgemm( "T", "N", sl, sl, nl, 
-          1.0,    Vl.data(), nl, 
-                  Ul.data(), nl, 
-          0.0, VltUl.data(), sl );
-
-      /** VrtUr */
-      xgemm( "T", "N", sr, sr, nr, 
-          1.0,    Vr.data(), nr, 
-                  Ur.data(), nr, 
-          0.0, VrtUr.data(), sr );
-
-      /** CrlVltUl */
-      xgemm( "N", "N", sr, sl, sl,
-          1.0,   Crl.data(), sr, 
-               VltUl.data(), sl, 
-          0.0,     Z.data() + sl, sl + sr );
-
-
-      if ( SYMMETRIC )
+      else /** Sherman-Morrison-Woodbury */
       {
-        /** Crl'VrtUr */
-        xgemm( "T", "N", sl, sr, sr,
+        /** pivoting row indices */
+        ipiv.resize( Z.row(), 0 );
+
+        /**    
+         *  Z = I + CVtU =  [        I  ClrVrtUr
+         *                    CrlVltUl         I ] 
+         **/  
+        std::vector<T> VltUl( sl * sl, 0.0 );
+        std::vector<T> VrtUr( sr * sr, 0.0 );
+
+        /** VltUl */
+        xgemm( "T", "N", sl, sl, nl, 
+            1.0,    Vl.data(), nl, 
+            Ul.data(), nl, 
+            0.0, VltUl.data(), sl );
+
+        /** VrtUr */
+        xgemm( "T", "N", sr, sr, nr, 
+            1.0,    Vr.data(), nr, 
+            Ur.data(), nr, 
+            0.0, VrtUr.data(), sr );
+
+        /** CrlVltUl */
+        xgemm( "N", "N", sr, sl, sl,
             1.0,   Crl.data(), sr, 
-                 VrtUr.data(), sr, 
-            0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
+            VltUl.data(), sl, 
+            0.0,     Z.data() + sl, sl + sr );
+
+
+        if ( SYMMETRIC )
+        {
+          /** Crl'VrtUr */
+          xgemm( "T", "N", sl, sr, sr,
+              1.0,   Crl.data(), sr, 
+              VrtUr.data(), sr, 
+              0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
+        }
+        else
+        {
+          printf( "bug\n" ); exit( 1 );
+          /** ClrVrtUr */
+          xgemm( "N", "N", sl, sr, sr,
+              1.0,   Clr.data(), sl, 
+              VrtUr.data(), sr, 
+              0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
+        }
+
+        /** compute 1-norm of Z */
+        T nrm1 = 0.0;
+        for ( size_t i = 0; i < Z.size(); i ++ ) 
+          nrm1 += std::abs( Z[ i ] );
+
+        /** LU factorization */
+        xgetrf( Z.row(), Z.col(), Z.data(), Z.row(), ipiv.data() );
+
+        /** record points of children factors */
+        this->Ul = &Ul;
+        this->Ur = &Ur;
+        this->Vl = &Vl;
+        this->Vr = &Vr;
+
+        /** compute 1-norm condition number */
+        T rcond1 = 0.0;
+        hmlp::Data<T> work( Z.row(), 4 );
+        std::vector<int> iwork( Z.row() );
+        xgecon( "1", Z.row(), Z.data(), Z.row(), nrm1, 
+            &rcond1, work.data(), iwork.data() );
+        if ( 1.0 / rcond1 > 1E+6 )
+          printf( "Warning! large 1-norm condition number %3.1E\n", 
+              1.0 / rcond1 ); fflush( stdout );
       }
-      else
-      {
-        printf( "bug\n" ); exit( 1 );
-        /** ClrVrtUr */
-        xgemm( "N", "N", sl, sr, sr,
-            1.0,   Clr.data(), sl, 
-                 VrtUr.data(), sr, 
-            0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
-      }
-
-      /** compute 1-norm of Z */
-      T nrm1 = 0.0;
-      for ( size_t i = 0; i < Z.size(); i ++ ) 
-        nrm1 += std::abs( Z[ i ] );
-
-      /** LU factorization */
-      xgetrf( Z.row(), Z.col(), Z.data(), Z.row(), ipiv.data() );
-
-      /** record points of children factors */
-      this->Ul = &Ul;
-      this->Ur = &Ur;
-      this->Vl = &Vl;
-      this->Vr = &Vr;
-
-      /** compute 1-norm condition number */
-      T rcond1 = 0.0;
-      hmlp::Data<T> work( Z.row(), 4 );
-      std::vector<int> iwork( Z.row() );
-      xgecon( "1", Z.row(), Z.data(), Z.row(), nrm1, 
-          &rcond1, work.data(), iwork.data() );
-      if ( 1.0 / rcond1 > 1E+6 )
-        printf( "Warning! large 1-norm condition number %3.1E\n", 
-            1.0 / rcond1 ); fflush( stdout );
 
     }; /** end Factorize() */
 
@@ -470,35 +488,24 @@ class Factor
     /**
      *  @brief Solver for leaf nodes
      */
-    template<bool LU, bool TRANS>
+    template<bool TRANS>
     void Solve( hmlp::View<T> &rhs ) 
     {
       /** assure this is a leaf node */
       assert( isleaf );
+      assert( !do_ulv_factorization );
       assert( rhs.data() && Z.data() );
+      assert( ipiv.data() );
 
       //rhs.Print();
 
       size_t nrhs = rhs.col();
 
-      if ( LU )
-      {
-        assert( ipiv.data() );
-        /** LU solver */
-        xgetrs( "N", rhs.row(), nrhs, 
-            Z.data(), Z.row(), ipiv.data(), 
-            rhs.data(), rhs.ld() );
-      }
-      else
-      {
-        /** triangular solver */
-        if ( TRANS ) 
-          xtrsm( "L", "L", "T", "N", rhs.row(), nrhs, 
-              1.0, Z.data(), Z.row(), rhs.data(), rhs.ld() );
-        else
-          xtrsm( "L", "L", "N", "N", rhs.row(), nrhs, 
-              1.0, Z.data(), Z.row(), rhs.data(), rhs.ld() );
-      }
+      /** LU solver */
+      xgetrs( "Non-transpose", rhs.row(), nrhs, 
+          Z.data(), Z.row(), ipiv.data(), 
+          rhs.data(), rhs.ld() );
+
     }; /** end Solve() */
 
 
@@ -506,7 +513,7 @@ class Factor
     /**
      *  @brief b - U * inv( Z ) * C * V' * b 
      */
-    template<bool LU, bool TRANS, bool SYMMETRIC = true>
+    template<bool TRANS, bool SYMMETRIC = true>
     void Solve( hmlp::View<T> &bl, hmlp::View<T> &br ) 
     {
       size_t nrhs = bl.col();
@@ -515,6 +522,7 @@ class Factor
       //br.Print();
 
       /** assertion */
+      assert( !do_ulv_factorization );
       assert( bl.col() == br.col() );
       assert( bl.row() == nl );
       assert( br.row() == nr );
@@ -540,8 +548,7 @@ class Factor
       //  xr, sl
       //);
 
-      if ( LU )
-      {
+
         /** Vl' * bl */
         xgemm( "T", "N", sl, nrhs, nl,
             1.0, Vl->data(), nl, 
@@ -582,25 +589,6 @@ class Factor
         xgetrs( "N", sl + sr, nrhs, 
             Z.data(), Z.row(), ipiv.data(), 
             ta.data(), sl + sr );
-      }
-      else
-      {
-        /** Ul' * bl */
-        xgemm( "T", "N", sl, nrhs, nl,
-            1.0, Ul->data(), nl, 
-            bl.data(), bl.ld(), 
-            0.0,  ta.data(), sl + sr );
-        /** Ur' * br */
-        xgemm( "T", "N", sr, nrhs, nr,
-            1.0, Ur->data(), nr, 
-            br.data(), br.ld(), 
-            0.0,  tr.data() + sl, sl + sr );
-
-        /** inv( Z ) * x */
-        xgetrs( "N", sl + sr, nrhs, 
-            Z.data(), Z.row(), ipiv.data(), 
-            ta.data(), sl + sr );
-      }
 
       /** bl -= Ul * xl */
       xgemm( "N", "N", nl, nrhs, sl,
@@ -617,9 +605,10 @@ class Factor
     }; /** end Solve() */
 
 
+
+
     void Telescope
     (
-      bool LU, 
       bool DO_INVERSE,
       /** n-by-s */
       hmlp::Data<T> &Pa,
@@ -632,28 +621,41 @@ class Factor
       Pa.resize( n, s, 0.0 );
 
       /** create view and subviews for Pa */
-      hmlp::View<T> Xa;
+      //hmlp::View<T> Xa;
 
-      Xa.Set( Pa ); 
+      //Xa.Set( Pa ); 
 
       assert( Palr.row() == s ); assert( Palr.col() == n );
+
       /** Pa = Palr' */
-      for ( size_t j = 0; j < s; j ++ )
-        for ( size_t i = 0; i < n; i ++ )
-          Pa[ j * n + i ] = Palr( j, i );
+      for ( size_t j = 0; j < Pa.col(); j ++ )
+        for ( size_t i = 0; i < Pa.row(); i ++ )
+          Pa( i, j ) = Palr( j, i );
 
       if ( DO_INVERSE )
       {
-        if ( LU )
+        if ( do_ulv_factorization )
         {
-          assert( ipiv.size() );
-          /** LU solver */
-          xgetrs( "N", n, s, Z.data(), n, ipiv.data(), Pa.data(), n );
+          if ( 1 )
+          {
+            xtrsm( "Left", "Lower", "No transpose", "Non-unit", 
+                Pa.row(), Pa.col(), 
+                1.0,  Z.data(),  Z.row(), Pa.data(), Pa.row() );
+          }
+          else
+          {
+            xlaswp( Pa.col(), Pa.data(), Pa.row(), 
+                1, Pa.row(), ipiv.data(), 1 );
+            xtrsm( "Left", "Lower", "No transpose", "Unit", Pa.row(), Pa.col(), 
+                1.0,  Z.data(), Z.row(), Pa.data(), Pa.row() );
+          }
         }
         else
         {
-          xtrsm( "L", "L", "N", "N", n, s, 
-              1.0, Z.data(), n, Pa.data(), n ); 
+          assert( ipiv.size() );
+          /** LU solver */
+          xgetrs( "Non-transpose", 
+              n, s, Z.data(), n, ipiv.data(), Pa.data(), n );
         }
       }
 
@@ -669,7 +671,6 @@ class Factor
      *  LEFT:  U = [ Ul * P(:, 0:st-1)'; Ur * P(:,st:st+sb-1) ] */
     void Telescope
     ( 
-      bool LU,
       bool DO_INVERSE,
       /** n-by-s */
       hmlp::Data<T> &Pa,
@@ -681,11 +682,14 @@ class Factor
       hmlp::Data<T> &Pr
     ) 
     {
+      assert( !isleaf );
+      assert( n == nl + nr );
+      assert( Pl.col() == sl );
+      assert( Pr.col() == sr );
+      assert( Palr.row() == s  ); assert( Palr.col() == ( sl + sr ) );
+
       /** Initialize Pa */
       Pa.resize( 0, 0 );
-      Pa.resize( n, s, 0.0 );
-
-      assert( !isleaf );
 
       /** create view and subviews for Pa */
       //hmlp::View<T> Xa;
@@ -694,16 +698,57 @@ class Factor
       //assert( Xa.row() == Pa.row() ); 
       //assert( Xa.col() == Pa.col() ); 
 
-      if ( isleaf )
+      if ( do_ulv_factorization )
       {
-        printf( "bug\n" ); exit( 1 );
+        Pa.resize( sl + sr, s, 0.0 );
+
+        /** Pa = Palr' */
+        for ( size_t j = 0; j < Pa.col(); j ++ )
+          for ( size_t i = 0; i < Pa.row(); i ++ )
+            Pa[ j * Pa.row() + i ] = Palr[ i * Palr.row() + j ];
+
+        /** Pa( 0:sl-1, : ) = Pl * Palr( :, 0:sl-1 )' */
+        xtrmm( 
+           "Left", "Upper", "Non-transpose", "Non-unit", 
+           sl, s,
+           1.0,   Pl.data(), Pl.row(), 
+                  Pa.data(), Pa.row() );
+        //  printf( "Pl.row() %lu Pa.row() %lu Pa.col() %lu\n",
+        //      Pl.row(), Pa.row(), Pa.col() );
+
+        /** Pa( sl:sl+sr-1, : ) = Pr * Palr( :, sl:sl+sr-1 )' */
+        xtrmm( "Left", "Upper", "No transpose", "Non-unit", 
+           sr, s,
+           1.0,   Pr.data()     , Pr.row(), 
+                  Pa.data() + sl, Pa.row() ); 
+        //  printf( "Pr.row() %lu Pa.row() %lu Pa.col() %lu\n",
+        //      Pr.row(), Pa.row(), Pa.col() );
+
+        /** inv( L ) * Pa */
+        if ( DO_INVERSE )
+        {
+          if ( 1 )
+          {
+            xtrsm( "Left", "Lower", "No transpose", "Non-unit", 
+                Pa.row(), Pa.col(), 
+                1.0,  Z.data(),  Z.row(), 
+                     Pa.data(), Pa.row() ); 
+          }
+          else
+          {
+            xlaswp( Pa.col(), Pa.data(), Pa.row(), 
+                1, Pa.row(), ipiv.data(), 1 );
+            xtrsm( "Left", "Lower", "No transpose", "Unit", Pa.row(), Pa.col(), 
+                1.0,  Z.data(),  Z.row(), 
+                     Pa.data(), Pa.row() ); 
+          }
+          //printf( "Z.row() %lu Z.col() %lu\n", Z.row(), Z.col() );
+        }
+
       }
-      else
+      else /** Shernman-Morrison-Woodbury */
       {
-        assert( Palr.row() == s  ); assert( Palr.col() == ( sl + sr ) );
-        assert(   Pl.row() == nl ); assert(   Pl.col() ==          sl );
-        assert(   Pr.row() == nr ); assert(   Pr.col() ==          sr );
-        assert( n == nl + nr );
+        Pa.resize( nl + nr, s, 0.0 );
 
         ///** */
         //hmlp::View<T> Xl, Xr;
@@ -739,8 +784,6 @@ class Factor
 
         if ( DO_INVERSE )
         {
-          if ( LU )
-          {
             hmlp::Data<T> x( sl + sr, s );
             hmlp::Data<T> xl( sl, s );
             hmlp::Data<T> xr( sr, s );
@@ -782,19 +825,191 @@ class Factor
                 -1.0, Ur->data(), nr, 
                 x.data() + sl, sl + sr, 
                 1.0,  Pa.data() + nl, n );
-          }
-          else
-          {
-          }
         } /** end if ( DO_INVERSE ) */
-      }
+      } /** end if ( do_ulv_factorization )*/
+    };
+
+    /** */
+    void Orthogonalization()
+    {
+      assert( do_ulv_factorization );
+
+      //hmlp::Data<T> G = U;
+
+      /** initialize tau */
+      tau.resize( 0, 0 );
+      tau.resize( std::min( U.row(), U.col() ), 1 );
+
+      /** initialize work space */
+      hmlp::Data<T> work( U.col() * 512, 1 );
+      //printf( "U.row() %lu U.col() %lu tau.size() %lu work.size() %lu\n",
+      //    U.row(), U.col(), tau.size(), work.size() );
+
+      xgeqrf(
+          U.row(), U.col(), U.data(), U.row(),
+          tau.data(), work.data(), work.size() );
+      //printf( "finish xgeqrf\n" );
+
+      /** copy U to Q */
+      Q = U;
+
+     
+
+      //printf( "U:\n" );
+      //U.Print();
+      xorgqr(
+          Q.row(), Q.col(), Q.col(),
+          Q.data(), Q.row(), tau.data(), 
+          work.data(), work.size() );
+      
+      //printf( "Q\n" );
+      //Q.Print();
     };
 
 
+    /**
+     *  @brief here x is the return value
+     */ 
+    void ULVForwardSolve( hmlp::View<T> &x )
+    {
+      /** get the view of right hand sides */
+      auto &b = bview;
 
-    bool isleaf;
+      if ( isleaf )
+      {
+        bskel.resize( b.row(), b.col() );
+        for ( size_t j = 0; j < b.col(); j ++ )
+          for ( size_t i = 0; i < b.row(); i ++ )
+            bskel( i, j ) = b( i, j );
+      }
+      else
+      {
+        bskel = qskel;        
+      }
 
-    bool isroot;
+      //printf( "bskel:\n" );
+      //bskel.Print();
+
+
+      //printf( "bskel.row() %lu bskel.col() %lu Z.row() %lu\n",
+      //    bskel.row(), bskel.col(), Z.row() );
+
+
+      /** inv( L ) * b */
+      if ( 1 )
+      {
+        xtrsm( "Left", "Lower", "No transpose", "Non-unit", 
+            bskel.row(), bskel.col(), 
+            1.0, Z.data(), Z.row(), bskel.data(), bskel.row() );
+      }
+      else
+      {
+        xlaswp( bskel.col(), bskel.data(), bskel.row(), 
+            1, bskel.row(), ipiv.data(), 1 );
+        xtrsm( "Left", "Lower", "No transpose", "Unit", 
+            bskel.row(), bskel.col(), 
+            1.0, Z.data(), Z.row(), bskel.data(), bskel.row() );
+      }
+
+
+
+
+
+      if ( !isroot )
+      {
+        assert( Q.row() == bskel.row() );
+        //x.Print();
+        /** x = Q' * bskel */
+        xgemm( "Transpose", "Non-transpose",
+            x.row(), x.col(), Q.row(), 
+            1.0, Q.data(), Q.row(),
+            bskel.data(), bskel.row(),
+            0.0, x.data(), x.ld() );
+
+        //printf( "x:\n" );
+        //for ( size_t j = 0; j < x.col(); j ++ )
+        //{
+        //  for ( size_t i = 0; i < x.row(); i ++ )
+        //  {
+        //    printf( "%3.1E ", x( i, j ) );
+        //  }
+        //  printf( "\n" );
+        //}
+        //printf( "\n" );
+      }
+    }; /** end ULVForward() */
+
+
+    void ULVBackwardSolve( hmlp::View<T> &x )
+    {
+      /** get the view of right hand sides */
+      auto &b = bview;
+
+      if ( !isroot )
+      {
+
+        //printf( "x:\n" );
+        //for ( size_t j = 0; j < x.col(); j ++ )
+        //{
+        //  for ( size_t i = 0; i < x.row(); i ++ )
+        //  {
+        //    printf( "%3.1E ", x( i, j ) );
+        //  }
+        //  printf( "\n" );
+        //}
+        //printf( "\n" );
+
+        /** bskel += Q * x */
+        xgemm( "Non-transpose", "Non-transpose",
+            bskel.row(), bskel.col(), Q.col(), 
+            1.0, Q.data(), Q.row(),
+            x.data(), x.ld(),
+            1.0, bskel.data(), bskel.row() );
+        //printf( "bskel += Qx\n" );
+      }
+
+      //printf( "bskel\n" );
+      //bskel.Print();
+
+      if ( 1 )
+      {
+        /** inv( L' ) * bskel */
+        xtrsm( "Left", "Lower", "Transpose", "Non-unit", 
+            bskel.row(), bskel.col(), 
+            1.0, Z.data(), Z.row(), bskel.data(), bskel.row() );
+      }
+      else
+      {
+        /** inv( U ) * bskel */
+        xtrsm( "Left", "Upper", "No transpose", "Non-unit", 
+            bskel.row(), bskel.col(), 
+            1.0, Z.data(), Z.row(), bskel.data(), bskel.row() );
+      }
+
+      if ( isleaf )
+      {
+        /** return */
+        for ( size_t j = 0; j < b.col(); j ++ )
+          for ( size_t i = 0; i < b.row(); i ++ )
+            b( i, j ) = bskel( i, j );
+      }
+      else
+      {
+        for ( size_t j = 0; j < bskel.col(); j ++ )
+          for ( size_t i = 0; i < bskel.row(); i ++ )
+            bskel( i, j ) -= qskel( i, j );
+        //printf( "bskel -= qskel\n" );
+        //bskel.Print();
+        //printf( "qskel\n" );
+        //qskel.Print();
+      }
+    }; /** end ULVBackward() */
+
+    bool isleft = false;
+
+    bool isleaf = false;
+
+    bool isroot = false;
 
     size_t n;
 
@@ -812,26 +1027,23 @@ class Factor
      *                       VU  I ] */
     hmlp::Data<T> Z;
 
-    /** pivoting rows */
+    /** pivoting rows (used in SMW) */
     std::vector<int> ipiv;
     
-    /** U, n-by-s */
+    /** U, n-by-s (SMW) or (sl+sr)-by-s (ULV) */
     hmlp::Data<T> U;
 
-    /** U, n-by-s (or 0-by-0) */
+    /** V, n-by-s (SMW) or 0-by-0 (ULV) */
     hmlp::Data<T> V; 
 
-    /** U, n-by-? (or 0-by-0) */
-    //hmlp::Data<T> B;
-
-    /** Clr, sl-by-sr (or 0-by-0) */
-    hmlp::Data<T> Clr;
-
-    /** Crl, sr-by-sl (or 0-by-0) */
+    /** Crl, sr-by-sl */
     hmlp::Data<T> Crl;
 
+    /** Clr, sl-by-sr or 0-by-0 (Symmetric) */
+    hmlp::Data<T> Clr;
+
     /** a correspinding view of the right hand side of this node */
-    hmlp::View<T> b;
+    hmlp::View<T> bview;
 
     /** pointers to children's factors */
     hmlp::Data<T> *Ul = NULL;
@@ -839,7 +1051,31 @@ class Factor
     hmlp::Data<T> *Vl = NULL;
     hmlp::Data<T> *Vr = NULL;
 
+
+    /** ULV specific */
+
+    /** Q, (sl+sr)-by-s (ULV) */
+    hmlp::Data<T> Q;
+
+    /** tau, sl+sr (used in xgeqrf( U ) of ULV) */
+    hmlp::Data<T> tau;
+
+    /** (sl+sr)-by-nrhs, qskel = Q' * b */     
+    hmlp::Data<T> qskel;
+    hmlp::View<T> qview_myself;
+    hmlp::View<T> qview_parent; 
+
+    /** (sl+sr)-by-nrhs, bskel = inv( L ) * qskel */
+    hmlp::Data<T> bskel;
+    hmlp::View<T> bskel_myself;
+    hmlp::View<T> bskel_parent;
+
+
   private: /** this class will be public inherit by gofmm::Data<T> */
+
+    bool issymmetric = true;
+
+    bool do_ulv_factorization = false;
 
 }; /** end class Factor */
 
@@ -851,11 +1087,15 @@ template<typename NODE, typename T>
 void SetupFactor( NODE *node )
 {
   size_t n, nl, nr, s, sl, sr;
+  bool issymmetric, do_ulv_factorization, isleft;
+  
 
 #ifdef DEBUG_IGOFMM
   printf( "begin SetupFactor %lu\n", node->treelist_id ); fflush( stdout );
 #endif
 
+  issymmetric = node->setup->issymmetric;
+  do_ulv_factorization = node->setup->do_ulv_factorization;
   n  = node->n;
   nl = 0;
   nr = 0;
@@ -871,9 +1111,16 @@ void SetupFactor( NODE *node )
     sr = node->rchild->data.skels.size();
   }
 
+  isleft = false;
+  if ( node->parent )
+  {
+    if ( node == node->parent->lchild ) isleft = true;
+  }
+
   node->data.SetupFactor
   (
-    node->isleaf, !node->l,
+    issymmetric, do_ulv_factorization,
+    isleft, node->isleaf, !node->l,
     n, nl, nr,
     s, sl, sr 
   );
@@ -980,25 +1227,46 @@ class TreeViewTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      auto *node   = arg;
-      auto &input  = *(node->setup->input);
-      auto &output = *(node->setup->output);
-
       //printf( "TreeView %lu\n", node->treelist_id );
+      auto *node   = arg;
+      auto &data   = node->data;
+      auto *setup  = node->setup;
+      auto &input  = *(setup->input);
+      auto &output = *(setup->output);
 
-      /** create contigious view for output */
-      if ( !node->parent ) node->data.view.Set( output );
+      /** create contigious view for output at root level */
+      if ( !node->parent ) 
+      {
+        data.bview.Set( output );
+      }
 
       /** tree view (hierarchical views) */
       if ( !node->isleaf )
       {
         /** A = [ A1; A2; ] */
-        node->data.view.Partition2x1
+        data.bview.Partition2x1
         ( 
-          node->lchild->data.view, 
-          node->rchild->data.view, node->lchild->n, TOP 
+          node->lchild->data.bview, 
+          node->rchild->data.bview, node->lchild->n, TOP 
         );
+
+        /** ULV specific initialization */
+        if ( setup->do_ulv_factorization )
+        {
+          /** initialize qskel */
+          data.qskel.resize( data.sl + data.sr, input.col() );
+          /** create matrix view for qsekl */
+          data.qview_myself.Set( data.qskel );
+          /** [ lqskel; rqskel; ] = qskel */
+          data.qview_myself.Partition2x1
+          ( 
+            node->lchild->data.qview_parent,
+            node->rchild->data.qview_parent, data.sl, TOP
+          );
+        }
       }
+
+      //printf( "end TreeView %lu\n", node->treelist_id );
     };
 
 }; /** end class TreeViewTask */
@@ -1044,16 +1312,19 @@ class MatrixPermuteTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+      //printf( "PermuteMatrix %lu\n", arg->treelist_id );
       auto *node   = arg;
       auto &gids   = node->gids;
       auto &input  = *(node->setup->input);
       auto &output = *(node->setup->output);
-      auto &A      = node->data.view;
+      auto &A      = node->data.bview;
 
       assert( A.row() == gids.size() );
       assert( A.col() == input.col() );
 
-      //printf( "PermuteMatrix %lu\n", node->treelist_id );
+      //for ( size_t i = 0; i < gids.size(); i ++ )
+      //  printf( "%lu ", gids[ i ] );
+      //printf( "\n" );
 
       /** perform permutation and output */
       for ( size_t j = 0; j < input.col(); j ++ )
@@ -1062,6 +1333,13 @@ class MatrixPermuteTask : public hmlp::Task
           if ( FORWARD ) A( i, j ) = input( gids[ i ], j );
           /** inverse permutation */
           else           input( gids[ i ], j ) = A( i, j );
+
+      //for ( size_t j = 0; j < 1; j ++ )
+      //  for ( size_t i = 0; i < gids.size(); i ++ )
+      //    printf( "%E ", A( i, j ) );
+      //printf( "\n" );
+
+      //printf( "end PermuteMatrix %lu\n", arg->treelist_id );
     };
 
 }; /** end class MatrixPermuteTask */
@@ -1092,11 +1370,147 @@ void Apply( NODE *node )
   }
   else
   {
-    auto &bl = node->lchild->data.view;
-    auto &br = node->rchild->data.view;
+    auto &bl = node->lchild->data.bview;
+    auto &br = node->rchild->data.bview;
     data.Apply<true>( bl, br );
   }
 }; /** end Apply() */
+
+
+
+template<typename NODE, typename T>
+void ULVForwardSolve( NODE *node )
+{
+  auto &data = node->data;
+  auto *setup = node->setup;
+  data.ULVForwardSolve( data.qview_parent );
+};
+
+
+
+template<typename NODE, typename T>
+class ULVForwardSolveTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "ulvforward" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+      // Need an accurate cost model.
+      cost = 1.0;
+
+      //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
+    };
+
+    void DependencyAnalysis()
+    {      
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      /** depend on two children */
+      if ( !arg->isleaf )
+      {
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+      /** dispatch the task if there is no dependency */
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      //printf( "ULVForwardSolveTask %lu\n", arg->treelist_id ); fflush( stdout );
+      ULVForwardSolve<NODE, T>( arg );
+      //printf( "end ULVForwardSolveTask %lu\n", arg->treelist_id ); fflush( stdout );
+    };
+    
+}; /** end class ULVForwardSolveTask */
+
+
+
+
+template<typename NODE, typename T>
+void ULVBackwardSolve( NODE *node )
+{
+  auto &data = node->data;
+  auto *setup = node->setup;
+
+  data.bskel_myself.Set( data.bskel );
+
+  if ( !node->isleaf )
+  {
+    data.bskel_myself.Partition2x1
+    ( 
+      node->lchild->data.bskel_parent, 
+      node->rchild->data.bskel_parent, data.sl, TOP 
+    );
+  };
+
+  data.ULVBackwardSolve( data.bskel_parent );
+
+}; /** end ULVBackwardSolve() */
+
+
+
+
+template<typename NODE, typename T>
+class ULVBackwardSolveTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "ulvbackward" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+      // Need an accurate cost model.
+      cost = 1.0;
+
+      //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      /** depend on parent */
+      if ( arg->parent )
+        arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      /** dispatch the task if there is no dependency */
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      //printf( "ULVBackwardSolveTask %lu\n", arg->treelist_id ); fflush( stdout );
+      ULVBackwardSolve<NODE, T>( arg );
+      //printf( "end ULVBackwardSolveTask %lu\n", arg->treelist_id ); fflush( stdout );
+    };
+    
+}; /** end class ULVBackwardSolveTask */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1104,7 +1518,7 @@ void Apply( NODE *node )
 /**
  *  @brief 
  */ 
-template<bool LU, bool TRANS, typename NODE, typename T>
+template<bool TRANS, typename NODE, typename T>
 void Solve( NODE *node )
 {
   
@@ -1118,15 +1532,15 @@ void Solve( NODE *node )
   /** TODO: need to decide to use LU or not */
   if ( node->isleaf )
   {
-    auto &b = data.view;
-    data.Solve<LU, TRANS>( b );
+    auto &b = data.bview;
+    data.Solve<TRANS>( b );
     //printf( "Solve %lu, m %lu n %lu\n", node->treelist_id, b.row(), b.col() );
   }
   else
   {
-    auto &bl = node->lchild->data.view;
-    auto &br = node->rchild->data.view;
-    data.Solve<LU, TRANS, true>( bl, br );
+    auto &bl = node->lchild->data.bview;
+    auto &br = node->rchild->data.bview;
+    data.Solve<TRANS, true>( bl, br );
     //printf( "Solve %lu, m %lu n %lu\n", node->treelist_id, bl.row(), bl.col() );
   }
 
@@ -1138,7 +1552,7 @@ void Solve( NODE *node )
 /**
  *  @brief
  */ 
-template<bool LU, bool TRANS, typename NODE, typename T>
+template<bool TRANS, typename NODE, typename T>
 class SolveTask : public hmlp::Task
 {
   public:
@@ -1190,18 +1604,16 @@ class SolveTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      Solve<LU, TRANS, NODE, T>( arg );
+      Solve<TRANS, NODE, T>( arg );
     };
 
 }; /** end class SolveTask */
 
 
-
-
 /**
  *
  */ 
-template<bool LU, typename NODE, typename T, typename TREE>
+template<typename NODE, typename T, typename TREE>
 void Solve( TREE &tree, hmlp::Data<T> &input )
 {
   const bool AUTO_DEPENDENCY = true;
@@ -1213,37 +1625,42 @@ void Solve( TREE &tree, hmlp::Data<T> &input )
   TreeViewTask<NODE>             treeviewtask;
   MatrixPermuteTask<true,  NODE> forwardpermutetask;
   MatrixPermuteTask<false, NODE> inversepermutetask;
-  SolveTask<LU, false, NODE, T>      solvetask1;
-  //SolveTask<true,  NODE, T>      solvetask2;
+  /** Sherman-Morrison-Woodbury */
+  SolveTask<false, NODE, T>      solvetask1;
+  /** ULV */
+  ULVForwardSolveTask<NODE, T>   ulvforwardsolvetask;
+  ULVBackwardSolveTask<NODE, T>  ulvbackwardsolvetask;
 
   /** attach the pointer to the tree structure */
   tree.setup.input  = &input;
   tree.setup.output = output;
 
-  /** need a downward setup for view  */
-  //SetupSolver( tree.treelist[ 0 ], potentials );
-
-  auto original = input;
-
-
-  /** */
-  tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( treeviewtask );
-  tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( forwardpermutetask );
-  tree.template TraverseUp   <AUTO_DEPENDENCY, USE_RUNTIME>( solvetask1 );
-  //tree.template TraverseDown<AUTO_DEPENDENCY, USE_RUNTIME>( solvetask2 );
-  //printf( "SolveTask\n" ); fflush( stdout );
-
-  hmlp_run();
-  //printf( "Execute Solve\n" ); fflush( stdout );
-
-  tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( inversepermutetask );
-  hmlp_run();
-  //printf( "Inverse Permutetation\n" ); fflush( stdout );
+  if ( tree.setup.do_ulv_factorization )
+  {
+    tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( treeviewtask );
+    tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( forwardpermutetask );
+    tree.template TraverseUp   <AUTO_DEPENDENCY, USE_RUNTIME>( ulvforwardsolvetask );
+    tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( ulvbackwardsolvetask );
+    if ( USE_RUNTIME ) hmlp_run();
+    tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( inversepermutetask );
+    if ( USE_RUNTIME ) hmlp_run();
+  }
+  else
+  {
+    tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( treeviewtask );
+    tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( forwardpermutetask );
+    tree.template TraverseUp   <AUTO_DEPENDENCY, USE_RUNTIME>( solvetask1 );
+    if ( USE_RUNTIME ) hmlp_run();
+    tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( inversepermutetask );
+    if ( USE_RUNTIME ) hmlp_run();
+  }
 
   /** delete buffer space */
   delete output;
 
 }; /** end Solve() */
+
+
 
 
 
@@ -1294,13 +1711,15 @@ void LowRankError( NODE *node )
 /**
  *  @brief Factorizarion using LU and SMW
  */ 
-template<bool LU, typename NODE, typename T>
+template<typename NODE, typename T>
 void Factorize( NODE *node )
 {
   auto &data = node->data;
   auto &setup = node->setup;
   auto &K = *setup->K;
   auto &proj = data.proj;
+
+  auto do_ulv_factorization = setup->do_ulv_factorization;
 
   if ( node->isleaf )
   {
@@ -1315,21 +1734,30 @@ void Factorize( NODE *node )
     {
       for ( size_t i = 0; i < Kaa.row(); i ++ )
       {
-        if ( !LU ) assert( Kaa( i, j ) == Kaa( j, i ) );
+        //assert( Kaa( i, j ) == Kaa( j, i ) );
         if ( i == j ) Kaa( i, j ) += lambda;
       }
     }
 
     /** LU factorization */
-    data.Factorize<LU>( Kaa );
+    data.Factorize( Kaa );
 
-    /** U = inv( Kaa ) * proj' */
-    data.Telescope( LU, true, data.U, proj );
 
-    /** V = proj' */
-    if ( LU ) data.Telescope( LU, false, data.V, proj );
-    
-    //printf( "end leaf forward telescoping\n" ); fflush( stdout );
+    if ( do_ulv_factorization )
+    {
+      /** U = inv( L ) * proj' */
+      data.Telescope( true, data.U, proj );
+      /** QR factorization */
+      data.Orthogonalization();
+    }
+    else
+    {
+      /** U = inv( Kaa ) * proj' */
+      data.Telescope( true, data.U, proj );
+      /** V = proj' */
+      data.Telescope( false, data.V, proj );
+    }
+
   }
   else
   {
@@ -1347,18 +1775,24 @@ void Factorize( NODE *node )
     //printf( "end get Crl\n" ); fflush( stdout );
 
     /** SMW factorization (LU or Cholesky) */
-    if ( LU ) data.Factorize<true>( Ul, Ur, Vl, Vr );
-    else      data.Factorize( Ul, Ur );
-    //printf( "end factorization\n" ); fflush( stdout );
+    data.Factorize<true>( Ul, Ur, Vl, Vr );
 
     /** telescope U and V */
     if ( !node->data.isroot )
     {
-      /** U = inv( I + UCV' ) * [ Ul; Ur ] * proj' */
-      data.Telescope( LU, true, data.U, proj, Ul, Ur );
+      if ( do_ulv_factorization )
+      {
+        data.Telescope( true, data.U, proj, Ul, Ur );
+        data.Orthogonalization();
+      }
+      else
+      {
+        /** U = inv( I + UCV' ) * [ Ul; Ur ] * proj' */
+        data.Telescope( true, data.U, proj, Ul, Ur );
 
-      /** V = [ Vl; Vr ] * proj' */
-      if ( LU ) data.Telescope( LU, false, data.V, proj, Vl, Vr );
+        /** V = [ Vl; Vr ] * proj' */
+        data.Telescope( false, data.V, proj, Vl, Vr );
+      }
     }
     else
     {
@@ -1421,7 +1855,8 @@ void Factorize( NODE *node )
     //printf( "end inner forward telescoping\n" ); fflush( stdout );
 
     /** check the offdiagonal block VrCrlVl' accuracy */
-    if ( LU ) LowRankError<NODE, T>( node );
+    if ( !do_ulv_factorization ) 
+      LowRankError<NODE, T>( node );
   }
 
 }; /** end void Factorize() */
@@ -1431,12 +1866,14 @@ void Factorize( NODE *node )
 /**
  *  @brief
  */ 
-template<bool LU, typename NODE, typename T>
+template<typename NODE, typename T>
 class FactorizeTask : public hmlp::Task
 {
   public:
 
     NODE *arg;
+
+    bool do_ulv_factorization = false;
 
     void Set( NODE *user_arg )
     {
@@ -1476,7 +1913,7 @@ class FactorizeTask : public hmlp::Task
     void Execute( Worker* user_worker )
     { 
       //printf( "%lu Enter Factorize\n", arg->treelist_id );
-      Factorize<LU, NODE, T>( arg );
+      Factorize<NODE, T>( arg );
       //printf( "%lu Exit  Factorize\n", arg->treelist_id );
     };
 
@@ -1489,18 +1926,24 @@ class FactorizeTask : public hmlp::Task
 /**
  *  @biref Top level factorization routine.
  */ 
-template<bool LU, typename NODE, typename T, typename TREE>
-void Factorize( TREE &tree, T lambda )
+template<typename NODE, typename T, typename TREE>
+void Factorize( bool do_ulv_factorization, TREE &tree, T lambda )
 {
   const bool AUTO_DEPENDENCY = true;
   const bool USE_RUNTIME = true;
 
   /** all task instances */
   SetupFactorTask<NODE, T> setupfactortask; 
-  FactorizeTask<LU, NODE, T> factorizetask; 
+  FactorizeTask<NODE, T> factorizetask; 
 
   /** setup the regularization parameter lambda */
   tree.setup.lambda = lambda;
+
+  /** setup the symmetric type */
+  tree.setup.issymmetric = true;
+
+  /** setup factorization type */
+  tree.setup.do_ulv_factorization = do_ulv_factorization;
 
   /** setup  */
   tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( setupfactortask );
@@ -1521,7 +1964,7 @@ void Factorize( TREE &tree, T lambda )
  *  @brief Compute the average 2-norm error. That is given
  *         lambda and weights, 
  */ 
-template<bool LU, typename NODE, typename TREE, typename T>
+template<typename NODE, typename TREE, typename T>
 void ComputeError( TREE &tree, T lambda, 
     hmlp::Data<T> weights, hmlp::Data<T> potentials )
 {
@@ -1539,7 +1982,7 @@ void ComputeError( TREE &tree, T lambda,
       rhs( i, j ) = potentials( j, i ) + lambda * weights( j, i );
 
   /** potentials = inv( K + lambda * I ) * potentials */
-  hmlp::hfamily::Solve<LU, NODE, T>( tree, rhs );
+  hmlp::hfamily::Solve<NODE, T>( tree, rhs );
 
 
   /** compute relative error = sqrt( err / nrm2 ) for each rhs */
@@ -1566,6 +2009,9 @@ void ComputeError( TREE &tree, T lambda,
 
       nrm2 += weights( j, i ) * weights( j, i );
       err2 += sse;
+
+      //printf( "%lu %3.1E\n", i, sse );
+
 
       if ( sse > max2 ) { max2 = sse; maxi = i; }
       if ( sse < min2 ) { min2 = sse; mini = i; }

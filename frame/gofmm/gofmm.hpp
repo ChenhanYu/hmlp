@@ -192,8 +192,18 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     hmlp::Data<T> *input = NULL;
     hmlp::Data<T> *output = NULL;
 
+
+
+
     /** regularization */
     T lambda = 0.0;
+
+    /** whether the matrix is symmetric */
+    bool issymmetric = true;
+
+    /** use ULV or Sherman-Morrison-Woodbury */
+    bool do_ulv_factorization = true;
+
 
 }; // end class Setup
 
@@ -218,9 +228,6 @@ class Data : public hmlp::hfamily::Factor<T>
 
     /** whether the coefficient mathx has been computed */
     bool hasproj = false;
-
-    /** tree view of the input or output data */
-    hmlp::View<T> view;
 
     /** my skeletons */
     std::vector<size_t> skels;

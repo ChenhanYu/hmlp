@@ -354,6 +354,36 @@ void xtrmm
 
 
 /**
+ *  @brief DLASWP wrapper
+ */ 
+void xlaswp( int n, double *A, int lda, 
+    int k1, int k2, int *ipiv, int incx )
+{
+#ifdef USE_BLAS
+  dlaswp_( &n, A, &lda, &k1, &k2, ipiv, &incx );
+#else
+  printf( "xlaswp must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+}; /** end xlaswp() */
+
+
+/**
+ *  @brief SLASWP wrapper
+ */ 
+void xlaswp( int n, float *A, int lda, 
+    int k1, int k2, int *ipiv, int incx )
+{
+#ifdef USE_BLAS
+  slaswp_( &n, A, &lda, &k1, &k2, ipiv, &incx );
+#else
+  printf( "xlaswp must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+}; /** end xlaswp() */
+
+
+/**
  *  @brief DPOTRF wrapper
  */ 
 void xpotrf( const char *uplo, int n, double *A, int lda )
@@ -361,6 +391,7 @@ void xpotrf( const char *uplo, int n, double *A, int lda )
 #ifdef USE_BLAS
   int info;
   dpotrf_( uplo, &n, A, &lda, &info );
+  if ( info ) printf( "xpotrf error code %d\n", info );
 #else
   printf( "xpotrf must enables USE_BLAS.\n" );
   exit( 1 );
@@ -376,6 +407,7 @@ void xpotrf( const char *uplo, int n, float *A, int lda )
 #ifdef USE_BLAS
   int info;
   spotrf_( uplo, &n, A, &lda, &info );
+  if ( info ) printf( "xpotrf error code %d\n", info );
 #else
   printf( "xpotrf must enables USE_BLAS.\n" );
   exit( 1 );

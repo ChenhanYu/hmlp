@@ -4,8 +4,10 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=${CC}
-export CXX=${CXX}
+export CC=icc
+export CXX=icpc
+#export CC=${CC}
+#export CXX=${CXX}
 
 ##
 ## Ingore this flag if you are "not using" MacOS.
@@ -24,7 +26,8 @@ export HMLP_USE_INTEL=true
 export HMLP_USE_BLAS=true
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
-export MKLROOT=${MKLROOT}
+export MKLROOT=/opt/intel/mkl
+#export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
 export OPENBLASROOT=${OPENBLASROOT}
@@ -38,7 +41,8 @@ export OMP_NUM_THREADS=10
 ## ======================================
 
 ## If you also want to compile those artifact files, then specify the path.
-export HMLP_ARTIFACT_PATH=sc17gofmm
+export HMLP_ARTIFACT_PATH=
+#export HMLP_ARTIFACT_PATH=sc17gofmm
 
 
 

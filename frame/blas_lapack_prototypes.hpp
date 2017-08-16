@@ -71,6 +71,12 @@ void slacpy_(
     const char *uplo, int *m, int *n, 
     float *a, int *lda, 
     float *b, int *ldb );
+void dlaswp_( 
+  int *n, double *A, int *lda, 
+  int *k1, int *k2, int *ipiv, int *incx );
+void slaswp_( 
+  int *n, float *A, int *lda, 
+  int *k1, int *k2, int *ipiv, int *incx );
 void dpotrf_( 
     const char *uplo, 
     int *n, double *A, int *lda, int *info );

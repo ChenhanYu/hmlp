@@ -55,6 +55,9 @@
 #include <hmlp_device.hpp>
 #include <hmlp_runtime.hpp>
 
+//#include <hmlp_util.hpp>
+
+
 /** -lmemkind */
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
