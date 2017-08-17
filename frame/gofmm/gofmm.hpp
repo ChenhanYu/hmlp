@@ -49,6 +49,7 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 #include <primitives/lowrank.hpp>
+#include <primitives/combinatorics.hpp>
 
 #include <containers/tree.hpp>
 #include <containers/data.hpp>
@@ -580,10 +581,18 @@ struct centersplit
 
 
     /** parallel median search */
-    // T median = hmlp::tree::Select( n, n / 2, temp );
-    auto temp_copy = temp;
-    std::sort( temp_copy.begin(), temp_copy.end() );
-    T median = temp_copy[ n / 2 ];
+    T median;
+
+    if ( 1 )
+    {
+      median = hmlp::combinatorics::Select( n, n / 2, temp );
+    }
+    else
+    {
+      auto temp_copy = temp;
+      std::sort( temp_copy.begin(), temp_copy.end() );
+      median = temp_copy[ n / 2 ];
+    }
 
     split[ 0 ].reserve( n / 2 + 1 );
     split[ 1 ].reserve( n / 2 + 1 );
@@ -680,11 +689,18 @@ struct randomsplit
       }
     }
 
-    // Parallel median search
-    // T median = hmlp::tree::Select( n, n / 2, temp );
-    auto temp_copy = temp;
-    std::sort( temp_copy.begin(), temp_copy.end() );
-    T median = temp_copy[ n / 2 ];
+    /** parallel median search */
+    T median;
+    if ( 1 )
+    {
+      median = hmlp::combinatorics::Select( n, n / 2, temp );
+    }
+    else
+    {
+      auto temp_copy = temp;
+      std::sort( temp_copy.begin(), temp_copy.end() );
+      median = temp_copy[ n / 2 ];
+    }
 
     split[ 0 ].reserve( n / 2 + 1 );
     split[ 1 ].reserve( n / 2 + 1 );

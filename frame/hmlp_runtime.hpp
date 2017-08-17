@@ -240,9 +240,6 @@ class Task
 
     std::deque<Task*> out;
 
-    // argument list
-    // arg
-
     /** task lock */
     Lock task_lock;
 

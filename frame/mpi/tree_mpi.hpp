@@ -19,18 +19,15 @@
  **/  
 
 
-#ifndef TREE_MPI_HPP
-#define TREE_MPI_HPP
+#ifndef MPITREE_HPP
+#define MPITREE_HPP
 
-#include <mpi.h>
-#include <tree.hpp>
+#include <hmlp_runtime_mpi.hpp>
+#include <containers/tree.hpp>
 
 namespace hmlp
 {
-namespace tree
-{
-/** Obviously, this is the distributed version with mpi. */
-namespace mpi
+namespace mpitree
 {
 
 
@@ -45,27 +42,33 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     /** inherit all parameters from hmlp::tree::Node */
 
 
-    //Node
-    //(
-    //  SETUP *user_setup,
-    //  size_t n, size_t l, 
-    //  Node *parent 
-    //) : hmlp::tree::Node( user_setup, n, l, parent )
-    //{
-    //};
+    Node( SETUP *setup, size_t n, size_t l, Node *parent, hmlp::mpi::Comm comm ) 
+      : hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, parent ) 
+    {
+      this->comm = comm;
+      
+      /** get size and rank */
+      hmlp::mpi::Comm_size( comm, &size );
+      hmlp::mpi::Comm_rank( comm, &rank );
+    };
 
-    //void Split()
-    //{
+    void SetupChild( class Node *child )
+    {
+      this->child = child;
+    };
 
-    //  child = new Node( setup,  );
-    //};
+    void Split()
+    {
+
+      //child = new Node( setup,  );
+    };
 
   private:
 
     Node *child = NULL;
 
     /** initialize with all processes */
-    MPI_Comm comm = MPI_COMM_WORLD;
+    hmlp::mpi::Comm comm = HMLP_MPI_COMM_WORLD;
 
     /** subcommunicator size */
     int size = 0;
@@ -77,12 +80,15 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
 
+
+
+
 /**
  *  @brief This distributed tree inherits the shared memory tree
  *         with some additional MPI data structure and function call.
  */ 
-template<class SETUP, class NODE, int N_CHILDREN, typename T>
-class Tree : public hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>
+template<class SETUP, class NODEDATA, int N_CHILDREN, typename T>
+class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 {
   public:
 
@@ -90,95 +96,152 @@ class Tree : public hmlp::tree::Tree<SETUP, NODE, N_CHILDREN, T>
      *  local treelists and treequeue.
      **/
 
+    /** define our tree node type as NODE */
+    typedef Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
+
     /** distribued tree (a list of tree nodes) */
     std::vector<NODE*> mpitreelists;
 
-    /** mpi size, rank and error message */
-    int worldsize = 0;
-    int worldrank = 0;
-    int ierr = 0;
-
     /** inherit constructor */
-    Tree() 
+    Tree() : hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Tree()
     {
-      ierr = MPI_Comm_size( worldcomm, &worldsize );
-      ierr = MPI_Comm_rank( worldcomm, &worldrank );
-
+      ierr = hmlp::mpi::Comm_size( comm, &size );
+      ierr = hmlp::mpi::Comm_rank( comm, &rank );
     };
 
     /** inherit deconstructor */
-    ~Tree() {};
-
-    /** */
-    void Allocate( NODE *node )
+    ~Tree() 
     {
-      int mysize, myrank, mycolor;
-
-      ierr = MPI_Comm_size( node->comm, &mysize );
-      ierr = MPI_Comm_rank( node->comm, &myrank );
-
-      assert( mysize % 2 == 0 );
-
-      if ( mysize > 1 )
-      {
-
-        node->child = new NODE();
-       
-        mycolor = ( myrank < size / 2 ) ? 0 : 1;
-        ierr = MPI_Comm_split( node->comm, my_color, myrank, &(node->child->comm) );
-
-      }
+      hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::~Tree();
+      for ( size_t i = 0; i < mpitreelists.size(); i ++ )
+        delete mpitreelists[ i ];
     };
 
+    /** 
+     *  @breif allocate distributed tree node
+     *
+     *
+     * */
+    //void Allocate( NODE *node )
+    //{
+    //  int mysize, myrank, mycolor;
 
+    //  ierr = hmlp::mpi::Comm_size( node->comm, &mysize );
+    //  ierr = hmlp::mpi::Comm_rank( node->comm, &myrank );
+
+
+
+
+    //  assert( mysize % 2 == 0 );
+
+    //  if ( mysize > 1 )
+    //  {
+
+    //    node->child = new NODE();
+    //   
+    //    mycolor = ( myrank < size / 2 ) ? 0 : 1;
+    //    ierr = MPI_Comm_split( node->comm, my_color, myrank, &(node->child->comm) );
+
+    //  }
+    //};
+
+
+    /**
+     *  @brief partition 
+     *
+     */ 
     void TreePartition( std::vector<std::size_t> &gids ) 
     {
       /** decide the number of distributed tree level according to mpi size */
-      int sub_comm_size = size;
+      int mycomm  = comm;
+      int mysize  = size;
+      int myrank  = rank;
+      int mycolor = 0;
+      int mylevel = 0;
 
-      mpitreelists.insert( new NODE() );
-      while ( sub_comm_size > 1 )
+      /** root( setup, n = 0, l = 0, parent = NULL ) */
+      auto *root = new NODE( &(this->setup), 
+          (size_t)0, (size_t)mylevel, (NODE*)NULL, mycomm );
+
+      /** push to the mpi treelist */
+      mpitreelists.push_back( root );
+
+      while ( mysize > 1 )
       {
-        /** create the child */
+        hmlp::mpi::Comm childcomm;
 
+        /** increase level */
+        mylevel += 1;
+
+        /** left color = 0, right color = 1 */
+        mycolor = ( myrank < mysize / 2 ) ? 0 : 1;
+
+        /** get the subcommunicator for children */
+        ierr = hmlp::mpi::Comm_split( mycomm, mycolor, myrank, &(childcomm) );
+
+        /** update mycomm */
+        mycomm = childcomm;
+
+        /** create the child */
+        auto *parent = mpitreelists.back();
+        auto *child  = new NODE( &(this->setup), 
+            (size_t)0, (size_t)mylevel, parent, mycomm );
+
+        /** setup parent's children */
+        parent->SetupChild( child );
         
+        /** push to the mpi treelist */
+        mpitreelists.push_back( child );
+
+        /** update communicator size */
+        hmlp::mpi::Comm_size( mycomm, &mysize );
+
+        /** update myrank in the subcommunicator */
+        hmlp::mpi::Comm_rank( mycomm, &myrank );
       }
 
 
       /** local tree */
     };
 
-    template<bool SORTED, typename KNNTASK>
-    hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
-    (
-      std::size_t n_tree,
-      std::size_t k, std::size_t max_depth,
-      std::vector<std::size_t> &gids,
-      std::vector<std::size_t> &lids,
-      std::pair<T, std::size_t> initNN,
-      KNNTASK &dummy
-    )
-    {
-      /** k-by-N */
-      hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
+    //template<bool SORTED, typename KNNTASK>
+    //hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
+    //(
+    //  std::size_t n_tree,
+    //  std::size_t k, std::size_t max_depth,
+    //  std::vector<std::size_t> &gids,
+    //  std::vector<std::size_t> &lids,
+    //  std::pair<T, std::size_t> initNN,
+    //  KNNTASK &dummy
+    //)
+    //{
+    //  /** k-by-N */
+    //  hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
 
 
 
-      return NN;
+    //  return NN;
 
-    }; /** end AllNearestNeighbor() */
+    //}; /** end AllNearestNeighbor() */
 
     
   private:
 
     /** global communicator */
-    MPI_Comm worldcomm = MPI_COMM_WORLD;
+    hmlp::mpi::Comm comm = HMLP_MPI_COMM_WORLD;
+
+    /** mpi size, rank and error message */
+    int size = 0;
+
+    int rank = 0;
+
+    int ierr = 0;
+
 
 }; /** end class Tree */
 
 
-}; /** end namespace mpi */
-}; /** end namespace tree */
+}; /** end namespace mpitree */
 }; /** end namespace hmlp */
 
-#endif /** define TREE_MPI_HPP */
+#endif /** define MPITREE_HPP */

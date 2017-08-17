@@ -184,7 +184,7 @@ class Factor
         if ( 1 )
         {
           xpotrf( "Lower", n, Z.data(), n );
-          CheckCondition();
+          //CheckCondition();
         }
         else
         {
@@ -331,7 +331,7 @@ class Factor
           if ( 1 )
           {
             xpotrf( "Lower", Z.row(), Z.data(), Z.row() );
-            CheckCondition();
+            //CheckCondition();
           }
           else
           {

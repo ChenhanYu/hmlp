@@ -36,6 +36,7 @@
 
 #include <hmlp_runtime.hpp>
 #include <containers/data.hpp>
+#include <primitives/combinatorics.hpp>
 
 //#define DEBUG_TREE 1
 
@@ -148,232 +149,7 @@ class SplitTask : public hmlp::Task
     {
       arg->template Split<true>( 0 );
     };
-}; // end class SplitTask
-
-/**
- *  @brief Compute the mean values.
- *
- *  @para  The parallelism is exploited by manual reduction with
- *         temporary buffers.
- *
- */ 
-template<typename T>
-std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &lids )
-{
-  assert( lids.size() == n );
-  int n_split = omp_get_max_threads();
-  std::vector<T> mean( d, 0.0 );
-  std::vector<T> temp( d * n_split, 0.0 );
-
-  //printf( "n_split %d\n", n_split );
-
-  #pragma omp parallel for num_threads( n_split )
-  for ( int j = 0; j < n_split; j ++ )
-  {
-    for ( int i = j; i < n; i += n_split )
-    {
-      for ( int p = 0; p < d; p ++ )
-      {
-        temp[ j * d + p ] += X[ lids[ i ] * d + p ];
-      }
-    }
-  }
-
-  // Reduce all temporary buffers
-  for ( int j = 0; j < n_split; j ++ )
-  {
-    for ( int p = 0; p < d; p ++ )
-    {
-      mean[ p ] += temp[ j * d + p ];
-    }
-  }
-
-  for ( int p = 0; p < d; p ++ )
-  {
-    mean[ p ] /= n;
-    //printf( "%5.2lf ", mean[ p ] );
-  }
-  //printf( "\n" );
-
-
-  return mean;
-}; // end Mean()
-
-template<typename T>
-std::vector<T> Mean( int d, int n, hmlp::Data<T> &X, std::vector<std::size_t> &lids )
-{
-  assert( lids.size() == n );
-  int n_split = omp_get_max_threads();
-  std::vector<T> mean( d, 0.0 );
-  std::vector<T> temp( d * n_split, 0.0 );
-
-  #pragma omp parallel for num_threads( n_split )
-  for ( int j = 0; j < n_split; j ++ )
-    for ( int i = j; i < n; i += n_split )
-      for ( int p = 0; p < d; p ++ )
-        temp[ j * d + p ] += X[ lids[ i ] * d + p ];
-
-  /** reduce all temporary buffers */
-  for ( int j = 0; j < n_split; j ++ )
-    for ( int p = 0; p < d; p ++ )
-      mean[ p ] += temp[ j * d + p ];
-
-  for ( int p = 0; p < d; p ++ ) mean[ p ] /= n;
-
-  return mean;
-}; // end Mean()
-
-
-/**
- *  @brief Compute the mean values. (alternative interface)
- *  
- */ 
-template<typename T>
-std::vector<T> Mean( int d, int n, hmlp::Data<T> &X )
-{
-  std::vector<std::size_t> lids( n );
-  for ( int i = 0; i < n; i ++ ) lids[ i ] = i;
-  return Mean( d, n, X, lids );
-}; // end Mean()
-
-template<typename T>
-std::vector<T> Mean( int d, int n, std::vector<T> &X )
-{
-  std::vector<std::size_t> lids( n );
-  for ( int i = 0; i < n; i ++ ) lids[ i ] = i;
-  return Mean( d, n, X, lids );
-}; // end Mean()
-
-
-
-/**
- *  @brief Parallel prefix scan
- */ 
-template<typename TA, typename TB>
-void Scan( std::vector<TA> &A, std::vector<TB> &B )
-{
-  size_t p = omp_get_max_threads();
-  size_t n = B.size();
-  size_t step_size = n / p;
-  std::vector<TB> sum( p );
-
-  assert( A.size() == n - 1 );
-
-  if ( n < 100 * p ) 
-  {
-	for ( size_t i = 1; i < n; i++ ) B[ i ] = B[ i - 1 ] + A[ i - 1 ];
-	return;
-  }
-
-  #pragma omp parallel for schedule( static )
-  for ( size_t i = 0; i < p; i ++ ) 
-  {
-	size_t start = i * step_size;
-	size_t end = start + step_size;
-	if ( i == p - 1 ) end = n;
-	if ( i != 0 ) B[ start ] = 0;
-	for ( size_t j = start + 1; j < end; j ++ ) 
-	{
-	  B[ j ] = B[ j - 1 ] + A[ j - 1 ];
-	}
-  }
-
-  sum[ 0 ] = 0;
-  for ( size_t i = 1; i < p; i ++ ) 
-  {
-	sum[ i ] = sum[ i - 1 ] + B[ i * step_size - 1 ] + A [ i * step_size - 1 ];
-  }
-
-  #pragma omp parallel for schedule( static )
-  for ( size_t i = 1; i < p; i ++ ) 
-  {
-	size_t start = i * step_size;
-	size_t end = start + step_size;
-	if ( i == p - 1 ) end = n;
-	TB sum_ = sum[ i ];
-	for ( size_t j = start; j < end; j ++ ) 
-	{
-	  B[ j ] += sum_;
-	}
-  }
-}; // end Scan()
-
-
-/**
- *  @brief Select the kth element in x in the increasing order.
- *
- *  @para  
- *
- *  @TODO  The mean function is parallel, but the splitter is not.
- *         I need something like a parallel scan.
- */ 
-template<typename T>
-T Select( int n, int k, std::vector<T> &x )
-{
-  assert( k <= n && x.size() == n );
-  std::vector<T> mean = Mean( 1, n, x );
-  std::vector<T> lhs, rhs;
-
-  /*
-  lhs.reserve( n );
-  rhs.reserve( n );
-  for ( int i = 0; i < n; i ++ )
-  {
-    if ( x[ i ] > mean[ 0 ] ) rhs.push_back( x[ i ] );
-    else                      lhs.push_back( x[ i ] );
-  }
-  */
-
-  std::vector<size_t> lflag( n, 0 );
-  std::vector<size_t> rflag( n, 0 );
-  std::vector<size_t> pscan( n + 1, 0 );
-
-  #pragma omp parallel for
-  for ( size_t i = 0; i < n; i ++ )
-  {
-    if ( x[ i ] > mean[ 0 ] ) rflag[ i ] = 1;
-	else                      lflag[ i ] = 1;
-  }
-  
-  Scan( lflag, pscan );
-  lhs.resize( pscan[ n ] );
-  #pragma omp parallel for 
-  for ( size_t i = 0; i < n; i ++ )
-  {
-	if ( lflag[ i ] ) lhs[ pscan[ i + 1 ] - 1 ] = x[ i ];
-  }
-
-  Scan( rflag, pscan );
-  rhs.resize( pscan[ n ] );
-  #pragma omp parallel for 
-  for ( size_t i = 0; i < n; i ++ )
-  {
-	if ( rflag[ i ] ) rhs[ pscan[ i + 1 ] - 1 ] = x[ i ];
-  }
-
-
-#ifdef DEBUG_TREE
-  printf( "n %d k %d lhs %d rhs %d mean %lf\n", 
-      n, k, (int)lhs.size(), (int)rhs.size(), mean[ 0 ] );
-#endif
-
-
-  // TODO: Here lhs.size() == k seems to be buggy.
-  if ( lhs.size() == n || rhs.size() == n || lhs.size() == k || n == 1 ) 
-  {
-    //printf( "lrh[ %d - 1 ] %lf n %d\n", k, lhs[ k - 1 ], n );
-    //return lhs[ k - 1 ];
-    return mean[ 0 ];
-  }
-  else if ( lhs.size() > k )
-  {
-    return Select( lhs.size(), k, lhs );
-  }
-  else
-  {
-    return Select( rhs.size(), k - lhs.size(), rhs );
-  }
-}; // end Select()
+}; /** end class SplitTask */
 
 
 /**
@@ -409,7 +185,7 @@ struct centersplit
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
 
 
-    std::vector<T> centroid = Mean( d, n, X, lids );
+    std::vector<T> centroid = hmlp::combinatorics::Mean( d, n, X, lids );
     std::vector<T> direction( d );
     std::vector<T> projection( n, 0.0 );
 
@@ -496,11 +272,21 @@ struct centersplit
 
 
 
-    // Parallel median search
-    // T median = Select( n, n / 2, projection );
-    auto proj_copy = projection;
-    std::sort( proj_copy.begin(), proj_copy.end() );
-    T median = proj_copy[ n / 2 ];
+    /** Parallel median search */
+    T median;
+    
+    if ( 1 )
+    {
+      median = hmlp::combinatorics::Select( n, n / 2, projection );
+    }
+    else
+    {
+      auto proj_copy = projection;
+      std::sort( proj_copy.begin(), proj_copy.end() );
+      median = proj_copy[ n / 2 ];
+    }
+
+
 
     split[ 0 ].reserve( n / 2 + 1 );
     split[ 1 ].reserve( n / 2 + 1 );

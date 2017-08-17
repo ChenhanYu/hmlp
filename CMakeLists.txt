@@ -326,12 +326,13 @@ install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 if ($ENV{HMLP_USE_BLAS} MATCHES "true")
   file (GLOB FRAME_CC_SRC    ${CMAKE_SOURCE_DIR}/frame/*.c ${CMAKE_SOURCE_DIR}/frame/external/*.c)
 endif ()
-file (GLOB FRAME_CXX_SRC   ${CMAKE_SOURCE_DIR}/frame/*.cpp)
-file (GLOB FRAME_CU_SRC    ${CMAKE_SOURCE_DIR}/frame/*.cu)
-file (GLOB KERNEL_SRC      ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.cpp)
-file (GLOB ASSEMBLY_SRC    ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.s)
-file (GLOB PACKAGE_CXX_SRC ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
-file (GLOB PACKAGE_CU_SRC  ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
+file (GLOB FRAME_CXX_SRC     ${CMAKE_SOURCE_DIR}/frame/*.cpp)
+file (GLOB FRAME_MPI_CXX_SRC ${CMAKE_SOURCE_DIR}/frame/mpi/*.cpp)
+file (GLOB FRAME_CU_SRC      ${CMAKE_SOURCE_DIR}/frame/*.cu)
+file (GLOB KERNEL_SRC        ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.cpp)
+file (GLOB ASSEMBLY_SRC      ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.s)
+file (GLOB PACKAGE_CXX_SRC   ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
+file (GLOB PACKAGE_CU_SRC    ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 
 #SET(CMAKE_ASM_COMPILE_OBJECT "<CMAKE_ASM_COMPILER> -o <OBJECT> <SOURCE>")
@@ -339,10 +340,12 @@ file (GLOB PACKAGE_CU_SRC  ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 # Build the static library.
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  cuda_add_library (hmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+  cuda_add_library (hmlp SHARED ${FRAME_CC_SRC} 
+    ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${FRAME_CU_SRC} ${PACKAGE_CU_SRC})
 else ()
-  add_library (hmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
+  add_library (hmlp SHARED ${FRAME_CC_SRC} 
+    ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
   #if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND NOT ($ENV{HMLP_USE_INTEL} MATCHES "true"))
   #  target_link_libraries (hmlp ${BLAS_LIBRARIES})
@@ -491,6 +494,25 @@ if ($ENV{HMLP_USE_BLAS} MATCHES "true")
   endif ()
   if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
     target_link_libraries(test_gofmm.x magma)
+  endif()
+else ()
+  message( WARNING "GOFMM is not compiled becuase HMLP_USE_BLAS=false" )
+endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
+
+
+
+# Build SPDASKIT test suit
+if ($ENV{HMLP_USE_BLAS} MATCHES "true")
+  add_executable (test_mpigofmm.x ${CMAKE_SOURCE_DIR}/test/test_mpigofmm.cpp)
+  target_link_libraries(test_mpigofmm.x hmlp ${MPI_CXX_LIBRARIES})
+  set_target_properties(test_mpigofmm.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+  set_target_properties(test_mpigofmm.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+    target_link_libraries(test_mpigofmm.x cudart)
+    cuda_add_cublas_to_target(test_mpigofmm.x)
+  endif ()
+  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    target_link_libraries(test_mpigofmm.x magma)
   endif()
 else ()
   message( WARNING "GOFMM is not compiled becuase HMLP_USE_BLAS=false" )

@@ -45,7 +45,7 @@
 
 
 /** GOFMM templates */
-#include <gofmm/gofmm.hpp>
+#include <mpi/mpigofmm.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
 #include <containers/KernelMatrix.hpp>
 /** use an implicit matrix */
@@ -102,7 +102,7 @@ void test_gofmm
 	Configuration<T> config( metric, n, m, k, s, stol, budget );
 
   /** compress K */
-  auto *tree_ptr = Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+  auto *tree_ptr = hmlp::mpigofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
   ( X, K, NN, //metric, 
 		splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
 	  config );
@@ -112,122 +112,122 @@ void test_gofmm
   // ------------------------------------------------------------------------
   // ComputeAll
   // ------------------------------------------------------------------------
-#ifdef HMLP_AVX512
-  /** if we are using KNL, use nested omp construct */
-  assert( omp_get_max_threads() == 68 );
-  mkl_set_dynamic( 0 );
-  mkl_set_num_threads( 2 );
-  hmlp_set_num_workers( 34 );
-#else
-  //mkl_set_dynamic( 0 );
-  //mkl_set_num_threads( 2 );
-  //hmlp_set_num_workers( omp_get_max_threads() / 2 );
-  hmlp_set_num_workers( omp_get_max_threads() );
-  printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
-#endif
-
-  /** Evaluate u ~ K * w */
-  hmlp::Data<T> w( nrhs, n ); w.rand();
-  auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
-
-
-#ifdef HMLP_AVX512
-  mkl_set_dynamic( 1 );
-  mkl_set_num_threads( omp_get_max_threads() );
-#else
-  //mkl_set_dynamic( 1 );
-  //mkl_set_num_threads( omp_get_max_threads() );
-#endif
-
-
-//  /** omp level-by-level */
-//  beg = omp_get_wtime();
-//  if ( OMPLEVEL ) 
+//#ifdef HMLP_AVX512
+//  /** if we are using KNL, use nested omp construct */
+//  assert( omp_get_max_threads() == 68 );
+//  mkl_set_dynamic( 0 );
+//  mkl_set_num_threads( 2 );
+//  hmlp_set_num_workers( 34 );
+//#else
+//  //mkl_set_dynamic( 0 );
+//  //mkl_set_num_threads( 2 );
+//  //hmlp_set_num_workers( omp_get_max_threads() / 2 );
+//  hmlp_set_num_workers( omp_get_max_threads() );
+//  printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
+//#endif
+//
+//  /** Evaluate u ~ K * w */
+//  hmlp::Data<T> w( nrhs, n ); w.rand();
+//  auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
+//
+//
+//#ifdef HMLP_AVX512
+//  mkl_set_dynamic( 1 );
+//  mkl_set_num_threads( omp_get_max_threads() );
+//#else
+//  //mkl_set_dynamic( 1 );
+//  //mkl_set_num_threads( omp_get_max_threads() );
+//#endif
+//
+//
+////  /** omp level-by-level */
+////  beg = omp_get_wtime();
+////  if ( OMPLEVEL ) 
+////  {
+////    printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
+////    u = hmlp::gofmm::ComputeAll<false, false, true, true, CACHE, NODE>( tree, w );
+////    printf( "Done.\n" ); fflush( stdout );
+////  }
+////  ref_time = omp_get_wtime() - beg;
+////  printf( "Done.\n" ); fflush( stdout );
+////
+////  /** omp recu task */
+////  beg = omp_get_wtime();
+////  omptask_time = omp_get_wtime() - beg;
+////
+////  /** omp recu task depend */
+////  beg = omp_get_wtime();
+////  if ( OMPDAGTASK )
+////  {
+////    u = hmlp::gofmm::ComputeAll<false, true, true, true, CACHE, NODE>( tree, w );
+////  }
+////  omptask45_time = omp_get_wtime() - beg;
+////
+////  printf( "Exact ratio %5.2lf Runtime %5.2lfs level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
+////      exact_ratio, dynamic_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
+////  // ------------------------------------------------------------------------
+//
+//
+//  /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
+//  std::size_t ntest = 100;
+//  T nnerr_avg = 0.0;
+//  T nonnerr_avg = 0.0;
+//  T fmmerr_avg = 0.0;
+//  printf( "========================================================\n");
+//  printf( "Accuracy report\n" );
+//  printf( "========================================================\n");
+//  for ( size_t i = 0; i < ntest; i ++ )
 //  {
-//    printf( "ComputeAll (Level-By-Level) ..." ); fflush( stdout );
-//    u = hmlp::gofmm::ComputeAll<false, false, true, true, CACHE, NODE>( tree, w );
-//    printf( "Done.\n" ); fflush( stdout );
+//    hmlp::Data<T> potentials;
+//    /** ASKIT treecode with NN pruning */
+//    Evaluate<false, true>( tree, i, potentials );
+//    auto nnerr = ComputeError( tree, i, potentials );
+//    /** ASKIT treecode without NN pruning */
+//    Evaluate<false, false>( tree, i, potentials );
+//    auto nonnerr = ComputeError( tree, i, potentials );
+//    /** get results from GOFMM */
+//    for ( size_t p = 0; p < potentials.col(); p ++ )
+//    {
+//      potentials[ p ] = u( p, i );
+//    }
+//    auto fmmerr = ComputeError( tree, i, potentials );
+//
+//    /** only print 10 values. */
+//    if ( i < 10 )
+//    {
+//#ifdef DUMP_ANALYSIS_DATA
+//      printf( "@DATA\n" );
+//      printf( "%5lu, %E, %E\n", i, nnerr, nonnerr );
+//#endif
+//      printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+//          i, nnerr, nonnerr, fmmerr );
+//    }
+//    nnerr_avg += nnerr;
+//    nonnerr_avg += nonnerr;
+//    fmmerr_avg += fmmerr;
 //  }
-//  ref_time = omp_get_wtime() - beg;
-//  printf( "Done.\n" ); fflush( stdout );
-//
-//  /** omp recu task */
-//  beg = omp_get_wtime();
-//  omptask_time = omp_get_wtime() - beg;
-//
-//  /** omp recu task depend */
-//  beg = omp_get_wtime();
-//  if ( OMPDAGTASK )
-//  {
-//    u = hmlp::gofmm::ComputeAll<false, true, true, true, CACHE, NODE>( tree, w );
-//  }
-//  omptask45_time = omp_get_wtime() - beg;
-//
-//  printf( "Exact ratio %5.2lf Runtime %5.2lfs level-by-level %5.2lfs OMP task %5.2lfs OMP-4.5 %5.2lfs\n", 
-//      exact_ratio, dynamic_time, ref_time, omptask_time, omptask45_time ); fflush( stdout );
+//  printf( "========================================================\n");
+//  printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+//      nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
+//  printf( "========================================================\n");
 //  // ------------------------------------------------------------------------
-
-
-  /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
-  std::size_t ntest = 100;
-  T nnerr_avg = 0.0;
-  T nonnerr_avg = 0.0;
-  T fmmerr_avg = 0.0;
-  printf( "========================================================\n");
-  printf( "Accuracy report\n" );
-  printf( "========================================================\n");
-  for ( size_t i = 0; i < ntest; i ++ )
-  {
-    hmlp::Data<T> potentials;
-    /** ASKIT treecode with NN pruning */
-    Evaluate<false, true>( tree, i, potentials );
-    auto nnerr = ComputeError( tree, i, potentials );
-    /** ASKIT treecode without NN pruning */
-    Evaluate<false, false>( tree, i, potentials );
-    auto nonnerr = ComputeError( tree, i, potentials );
-    /** get results from GOFMM */
-    for ( size_t p = 0; p < potentials.col(); p ++ )
-    {
-      potentials[ p ] = u( p, i );
-    }
-    auto fmmerr = ComputeError( tree, i, potentials );
-
-    /** only print 10 values. */
-    if ( i < 10 )
-    {
-#ifdef DUMP_ANALYSIS_DATA
-      printf( "@DATA\n" );
-      printf( "%5lu, %E, %E\n", i, nnerr, nonnerr );
-#endif
-      printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-          i, nnerr, nonnerr, fmmerr );
-    }
-    nnerr_avg += nnerr;
-    nonnerr_avg += nonnerr;
-    fmmerr_avg += fmmerr;
-  }
-  printf( "========================================================\n");
-  printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-      nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
-  printf( "========================================================\n");
-  // ------------------------------------------------------------------------
-
-
-  /** Factorization */
-  const bool do_ulv_factorization = true;
-  T lambda = 10.0;
-  if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
-    printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
-        lambda, fmmerr_avg / ntest );
-  hmlp::hfamily::Factorize<NODE, T>( do_ulv_factorization, tree, lambda ); 
-
-  /** compute error */
-  hmlp::hfamily::ComputeError<NODE>( tree, lambda, w, u );
-
-  //#ifdef DUMP_ANALYSIS_DATA
-  hmlp::gofmm::Summary<NODE> summary;
-  tree.Summary( summary );
-  summary.Print();
+//
+//
+//  /** Factorization */
+//  const bool do_ulv_factorization = true;
+//  T lambda = 10.0;
+//  if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
+//    printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
+//        lambda, fmmerr_avg / ntest );
+//  hmlp::hfamily::Factorize<NODE, T>( do_ulv_factorization, tree, lambda ); 
+//
+//  /** compute error */
+//  hmlp::hfamily::ComputeError<NODE>( tree, lambda, w, u );
+//
+//  //#ifdef DUMP_ANALYSIS_DATA
+//  hmlp::gofmm::Summary<NODE> summary;
+//  tree.Summary( summary );
+//  summary.Print();
 
 	/** delete tree_ptr */
   delete tree_ptr;

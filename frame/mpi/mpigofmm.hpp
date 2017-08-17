@@ -22,20 +22,15 @@
 #ifndef GOFMM_MPI_HPP
 #define GOFMM_MPI_HPP
 
-#include <mpi.h>
-#include <tree_mpi.hpp>
-#include <gofmm.hpp>
+#include <mpi/tree_mpi.hpp>
+#include <gofmm/gofmm.hpp>
+
+using namespace hmlp::gofmm;
 
 namespace hmlp
 {
-namespace gofmm
+namespace mpigofmm
 {
-namespace mpi
-{
-
-
-
-
 
 
 /**
@@ -81,58 +76,65 @@ hmlp::Data<T> Evaluate
 
 
 
+
+
+
+
+
+
 /**
- *  @brielf template of the mpi compression routine
+ *  @brielf template of the compress routine
  */ 
 template<
   bool        ADAPTIVE, 
   bool        LEVELRESTRICTION, 
-  SplitScheme SPLIT,
   typename    SPLITTER, 
   typename    RKDTSPLITTER, 
   typename    T, 
   typename    SPDMATRIX>
-hmlp::tree::mpi::Tree<
+hmlp::mpitree::Tree<
   hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  hmlp::tree::mpi::Node<
-    hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-    N_CHILDREN,
-    hmlp::gofmm::Data<T>,
-    T
-    >,
+  hmlp::gofmm::Data<T>,
   N_CHILDREN,
-  T
-  > 
-Compress
+  T> 
+*Compress
 ( 
   hmlp::Data<T> *X,
   SPDMATRIX &K, 
   hmlp::Data<std::pair<T, std::size_t>> &NN,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
-  size_t n, size_t m, size_t k, size_t s, 
-  double stol, double budget 
+	Configuration<T> &config
 )
 {
+  /** get all user-defined parameters */
+  DistanceMetric metric = config.MetricType();
+  size_t n = config.ProblemSize();
+	size_t m = config.LeafNodeSize();
+	size_t k = config.NeighborSize(); 
+	size_t s = config.MaximumRank(); 
+  T stol = config.Tolerance();
+	T budget = config.Budget(); 
+
   /** options */
   const bool SYMMETRIC = true;
   const bool NNPRUNE   = true;
   const bool CACHE     = true;
 
-  /** instantiation for the GOFMM tree */
+  /** instantiation for the Spd-Askit tree */
   using SETUP              = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA               = hmlp::gofmm::Data<T>;
-  using NODE               = hmlp::tree::mpi::Node<SETUP, N_CHILDREN, DATA, T>;
-  using TREE               = hmlp::tree::mpi::Tree<SETUP, NODE, N_CHILDREN, T>;
+  using NODE               = hmlp::mpitree::Node<SETUP, N_CHILDREN, DATA, T>;
+  using TREE               = hmlp::mpitree::Tree<SETUP, DATA, N_CHILDREN, T>;
   using SKELTASK           = hmlp::gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
   using PROJTASK           = hmlp::gofmm::InterpolateTask<NODE, T>;
   using NEARNODESTASK      = hmlp::gofmm::NearNodesTask<SYMMETRIC, TREE>;
   using CACHENEARNODESTASK = hmlp::gofmm::CacheNearNodesTask<NNPRUNE, NODE>;
 
-  /** instantiation for the randomisze GOFMM tree */
+  /** instantiation for the randomisze Spd-Askit tree */
   using RKDTSETUP          = hmlp::gofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
-  using RKDTNODE           = hmlp::tree::mpi::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK            = hmlp::gofmm::KNNTask<3, SPLIT, RKDTNODE, T>;
+  using RKDTNODE           = hmlp::tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
+  using KNNTASK            = hmlp::gofmm::KNNTask<3, RKDTNODE, T>;
 
   /** all timers */
   double beg, omptask45_time, omptask_time, ref_time;
@@ -145,6 +147,7 @@ Compress
   PROJTASK           projtask;
   KNNTASK            knntask;
   CACHENEARNODESTASK cachenearnodestask;
+
 
   /** original order of the matrix */
   beg = omp_get_wtime();
@@ -162,9 +165,10 @@ Compress
   const size_t n_iter = 10;
   const bool SORTED = false;
   /** do not change anything below this line */
-  hmlp::tree::mpi::Tree<RKDTSETUP, RKDTNODE, N_CHILDREN, T> rkdt;
+  hmlp::mpitree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
   rkdt.setup.X = X;
   rkdt.setup.K = &K;
+	rkdt.setup.metric = metric; 
   rkdt.setup.splitter = rkdtsplitter;
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
   printf( "NeighborSearch ...\n" ); fflush( stdout );
@@ -180,37 +184,67 @@ Compress
   }
   ann_time = omp_get_wtime() - beg;
 
+  /** check illegle values in NN */
+  for ( size_t j = 0; j < NN.col(); j ++ )
+  {
+    for ( size_t i = 0; i < NN.row(); i ++ )
+    {
+      size_t neighbor_gid = NN( i, j ).second;
+      if ( neighbor_gid < 0 || neighbor_gid >= n )
+      {
+        printf( "NN( %lu, %lu ) has illegle values %lu\n", i, j, neighbor_gid );
+        break;
+      }
+    }
+  }
+
+
+
+
+
+
   /** initialize metric ball tree using approximate center split */
-  hmlp::tree::mpi::Tree<SETUP, NODE, N_CHILDREN, T> tree;
-  //tree.setup.X = X;
-  //tree.setup.K = &K;
-  //tree.setup.splitter = splitter;
-  //tree.setup.NN = &NN;
-  //tree.setup.m = m;
-  //tree.setup.k = k;
-  //tree.setup.s = s;
-  //tree.setup.stol = stol;
-  //printf( "TreePartitioning ...\n" ); fflush( stdout );
-  //beg = omp_get_wtime();
-  //tree.TreePartition( gids, lids );
-  //tree_time = omp_get_wtime() - beg;
-
-
-  
-
-
-  /** not yet implemented */
-  printf( "\nnot yet implemented\n" ); fflush( stdout );
+  auto *tree_ptr = new hmlp::mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
+	auto &tree = *tree_ptr;
+  tree.setup.X = X;
+  tree.setup.K = &K;
+	tree.setup.metric = metric; 
+  tree.setup.splitter = splitter;
+  tree.setup.NN = &NN;
+  tree.setup.m = m;
+  tree.setup.k = k;
+  tree.setup.s = s;
+  tree.setup.stol = stol;
+  printf( "TreePartitioning ...\n" ); fflush( stdout );
+  beg = omp_get_wtime();
+  tree.TreePartition( gids );
+  tree_time = omp_get_wtime() - beg;
 
 
 
-  return tree;
+  return tree_ptr;
 
 }; /** end Compress() */
 
 
 
-}; /** end namespace mpi */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }; /** end namespace gofmm */
 }; /** end namespace hmlp */
 
