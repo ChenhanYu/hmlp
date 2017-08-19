@@ -32,7 +32,7 @@ distance="angle"
 matrixtype="testsuit"
 
 # ======= Do not change anything below this line ========
-if [ -z ${HMLP_USE_MPI+x} ]; 
+if [ "${HMLP_USE_MPI}" = true ]; 
 then mpiexec="mpirun -n 2"; 
 else mpiexec=""; 
 fi

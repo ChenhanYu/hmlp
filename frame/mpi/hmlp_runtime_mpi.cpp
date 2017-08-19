@@ -1,9 +1,3 @@
-#ifdef HMLP_USE_MPI
-#include <mpi.h>
-#else
-#warning MPI routines are disable (-HMLP_USE_MPI=false)
-#endif
-
 #include <hmlp_runtime_mpi.hpp>
 
 namespace hmlp
@@ -33,7 +27,7 @@ int Send( const void *buf, int count, Datatype datatype,
     int dest, int tag, Comm comm )
 {
 #ifdef HMLP_USE_MPI
-  return MPI_send( buf, count, datatype, 
+  return MPI_Send( buf, count, datatype, 
       dest, tag, comm );
 #else
   return 0;
@@ -44,7 +38,7 @@ int Recv( void *buf, int count, Datatype datatype,
     int source, int tag, Comm comm, Status *status )
 {
 #ifdef HMLP_USE_MPI
-  return MPI_recv( buf, count, datatype, 
+  return MPI_Recv( buf, count, datatype, 
       source, tag, comm, (MPI_Status*)status );
 #else
   return 0;
@@ -59,7 +53,7 @@ int Sendrecv( void *sendbuf, int sendcount, Datatype sendtype,
 #ifdef HMLP_USE_MPI
   return MPI_Sendrecv( sendbuf, sendcount, sendtype, 
       dest, sendtag, recvbuf, recvcount,
-      recvtyp]e, source, recvtag,
+      recvtype, source, recvtag,
       comm, (MPI_Status*)status );
 #else
   return 0;
@@ -106,7 +100,7 @@ int Comm_split( Comm comm, int color, int key, Comm *newcomm )
 #endif
 };
 
-int MPI_Bcast( void* buffer, int count, Datatype datatype,
+int Bcast( void *buffer, int count, Datatype datatype,
     int root, Comm comm )
 {
 #ifdef HMLP_USE_MPI
@@ -148,6 +142,17 @@ int Scan( void *sendbuf, void *recvbuf, int count,
 #endif
 };
 
+
+int Allreduce( void *sendbuf, void *recvbuf, int count,
+    Datatype datatype, Op op, Comm comm )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Allreduce( sendbuf, recvbuf, count, 
+      datatype, op, comm );
+#else
+  return 0;
+#endif
+};
 
 
 

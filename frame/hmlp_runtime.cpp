@@ -730,7 +730,8 @@ void Scheduler::Finalize()
     delete *it; 
   }
   tasklist.clear();
-};
+
+}; /** end Scheduler::Finalize() */
 
 void Scheduler::ReportRemainingTime()
 {

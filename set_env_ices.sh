@@ -1,11 +1,26 @@
 #!/bin/bash
 
+## ICES module
+## ======================================
+icesmachine=$(hostname)
+
+module load c7
+module load intel
+module load mkl
+module load cmake
+module load python
+module load mpich2
+
+if [[ ${icesmachine} == *"lando"* ]]; then
+  module load matlab
+fi
+
+
+
 ## "REQUIRED" CONFIGURATION
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-#export CC=icc
-#export CXX=icpc
 export CC=${CC}
 export CXX=${CXX}
 
@@ -26,7 +41,6 @@ export HMLP_USE_INTEL=true
 export HMLP_USE_BLAS=true
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
-#export MKLROOT=/opt/intel/mkl
 export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
@@ -35,14 +49,16 @@ export OPENBLASROOT=${OPENBLASROOT}
 ## Setup the maximum number of threads.
 export OMP_NUM_THREADS=10
 
+if [[ ${icesmachine} == *"lando"* ]]; then
+  export OMP_NUM_THREADS=24
+fi
 
 
 ## ARTIFACT FOR REPRODUCIABILITY
 ## ======================================
 
 ## If you also want to compile those artifact files, then specify the path.
-export HMLP_ARTIFACT_PATH=
-#export HMLP_ARTIFACT_PATH=sc17gofmm
+export HMLP_ARTIFACT_PATH=sc17gofmm
 
 
 
@@ -59,8 +75,11 @@ export HMLP_GPU_ARCH_MINOR=kepler
 ## (4) mic/knl
 export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=sandybridge
-#export HMLP_ARCH_MAJOR=mic
-#export HMLP_ARCH_MINOR=knl
+
+#if [[ ${icesmachine} == *"lando"* ]]; then
+#  export HMLP_ARCH_MAJOR=x86_64
+#  export HMLP_ARCH_MINOR=haswell
+#fi
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android

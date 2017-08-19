@@ -424,8 +424,8 @@ int main( int argc, char *argv[] )
   /** Message Passing Interface */
   int size = -1, rank = -1;
   hmlp::mpi::Init( &argc, &argv );
-  hmlp::mpi::Comm_size( HMLP_MPI_COMM_WORLD, &size );
-  hmlp::mpi::Comm_rank( HMLP_MPI_COMM_WORLD, &rank );
+  hmlp::mpi::Comm_size( MPI_COMM_WORLD, &size );
+  hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
   printf( "size %d rank %d\n", size, rank );
 
   /** HMLP API call to initialize the runtime */

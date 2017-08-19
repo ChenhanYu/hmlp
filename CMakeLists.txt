@@ -363,163 +363,26 @@ endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 # Build the executable files.
 # ---------------------------
-
-#add_executable (hello_world.x ${CMAKE_SOURCE_DIR}/test/hello_world.cpp)
-#target_link_libraries(hello_world.x hmlp)
-
-
-# Build CNN test suit
-if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/conv2d.cpp)
-  add_executable (test_conv2d.x ${CMAKE_SOURCE_DIR}/test/test_conv2d.cpp)
-  target_link_libraries(test_conv2d.x hmlp)
+file (GLOB TEST_CXX_SRC    ${CMAKE_SOURCE_DIR}/test/*.cpp)
+foreach( testsrc ${TEST_CXX_SRC} )
+  string( REPLACE ".cpp" ".x" testexe ${testsrc} )
+  get_filename_component( testexe ${testsrc} NAME_WE )
+  add_executable( "${testexe}.x" ${testsrc} )
+  target_link_libraries( "${testexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
+  set_target_properties( "${testexe}.x" PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+  set_target_properties( "${testexe}.x" PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
   if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries(test_conv2d.x cudart)
-    cuda_add_cublas_to_target(test_conv2d.x)
-  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_conv2d.x magma)
-  endif()
-endif ()
-
-
-# Build GSKS test suit
-if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsks.cpp)
-  add_executable (test_gsks.x ${CMAKE_SOURCE_DIR}/test/test_gsks.cpp)
-  target_link_libraries(test_gsks.x hmlp)
-  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries(test_gsks.x cudart)
-    cuda_add_cublas_to_target(test_gsks.x)
-  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_gsks.x magma)
-  endif()
-endif ()
-
-# Build GKMX test suit
-if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gkmx.cpp)
-  add_executable (test_gkmx.x ${CMAKE_SOURCE_DIR}/test/test_gkmx.cpp)
-  target_link_libraries(test_gkmx.x hmlp)
-  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries(test_gkmx.x cudart)
-    cuda_add_cublas_to_target(test_gkmx.x)
-  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_gkmx.x magma)
-  endif()
-endif ()
-
-# Build STRASSEN test suit
-if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/strassen.cpp)
-  add_executable (test_strassen.x ${CMAKE_SOURCE_DIR}/test/test_strassen.cpp)
-  target_link_libraries(test_strassen.x hmlp)
-  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries(test_strassen.x cudart)
-    cuda_add_cublas_to_target(test_strassen.x)
-  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_strassen.x magma)
-  endif()
-endif ()
-
-# Build CONV_RELU_POOL test suit
-if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/conv_relu_pool.cpp)
-  add_executable (test_conv_relu_pool.x ${CMAKE_SOURCE_DIR}/test/test_conv_relu_pool.cpp)
-  target_link_libraries(test_conv_relu_pool.x hmlp)
-  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries(test_conv_relu_pool.x cudart)
-    cuda_add_cublas_to_target(test_conv_relu_pool.x)
-  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_conv_relu_pool.x magma)
-  endif()
-endif ()
-
-# Build GSKNN test suit
-if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/gsknn.cpp)
-  add_executable (test_gsknn.x ${CMAKE_SOURCE_DIR}/test/test_gsknn.cpp)
-  target_link_libraries(test_gsknn.x hmlp)
-  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries(test_gsknn.x cudart)
-    cuda_add_cublas_to_target(test_gsknn.x)
-  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_gsknn.x magma)
-  endif()
-endif ()
-
-## Build TREE test suit
-#if (EXISTS ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/tree.cpp)
-#  add_executable (test_tree.x ${CMAKE_SOURCE_DIR}/test/test_tree.cpp)
-#  target_link_libraries(test_tree.x hmlp)
-#  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-#    target_link_libraries(test_tree.x cudart)
-#    cuda_add_cublas_to_target(test_tree.x)
-#  endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-#  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-#    target_link_libraries(test_tree.x magma)
-#  endif()
-#endif ()
-
-# Build SKEL test suit
-add_executable (test_skel.x ${CMAKE_SOURCE_DIR}/test/test_skel.cpp)
-target_link_libraries(test_skel.x hmlp)
-if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  target_link_libraries(test_skel.x cudart)
-  cuda_add_cublas_to_target(test_skel.x)
-endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-  target_link_libraries(test_skel.x magma)
-endif()
-
-
-## build SUPERMATRIX test suit #
-add_executable (test_supermatrix.x ${CMAKE_SOURCE_DIR}/test/test_supermatrix.cpp)
-target_link_libraries(test_supermatrix.x hmlp)
-
-
-
-# Build SPDASKIT test suit
-if ($ENV{HMLP_USE_BLAS} MATCHES "true")
-  add_executable (test_gofmm.x ${CMAKE_SOURCE_DIR}/test/test_gofmm.cpp)
-  target_link_libraries(test_gofmm.x hmlp ${MPI_CXX_LIBRARIES})
-  if (MPI_CXX_COMPILE_FLAG)
-    set_target_properties(test_gofmm.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
-  endif()
-  if (MPI_LINK_FLAGS)
-    set_target_properties(test_gofmm.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-  endif()
-  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries(test_gofmm.x cudart)
-    cuda_add_cublas_to_target(test_gofmm.x)
+    target_link_libraries( "${testexe}.x" cudart )
+    cuda_add_cublas_to_target( "${testexe}.x" )
   endif ()
   if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_gofmm.x magma)
+    target_link_libraries( "${testexe}.x" magma )
   endif()
-else ()
-  message( WARNING "GOFMM is not compiled becuase HMLP_USE_BLAS=false" )
-endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
-
-
-
-# Build SPDASKIT test suit
-if ($ENV{HMLP_USE_BLAS} MATCHES "true")
-  add_executable (test_mpigofmm.x ${CMAKE_SOURCE_DIR}/test/test_mpigofmm.cpp)
-  target_link_libraries(test_mpigofmm.x hmlp ${MPI_CXX_LIBRARIES})
-  set_target_properties(test_mpigofmm.x PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
-  set_target_properties(test_mpigofmm.x PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries(test_mpigofmm.x cudart)
-    cuda_add_cublas_to_target(test_mpigofmm.x)
-  endif ()
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries(test_mpigofmm.x magma)
-  endif()
-else ()
-  message( WARNING "GOFMM is not compiled becuase HMLP_USE_BLAS=false" )
-endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
+endforeach()
 
 
 ## Also build the target paper artifact
+# ---------------------------
 set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
 if (ARTIFACT_PATH MATCHES "sc17gofmm")
   set(ARTIFACT_PATH "${CMAKE_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")

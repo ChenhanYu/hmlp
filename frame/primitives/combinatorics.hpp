@@ -1,79 +1,84 @@
 #ifndef COMBINATORICS_HPP
 #define COMBINATORICS_HPP
- 
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <vector>
+
+#include <mpi/hmlp_runtime_mpi.hpp>
+
 namespace hmlp
 {
 namespace combinatorics
 {
 
-
 template<typename T>
-std::vector<T> Mean( int d, int n, std::vector<T> &X, std::vector<std::size_t> &lids )
+std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X, std::vector<size_t> &gids )
 {
-  assert( lids.size() == n );
+  bool do_general_stride = ( gids.size() == n );
+
+  /** assertion */
+  if ( !do_general_stride ) assert( X.size() == d * n );
+
+  /** declaration */
   int n_split = omp_get_max_threads();
-  std::vector<T> mean( d, 0.0 );
+  std::vector<T> sum( d, 0.0 );
   std::vector<T> temp( d * n_split, 0.0 );
 
-  //printf( "n_split %d\n", n_split );
-
-  #pragma omp parallel for num_threads( n_split )
-  for ( int j = 0; j < n_split; j ++ )
-  {
-    for ( int i = j; i < n; i += n_split )
-    {
-      for ( int p = 0; p < d; p ++ )
-      {
-        temp[ j * d + p ] += X[ lids[ i ] * d + p ];
-      }
-    }
-  }
-
-  // Reduce all temporary buffers
-  for ( int j = 0; j < n_split; j ++ )
-  {
-    for ( int p = 0; p < d; p ++ )
-    {
-      mean[ p ] += temp[ j * d + p ];
-    }
-  }
-
-  for ( int p = 0; p < d; p ++ )
-  {
-    mean[ p ] /= n;
-    //printf( "%5.2lf ", mean[ p ] );
-  }
-  //printf( "\n" );
-
-
-  return mean;
-}; // end Mean()
-
-
-
-template<typename T>
-std::vector<T> Mean( int d, int n, hmlp::Data<T> &X, std::vector<std::size_t> &lids )
-{
-  assert( lids.size() == n );
-  int n_split = omp_get_max_threads();
-  std::vector<T> mean( d, 0.0 );
-  std::vector<T> temp( d * n_split, 0.0 );
-
+  /** compute partial sum on each thread */
   #pragma omp parallel for num_threads( n_split )
   for ( int j = 0; j < n_split; j ++ )
     for ( int i = j; i < n; i += n_split )
       for ( int p = 0; p < d; p ++ )
-        temp[ j * d + p ] += X[ lids[ i ] * d + p ];
+        if ( do_general_stride )
+          temp[ j * d + p ] += X[ gids[ i ] * d + p ];
+        else
+          temp[ j * d + p ] += X[ i * d + p ];
 
   /** reduce all temporary buffers */
   for ( int j = 0; j < n_split; j ++ )
     for ( int p = 0; p < d; p ++ )
-      mean[ p ] += temp[ j * d + p ];
+      sum[ p ] += temp[ j * d + p ];
 
+  return sum;
+
+}; /** end Sum() */
+
+
+
+/** TODO */
+template<typename T>
+std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X, std::vector<size_t> &gids,
+    hmlp::mpi::Comm comm )
+{
+  bool do_general_stride = ( gids.size() == n );
+
+  /** assertion */
+  if ( !do_general_stride ) assert( X.size() == d * n );
+
+  /** local sum */
+  auto sum = Sum( d, n, X, gids );
+
+  /** Allreduce */
+
+
+}; /** end Sum() */
+
+
+
+
+template<typename T>
+std::vector<T> Mean( size_t d, size_t n, std::vector<T> &X, std::vector<size_t> &gids )
+{
+  /** sum over n points in d dimensions */
+  auto mean = Sum( d, n, X, gids );
+
+  /** compute average */
   for ( int p = 0; p < d; p ++ ) mean[ p ] /= n;
 
   return mean;
-}; // end Mean()
+
+}; /** end Mean() */
 
 
 /**
@@ -81,19 +86,36 @@ std::vector<T> Mean( int d, int n, hmlp::Data<T> &X, std::vector<std::size_t> &l
  *  
  */ 
 template<typename T>
-std::vector<T> Mean( int d, int n, hmlp::Data<T> &X )
+std::vector<T> Mean( size_t d, size_t n, std::vector<T> &X )
 {
-  std::vector<std::size_t> lids( n );
-  for ( int i = 0; i < n; i ++ ) lids[ i ] = i;
-  return Mean( d, n, X, lids );
+  /** assertion */
+  assert( X.size() == d * n );
+
+  /** gids */
+  std::vector<std::size_t> dummy_gids;
+
+  return Mean( d, n, X, dummy_gids );
+
 }; // end Mean()
 
+
+
+/** TODO */
+/**
+ *  @biref distributed mean values over d dimensions
+ */ 
 template<typename T>
-std::vector<T> Mean( int d, int n, std::vector<T> &X )
+std::vector<T> Mean( size_t d, size_t n, std::vector<T> &X, hmlp::mpi::Comm comm )
 {
-  std::vector<std::size_t> lids( n );
-  for ( int i = 0; i < n; i ++ ) lids[ i ] = i;
+  
+
+  /** gids = 0:n-1 */
+  std::vector<std::size_t> gids( n );
+  for ( int i = 0; i < n; i ++ ) gids[ i ] = i;
+
+
   return Mean( d, n, X, lids );
+
 }; // end Mean()
 
 
@@ -187,7 +209,7 @@ T Select( size_t n, size_t k, std::vector<T> &x )
   /** early return */
   if ( n == 1 ) return x[ 0 ];
 
-  std::vector<T> mean = Mean( 1, n, x );
+  std::vector<T> mean = Mean( (size_t)1, n, x );
   std::vector<T> lhs, rhs;
   std::vector<size_t> lflag( n, 0 );
   std::vector<size_t> rflag( n, 0 );
@@ -252,6 +274,50 @@ T Select( size_t n, size_t k, std::vector<T> &x )
 
 
 
+template<typename T>
+T Select( size_t k, std::vector<T> &x, hmlp::mpi::Comm comm )
+{
+  /** declaration */
+  std::vector<T> lhs, rhs;
+  lhr.reserve( x.size() );
+  rhr.reserve( x.size() );
+  int n = 0;
+  int num_points_owned = x.size();
+
+  /** reduce to get the total problem size */
+  hmlp::mpi::Allreduce( &num_points_owned, &n, 1, MPI_INT, MPI_SUM, comm );
+
+  /** TODO: mean value */
+  std::vector<T> mean = Mean( (size_t)1, n, x, comm );
+
+  for ( size_t i = 0; i < x.size(); i ++ )
+  {
+    if ( x[ i ] < mean[ 0 ] ) lhs.push_back( x[ i ] );
+    else                      rhs.push_back( x[ i ] );
+  }
+
+  /** reduce nlhs and nrhs */
+  int nlhs = 0;
+  int nrhs = 0;
+  int num_lhs_owned = lhs.size();
+  int num_rhs_owned = rhs.size();
+  hmlp::mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
+  hmlp::mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
+
+  if ( nlhs == k || n == 1 || n == nlhs || n == nrhs )
+  {
+    return mean[ 0 ];
+  }
+  else if ( lhs.size() > k )
+  {
+    return Select( k, lhs, comm );
+  }
+  else
+  {
+    return Select( k - lhs.size(), rhs, comm );
+  }
+
+}; /** end Select() */
 
 
 

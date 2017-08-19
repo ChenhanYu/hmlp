@@ -109,6 +109,7 @@ void test_gofmm
 	auto &tree = *tree_ptr;
 
 
+
   // ------------------------------------------------------------------------
   // ComputeAll
   // ------------------------------------------------------------------------
@@ -264,7 +265,7 @@ void test_gofmm_setup
     {
       assert( X );
 			/** using geometric splitters from hmlp::tree */
-      using SPLITTER     = hmlp::tree::centersplit<N_CHILDREN, T>;
+      using SPLITTER     = hmlp::mpitree::centersplit<N_CHILDREN, T>;
       using RKDTSPLITTER = hmlp::tree::randomsplit<N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
@@ -280,7 +281,7 @@ void test_gofmm_setup
     case ANGLE_DISTANCE:
     {
 			/** using geometric-oblivious splitters from hmlp::gofmm */
-      using SPLITTER     = hmlp::gofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
+      using SPLITTER     = hmlp::mpigofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
       using RKDTSPLITTER = hmlp::gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
@@ -424,8 +425,8 @@ int main( int argc, char *argv[] )
   /** Message Passing Interface */
   int size = -1, rank = -1;
   hmlp::mpi::Init( &argc, &argv );
-  hmlp::mpi::Comm_size( HMLP_MPI_COMM_WORLD, &size );
-  hmlp::mpi::Comm_rank( HMLP_MPI_COMM_WORLD, &rank );
+  hmlp::mpi::Comm_size( MPI_COMM_WORLD, &size );
+  hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
   printf( "size %d rank %d\n", size, rank );
 
   /** HMLP API call to initialize the runtime */
@@ -535,22 +536,22 @@ int main( int argc, char *argv[] )
 			test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
 				( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
 		}
-		{
-      d = 4;
-			/** generate coordinates from normal(0,1) distribution */
-			hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
-      /** setup the kernel object as Gaussian */
-      kernel_s<T> kernel;
-      kernel.type = KS_GAUSSIAN;
-      kernel.scal = -0.5 / ( h * h );
-      /** spd kernel matrix format (implicitly create) */
-      hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
-			/** (optional) provide neighbors, leave uninitialized otherwise */
-			hmlp::Data<std::pair<T, std::size_t>> NN;
-			/** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-		}
+		//{
+    //  d = 4;
+		//	/** generate coordinates from normal(0,1) distribution */
+		//	hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
+    //  /** setup the kernel object as Gaussian */
+    //  kernel_s<T> kernel;
+    //  kernel.type = KS_GAUSSIAN;
+    //  kernel.scal = -0.5 / ( h * h );
+    //  /** spd kernel matrix format (implicitly create) */
+    //  hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
+		//	/** (optional) provide neighbors, leave uninitialized otherwise */
+		//	hmlp::Data<std::pair<T, std::size_t>> NN;
+		//	/** routine */
+    //  test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+    //  ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+		//}
   }
 
 

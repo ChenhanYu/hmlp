@@ -522,7 +522,7 @@ struct centersplit
           T kij = K( gids[ i ],     gids[ idf2c ] );
           T kii = K( gids[ i ],     gids[ i ]     );
           T kjj = K( gids[ idf2c ], gids[ idf2c ] );
-          temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
+          temp[ i ] = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
           break;
         }
         default:

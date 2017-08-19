@@ -319,9 +319,9 @@ class Scheduler
 
     void Finalize();
 
-    int n_worker;
+    int n_worker = 0;
 
-    int n_task;
+    int n_task = 0;
 
     size_t timeline_tag;
 
