@@ -2,12 +2,13 @@
 
 need to clean up all gpu memory 
 
--SPDASKIT:
-rename as GOFMM. Polish interface
+-GOFMM:
+
 
 -TREE:
 
-remove mkl call
+(mpitree.hpp) currently distributed tree partitioning assume a
+global view on K( gidi, gidj ) and morton[ gid ].
 
 
 -GKMX:

@@ -55,31 +55,21 @@ struct centersplit
 	/** (default) using angle distance from the Gram vector space */
   DistanceMetric metric = ANGLE_DISTANCE;
 
-	/** overload the operator */
-  inline std::vector<std::vector<std::size_t> > operator()
-  ( 
-    std::vector<std::size_t>& gids,
-    std::vector<std::size_t>& lids
-  ) const 
+  /** number samples to approximate centroid */
+  size_t n_centroid_samples = 1;
+
+
+
+  /** compute all2c (distance to the approximate centroid) */
+  std::vector<T> AllToCentroid( std::vector<size_t> &gids ) const
   {
-    /** all assertions */
-    assert( N_SPLIT == 2 );
-    assert( Kptr );
-
-    /** all timers */
-    double beg, d2c_time, d2f_time, projection_time, max_time;
-
+    /** declaration */
     SPDMATRIX &K = *Kptr;
-    std::vector<std::vector<std::size_t>> split( N_SPLIT );
-    size_t n = gids.size();
-    std::vector<T> temp( n, 0.0 );
+    std::vector<T> temp( gids.size(), 0.0 );
 
-    beg = omp_get_wtime();
-    /** compute d2c (distance to the approximate centroid) */
-    size_t n_centroid_samples = 1;
-
+    /** loop over each point in gids */
     #pragma omp parallel for
-    for ( size_t i = 0; i < n; i ++ )
+    for ( size_t i = 0; i < gids.size(); i ++ )
     {
       switch ( metric )
       {
@@ -104,7 +94,6 @@ struct centersplit
             T kij = sample.first;
             T kii = K( gids[ i ], gids[ i ] );
             T kjj = K( sample.second, sample.second );
-
             temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
           }
           temp[ i ] /= n_centroid_samples;
@@ -117,29 +106,38 @@ struct centersplit
         }
       } /** end switch ( metric ) */
     }
-    d2c_time = omp_get_wtime() - beg;
 
-    // Find the f2c (far most to center)
-    auto itf2c = std::max_element( temp.begin(), temp.end() );
-    size_t idf2c = std::distance( temp.begin(), itf2c );
+    return temp;
 
-    beg = omp_get_wtime();
-    /** compute the d2f (distance to far most) */
+  }; /** end AllToCentroid() */
+
+
+
+  /** compute all2f (distance to the farthest point) */
+  std::vector<T> AllToFarthest( std::vector<size_t> &gids, size_t gidf2c ) const
+  {
+    /** declaration */
+    SPDMATRIX &K = *Kptr;
+    std::vector<T> temp( gids.size(), 0.0 );
+
+    /** loop over each point in gids */
     #pragma omp parallel for
-    for ( size_t i = 0; i < n; i ++ )
+    for ( size_t i = 0; i < gids.size(); i ++ )
     {
       switch ( metric )
       {
         case KERNEL_DISTANCE:
         {
-          temp[ i ] = K( gids[ i ], gids[ i ] ) - 2.0 * K( gids[ i ], gids[ idf2c ] );
+          T kij = K( gids[ i ],    gidf2c );
+          T kii = K( gids[ i ], gids[ i ] );
+          temp[ i ] = kii - 2.0 * kij;
           break;
         }
         case ANGLE_DISTANCE:
         {
-          T kij = K( gids[ i ],     gids[ idf2c ] );
-          T kii = K( gids[ i ],     gids[ i ]     );
-          T kjj = K( gids[ idf2c ], gids[ idf2c ] );
+          T kij = K( gids[ i ],    gidf2c );
+          T kii = K( gids[ i ], gids[ i ] );
+          T kjj = K(    gidf2c,    gidf2c );
           temp[ i ] = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
           break;
         }
@@ -148,39 +146,43 @@ struct centersplit
           printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
           exit( 1 );
         }
-      }
+      } /** end switch ( metric ) */
     }
-    d2f_time = omp_get_wtime() - beg;
 
-    beg = omp_get_wtime();
-    /** find f2f (far most to far most) */
-    auto itf2f = std::max_element( temp.begin(), temp.end() );
-    size_t idf2f = std::distance( temp.begin(), itf2f );
-    max_time = omp_get_wtime() - beg;
+    return temp;
 
-#ifdef DEBUG_SPDASKIT
-    printf( "idf2c %lu idf2f %lu\n", idf2c, idf2f );
-#endif
+  }; /** end AllToFarthest() */
 
-    beg = omp_get_wtime();
-    /** compute projection i.e. dip - diq */
+
+
+  /** compute all projection i.e. dip - diq for all i */
+  std::vector<T> AllToLeftRight( std::vector<size_t> &gids,
+      size_t gidf2c, size_t gidf2f ) const
+  {
+    /** declaration */
+    SPDMATRIX &K = *Kptr;
+    std::vector<T> temp( gids.size(), 0.0 );
+
+    /** loop over each point in gids */
     #pragma omp parallel for
-    for ( size_t i = 0; i < n; i ++ )
+    for ( size_t i = 0; i < gids.size(); i ++ )
     {
       switch ( metric )
       {
         case KERNEL_DISTANCE:
         {
-          temp[ i ] = K( gids[ i ], gids[ idf2f ] ) - K( gids[ i ], gids[ idf2c ] );
+          T kip = K( gids[ i ], gidf2f );
+          T kiq = K( gids[ i ], gidf2c );
+          temp[ i ] = kip - kiq;
           break;
         }
         case ANGLE_DISTANCE:
         {
-          T kip = K( gids[ i ],     gids[ idf2f ] );
-          T kiq = K( gids[ i ],     gids[ idf2c ] );
-          T kii = K( gids[ i ],     gids[ i ]     );
-          T kpp = K( gids[ idf2f ], gids[ idf2f ] );
-          T kqq = K( gids[ idf2c ], gids[ idf2c ] );
+          T kip = K( gids[ i ],    gidf2f );
+          T kiq = K( gids[ i ],    gidf2c );
+          T kii = K( gids[ i ], gids[ i ] );
+          T kpp = K(    gidf2f,    gidf2f );
+          T kqq = K(    gidf2c,    gidf2c );
           /** ingore 1 from both terms */
           temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
           break;
@@ -192,9 +194,65 @@ struct centersplit
         }
       }
     }
+
+    return temp;
+
+  }; /** end AllToLeftRight() */
+
+
+
+
+
+
+	/** overload the operator */
+  inline std::vector<std::vector<std::size_t> > operator()
+  ( 
+    std::vector<std::size_t>& gids,
+    std::vector<std::size_t>& lids
+  ) const 
+  {
+    /** all assertions */
+    assert( N_SPLIT == 2 );
+    assert( Kptr );
+
+    /** declaration */
+    SPDMATRIX &K = *Kptr;
+    std::vector<std::vector<std::size_t>> split( N_SPLIT );
+    size_t n = gids.size();
+    std::vector<T> temp( n, 0.0 );
+
+    /** all timers */
+    double beg, d2c_time, d2f_time, projection_time, max_time;
+
+    /** compute all2c (distance to the approximate centroid) */
+    beg = omp_get_wtime();
+    temp = AllToCentroid( gids );
+    d2c_time = omp_get_wtime() - beg;
+
+    /** find f2c (farthest from center) */
+    auto itf2c = std::max_element( temp.begin(), temp.end() );
+    auto idf2c = std::distance( temp.begin(), itf2c );
+    auto gidf2c = gids[ idf2c ];
+
+    /** compute the all2f (distance to farthest point) */
+    beg = omp_get_wtime();
+    temp = AllToFarthest( gids, gidf2c );
+    d2f_time = omp_get_wtime() - beg;
+
+    /** find f2f (far most to far most) */
+    beg = omp_get_wtime();
+    auto itf2f = std::max_element( temp.begin(), temp.end() );
+    auto idf2f = std::distance( temp.begin(), itf2f );
+    auto gidf2f = gids[ idf2f ];
+    max_time = omp_get_wtime() - beg;
+
+    /** compute all2leftright (projection i.e. dip - diq) */
+    beg = omp_get_wtime();
+    temp = AllToLeftRight( gids, gidf2c, gidf2f );
     projection_time = omp_get_wtime() - beg;
-//    printf( "log(n) %lu d2c %5.3lfs d2f %5.3lfs proj %5.3lfs max %5.3lfs\n", 
-//    	(size_t)std::log( n ), d2c_time, d2f_time, projection_time, max_time );
+
+
+
 
 
 
@@ -257,7 +315,6 @@ struct centersplit
     hmlp::mpi::Comm_rank( comm, &rank );
     SPDMATRIX &K = *Kptr;
     std::vector<std::vector<size_t>> split( N_SPLIT );
-    size_t n_centroid_samples = 1;
 
     /** reduce to get the total size of gids */
     int n = 0;
@@ -271,48 +328,8 @@ struct centersplit
     /** early return */
     if ( n == 0 ) return split;
 
-
     /** compute d2c (distance to the approx centroid) for each owned point */
-    #pragma omp parallel for
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      switch ( metric )
-      {
-        case KERNEL_DISTANCE:
-        {
-          temp[ i ] = K( gids[ i ], gids[ i ] );
-          for ( size_t j = 0; j < n_centroid_samples; j ++ )
-          {
-            /** important sample ( Kij, j ) if provided */
-            std::pair<T, size_t> sample = K.ImportantSample( gids[ i ] );
-            temp[ i ] -= ( 2.0 / n_centroid_samples ) * sample.first;
-          }
-          break;
-        }
-        case ANGLE_DISTANCE:
-        {
-          temp[ i ] = 0.0;
-          for ( size_t j = 0; j < n_centroid_samples; j ++ )
-          {
-            /** important sample ( Kij, j ) if provided */
-            std::pair<T, size_t> sample = K.ImportantSample( gids[ i ] );
-            T kij = sample.first;
-            T kii = K( gids[ i ], gids[ i ] );
-            T kjj = K( sample.second, sample.second );
-
-            temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-          }
-          temp[ i ] /= n_centroid_samples;
-          break;
-        }
-        default:
-        {
-          printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
-          exit( 1 );
-        }
-      } /** end switch ( metric ) */
-    }
-
+    temp = AllToCentroid( gids );
 
     /** find the f2c (far most to center) from points owned */
     auto itf2c = std::max_element( temp.begin(), temp.end() );
@@ -330,39 +347,18 @@ struct centersplit
     int gidf2c = gids[ idf2c ];
     hmlp::mpi::Bcast( &gidf2c, 1, MPI_INT, max_pair.key, comm );
 
-    printf( "rank %d val %E key %d; global val %E key %d\n", 
-        rank, local_max_pair.val, local_max_pair.key,
-        max_pair.val, max_pair.key ); fflush( stdout );
-    printf( "rank %d gidf2c %d\n", rank, gidf2c  ); fflush( stdout );
+    //printf( "rank %d val %E key %d; global val %E key %d\n", 
+    //    rank, local_max_pair.val, local_max_pair.key,
+    //    max_pair.val, max_pair.key ); fflush( stdout );
+    //printf( "rank %d gidf2c %d\n", rank, gidf2c  ); fflush( stdout );
 
 
 
-    /** compute the d2f (distance to far most) */
-    #pragma omp parallel for
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      switch ( metric )
-      {
-        case KERNEL_DISTANCE:
-        {
-          temp[ i ] = K( gids[ i ], gids[ i ] ) - 2.0 * K( gids[ i ], gids[ idf2c ] );
-          break;
-        }
-        case ANGLE_DISTANCE:
-        {
-          T kij = K( gids[ i ],     gids[ idf2c ] );
-          T kii = K( gids[ i ],     gids[ i ]     );
-          T kjj = K( gids[ idf2c ], gids[ idf2c ] );
-          temp[ i ] = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-          break;
-        }
-        default:
-        {
-          printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
-          exit( 1 );
-        }
-      }
-    }
+    /** compute all2f (distance to farthest point) */
+    temp = AllToFarthest( gids, gidf2c );
+
+
+
 
     /** find f2f (far most to far most) from owned points */
     auto itf2f = std::max_element( temp.begin(), temp.end() );
@@ -379,23 +375,81 @@ struct centersplit
     int gidf2f = gids[ idf2f ];
     hmlp::mpi::Bcast( &gidf2f, 1, MPI_INT, max_pair.key, comm );
 
-    printf( "rank %d val %E key %d; global val %E key %d\n", 
-        rank, local_max_pair.val, local_max_pair.key,
-        max_pair.val, max_pair.key ); fflush( stdout );
-    printf( "rank %d gidf2f %d\n", rank, gidf2f  ); fflush( stdout );
+    //printf( "rank %d val %E key %d; global val %E key %d\n", 
+    //    rank, local_max_pair.val, local_max_pair.key,
+    //    max_pair.val, max_pair.key ); fflush( stdout );
+    //printf( "rank %d gidf2f %d\n", rank, gidf2f  ); fflush( stdout );
 
 
+    /** compute all2leftright (projection i.e. dip - diq) */
+    temp = AllToLeftRight( gids, gidf2c, gidf2f );
 
 
+    /** parallel median select */
+    T  median = hmlp::combinatorics::Select( n / 2, temp, comm );
 
+    //printf( "rank %d median %E\n", rank, median ); fflush( stdout );
 
+    std::vector<size_t> middle;
+    middle.reserve( gids.size() );
+    split[ 0 ].reserve( gids.size() );
+    split[ 1 ].reserve( gids.size() );
 
+    /** TODO: Can be parallelized */
+    for ( size_t i = 0; i < gids.size(); i ++ )
+    {
+      auto val = temp[ i ];
 
+      if ( std::fabs( val - median ) < 1E-6 && !std::isinf( val ) && !std::isnan( val) )
+      {
+        middle.push_back( i );
+      }
+      else if ( val < median ) 
+      {
+        split[ 0 ].push_back( i );
+      }
+      else
+      {
+        split[ 1 ].push_back( i );
+      }
+    }
 
+    int nmid = 0;
+    int nlhs = 0;
+    int nrhs = 0;
+    int num_mid_owned = middle.size();
+    int num_lhs_owned = split[ 0 ].size();
+    int num_rhs_owned = split[ 1 ].size();
 
-    /** load balancing (keep some points that are closed to the median) */
-    
+    /** nmid = sum( num_mid_owned ) over all MPI processes in comm */
+    hmlp::mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
+    hmlp::mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
+    hmlp::mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
 
+    printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
+        rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
+        nlhs, nmid, nrhs ); fflush( stdout );
+
+    /** assign points in the middle to left or right */
+    if ( nmid )
+    {
+      int nlhs_required = ( n - 1 ) / 2 + 1 - nlhs;
+      int nrhs_required = nmid - nlhs_required;
+      assert( nlhs_required >= 0 );
+      assert( nrhs_required >= 0 );
+
+      /** now decide the portion */
+      int nlhs_required_owned = num_mid_owned * nlhs_required / nmid;
+      int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
+      assert( nlhs_required_owned >= 0 );
+      assert( nrhs_required_owned >= 0 );
+
+      for ( size_t i = 0; i < middle.size(); i ++ )
+      {
+        if ( i < nlhs_required_owned ) split[ 0 ].push_back( middle[ i ] );
+        else                           split[ 1 ].push_back( middle[ i ] );
+      }
+    };
 
     return split;
   };
@@ -616,6 +670,8 @@ hmlp::mpitree::Tree<
   beg = omp_get_wtime();
   tree.TreePartition( n );
   tree_time = omp_get_wtime() - beg;
+  printf( "end TreePartitioning ...\n" ); fflush( stdout );
+  
 
   return tree_ptr;
 

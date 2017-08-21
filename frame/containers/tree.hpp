@@ -600,6 +600,13 @@ class Node : public ReadWrite
     }; 
 
 
+    void Print()
+    {
+      printf( "l %lu offset %lu n %lu\n", this->l, this->offset, this->n );
+      hmlp_print_binary( this->morton );
+    };
+
+
     // This is the call back pointer to the shared data.
     SETUP *setup;
 
@@ -729,14 +736,17 @@ class Tree
     /** deconstructor */
     ~Tree()
     {
+      //printf( "~Tree() shared treelist.size() %lu treequeue.size() %lu\n",
+      //    treelist.size(), treequeue.size() );
       for ( int i = 0; i < treelist.size(); i ++ )
       {
-        delete treelist[ i ];
+        if ( treelist[ i ] ) delete treelist[ i ];
       }
       for ( int i = 0; i < treequeue.size(); i ++ )
       {
-        delete treequeue[ i ];
+        if ( treequeue[ i ] ) delete treequeue[ i ];
       }
+      //printf( "end ~Tree() shared\n" );
     };
 
     /**
@@ -751,6 +761,9 @@ class Tree
     }; /** end Getlid() */
 
 
+    /**
+     *  currently only used in DrawInteraction()
+     */ 
     void Offset( NODE *node, size_t offset )
     {
       if ( node )
@@ -759,10 +772,11 @@ class Tree
         if ( node->lchild )
         {
           Offset( node->lchild, offset + 0 );
-          Offset( node->rchild, offset + node->lchild->lids.size() );
+          Offset( node->rchild, offset + node->lchild->gids.size() );
         }
       }
-    };
+      
+    }; /** end Offset() */
 
 
     template<size_t LEVELOFFSET=4>
@@ -792,6 +806,11 @@ class Tree
       }
     };
 
+
+    /**
+     *  @TODO: used in FindNearNode, problematic in distributed version
+     *
+     */ 
     template<size_t LEVELOFFSET=4>
     NODE *Morton2Node( size_t me )
     {
@@ -812,6 +831,79 @@ class Tree
     };
 
 
+    /**
+     *
+     *
+     */
+    void TreePartition( NODE *root )
+    {
+      assert( N_CHILDREN == 2 );
+      
+      /** declaration */
+      std::deque<NODE*> treequeue;
+      int max_depth = setup.max_depth;
+
+      /** reset the warning flag and clean up the treelist */
+      has_uneven_split = false;
+      treelist.clear();
+      treequeue.clear();
+      treelist.reserve( ( root->n / m ) * N_CHILDREN );
+
+      /** assume complete tree, compute the local tree depth first */
+      depth = 0;
+      size_t num_points_per_node = root->n;
+      while ( num_points_per_node > m && root->l + depth < max_depth )
+      {
+        num_points_per_node = ( num_points_per_node + 1 ) / N_CHILDREN;
+        depth ++;
+      }
+      size_t num_nodes_in_local_tree = 
+        ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
+
+      /** TODO: remove lid in the future?? */
+      root->lids = root->gids;
+
+
+      /** push root into the treelist */
+      treequeue.push_back( root );
+
+      /** allocate children */
+      while ( auto *node = treequeue.front() )
+      {
+        /** assign local tree node id */
+        node->treelist_id = treelist.size();
+        /** account for the depth of the distributed tree */
+        if ( node->l < root->l + depth )
+        {
+          for ( int i = 0; i < N_CHILDREN; i ++ )
+          {
+            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
+            treequeue.push_back( node->kids[ i ] );
+          }
+        }
+        else
+        {
+          treequeue.push_back( NULL );
+        }
+        treelist.push_back( node );
+        treequeue.pop_front();
+      }
+
+      //printf( "local treelist.size() %lu\n", treelist.size() ); fflush( stdout );
+
+      /** */
+      SplitTask<NODE> splittask;
+      TraverseDown<false, false>( splittask );
+
+
+    }; /** end TreePartition() */
+
+
+
+    /**
+     *  @brief shared memory version.
+     *
+     */ 
     void TreePartition
     (
       std::vector<std::size_t> &gids,

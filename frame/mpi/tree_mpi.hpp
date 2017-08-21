@@ -228,22 +228,119 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
     void Split()
     {
+      /** assertion */
       assert( N_CHILDREN == 2 );
+
+
+      /** reduce to get the total size of gids */
+      int num_points_total = 0;
+      int num_points_owned = (this->gids).size();
+
+      /** n = sum( num_points_owned ) over all MPI processes in comm */
+      hmlp::mpi::Allreduce( &num_points_owned, &num_points_total, 
+          1, MPI_SUM, comm );
+      this->n = num_points_total;
+
+
+
+      printf( "rank %d n %lu gids.size() %lu --", 
+          rank, this->n, this->gids.size() ); fflush( stdout );
+      for ( size_t i = 0; i < this->gids.size(); i ++ )
+        printf( "%lu ", this->gids[ i ] );
+      printf( "\n" ); fflush( stdout );
 
       if ( child )
       {
-        /** */
+        /** the local communicator of this node contains at least 2 processes */
+        assert( size > 1 );
+
+        /** distributed split */
         auto split = this->setup->splitter( this->gids, comm );
-      }
+
+        /** get partner rank */
+        int partner_rank = 0;
+        int sent_size = 0; 
+        int recv_size = 0;
+        std::vector<size_t> &kept_gids = child->gids;
+        std::vector<int>     sent_gids;
+        std::vector<int>     recv_gids;
+
+        if ( rank < size / 2 ) 
+        {
+          /** left child */
+          partner_rank = rank + size / 2;
+          /** MPI ranks 0:size/2-1 keep split[ 0 ] */
+          kept_gids.resize( split[ 0 ].size() );
+          for ( size_t i = 0; i < kept_gids.size(); i ++ )
+            kept_gids[ i ] = this->gids[ split[ 0 ][ i ] ];
+          /** MPI ranks 0:size/2-1 send split[ 1 ] */
+          sent_gids.resize( split[ 1 ].size() );
+          sent_size = sent_gids.size();
+          for ( size_t i = 0; i < sent_gids.size(); i ++ )
+            sent_gids[ i ] = this->gids[ split[ 1 ][ i ] ];
+        }
+        else       
+        {
+          /** right child */
+          partner_rank = rank - size / 2;
+          /** MPI ranks size/2:size-1 keep split[ 1 ] */
+          kept_gids.resize( split[ 1 ].size() );
+          for ( size_t i = 0; i < kept_gids.size(); i ++ )
+            kept_gids[ i ] = this->gids[ split[ 1 ][ i ] ];
+          /** MPI ranks size/2:size-1 send split[ 0 ] */
+          sent_gids.resize( split[ 0 ].size() );
+          sent_size = sent_gids.size();
+          for ( size_t i = 0; i < sent_gids.size(); i ++ )
+            sent_gids[ i ] = this->gids[ split[ 0 ][ i ] ];
+        }
+        assert( partner_rank >= 0 );
+
+        //printf( "rank %d partner_arnk %d\n", rank, partner_rank ); fflush( stdout );
+
+
+        /** exchange recv_gids.size() */
+        hmlp::mpi::Sendrecv( 
+            &sent_size, 1, MPI_INT, partner_rank, 10,
+            &recv_size, 1, MPI_INT, partner_rank, 10,
+            comm, &status );
+
+        printf( "rank %d kept_size %lu sent_size %d recv_size %d\n", 
+            rank, kept_gids.size(), sent_size, recv_size ); fflush( stdout );
+
+        /** resize recv_gids */
+        recv_gids.resize( recv_size );
+
+        /** exchange recv_gids.size() */
+        hmlp::mpi::Sendrecv( 
+            sent_gids.data(), sent_size, MPI_INT, partner_rank, 20,
+            recv_gids.data(), recv_size, MPI_INT, partner_rank, 20,
+            comm, &status );
+
+        /** enlarge kept_gids */
+        kept_gids.reserve( kept_gids.size() + recv_gids.size() );
+        for ( size_t i = 0; i < recv_gids.size(); i ++ )
+          kept_gids.push_back( recv_gids[ i ] );
+        
+
+      } /** end if ( child ) */
       
       /** synchronize within local communicator */
       hmlp::mpi::Barrier( comm );
-    };
+
+    }; /** end Split() */
+
+
+    int GetCommSize() { return size; };
+    
+    int GetCommRank() { return rank; };
 
     void Print()
     {
-      printf( "Node n %lu l %lu rank %d\n", 
-          this->n, this->l, this->rank );
+      int global_rank = 0;
+      hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+      printf( "grank %d l %lu lrank %d offset %lu n %lu\n", 
+          global_rank, this->l, this->rank, this->offset, this->n );
+      hmlp_print_binary( this->morton );
     };
 
     Node *child = NULL;
@@ -253,8 +350,11 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     /** initialize with all processes */
     hmlp::mpi::Comm comm = MPI_COMM_WORLD;
 
+    /** mpi status */
+    hmlp::mpi::Status status;
+
     /** subcommunicator size */
-    int size = 0;
+    int size = 1;
 
     /** subcommunicator rank */
     int rank = 0;
@@ -295,12 +395,19 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     /** inherit deconstructor */
     ~Tree()
     {
-      //hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::~Tree();
-      //printf( "~Tree() mpitreelists.size() %lu\n", mpitreelists.size() ); fflush( stdout );
-      for ( size_t i = 0; i < mpitreelists.size(); i ++ )
-        if ( mpitreelists[ i ] ) delete mpitreelists[ i ];
-      mpitreelists.clear();
-      //printf( "~Tree() here\n" ); fflush( stdout );
+      //printf( "~Tree() distributed, mpitreelists.size() %lu\n",
+      //    mpitreelists.size() ); fflush( stdout );
+      /** 
+       *  we do not free the last tree node, it will be deleted by 
+       *  hmlp::tree::Tree()::~Tree() 
+       */
+      if ( mpitreelists.size() )
+      {
+        for ( size_t i = 0; i < mpitreelists.size() - 1; i ++ )
+          if ( mpitreelists[ i ] ) delete mpitreelists[ i ];
+        mpitreelists.clear();
+      }
+      //printf( "end ~Tree() distributed\n" ); fflush( stdout );
     };
 
     /** 
@@ -436,14 +543,58 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
       while ( node )
       {
-         node->Print();
+         //node->Print();
          node->Split();
          node = node->child;
       };
 
 
-      /** local tree */
-    };
+      /** TODO: local tree */
+      auto *local_tree_root = mpitreelists.back();
+      hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::TreePartition(
+          local_tree_root );
+
+
+
+      /** allocate space for point Morton ID */
+      (this->setup).morton.resize( n );
+
+      /** compute Morton ID for both distributed and local trees */
+      Morton( mpitreelists[ 0 ], 0 );
+      hmlp::mpi::Barrier( comm );
+
+      Offset( mpitreelists[ 0 ], 0 );
+      hmlp::mpi::Barrier( comm );
+
+
+
+
+
+
+      printf( "\n" ); fflush( stdout );
+      node = mpitreelists.front();
+      while ( node )
+      {
+        node->Print();
+        node = node->child;
+      }
+      printf( "\n" ); fflush( stdout );
+
+      for ( size_t i = 0; i < this->treelist.size(); i ++ )
+      {
+        this->treelist[ i ]->Print();
+      }
+      printf( "\n" ); fflush( stdout );
+
+
+
+
+
+    }; /** end TreePartition() */
+
+
+
+
 
     //template<bool SORTED, typename KNNTASK>
     //hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
@@ -465,6 +616,67 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
     //}; /** end AllNearestNeighbor() */
 
+
+
+
+    /**
+     *  currently only used in DrawInteraction()
+     */ 
+    void Offset( NODE *node, size_t offset )
+    {
+      if ( node->GetCommSize() < 2 )
+      {
+        hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Offset( node, offset );
+        return;
+      }
+
+      if ( node )
+      {
+        node->offset = offset;
+        auto *child = node->child;
+        if ( child )
+        {
+          if ( node->GetCommRank() < node->GetCommSize() / 2 )
+            Offset( child, offset + 0 );
+          else                   
+            Offset( child, offset + node->n - child->n );
+        }
+      }
+      
+    }; /** end Offset() */
+
+
+
+
+    /**
+     *  @brief Distributed Morton ID
+     */ 
+    template<size_t LEVELOFFSET=4>
+    void Morton( NODE *node, size_t morton )
+    {
+      /** call shared memory Morton ID */
+      if ( node->GetCommSize() < 2 )
+      {
+        hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Morton( node, morton );
+        return;
+      }
+
+      if ( node )
+      {
+        /** child is the left child */
+        if ( node->GetCommRank() < node->GetCommSize() / 2 )
+          Morton( node->child, ( morton << 1 ) + 0 );
+        /** child is the right child */
+        else                   
+          Morton( node->child, ( morton << 1 ) + 1 );
+        /** compute the correct shift*/
+        size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
+        /** set the node Morton ID */
+        node->morton = ( morton << shift ) + node->l;
+      }
+    }; /** end Morton() */
+
+
     
   private:
 
@@ -472,7 +684,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     hmlp::mpi::Comm comm = MPI_COMM_WORLD;
 
     /** global communicator size */
-    int size = 0;
+    int size = 1;
 
     /** global communicator rank */
     int rank = 0;

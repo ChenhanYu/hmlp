@@ -1411,8 +1411,16 @@ void Skeletonize( NODE *node )
           sample = rand() % K.col();
         }
 
+        /** create a single query */
+        std::vector<size_t> sample_query( 1, sample );
+
+        /**
+         *  check duplication using std::find, but check whether the sample
+         *  belongs to the diagonal block using Morton ID.
+         */ 
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
-            std::find( lids.begin(), lids.end(), sample ) == lids.end() )
+             !node->ContainAny( sample_query ) )
+            //std::find( lids.begin(), lids.end(), sample ) == lids.end() )
         {
           amap.push_back( sample );
         }

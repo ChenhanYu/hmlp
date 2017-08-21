@@ -45,22 +45,27 @@ std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X, std::vector<size_t> &
 }; /** end Sum() */
 
 
-
 /** TODO */
 template<typename T>
-std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X, std::vector<size_t> &gids,
+std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X,
     hmlp::mpi::Comm comm )
 {
-  bool do_general_stride = ( gids.size() == n );
+  size_t num_points_owned = X.size() / d;
 
-  /** assertion */
-  if ( !do_general_stride ) assert( X.size() == d * n );
+  /** gids */
+  std::vector<std::size_t> dummy_gids;
 
   /** local sum */
-  auto sum = Sum( d, n, X, gids );
+  auto local_sum = Sum( d, num_points_owned, X, dummy_gids );
+
+  /** total sum */
+  std::vector<T> total_sum( d, 0 );
 
   /** Allreduce */
+  hmlp::mpi::Allreduce(
+      local_sum.data(), total_sum.data(), d, MPI_SUM, comm );
 
+  return total_sum;
 
 }; /** end Sum() */
 
@@ -96,7 +101,8 @@ std::vector<T> Mean( size_t d, size_t n, std::vector<T> &X )
 
   return Mean( d, n, X, dummy_gids );
 
-}; // end Mean()
+}; /** end Mean() */
+
 
 
 
@@ -105,18 +111,18 @@ std::vector<T> Mean( size_t d, size_t n, std::vector<T> &X )
  *  @biref distributed mean values over d dimensions
  */ 
 template<typename T>
-std::vector<T> Mean( size_t d, size_t n, std::vector<T> &X, hmlp::mpi::Comm comm )
+std::vector<T> Mean( size_t d, size_t n, std::vector<T> &X, 
+    hmlp::mpi::Comm comm )
 {
-  
+  /** sum over n points in d dimensions */
+  auto mean = Sum( d, n, X, comm );
 
-  /** gids = 0:n-1 */
-  std::vector<std::size_t> gids( n );
-  for ( int i = 0; i < n; i ++ ) gids[ i ] = i;
+  /** compute average */
+  for ( int p = 0; p < d; p ++ ) mean[ p ] /= n;
 
+  return mean;
 
-  return Mean( d, n, X, lids );
-
-}; // end Mean()
+}; /** end Mean() */
 
 
 
@@ -257,17 +263,22 @@ T Select( size_t n, size_t k, std::vector<T> &x )
       rhs[ pscan[ i ] ] = x[ i ];
   }
 
-  if ( lhs.size() == n || rhs.size() == n || lhs.size() == k ) 
+  int nlhs = lhs.size();
+  int nrhs = rhs.size();
+
+  if ( nlhs == k || nlhs == n || nrhs == n ) 
   {
     return mean[ 0 ];
   }
-  else if ( lhs.size() > k )
+  else if ( nlhs > k )
   {
-    return Select( lhs.size(), k, lhs );
+    rhs.clear();
+    return Select( nlhs, k, lhs );
   }
   else
   {
-    return Select( rhs.size(), k - lhs.size(), rhs );
+    lhs.clear();
+    return Select( nrhs, k - nlhs, rhs );
   }
 
 }; /** end Select() */
@@ -279,13 +290,13 @@ T Select( size_t k, std::vector<T> &x, hmlp::mpi::Comm comm )
 {
   /** declaration */
   std::vector<T> lhs, rhs;
-  lhr.reserve( x.size() );
-  rhr.reserve( x.size() );
+  lhs.reserve( x.size() );
+  rhs.reserve( x.size() );
   int n = 0;
   int num_points_owned = x.size();
 
   /** reduce to get the total problem size */
-  hmlp::mpi::Allreduce( &num_points_owned, &n, 1, MPI_INT, MPI_SUM, comm );
+  hmlp::mpi::Allreduce( &num_points_owned, &n, 1, MPI_SUM, comm );
 
   /** TODO: mean value */
   std::vector<T> mean = Mean( (size_t)1, n, x, comm );
@@ -308,13 +319,15 @@ T Select( size_t k, std::vector<T> &x, hmlp::mpi::Comm comm )
   {
     return mean[ 0 ];
   }
-  else if ( lhs.size() > k )
+  else if ( nlhs > k )
   {
+    rhs.clear();
     return Select( k, lhs, comm );
   }
   else
   {
-    return Select( k - lhs.size(), rhs, comm );
+    lhs.clear();
+    return Select( k - nlhs, rhs, comm );
   }
 
 }; /** end Select() */

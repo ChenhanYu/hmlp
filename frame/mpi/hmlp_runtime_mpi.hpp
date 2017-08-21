@@ -119,7 +119,6 @@ int Allreduce( T* sendbuf, T* recvbuf, int count,
     datatype = MPI_FLOAT_INT;
   else if ( std::is_same<T, NumberIntPair<double> >::value )
   {
-    printf( "MPI_DOUBLE_INT\n" );
     datatype = MPI_DOUBLE_INT;
   }
   else
