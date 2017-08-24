@@ -452,6 +452,24 @@ void Task::Enqueue( size_t tid )
   float earliest_t = -1.0;
   int assignment = -1;
 
+  /** dispatch to mpi queue */
+  if ( has_mpi_routines )
+  {
+    rt.scheduler->mpi_queue_lock.Acquire();
+    {
+      /** change status */
+      status = QUEUED;
+      if ( priority )
+        rt.scheduler->mpi_queue.push_front( this );
+      else
+        rt.scheduler->mpi_queue.push_back( this );
+    }
+    rt.scheduler->mpi_queue_lock.Release();
+
+    /** finish and return without further going down */
+    return;
+  }
+
   /** dispatch to nested queue if in the epoch session */
   if ( is_created_in_epoch_session )
   {
@@ -470,7 +488,6 @@ void Task::Enqueue( size_t tid )
     return;
   };
 
-
   /** determine which work the task should go to using HEFT policy */
   for ( int p = 0; p < rt.n_worker; p ++ )
   {
@@ -484,6 +501,7 @@ void Task::Enqueue( size_t tid )
     }
   }
 
+  /** dispatch to normal ready queue */
   rt.scheduler->ready_queue_lock[ assignment ].Acquire();
   {
     float cost = rt.workers[ assignment ].EstimateCost( this );
@@ -497,7 +515,8 @@ void Task::Enqueue( size_t tid )
     rt.scheduler->time_remaining[ assignment ] += cost; 
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
-};
+
+}; /** end Task::Enqueue() */
 
 
 /**
@@ -873,42 +892,60 @@ void* Scheduler::EntryPoint( void* arg )
     Task *batch = NULL;
     Task *nexttask = NULL;
 
-    scheduler->ready_queue_lock[ me->tid ].Acquire();
-    {
-      if ( scheduler->ready_queue[ me->tid ].size() )
-      {
-        /** pop the front task */
-        batch = scheduler->ready_queue[ me->tid ].front();
-        scheduler->ready_queue[ me->tid ].pop_front();
-        batch_size ++;
 
-        /** create a batched job if there is not enough flops */
-        if ( me->GetDevice() && batch->cost < 0.5 )
+    if ( me->tid == 0 && scheduler->mpi_queue.size() )
+    {
+      scheduler->mpi_queue_lock.Acquire();
+      {
+        if ( scheduler->mpi_queue.size() )
         {
-          Task *task = batch;
-          while ( scheduler->ready_queue[ me->tid ].size() && 
-                  batch_size < MAX_BATCH_SIZE + 1 )
-          {
-            task->next = scheduler->ready_queue[ me->tid ].front();
-            scheduler->ready_queue[ me->tid ].pop_front();
-            batch_size ++;
-            task = task->next;
-          }
+          /** pop the front task */
+          batch = scheduler->mpi_queue.front();
+          scheduler->mpi_queue.pop_front();
+          batch_size ++;
         }
       }
-      else
-      {
-        /** reset my workload counter */
-        scheduler->time_remaining[ me->tid ] = 0.0;
-      }
-
-      if ( scheduler->ready_queue[ me->tid ].size() )
-      {
-        /** try to prefetch the next task */
-        nexttask = scheduler->ready_queue[ me->tid ].front();
-      }
+      scheduler->mpi_queue_lock.Release();
     }
-    scheduler->ready_queue_lock[ me->tid ].Release();
+    else
+    {
+      scheduler->ready_queue_lock[ me->tid ].Acquire();
+      {
+        if ( scheduler->ready_queue[ me->tid ].size() )
+        {
+          /** pop the front task */
+          batch = scheduler->ready_queue[ me->tid ].front();
+          scheduler->ready_queue[ me->tid ].pop_front();
+          batch_size ++;
+
+          /** create a batched job if there is not enough flops */
+          if ( me->GetDevice() && batch->cost < 0.5 )
+          {
+            Task *task = batch;
+            while ( scheduler->ready_queue[ me->tid ].size() && 
+                batch_size < MAX_BATCH_SIZE + 1 )
+            {
+              task->next = scheduler->ready_queue[ me->tid ].front();
+              scheduler->ready_queue[ me->tid ].pop_front();
+              batch_size ++;
+              task = task->next;
+            }
+          }
+        }
+        else
+        {
+          /** reset my workload counter */
+          scheduler->time_remaining[ me->tid ] = 0.0;
+        }
+
+        if ( scheduler->ready_queue[ me->tid ].size() )
+        {
+          /** try to prefetch the next task */
+          nexttask = scheduler->ready_queue[ me->tid ].front();
+        }
+      }
+      scheduler->ready_queue_lock[ me->tid ].Release();
+    }
 
     if ( nexttask ) nexttask->Prefetch( me );
 

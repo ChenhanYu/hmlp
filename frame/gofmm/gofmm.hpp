@@ -233,8 +233,14 @@ class Data : public hmlp::hfamily::Factor<T>
     /** my skeletons */
     std::vector<size_t> skels;
 
-    /** (buffer) s-by-s upper trianguler for xtrsm( R11, proj ) */
-    //hmlp::Data<T> R11; 
+    /** (buffer) nsamples row gids */
+    std::vector<size_t> candidate_rows;
+
+    /** (buffer) sl+sr column gids of children */
+    std::vector<size_t> candidate_cols;
+
+    /** (buffer) nsamples-by-(sl+sr) submatrix of K */
+    hmlp::Data<T> KIJ; 
 
     /** 2s, pivoting order of GEQP3 */
     std::vector<int> jpvt;
@@ -1358,7 +1364,7 @@ void Skeletonize( NODE *node )
   /** merge children's skeletons */
   if ( node->isleaf )
   {
-    bmap = node->lids;
+    bmap = node->gids;
   }
   else
   {

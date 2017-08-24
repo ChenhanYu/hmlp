@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <vector>
 
-#include <mpi/hmlp_runtime_mpi.hpp>
+#include <mpi/hmlp_mpi.hpp>
 
 namespace hmlp
 {

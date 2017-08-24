@@ -174,7 +174,7 @@ class Event
 
     double sec;
 
-}; // end class Event
+}; /** end class Event */
 
 
 class Task
@@ -246,14 +246,29 @@ class Task
     /** the next task in the batch job */
     Task *next = NULL;
 
+    /** if true, then this is an MPI task */
+    bool has_mpi_routines = false;
+
   private:
 
     volatile TaskStatus status;
 
-    /**  */
+    /** if true, then this is a nested task */
     bool is_created_in_epoch_session = false;
 
-};
+}; /** end class Task */
+
+
+template<typename ARGUMENT>
+class NULLTask : public Task
+{
+  public:
+
+    void Set( ARGUMENT *arg ) {};
+
+    void Execute( Worker* ) {};
+
+}; /** end class NULLTask */
 
 
 
@@ -321,20 +336,28 @@ class Scheduler
 
     int n_worker = 0;
 
+    /** number of tasks that has been completed */
     int n_task = 0;
+    Lock n_task_lock;
 
     size_t timeline_tag;
 
     double timeline_beg;
 
+    /** the ready queue for normal tasks */
     std::deque<Task*> ready_queue[ MAX_WORKER ];
-
-    /** the read queue for nested tasks */
-    std::deque<Task*> nested_queue;
-
     std::deque<Task*> tasklist;
+    Lock ready_queue_lock[ MAX_WORKER ];
 
+    /** the ready queue for nested tasks */
+    std::deque<Task*> nested_queue;
     std::deque<Task*> nested_tasklist;
+    Lock nested_queue_lock;
+
+    /** the ready queue for MPI tasks */
+    std::deque<Task*> mpi_queue;
+    std::deque<Task*> mpi_tasklist;
+    Lock mpi_queue_lock;
 
     float time_remaining[ MAX_WORKER ];
 
@@ -348,12 +371,6 @@ class Scheduler
     Task *TryDispatchFromNestedQueue();
 
     void Summary();
-
-    Lock ready_queue_lock[ MAX_WORKER ];
-
-    Lock nested_queue_lock;
-
-    Lock n_task_lock;
 
   private:
 

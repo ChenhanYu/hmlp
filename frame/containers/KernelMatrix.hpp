@@ -230,6 +230,52 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       return sample; 
     };
 
+
+
+    /** u( umap ) += K( amap, bmap ) * w( wmap ) */
+    template<typename TINDEX>
+    void Multiply( 
+        size_t nrhs,
+        std::vector<T> &u, std::vector<TINDEX> &umap, 
+                           std::vector<TINDEX> &amap,
+                           std::vector<TINDEX> &bmap,
+        std::vector<T> &w, std::vector<TINDEX> &wmap )
+    {
+      gsks( &kernel, amap.size(), bmap.size(), d,
+                u.data(),                        umap.data(),
+          targets.data(), target_sqnorms.data(), amap.data(), 
+          sources.data(), source_sqnorms.data(), bmap.data(), 
+                w.data(),                        wmap.data() );
+    };
+
+    /** u( amap ) += K( amap, bmap ) * w( bmap ) */
+    template<typename TINDEX>
+    void Multiply( 
+        size_t nrhs,
+        std::vector<T> &u,
+                           std::vector<TINDEX> &amap,
+                           std::vector<TINDEX> &bmap,
+        std::vector<T> &w )
+    {
+      Multiply( u, amap, amap, bmap, w, bmap );
+    };
+
+
+    /** u += K * w */
+    void Multiply( 
+        size_t nrhs,
+        std::vector<T> &u,
+        std::vector<T> &w )
+    {
+      std::vector<size_t> amap( this->row() );
+      std::vector<size_t> bmap( this->col() );
+      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
+      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
+      Multiply( u, amap, bmap, w );
+    };
+
+
+
     void Print()
     {
       for ( size_t j = 0; j < this->col(); j ++ )

@@ -20,8 +20,8 @@
 
 
 
-
-#include <hmlp_runtime_mpi.hpp>
+/** MPI support */
+#include <hmlp_mpi.hpp>
 
 #include <tuple>
 #include <cmath>

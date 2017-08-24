@@ -22,7 +22,10 @@
 #ifndef MPITREE_HPP
 #define MPITREE_HPP
 
-#include <hmlp_runtime_mpi.hpp>
+#include <type_traits>
+#include <cstdint>
+
+#include <hmlp_mpi.hpp>
 #include <containers/tree.hpp>
 
 namespace hmlp
@@ -330,6 +333,8 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     }; /** end Split() */
 
 
+    hmlp::mpi::Comm GetComm() { return comm; };
+
     int GetCommSize() { return size; };
     
     int GetCommRank() { return rank; };
@@ -367,6 +372,40 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
 /**
+ *
+ */ 
+template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
+class LetNode : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+{
+  public:
+
+    /** inherit all parameters from hmlp::tree::Node */
+
+    LetNode( size_t morton )
+      : hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+        ( NULL, (size_t)0, (size_t)1, NULL ) 
+    {
+      this->morton = morton;
+    };
+
+  private:
+
+
+}; /** end class LetNode */
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
  *  @brief This distributed tree inherits the shared memory tree
  *         with some additional MPI data structure and function call.
  */ 
@@ -381,6 +420,10 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
     /** define our tree node type as NODE */
     typedef Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
+
+    /** define our tree node type as NODE */
+    typedef LetNode<SETUP, N_CHILDREN, NODEDATA, T> LETNODE;
+
 
     /** distribued tree (a list of tree nodes) */
     std::vector<NODE*> mpitreelists;
@@ -675,6 +718,119 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
         node->morton = ( morton << shift ) + node->l;
       }
     }; /** end Morton() */
+
+
+
+
+
+
+
+    /** 
+     *
+     */
+    template<bool USE_RUNTIME, 
+      typename TASK1, typename MPITASK1,
+      typename TASK2, typename MPITASK2>
+    void ParallelTraverseUp( 
+        TASK1 &dummy1, MPITASK1 &mpidummy1, 
+        TASK2 &dummy2, MPITASK2 &mpidummy2 )
+    {
+      /** local and distributed treelists must be non-empty */
+      assert( this->treelist.size() );
+      assert( mpitreelists.size() );
+     
+      using NULLTASK = hmlp::NULLTask<hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>>;
+      using MPINULLTASK = hmlp::NULLTask<NODE>;
+
+
+      /** 
+       *  traverse the local tree without the root
+       *
+       *  IMPORTANT: local root alias of the distributed leaf node
+       *  IMPORTANT: here l must be int, size_t will wrap over 
+       *
+       */
+      for ( int l = this->depth; l >= 1; l -- )
+      {
+        std::size_t n_nodes = 1 << l;
+        auto level_beg = this->treelist.begin() + n_nodes - 1;
+
+        if ( !USE_RUNTIME )
+        { 
+          printf( "No implementation!!\n" ); fflush( stdout );
+          exit( 1 );
+        }
+        else
+        {
+          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          {
+            auto *node = *(level_beg + node_ind);
+            /** create the first normal task is it is not a NULLTask */
+            if ( !std::is_same<NULLTASK, TASK1>::value )
+            {
+              auto *task1 = new TASK1();
+              task1->Submit();
+              //printf( "finish task1 submit\n" ); fflush( stdout );
+              task1->Set( node );
+              //printf( "finish task1 set\n" ); fflush( stdout );
+              task1->DependencyAnalysis();
+              //printf( "finish task1 create\n" ); fflush( stdout );
+            }
+            /** create the second task and perform dependency analysis */
+            if ( !std::is_same<NULLTASK, TASK2>::value )
+            {
+              auto *task2 = new TASK2();
+              task2->Submit();
+              task2->Set( node );
+              task2->DependencyAnalysis();
+              //printf( "finish task2 create\n" ); fflush( stdout );
+            }
+          }
+        }
+        printf( "finish level %d\n", l );
+      }
+
+      /** traverse the distributed tree upward */
+      NODE *node = mpitreelists.back();
+      while ( node )
+      {
+        /** create mpi tasks */
+        if ( !std::is_same<MPINULLTASK, MPITASK1>::value )
+        {
+          auto *mpitask1 = new MPITASK1();
+          mpitask1->Submit();
+          mpitask1->Set( node );
+          mpitask1->DependencyAnalysis();
+        }
+        /** create tasks and perform dependency analysis */
+        if ( !std::is_same<MPINULLTASK, MPITASK2>::value )
+        {
+          auto *mpitask2 = new MPITASK2();
+          mpitask2->Submit();
+          mpitask2->Set( node );
+          mpitask2->DependencyAnalysis();
+        }
+
+        /** 
+         *  move to its parent 
+         *  IMPORTANT: here we need to cast the pointer back to mpitree::Node*
+         */
+        node = (NODE*)node->parent;
+
+      } /** end while( node ) */
+
+
+
+
+
+
+    }; /** end ParallelTraverseUp() */
+
+
+
+
+
+
 
 
     

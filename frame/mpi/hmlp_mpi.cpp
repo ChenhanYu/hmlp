@@ -1,4 +1,4 @@
-#include <hmlp_runtime_mpi.hpp>
+#include <hmlp_mpi.hpp>
 
 namespace hmlp
 {

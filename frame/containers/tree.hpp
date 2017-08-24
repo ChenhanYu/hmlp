@@ -77,7 +77,36 @@ bool IsMyParent( size_t me, size_t it )
       ret, itlevel, mylevel, itshift, 1 << LEVELOFFSET );
 #endif
   return ret;
-}; // end bool IsMyParent();
+
+}; /** end IsMyParent() */
+
+
+/**
+ *
+ */ 
+bool ContainAnyMortonID( std::vector<size_t> &querys, size_t morton )
+{
+  for ( size_t i = 0; i < querys.size(); i ++ )
+  {
+    if ( IsMyParent( querys[ i ], morton ) ) return true;
+  }
+  return false;
+
+}; /** end ContainAnyMortonID() */
+
+
+/**
+ *
+ */ 
+bool ContainAnyMortonID( std::set<size_t> &querys, size_t morton )
+{
+  for ( auto it = querys.begin(); it != querys.end(); it ++ )
+  {
+    if ( IsMyParent( (*it), morton ) ) return true;
+  }
+  return false;
+
+}; /** end ContainAnyMortonID() */
 
 
 
@@ -445,7 +474,6 @@ class Node : public ReadWrite
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
-      this->recent_task = NULL;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
@@ -469,7 +497,6 @@ class Node : public ReadWrite
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
-      this->recent_task = NULL;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
@@ -580,7 +607,14 @@ class Node : public ReadWrite
         }
       }
       return false;
-    }; //
+    }; /** end ContainAny() */
+
+
+    bool ContainAnyMortonID( std::vector<size_t> &querys )
+    {
+      return ContainAnyMortonID( querys, morton );
+    }; /** end ContainAnyMortonID() */
+
 
     bool ContainAny( std::set<Node*> &querys )
     {
@@ -597,7 +631,8 @@ class Node : public ReadWrite
         }
       }
       return false;
-    }; 
+
+    }; /** end ContainAny() */
 
 
     void Print()
@@ -633,33 +668,36 @@ class Node : public ReadWrite
 
     std::vector<std::size_t> lids;
 
-    // These two prunning lists are used when no NN pruning.
+    /** These two prunning lists are used when no NN pruning. */
     std::set<size_t> FarIDs;
     std::set<Node*>  FarNodes;
+    std::set<size_t> FarNodeMortonIDs;
 
-    // Only leaf nodes will have this list.
+    /** Only leaf nodes will have this list. */
     std::set<size_t> NearIDs;
     std::set<Node*>  NearNodes;
+    std::set<size_t> NearNodeMortonIDs;
 
-    // These two prunning lists are used when in NN pruning.
+    /** These two prunning lists are used when in NN pruning. */
     std::set<size_t> NNFarIDs;
     std::set<Node*>  NNFarNodes;
+    std::set<size_t> NNFarNodeMortonIDs;
 
-    // Only leaf nodes will have this list.
+    /** Only leaf nodes will have this list. */
     std::set<size_t> NNNearIDs;
     std::set<Node*>  NNNearNodes;
+    std::set<size_t> NNNearNodeMortonIDs;
 
     Node *parent;
 
     Node *kids[ N_CHILDREN ];
 
-    Node *lchild; // make it easy
+    /** make it easy */
+    Node *lchild; 
 
     Node *rchild;
 
     bool isleaf;
-
-    hmlp::Task *recent_task;
 
   private:
 
@@ -720,6 +758,7 @@ class Tree
     /** maximum leaf node size */
     size_t m;
 
+    /** depth of local tree */
     size_t depth;
 
     std::vector<NODE*> treelist;
@@ -1421,7 +1460,6 @@ class Tree
             {
               task->Enqueue();
             }
-            node->recent_task = task;
           }
         }
       }
@@ -1563,8 +1601,6 @@ class Tree
                 task->Enqueue();
               }
             }
-            // Update the recent created task on this node.
-            node->recent_task = task;
           }
         }
       }
@@ -1646,8 +1682,6 @@ class Tree
                 task->Enqueue();
               }
             }
-            // Update the recent created task on this node.
-            node->recent_task = task;
           }
         }
       }
