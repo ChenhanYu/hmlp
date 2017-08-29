@@ -217,6 +217,55 @@ void xgemm
 };
 
 
+void xsyrk
+(
+  const char *uplo, const char *trans,
+  int n, int k, 
+  double alpha, double *A, int lda,
+  double beta,  double *C, int ldc
+)
+{
+#ifdef USE_BLAS
+  dsyrk_
+  (
+   uplo, trans, 
+   &n, &k, 
+   &alpha, A, &lda, 
+   &beta,  C, &ldc 
+  );
+#else
+  printf( "xsyrk must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+}; /** end xsyrk() */
+
+
+void xsyrk
+(
+  const char *uplo, const char *trans,
+  int n, int k, 
+  float alpha, float *A, int lda,
+  float beta,  float *C, int ldc
+)
+{
+#ifdef USE_BLAS
+  ssyrk_
+  (
+   uplo, trans, 
+   &n, &k, 
+   &alpha, A, &lda, 
+   &beta,  C, &ldc 
+  );
+#else
+  printf( "xsyrk must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+}; /** end xsyrk() */
+
+
+
+
+
 /**
  *  @brief DTRSM wrapper
  */ 
@@ -414,6 +463,39 @@ void xpotrf( const char *uplo, int n, float *A, int lda )
 #endif
 }; /** end xpotrf() */
 
+
+/**
+ *  @brief DPOTRS wrapper
+ */ 
+void xpotrs( const char *uplo, 
+  int n, int nrhs, double *A, int lda, double *B, int ldb )
+{
+#ifdef USE_BLAS
+  int info;
+  dpotrs_( uplo, &n, &nrhs, A, &lda, B, &ldb, &info );
+  if ( info ) printf( "xpotrs error code %d\n", info );
+#else
+  printf( "xpotrs must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+}; /** end xpotrs() */
+
+
+/**
+ *  @brief SPOTRS wrapper
+ */ 
+void xpotrs( const char *uplo, 
+  int n, int nrhs, float *A, int lda, float *B, int ldb )
+{
+#ifdef USE_BLAS
+  int info;
+  spotrs_( uplo, &n, &nrhs, A, &lda, B, &ldb, &info );
+  if ( info ) printf( "xpotrs error code %d\n", info );
+#else
+  printf( "xpotrs must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+}; /** end xpotrs() */
 
 
 /**

@@ -1195,6 +1195,7 @@ void Interpolate( NODE *node )
   /** early return */
   if ( !node ) return;
 
+  auto &K = *node->setup->K;
   auto &data = node->data;
   auto &skels = data.skels;
   auto &proj = data.proj;
@@ -1258,8 +1259,9 @@ void Interpolate( NODE *node )
   	  proj[ jpvt[ j ] * s + i ] = tmp[ j * s + i ];
     }
   }
-  
-}; // end Interpolate()
+ 
+
+}; /** end Interpolate() */
 
 
 /**
@@ -1396,6 +1398,37 @@ void Skeletonize( NODE *node )
   if ( nsamples < K.col() - node->n )
   {
     amap.reserve( nsamples );
+
+
+    /** sibling's skeletons */
+    auto *sibling = node->sibling;
+    //if ( sibling )
+    //if ( 0 )
+    //{
+    //  if ( sibling->isleaf )
+    //  {        
+    //    auto &sibling_gids = sibling->gids;
+    //    for ( size_t i = 0; i < sibling_gids.size(); i ++ )
+    //      amap.push_back( sibling_gids[ i ] );
+    //  }
+    //  else
+    //  {
+    //    auto &sibling_lskel = sibling->lchild->data.skels;
+    //    auto &sibling_rskel = sibling->rchild->data.skels;
+    //    for ( size_t i = 0; i < sibling_lskel.size(); i ++ )
+    //      amap.push_back( sibling_lskel[ i ] );
+    //    for ( size_t i = 0; i < sibling_rskel.size(); i ++ )
+    //      amap.push_back( sibling_rskel[ i ] );
+    //  }
+    //}
+    //if ( amap.size() + ordered_snids.size() > nsamples )
+    //{
+    //  printf( "exceeding current sample size %lu, enlarge to %lu\n",
+    //      nsamples, amap.size() + ordered_snids.size() );
+    //  nsamples = amap.size() + ordered_snids.size();
+    //}
+
+
     for ( auto cur = ordered_snids.begin(); cur != ordered_snids.end(); cur++ )
     {
       amap.push_back( cur->second );
@@ -1576,6 +1609,13 @@ class SkeletonizeTask : public hmlp::Task
       {
         arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
         arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+
+        /** sample from sibling's skeleton */
+        //if ( arg->sibling )
+        //{
+        //  arg->sibling->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        //  arg->sibling->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        //}
       }
       else
       {

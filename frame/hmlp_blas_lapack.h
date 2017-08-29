@@ -49,6 +49,24 @@ void xgemm
   double beta,  double *C, int ldc
 );
 
+
+void xsyrk
+(
+  const char *uplo, const char *trans,
+  int n, int k, 
+  double alpha, double *A, int lda,
+  double beta,  double *C, int ldc
+);
+
+void xsyrk
+(
+  const char *uplo, const char *trans,
+  int n, int k, 
+  float alpha, float *A, int lda,
+  float beta,  float *C, int ldc
+);
+
+
 void xtrsm
 ( 
   const char *side, const char *uplo,
@@ -107,6 +125,19 @@ void xpotrf
 (
   const char *uplo, 
   int n, float *A, int lda
+);
+
+
+void xpotrs
+(
+  const char *uplo, 
+  int n, int nrhs, double *A, int lda, double *B, int ldb
+);
+
+void xpotrs
+(
+  const char *uplo, 
+  int n, int nrhs, float *A, int lda, float *B, int ldb
 );
 
 void xgetrf

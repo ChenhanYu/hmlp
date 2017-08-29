@@ -215,7 +215,7 @@ void test_gofmm
 
   /** Factorization */
   const bool do_ulv_factorization = true;
-  T lambda = 10.0;
+  T lambda = 0.001;
   if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
     printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
         lambda, fmmerr_avg / ntest );

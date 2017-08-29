@@ -571,6 +571,8 @@ class Node : public ReadWrite
         {
           lchild = kids[ 0 ];
           rchild = kids[ 1 ];
+          if ( lchild ) lchild->sibling = rchild;
+          if ( rchild ) rchild->sibling = lchild;
         }
       }
       else
@@ -688,14 +690,16 @@ class Node : public ReadWrite
     std::set<Node*>  NNNearNodes;
     std::set<size_t> NNNearNodeMortonIDs;
 
-    Node *parent;
+    Node *parent = NULL;
 
     Node *kids[ N_CHILDREN ];
 
     /** make it easy */
-    Node *lchild; 
+    Node *lchild = NULL; 
 
-    Node *rchild;
+    Node *rchild = NULL;
+
+    Node *sibling = NULL;
 
     bool isleaf;
 

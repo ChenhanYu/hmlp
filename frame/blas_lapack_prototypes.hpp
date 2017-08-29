@@ -24,6 +24,20 @@ void sgemm_(
     float *A, int *lda, 
     float *B, int *ldb, float *beta, 
     float *C, int *ldc );
+void dsyrk_( 
+    const char *uplo, const char *trans, 
+    int *n, int *k, 
+    double *alpha,
+    double *A, int *lda, 
+    double *beta, 
+    double *C, int *ldc );
+void ssyrk_( 
+    const char *uplo, const char *trans, 
+    int *n, int *k, 
+    float *alpha,
+    float *A, int *lda, 
+    float *beta, 
+    float *C, int *ldc );
 void dtrsm_( 
     const char *side, const char *uplo,
     const char *transA, const char *diag,
@@ -83,6 +97,12 @@ void dpotrf_(
 void spotrf_( 
     const char *uplo, 
     int *n, float *A, int *lda, int *info );
+void dpotrs_( 
+    const char *uplo, 
+    int *n, int *nrhs, double *A, int *lda, double *B, int *ldb, int *info );
+void spotrs_( 
+    const char *uplo, 
+    int *n, int *nrhs, float *A, int *lda, float *B, int *ldb, int *info );
 void dgetrf_(
     int *m, int *n, 
     double *A, int *lda, int *ipiv, int *info );
