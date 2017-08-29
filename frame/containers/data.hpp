@@ -55,7 +55,7 @@
 #include <hmlp_device.hpp>
 #include <hmlp_runtime.hpp>
 
-//#include <hmlp_util.hpp>
+#include <hmlp_util.hpp>
 
 
 /** -lmemkind */
@@ -403,7 +403,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     void Print()
     {
       printf( "Data in %lu * %lu\n", m, n );
-      //hmlp::hmlp_printmatrix( m, n, this->data(), m );
+      hmlp::hmlp_printmatrix( m, n, this->data(), m );
     };
 
     void WriteFile( char *name )

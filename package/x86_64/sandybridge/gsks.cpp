@@ -39,9 +39,26 @@
 
 using namespace hmlp::gsks;
 
-void dgsks
+
+
+void gsks
 (
-  //ks_t *kernel,
+  kernel_s<float> *kernel,
+  int m, int n, int k,
+  float *u,            int *umap,
+  float *A, float *A2, int *amap,
+  float *B, float *B2, int *bmap,
+  float *w,            int *wmap
+)
+{
+  printf( "gsks() in single precision is not implemented yet\n" );
+  exit( 1 );
+};
+
+
+
+void gsks
+(
   kernel_s<double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
@@ -177,7 +194,51 @@ void dgsks
     default:
       exit( 1 );
   }
-}
+};
+
+
+void sgsks
+(
+  kernel_s<float> *kernel,
+  int m, int n, int k,
+  float *u,            int *umap,
+  float *A, float *A2, int *amap,
+  float *B, float *B2, int *bmap,
+  float *w,            int *wmap
+)
+{
+  gsks( kernel, m, n, k,
+      u,     umap,
+      A, A2, amap,
+      B, B2, bmap,
+      w,     wmap );
+};
+
+void dgsks
+(
+  kernel_s<double> *kernel,
+  int m, int n, int k,
+  double *u,             int *umap,
+  double *A, double *A2, int *amap,
+  double *B, double *B2, int *bmap,
+  double *w,             int *wmap
+)
+{
+  gsks( kernel, m, n, k,
+      u,     umap,
+      A, A2, amap,
+      B, B2, bmap,
+      w,     wmap );
+};
+
+
+
+
+
+
+
+
+
 
 void dgsks_ref
 (

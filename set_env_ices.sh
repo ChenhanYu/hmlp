@@ -105,7 +105,7 @@ export OMP_PROC_BIND=spread
 
 ## HMLP communicator
 export KS_JC_NT=1
-export KS_IC_NT=$OMP_NUM_THREAD
+export KS_IC_NT=$OMP_NUM_THREADS
 export KS_JR_NT=1
 
 

@@ -151,9 +151,8 @@ struct kernel_s
 
 //typedef struct kernel_s ks_t;
 
-void dgsks
+void gsks
 (
-  //ks_t *kernel,
   kernel_s<double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
@@ -162,9 +161,38 @@ void dgsks
   double *w,             int *wmap
 );
 
+void gsks
+(
+  kernel_s<float> *kernel,
+  int m, int n, int k,
+  float *u,            int *umap,
+  float *A, float *A2, int *amap,
+  float *B, float *B2, int *bmap,
+  float *w,            int *wmap
+);
+
+void dgsks
+(
+  kernel_s<double> *kernel,
+  int m, int n, int k,
+  double *u,             int *umap,
+  double *A, double *A2, int *amap,
+  double *B, double *B2, int *bmap,
+  double *w,             int *wmap
+);
+
+void sgsks
+(
+  kernel_s<float> *kernel,
+  int m, int n, int k,
+  float *u,            int *umap,
+  float *A, float *A2, int *amap,
+  float *B, float *B2, int *bmap,
+  float *w,            int *wmap
+);
+
 void dgsks_ref
 (
-  //ks_t *kernel,
   kernel_s<double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
@@ -174,6 +202,14 @@ void dgsks_ref
 );
 
 void dgsknn
+(
+  int m, int n, int k, int r,
+  double *A, double *A2, int *amap,
+  double *B, double *B2, int *bmap,
+  double *D,             int *I
+);
+
+void gsknn
 (
   int m, int n, int k, int r,
   double *A, double *A2, int *amap,

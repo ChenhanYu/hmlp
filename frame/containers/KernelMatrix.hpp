@@ -21,14 +21,16 @@
 
 
 
-#ifndef KERNEL_HPP
-#define KERNEL_HPP
+#ifndef KERNELMATRIX_HPP
+#define KERNELMATRIX_HPP
 
 /** -lmemkind */
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
 #include <hbw_allocator.h>
 #endif
+
+#include <hmlp_blas_lapack.h>
 
 /** kernel matrix uses VirtualMatrix<T> as base */
 #include <containers/VirtualMatrix.hpp>
@@ -51,53 +53,62 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
 
     /** symmetric kernel matrix */
     template<typename TINDEX>
-    KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources )
+    KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, 
+        Data<T> &sources )
     : sources( sources ), targets( sources ), VirtualMatrix<T>( m, n )
     {
+      assert( m == n );
+      this->is_symmetric = true;
       this->d = d;
       this->kernel = kernel;
+      /** compute square 2-norms for Euclidian family */
+      ComputeSquare2Norm();
     };
+
 
     /** unsymmetric kernel matrix */
     template<typename TINDEX>
-    KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, Data<T> &sources, Data<T> &targets )
+    KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, 
+        Data<T> &sources, Data<T> &targets )
     : sources( sources ), targets( targets ), VirtualMatrix<T>( m, n )
     {
+      this->is_symmetric = false;
       this->d = d;
       this->kernel = kernel;
+      /** compute square 2-norms for Euclidian family */
+      ComputeSquare2Norm();
     };
+
 
     ~KernelMatrix() {};
 
-    /** ESSENTIAL: return  K( i, j ) */
-    //template<typename TINDEX>
-    //T operator()( TINDEX i, TINDEX j )
-    //{
-    //  T Kij = 0.0;
 
-    //  switch ( kernel.type )
-    //  {
-    //    case KS_GAUSSIAN:
-    //    {
-    //      for ( TINDEX k = 0; k < d; k++ )
-    //      {
-		//				T tar = targets[ i * d + k ];
-		//				T src = sources[ j * d + k ];
-    //        Kij += ( tar - src ) * ( tar - src );
-    //      }
-    //      Kij = exp( kernel.scal * Kij );
-    //      break;
-    //    }
-    //    default:
-    //    {
-    //      printf( "invalid kernel type\n" );
-    //      exit( 1 );
-    //      break;
-    //    }
-    //  }
+    void ComputeSquare2Norm()
+    {
+      source_sqnorms.resize( this->col(), 0.0 );
 
-    //  return Kij;
-    //};
+      /** compute 2-norm using xdot */
+      #pragma omp parallel for
+      for ( size_t j = 0; j < this->col(); j ++ )
+      {
+        source_sqnorms[ j ] = xdot(
+          d, sources.data() + j * d, 1, sources.data() + j * d, 1 );
+      }
+
+      /** compute 2-norms for targets if unsymmetric */
+      if ( is_symmetric ) target_sqnorms = source_sqnorms;
+      else
+      {
+        target_sqnorms.resize( this->row(), 0.0 );
+
+        #pragma omp parallel for
+        for ( size_t i = 0; i < this->row(); i ++ )
+        {
+          target_sqnorms[ i ] = xdot(
+              d, targets.data() + i * d, 1, targets.data() + i * d, 1 );
+        }
+      }
+    };
 
 
 		/** ESSENTIAL: override the virtual function */
@@ -128,6 +139,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       return Kij;
 		};
 
+
     /** ESSENTIAL: return K( imap, jmap ) */
     template<typename TINDEX>
     hmlp::Data<T> operator()
@@ -137,7 +149,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
 
       if ( !submatrix.size() ) return submatrix;
 
-      // Get coordinates of sources and targets
+      /** Get coordinates of sources and targets */
       hmlp::Data<T> itargets = targets( imap );
       hmlp::Data<T> jsources = sources( jmap );
 
@@ -157,65 +169,77 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       );
 
       /** compute square norms */
-      std::vector<T> target_sqnorms( imap.size() );
-      std::vector<T> source_sqnorms( jmap.size() );
+      std::vector<T> itarget_sqnorms( imap.size() );
+      std::vector<T> jsource_sqnorms( jmap.size() );
+
+
       #pragma omp parallel for
       for ( TINDEX i = 0; i < imap.size(); i ++ )
       {
-        target_sqnorms[ i ] = xdot
-                              (
-                                d,
-                                itargets.data() + i * d, 1,
-                                itargets.data() + i * d, 1
-                              );
+        if ( target_sqnorms.size() )
+        {
+          /** if precomputed then directly copy */
+          itarget_sqnorms[ i ] = target_sqnorms[ imap[ i ] ];
+        }
+        else
+        {
+          /** otherwise compute them now */
+          itarget_sqnorms[ i ] = xdot(
+              d, itargets.data() + i * d, 1, itargets.data() + i * d, 1 );
+        }
       }
+
       #pragma omp parallel for
       for ( TINDEX j = 0; j < jmap.size(); j ++ )
       {
-        source_sqnorms[ j ] = xdot
-                              (
-                                d,
-                                jsources.data() + j * d, 1,
-                                jsources.data() + j * d, 1
-                              );
+        if ( source_sqnorms.size() )
+        {
+          /** if precomputed then directly copy */
+          jsource_sqnorms[ j ] = source_sqnorms[ jmap[ j ] ];
+        }
+        else
+        {
+          /** otherwise compute them now */
+          jsource_sqnorms[ j ] = xdot(
+              d, jsources.data() + j * d, 1, jsources.data() + j * d, 1 );
+        }
       }
 
-      /** add square norms to inner products to get pairwise square distances
-       * */
+      /** add square norms to inner products to get square distances */
       #pragma omp parallel for
       for ( TINDEX j = 0; j < jmap.size(); j ++ )
       {
         for ( TINDEX i = 0; i < imap.size(); i ++ )
         {
-          submatrix[ j * imap.size() + i ] += target_sqnorms[ i ] + source_sqnorms[ j ];
+          submatrix( i, j ) += itarget_sqnorms[ i ] + jsource_sqnorms[ j ];
         }
       }
 
       switch ( kernel.type )
       {
         case KS_GAUSSIAN:
+        {
+          /** apply the scaling factor and exponentiate */
+          #pragma omp parallel for
+          for ( TINDEX i = 0; i < submatrix.size(); i ++ )
           {
-            // Apply the scaling factor and exponentiate
-            #pragma omp parallel for
-            for ( TINDEX i = 0; i < submatrix.size(); i ++ )
-            {
-              submatrix[ i ] = std::exp( kernel.scal * submatrix[ i ] );
-            }
+            submatrix[ i ] = std::exp( kernel.scal * submatrix[ i ] );
+          }
 
-            // gemm: 2 * i * j * d
-            // compute sqnorms: 2 * ( i + j ) * d
-            // add sqnorms: 2 * i * j
-            // scale and exponentiate: 2 * i * j
-            //flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
-            //           + 4 * imap.size() * jmap.size();
-            break;
-          }
+          // gemm: 2 * i * j * d
+          // compute sqnorms: 2 * ( i + j ) * d
+          // add sqnorms: 2 * i * j
+          // scale and exponentiate: 2 * i * j
+          //flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
+          //           + 4 * imap.size() * jmap.size();
+          break;
+        }
         default:
-          {
-            printf( "invalid kernel type\n" );
-            exit( 1 );
-            break;
-          }
+        {
+          printf( "invalid kernel type\n" );
+          exit( 1 );
+          break;
+        }
       }
 
       return submatrix;
@@ -241,11 +265,19 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
                            std::vector<TINDEX> &bmap,
         std::vector<T> &w, std::vector<TINDEX> &wmap )
     {
-      gsks( &kernel, amap.size(), bmap.size(), d,
-                u.data(),                        umap.data(),
-          targets.data(), target_sqnorms.data(), amap.data(), 
-          sources.data(), source_sqnorms.data(), bmap.data(), 
-                w.data(),                        wmap.data() );
+      if ( nrhs == 1 )
+      {
+        gsks( &kernel, amap.size(), bmap.size(), d,
+                  u.data(),                        umap.data(),
+            targets.data(), target_sqnorms.data(), amap.data(), 
+            sources.data(), source_sqnorms.data(), bmap.data(), 
+                  w.data(),                        wmap.data() );
+      }
+      else
+      {
+        printf( "gsks with multiple rhs is not implemented yet\n" );
+        exit( 1 );
+      }
     };
 
     /** u( amap ) += K( amap, bmap ) * w( bmap ) */
@@ -257,7 +289,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
                            std::vector<TINDEX> &bmap,
         std::vector<T> &w )
     {
-      Multiply( u, amap, amap, bmap, w, bmap );
+      Multiply( nrhs, u, amap, amap, bmap, w, bmap );
     };
 
 
@@ -267,11 +299,11 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
         std::vector<T> &u,
         std::vector<T> &w )
     {
-      std::vector<size_t> amap( this->row() );
-      std::vector<size_t> bmap( this->col() );
+      std::vector<int> amap( this->row() );
+      std::vector<int> bmap( this->col() );
       for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
       for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
-      Multiply( u, amap, bmap, w );
+      Multiply( nrhs, u, amap, bmap, w );
     };
 
 
@@ -291,7 +323,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
         }
         printf( "\n" );
       }
-    }; // end Print()
+    }; /** end Print() */
 
     /** return number of attributes */
     std::size_t dim() { return d; };
@@ -305,21 +337,23 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       switch ( kernel.type )
       {
         case KS_GAUSSIAN:
-          {
-            flopcount = na * nb * ( 2.0 * d + 35.0 );
-            break;
-          }
+        {
+          flopcount = na * nb * ( 2.0 * d + 35.0 );
+          break;
+        }
         default:
-          {
-            printf( "invalid kernel type\n" );
-            exit( 1 );
-            break;
-          }
+        {
+          printf( "invalid kernel type\n" );
+          exit( 1 );
+          break;
+        }
       }
       return flopcount; 
     };
 
   private:
+
+    bool is_symmetric = true;
 
     std::size_t d;
 
@@ -327,10 +361,14 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
 
     Data<T> &targets;
 
+    std::vector<T> source_sqnorms;
+
+    std::vector<T> target_sqnorms;
+
+    /** legacy data structure */
     kernel_s<T> kernel;
 
 }; /** end class KernelMatrix */
-
 }; /** end namespace hmlp */
 
-#endif /** define KERNEL_HPP */
+#endif /** define KERNELMATRIX_HPP */

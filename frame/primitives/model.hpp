@@ -3,22 +3,67 @@
 
 namespace hmlp
 {
+namespace model
+{
 
-template<typename T>
-class Classification : public VirtualModel
+template<typename FUNC, typename T>
+class Classification : public VirtualModel<T>
 {
   public:
 
+    Classification()
+    {
+    };
+
+   void Fit()
+   {
+   };
+
+   std::vector<T> Predict( std::vector<T> & x )
+   {
+     std::vector<T> predict;
+
+     return predict;
+   };
+
+  private:
 };
 
 
-template<typename T>
-class Regression : public VirtualModel
+template<typename FUNC, typename PARAM, typename DATA, typename T>
+class Regression : public VirtualModel<T>
 {
   public:
 
+    Regression( FUNC *objective, PARAM *param, DATA *data )
+    {
+    };
 
-};
+    void Fit()
+    {
+    };
+
+    std::vector<T> Predict( std::vector<T> & x )
+    {
+      std::vector<T> predict;
+
+      return predict;
+    };
+
+  private:
+
+    /** regularization */
+
+    /** implement VirtualFunction */
+    FUNC *objective;
+
+    /** parameters for the objective function */
+    PARAM *param;
+
+    DATA *data;
+
+}; /** end class Regression() */
+
 
 template<typename T>
 class VirtualModel
@@ -27,14 +72,15 @@ class VirtualModel
 
     VirtualModel() {};
 
-    virtual Fit()
+    virtual void Fit() = 0;
 
-    virtual Predict();
+    virtual std::vector<T> Predict( std::vector<T> & x ) = 0;
 
   private:
 
 };
 
+}; /** end namespace model */
 }; /** end namespace hmlp */
 
 
