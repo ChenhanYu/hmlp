@@ -4,8 +4,13 @@
 #include <limits>
 
 #include <hmlp.h>
+
+/** GOFMM templates */
+#include <gofmm/gofmm.hpp>
+
 #include <containers/data.hpp>
 #include <containers/KernelMatrix.hpp>
+#include <primitives/lanczos.hpp>
 
 namespace hmlp
 {
@@ -27,9 +32,9 @@ class Cluster
       assert( assignments->size() == n );
       assert( X->size() == d * n );
 
-
       /** compute X2 */
       X2.resize( n, 1, 0.0 );
+
       for ( size_t i = 0; i < n; i ++ )
       {
         for ( size_t p = 0; p < d; p ++ )
@@ -46,9 +51,12 @@ class Cluster
       this->labels = labels;
     };
 
+
     /** compute the centroids of X( :, amap ) based on the assignment */
-    std::vector<size_t> Centroids( std::vector<int> &amap, 
-        std::vector<T> &centroids, std::vector<T> &centroid_sqnorms )
+    std::vector<size_t> Centroids( 
+        std::vector<int> &amap, 
+        std::vector<T> &centroids, 
+        std::vector<T> &centroid_sqnorms )
     {
       std::vector<size_t> cluster_sizes( ncluster, 0 );
     
@@ -158,7 +166,7 @@ class Cluster
           quality += distance2centroids[ i ] * distance2centroids[ i ];
         quality = std::sqrt( quality );
 
-        printf( "Kmeans iteration #%2lu quality %E\n", iter, quality );
+        //printf( "Kmeans iteration #%2lu quality %E\n", iter, quality );
       }
       
     }; /** end Kmeans() */
@@ -173,7 +181,7 @@ class Cluster
     }; /** end Kmeans() */
 
 
-    /** use simple power method with orthnormalization */
+    /** use a Lanczos method without restart */
     virtual void Spectral( kernel_s<T> &kernel )
     {
       /** create a kernel matrix */
@@ -187,83 +195,32 @@ class Cluster
       K.Multiply( 1, Degree, ones );
 
       /** number of eigenpairs to compute */
-      size_t neig = ncluster + 2;
+      size_t neig = ncluster;
 
       /** allocate space for eigenpairs */
       hmlp::Data<T> Sigma( neig, 1, 0.0 );
       hmlp::Data<T> V( neig, n );
 
-      /** compute ( ncluster + 2 ) eigenpairs */
-      for ( size_t p = 0; p < neig; p ++ )
-      {
-        /** the first eigenpairs are known */
-        if ( p == 0 )
-        {
-          Sigma[ p ] = 1.0;
-          for ( size_t i = 0; i < n; i ++ ) 
-            V( p, i ) = 1.0 / std::sqrt( (T)n ); 
-          continue;
-        }
+      /** k-step Lanczos + LAPACK xstev */
+      size_t num_krylov = 5 * neig;
+      hmlp::lanczos( K, n, neig, num_krylov, Sigma, V );
 
-        /** random initialization */
-        hmlp::Data<T> v( n, 1 ); v.randn();
-
-        /** power iteration */
-        for ( size_t iter = 0; iter < 100; iter ++ )
-        {
-          for ( size_t q = 0; q < p; q ++ )
-          { 
-            T projection = 0.0;
-            /** compute v'D^{-1}v projection */
-            for ( size_t i = 0; i < n; i ++ )
-            {
-              projection += v[ i ] * V( q, i );
-            }
-
-            /** remove the contribution from Vq */
-            for ( size_t i = 0; i < n; i ++ )
-            {
-              v[ i ] -= Sigma[ q ] * projection * V( q, i );
-            }
-          }
-
-          /** D^{-1}KDv */
-          hmlp::Data<T> DKv( n, 1, 0 );
-          K.Multiply( 1, DKv, v );
-          for ( size_t i = 0; i < n; i ++ ) DKv[ i ] /= Degree[ i ];
-
-          /** compute eigenvalue = v'D^{-1}Kv / v'v */
-          T sigma_p = 0.0;
-          for ( size_t i = 0; i < n; i ++ ) 
-            sigma_p += v[ i ] * DKv[ i ];
-          Sigma[ p ] = sigma_p;
-
-          if ( iter % 50 == 49 )
-          printf( "iteration %lu #%lu eignvalue %E\n", iter, p, sigma_p );
-
-          /** compute 2-norm */
-          T DKv_norm = 0.0;
-          for ( size_t i = 0; i < n; i ++ ) DKv_norm += DKv[ i ] * DKv[ i ];
-          DKv_norm = std::sqrt( DKv_norm );
-
-          /** update v with normalization */
-          for ( size_t i = 0; i < n; i ++ ) v[ i ] = DKv[ i ] / DKv_norm;
-        };
-        printf( "\n" );
-
-        for ( size_t i = 0; i < n; i ++ ) V( p, i ) = v[ i ]; 
-      }
-
-      /** point-wise normalization */
+      /** spherical initialization (point-wise normalization) */
       for ( size_t i = 0; i < n; i ++ ) 
       {
-        T vi_norm = 0.0;
+        T vi_norm = hmlp::xnrm2( neig, V.columndata( i ), 1 );
         for ( size_t p = 0; p < neig; p ++ ) 
-          vi_norm += V( p, i ) * V( p, i );
-        for ( size_t p = 0; p < neig; p ++ ) 
+        {
           V( p, i ) /= vi_norm;
+        }
+        /** reinitialize with Round-Robin */
+        (*assignments)[ i ] = i % ncluster;
       }
-      
+     
+      /** spherical Kmeans */
+      Cluster<T> spherical_cluster( neig, n, ncluster, &V, assignments );
+      spherical_cluster.Kmeans( 30, 1E-3 );
+
     }; /** end Spectral() */
 
 
@@ -290,6 +247,7 @@ class Cluster
     };
 
 
+
     virtual void KernelKmeans( kernel_s<T> &kernel, 
         std::vector<int> &amap, size_t niter, T tol )
     {
@@ -298,6 +256,7 @@ class Cluster
 
       /** get D = [ K( 0, 0 ), ..., K( n-1, n-1 ) ) */
       std::vector<T> Diag( n, 0 );
+      #pragma omp parallel for
       for ( size_t i = 0; i < n; i ++ )
       {
         Diag[ i ] = K( i, i );
@@ -308,8 +267,8 @@ class Cluster
       hmlp::Data<T> ones( n, 1, 1.0 );
 
       /** get the weights i.e. Degree = K * ones */
-      std::vector<T> Degree( n, 0 );
-      K.Multiply( 1, Degree, ones );
+      K.ComputeDegree();
+      std::vector<T> &Degree = K.GetDegree();
 
       /** cluster permutation  */
       std::vector<std::vector<int>> bmap( ncluster );
@@ -404,12 +363,10 @@ class Cluster
         for ( size_t i = 0; i < amap.size(); i ++ )
           quality += distance2centroids[ amap[ i ] ] * distance2centroids[ amap[ i ] ];
 
-        printf( "KernelKmeans iteration #%2lu quality %E\n", iter, quality );
+        //printf( "KernelKmeans iteration #%2lu quality %E\n", iter, quality );
       }
 
     };
-
-
 
     virtual void KernelKmeans( kernel_s<T> &kernel, size_t niter, T tol )
     {
@@ -418,6 +375,120 @@ class Cluster
       KernelKmeans( kernel, amap, niter, tol );
 
     }; /** end KernelKmeans() */
+
+
+    virtual void KernelKmeans( 
+        kernel_s<T> &kernel, 
+        std::vector<int> &amap, size_t niter, T tol, T budget )
+    {
+      /** create a kernel matrix */
+      KernelMatrix<T> K( n, n, d, kernel, *X );
+
+		  /** */
+      auto *tree_ptr = hmlp::gofmm::Compress<T>( K, 1E-3, 0.03 );
+		  auto &tree = *tree_ptr;
+
+      /** get D = [ K( 0, 0 ), ..., K( n-1, n-1 ) ) */
+      std::vector<T> Diag( n, 0 );
+      #pragma omp parallel for
+      for ( size_t i = 0; i < n; i ++ )
+      {
+        Diag[ i ] = K( i, i );
+        assert( Diag[ i ] > 0.0 );
+      }
+
+      /** all one vector (indicators) */
+      hmlp::Data<T> ones( 1, n, 1.0 );
+
+      /** compute the approximate degree */
+      auto Degree = hmlp::gofmm::Evaluate( tree, ones );
+
+      /** cluster permutation  */
+      std::vector<std::vector<int>> bmap( ncluster );
+
+      /** ncluster-by-n, similarity */
+      hmlp::Data<T> Similarity;
+
+      /** assignments as indicators */
+      hmlp::Data<T> indicators( ncluster, n );
+
+      /** main loop (sequential) */
+      for ( size_t iter = 0; iter < niter; iter ++ )
+      {
+        /** initialize */
+        hmlp::Data<T> distance2centroids( n, 1, std::numeric_limits<T>::max() );
+
+        /** centroids */
+        std::vector<T> centroids( n, 0.0 );
+
+        /** bmap permutes K into the current cluster order */
+        auto cluster_sizes = ClusterPermutation( amap, bmap );
+
+        /** update the indicator matrix */
+        #pragma omp parallel for
+        for ( size_t i = 0; i < n; i ++ )
+        {
+          for ( size_t j = 0; j < ncluster; j ++ )
+          {
+            indicators( j, i ) = 0.0;
+          }
+          indicators( (size_t)(*assignments)[ i ], i ) = 1.0;
+        }
+
+        /** ( K * indicators )^{T} */
+        Similarity = hmlp::gofmm::Evaluate( tree, indicators );
+
+        /** compute the similarity matrix */
+        for ( size_t j = 0; j < ncluster; j ++ )
+        {
+          T Kcc = 0.0;
+          T Dcc = 0.0;
+
+          /** Kcc = sum( Similarity( j, bmap ) )*/
+          for ( size_t i = 0; i < bmap[ j ].size(); i ++ ) 
+            Kcc += Similarity( j,  (size_t)bmap[ j ][ i ] );
+
+          /** Dcc = sum( Degree( bmap[ j ] ) )*/
+          for ( size_t i = 0; i < bmap[ j ].size(); i ++ ) 
+            Dcc += Degree[ bmap[ j ][ i ] ];
+
+          /** Kii - ( 2 / n ) * sum( Kic ) + ( 1 / n^2 ) * sum( Kcc )  */
+          #pragma omp parallel for
+          for ( size_t i = 0; i < amap.size(); i ++ )
+          {
+            T Kii = Diag[ amap[ i ] ];
+            T Kic = Similarity( j, (size_t)amap[ i ] );
+
+            Similarity( j, (size_t)amap[ i ] ) = 
+              Kii / ( Degree[ amap[ i ] ] * Degree[ amap[ i ] ] ) - 
+              ( 2.0 / Degree[ amap[ i ] ] ) * ( Kic / Dcc ) + 
+              Kcc / ( Dcc * Dcc );
+
+            if ( Similarity( j, (size_t)amap[ i ] ) <= distance2centroids[ amap[ i ] ] )
+            {
+              distance2centroids[ amap[ i ] ] = Similarity( j, (size_t)amap[ i ] );
+              (*assignments)[ amap[ i ] ] = j;
+            }
+          }
+        }
+
+        T quality = 0.0;
+        for ( size_t i = 0; i < amap.size(); i ++ )
+          quality += distance2centroids[ amap[ i ] ] * distance2centroids[ amap[ i ] ];
+      }
+
+
+    };
+
+    virtual void KernelKmeans( kernel_s<T> &kernel, size_t niter, T tol, T budget )
+    {
+      std::vector<int> amap( n, 0 );
+      for ( size_t i = 0; i < n; i ++ ) amap[ i ] = i;
+      KernelKmeans( kernel, amap, niter, tol, budget );
+
+    }; /** end KernelKmeans() */
+
+
 
 
 
@@ -477,7 +548,7 @@ class Cluster
           size_t max_entry = 0;
 
           /** loop over all combination */
-          for ( auto pit = class_pivots.begin(); pit != class_pivots.end(); pit ++ )
+          for ( auto pit = cluster_pivots.begin(); pit != cluster_pivots.end(); pit ++ )
           {
             for ( auto qit = class_pivots.begin(); qit != class_pivots.end(); qit ++ )
             {

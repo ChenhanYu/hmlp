@@ -213,6 +213,19 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       return std::make_tuple( m, n );
     };
 
+   
+    T* rowdata( size_t i )
+    {
+      assert( i < m );
+      return ( this->data() + i );
+    };
+
+    T* columndata( size_t j )
+    {
+      assert( j < n );
+      return ( this->data() + j * m );
+    };
+
 		template<typename TINDEX>
 		T getvalue( TINDEX i )
 		{

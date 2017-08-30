@@ -1,13 +1,11 @@
 /** BLAS level-1 */
-double ddot_(
-    int *n,
-    double *dx, int *incx,
-    double *dy, int *incy );
-float sdot_(
-    int *n,
-    float *dx, int *incx,
-    float *dy, int *incy );
+double ddot_( int *n, double *dx, int *incx, double *dy, int *incy );
+float  sdot_( int *n,  float *dx, int *incx,  float *dy, int *incy );
+double dnrm2_( int *n, double *x, int *incx );
+float  snrm2_( int *n,  float *x, int *incx );
+
 /** BLAS level-2 */
+
 
 /** BLAS level-3 */
 void dgemm_( 
@@ -215,6 +213,20 @@ void sgesdd_(
     float *U, int *ldu, 
     float *VT, int *ldvt, 
     float *work, int *lwork, int *iwork, int *info );
+void dstev_(
+  const char *jobz,
+  int *n, 
+  double *D, 
+  double *E, 
+  double *Z, int *ldz, 
+  double *work, int *info );
+void sstev_(
+  const char *jobz,
+  int *n, 
+  float *D, 
+  float *E, 
+  float *Z, int *ldz, 
+  float *work, int *info );
 
 
 void dlarf_( 

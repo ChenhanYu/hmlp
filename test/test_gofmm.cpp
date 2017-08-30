@@ -129,6 +129,7 @@ void test_gofmm
   /** Evaluate u ~ K * w */
   hmlp::Data<T> w( nrhs, n ); w.rand();
   auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
+  u = Evaluate<true, false, true, true, CACHE>( tree, w );
 
 
 #ifdef HMLP_AVX512
@@ -215,7 +216,7 @@ void test_gofmm
 
   /** Factorization */
   const bool do_ulv_factorization = true;
-  T lambda = 0.001;
+  T lambda = 0.1;
   if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
     printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
         lambda, fmmerr_avg / ntest );

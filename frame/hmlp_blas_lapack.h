@@ -290,19 +290,33 @@ void xgecon
   double *work, int *iwork 
 );
 
-double xdot
+void xstev
 (
-  int n,
-  double *dx, int incx,
-  double *dy, int incy
+  const char *jobz,
+  int n, 
+  double *D, 
+  double *E, 
+  double *Z, int ldz, 
+  double *work  
 );
 
-float xdot
+void xstev
 (
-  int n,
-  float *dx, int incx,
-  float *dy, int incy
+  const char *jobz,
+  int n, 
+  float *D, 
+  float *E, 
+  float *Z, int ldz, 
+  float *work  
 );
+
+
+double xdot( int n, double *dx, int incx, double *dy, int incy );
+float  xdot( int n,  float *dx, int incx,  float *dy, int incy );
+
+double xnrm2( int n, double *x, int incx );
+float  xnrm2( int n,  float *x, int incx );
+
 
 
 #ifdef HMLP_USE_CUDA

@@ -19,7 +19,7 @@ labels="/workspace/chenhan/datasets/ball4.n100000.d5.trn.Y.bin"
 #labels="/workspace/chenhan/datasets/cluster9.n5004.d2.trn.Y.bin"
 
 
-niter=10
+niter=20
 tol=1E-3
 # =======================================================
 

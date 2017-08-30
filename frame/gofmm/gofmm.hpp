@@ -1401,7 +1401,7 @@ void Skeletonize( NODE *node )
 
 
     /** sibling's skeletons */
-    auto *sibling = node->sibling;
+    //auto *sibling = node->sibling;
     //if ( sibling )
     //if ( 0 )
     //{
@@ -1423,8 +1423,8 @@ void Skeletonize( NODE *node )
     //}
     //if ( amap.size() + ordered_snids.size() > nsamples )
     //{
-    //  printf( "exceeding current sample size %lu, enlarge to %lu\n",
-    //      nsamples, amap.size() + ordered_snids.size() );
+    //  //printf( "exceeding current sample size %lu, enlarge to %lu\n",
+    //  //    nsamples, amap.size() + ordered_snids.size() );
     //  nsamples = amap.size() + ordered_snids.size();
     //}
 

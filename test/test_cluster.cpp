@@ -115,25 +115,34 @@ void test_cluster( int d, int n, int ncluster, int niter, T tol,
   if ( nclass ) cluster.ProvideLabels( nclass, &Y );
 
 
-  /** */
-  T h = 0.05;
-  kernel_s<T> kernel;
-  kernel.type = KS_GAUSSIAN;
-  /** h = 1.0, Gaussian bandwidth (scal = -1 / 2h^2) */
-  kernel.scal = -1.0 / ( 2.0 * h * h );
-  //cluster.KernelKmeans( kernel, niter, tol );
-  //cluster.NMI();
+  for ( size_t step = 0; step < 10; step ++ )
+  {
+    T h = 0.07 + 0.01 * step;
+    kernel_s<T> kernel;
+    kernel.type = KS_GAUSSIAN;
+    /** h = 1.0, Gaussian bandwidth (scal = -1 / 2h^2) */
+    kernel.scal = -1.0 / ( 2.0 * h * h );
 
-  /** try linear Kmeans */
-  cluster.Kmeans( niter, tol );
+    printf( "h = %E\n", h );
+    //printf( "KernelKmeans\n" );
+    //cluster.KernelKmeans( kernel, niter, tol );
+    //cluster.NMI();
 
-  /** Check confusion */
-  cluster.NMI();
+    printf( "GOFMM KernelKmeans\n" );
+    T budget = 0.03;
+    cluster.KernelKmeans( kernel, niter, tol, budget );
+    cluster.NMI();
 
-  /** try spectral clustering with power methods */
-  cluster.Spectral( kernel );
 
+    /** try linear Kmeans */
+    //cluster.Kmeans( niter, tol );
+    //cluster.NMI();
 
+    /** try spectral clustering with power methods */
+    printf( "Spectral\n" );
+    cluster.Spectral( kernel );
+    cluster.NMI();
+  }
 
 }; /** end test_cluster() */
 
@@ -168,11 +177,15 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 8 ], "%d", &nclass );
   }
 
+  hmlp_init();
+
   /** */
   test_cluster<T>( 
       d, n, ncluster, niter, (T)tol, 
       user_points_filename,
       user_labels_filename, nclass );
+
+  hmlp_finalize();
 
   return 0;
 };

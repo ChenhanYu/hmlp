@@ -45,7 +45,7 @@ namespace hmlp
 {
 
 /** 
- *  BLAS level-1 wrappers: DOT 
+ *  BLAS level-1 wrappers: DOT, NRM2 
  */
 
 
@@ -80,6 +80,47 @@ float xdot( int n, float *dx, int incx, float *dy, int incy )
 #endif
   return ret_val;
 }; /** end xdot() */
+
+
+/**
+ *  @brief DNRM2 wrapper
+ */ 
+double xnrm2( int n, double *x, int incx )
+{
+  double ret_val;
+#ifdef USE_BLAS
+  ret_val = dnrm2_( &n, x, &incx );
+#else
+  printf( "xnrm2 must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+  return ret_val;
+}; /** end xnrm2() */
+
+
+/**
+ *  @brief SNRM2 wrapper
+ */ 
+float  xnrm2( int n,  float *x, int incx )
+{
+  float ret_val;
+#ifdef USE_BLAS
+  ret_val = snrm2_( &n, x, &incx );
+#else
+  printf( "xnrm2 must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+  return ret_val;
+}; /** end xnrm2() */
+
+
+
+
+
+
+
+
+
 
 
 /** 
@@ -1078,5 +1119,47 @@ void xgesdd
   exit( 1 );
 #endif
 }; /** end xgesdd() */
+
+
+
+void xstev
+(
+  const char *jobz,
+  int n, 
+  double *D, 
+  double *E, 
+  double *Z, int ldz, 
+  double *work  
+)
+{
+#ifdef USE_BLAS
+  int info;
+  dstev_( jobz, &n, D, E, Z, &ldz, work, &info );
+#else
+  printf( "xstev must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+}; /** end xstev() */
+
+
+void xstev
+(
+  const char *jobz,
+  int n, 
+  float *D, 
+  float *E, 
+  float *Z, int ldz, 
+  float *work  
+)
+{
+#ifdef USE_BLAS
+  int info;
+  sstev_( jobz, &n, D, E, Z, &ldz, work, &info );
+#else
+  printf( "xstev must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+}; /** end xstev() */
+
 
 }; /** end namespace hmlp */

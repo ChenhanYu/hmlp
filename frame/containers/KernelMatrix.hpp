@@ -65,7 +65,6 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       ComputeSquare2Norm();
     };
 
-
     /** unsymmetric kernel matrix */
     template<typename TINDEX>
     KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, 
@@ -254,6 +253,68 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       return sample; 
     };
 
+    void ComputeDegree()
+    {
+      printf( "ComputeDegree(): K * ones\n" );
+      assert( is_symmetric );
+      hmlp::Data<T> ones( this->row(), (size_t)1, 1.0 );
+      Degree.resize( this->row(), (size_t)1, 0.0 );
+      Multiply( 1, Degree, ones );
+    };
+
+    Data<T> &GetDegree()
+    {
+      assert( is_symmetric );
+      if ( Degree.row() != this->row() ) ComputeDegree();
+      return Degree;
+    };
+
+    void NormalizedMultiply( size_t nrhs, T *u, T *w )
+    {
+      assert( is_symmetric );
+      if ( Degree.row() != this->row() ) 
+      {
+        ComputeDegree();
+      }
+      hmlp::Data<T> invDw( this->row(), (size_t)1, 0.0 );
+
+      /** D^{-1/2}w */
+      for ( size_t i = 0; i < this->row(); i ++ )
+      {
+        u[ i ] = 0.0;
+        invDw[ i ] = w[ i ] / std::sqrt( Degree[ i ] );
+      }
+
+      /** KD^{-1/2}w */
+      Multiply( nrhs, u, invDw.data() );
+
+      /** D^{-1/2}KD^{-1/2}w */
+      for ( size_t i = 0; i < this->row(); i ++ )
+        u[ i ] = u[ i ] / std::sqrt( Degree[ i ] );
+    };
+
+    void Multiply( size_t nrhs, T* u, T* w )
+    {
+      std::vector<int> amap( this->row() );
+      std::vector<int> bmap( this->col() );
+      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
+      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
+
+      if ( nrhs == 1 )
+      {
+        gsks( &kernel, amap.size(), bmap.size(), d,
+                         u,                        amap.data(),
+            targets.data(), target_sqnorms.data(), amap.data(), 
+            sources.data(), source_sqnorms.data(), bmap.data(), 
+                         w,                        bmap.data() );
+      }
+      else
+      {
+        printf( "gsks with multiple rhs is not implemented yet\n" );
+        exit( 1 );
+      }
+    };
+
 
 
     /** u( umap ) += K( amap, bmap ) * w( wmap ) */
@@ -360,6 +421,9 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
     Data<T> &sources;
 
     Data<T> &targets;
+
+    /** Degree (diagonal matrix) */
+    Data<T> Degree;
 
     std::vector<T> source_sqnorms;
 
