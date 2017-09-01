@@ -220,7 +220,7 @@ def PyEvaluate( PyTree tree, rhs ):
 
 	for i in range( n ):
 		for j in range( nrhs ):
-			weights[ i * nrhs + j ] = rhs[ i, j ]
+			weights[ j * nrhs + i ] = rhs[ i, j ]
 
 	cdef Data[double] potentials = Evaluate( tree._this, weights._this );
 
@@ -229,7 +229,7 @@ def PyEvaluate( PyTree tree, rhs ):
 
 	for i in range( n ):
 		for j in range( nrhs ):
-			ret[ i ][ j ] = potentials.getvalue( i * nrhs + j )
+			ret[ i ][ j ] = potentials.getvalue( j * nrhs + i )
 
 	return ret
 

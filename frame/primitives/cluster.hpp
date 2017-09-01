@@ -517,7 +517,7 @@ class Cluster
       }
 
       /** all one vector (indicators) */
-      hmlp::Data<T> ones( 1, n, 1.0 );
+      hmlp::Data<T> ones( n, 1, 1.0 );
 
       /** compute the approximate degree */
       auto Degree = hmlp::gofmm::Evaluate( tree, ones );
@@ -548,7 +548,7 @@ class Cluster
         /** get results from GOFMM */
         for ( size_t p = 0; p < potentials.col(); p ++ )
         {
-          potentials[ p ] = Degree( p, i );
+          potentials[ p ] = Degree( i, p );
         }
         auto fmmerr = ComputeError( tree, i, potentials );
 
@@ -585,7 +585,7 @@ class Cluster
       hmlp::Data<T> Similarity;
 
       /** assignments as indicators */
-      hmlp::Data<T> indicators( ncluster, n );
+      hmlp::Data<T> indicators( n, ncluster );
 
       /** main loop (sequential) */
       for ( size_t iter = 0; iter < niter; iter ++ )
@@ -605,9 +605,9 @@ class Cluster
         {
           for ( size_t j = 0; j < ncluster; j ++ )
           {
-            indicators( j, i ) = 0.0;
+            indicators( i, j ) = 0.0;
           }
-          indicators( (size_t)(*assignments)[ i ], i ) = 1.0;
+          indicators( i, (size_t)(*assignments)[ i ] ) = 1.0;
         }
 
         /** ( K * indicators )^{T} */
@@ -621,7 +621,7 @@ class Cluster
 
           /** Kcc = sum( Similarity( j, bmap ) )*/
           for ( size_t i = 0; i < bmap[ j ].size(); i ++ ) 
-            Kcc += Similarity( j,  (size_t)bmap[ j ][ i ] );
+            Kcc += Similarity( (size_t)bmap[ j ][ i ], j );
 
           /** Dcc = sum( Degree( bmap[ j ] ) )*/
           for ( size_t i = 0; i < bmap[ j ].size(); i ++ ) 
@@ -632,16 +632,16 @@ class Cluster
           for ( size_t i = 0; i < amap.size(); i ++ )
           {
             T Kii = Diag[ amap[ i ] ];
-            T Kic = Similarity( j, (size_t)amap[ i ] );
+            T Kic = Similarity( (size_t)amap[ i ], j );
 
-            Similarity( j, (size_t)amap[ i ] ) = 
+            Similarity( (size_t)amap[ i ], j ) = 
               Kii / ( Degree[ amap[ i ] ] * Degree[ amap[ i ] ] ) - 
               ( 2.0 / Degree[ amap[ i ] ] ) * ( Kic / Dcc ) + 
               Kcc / ( Dcc * Dcc );
 
-            if ( Similarity( j, (size_t)amap[ i ] ) <= distance2centroids[ amap[ i ] ] )
+            if ( Similarity( (size_t)amap[ i ], j ) <= distance2centroids[ amap[ i ] ] )
             {
-              distance2centroids[ amap[ i ] ] = Similarity( j, (size_t)amap[ i ] );
+              distance2centroids[ amap[ i ] ] = Similarity( (size_t)amap[ i ], j );
               (*assignments)[ amap[ i ] ] = j;
             }
           }

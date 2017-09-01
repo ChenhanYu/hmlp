@@ -127,7 +127,7 @@ void test_gofmm
 #endif
 
   /** Evaluate u ~ K * w */
-  hmlp::Data<T> w( nrhs, n ); w.rand();
+  hmlp::Data<T> w( n, nrhs ); w.rand();
   auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
 
 
@@ -188,7 +188,7 @@ void test_gofmm
     /** get results from GOFMM */
     for ( size_t p = 0; p < potentials.col(); p ++ )
     {
-      potentials[ p ] = u( p, i );
+      potentials[ p ] = u( i, p );
     }
     auto fmmerr = ComputeError( tree, i, potentials );
 
@@ -215,7 +215,7 @@ void test_gofmm
 
   /** Factorization */
   const bool do_ulv_factorization = true;
-  T lambda = 0.1;
+  T lambda = 5.0;
   if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
     printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
         lambda, fmmerr_avg / ntest );

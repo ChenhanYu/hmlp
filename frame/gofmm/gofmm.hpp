@@ -164,7 +164,7 @@ class Configuration
 
 
 /**
- *  @brief These are data that shared by the whole tree.
+ *  @brief These are data that shared by the whole local tree.
  *
  */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
@@ -190,7 +190,7 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     /** rhs-by-n all weights */
     hmlp::Data<T> *w = NULL;
 
-    /** rhs-by-n all potentials */
+    /** n-by-nrhs all potentials */
     hmlp::Data<T> *u = NULL;
 
     /** buffer space, either dimension needs to be n  */
@@ -210,7 +210,7 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     bool do_ulv_factorization = true;
 
 
-}; // end class Setup
+}; /** end class Setup */
 
 
 /**
@@ -1669,8 +1669,11 @@ void UpdateWeights( NODE *node )
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
+
+  size_t nrhs = w.col();
+
   /** w_skel is s-by-nrhs, initial values are not important */
-  w_skel.resize( skels.size(), w.row() );
+  w_skel.resize( skels.size(), nrhs );
 
   //printf( "%lu UpdateWeight w_skel.num() %lu\n", node->treelist_id, w_skel.num() );
 
@@ -1765,7 +1768,7 @@ class UpdateWeightsTask : public hmlp::Task
       if ( arg->isleaf )
       {
         auto m = skels.size();
-        auto n = w.row();
+        auto n = w.col();
         auto k = lids.size();
         flops = 2.0 * m * n * k;
         mops = 2.0 * ( m * n + m * k + k * n );
@@ -1775,7 +1778,7 @@ class UpdateWeightsTask : public hmlp::Task
         auto &lskels = arg->lchild->data.skels;
         auto &rskels = arg->rchild->data.skels;
         auto m = skels.size();
-        auto n = w.row();
+        auto n = w.col();
         auto k = lskels.size() + rskels.size();
         flops = 2.0 * m * n * k;
         mops  = 2.0 * ( m * n + m * k + k * n );
@@ -1922,10 +1925,12 @@ void SkeletonsToSkeletons( NODE *node )
   auto &u_skel = node->data.u_skel;
   auto &FarKab = node->data.FarKab;
 
+  size_t nrhs = node->setup->w->col();
+
   /** initilize u_skel to be zeros( s, nrhs ). */
   beg = omp_get_wtime();
   u_skel.resize( 0, 0 );
-  u_skel.resize( amap.size(), node->setup->w->row(), 0.0 );
+  u_skel.resize( amap.size(), nrhs, 0.0 );
   u_skel_time = omp_get_wtime() - beg;
 
   size_t offset = 0;
@@ -2013,7 +2018,7 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
       double flops = 0.0, mops = 0.0;
       auto &w = *arg->setup->w;
       size_t m = arg->data.skels.size();
-      size_t n = w.row();
+      size_t n = w.col();
 
       std::set<NODE*> *FarNodes;
       if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
@@ -2107,7 +2112,6 @@ void SkeletonsToNodes( NODE *node )
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
-  auto &u = *node->setup->u;
 
   /** Gather per node data and create reference */
   auto &lids = node->lids;
@@ -2118,6 +2122,8 @@ void SkeletonsToNodes( NODE *node )
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
+  size_t nrhs = w.col();
+
   if ( node->isleaf )
   {
     std::set<NODE*> *NearNodes;
@@ -2125,35 +2131,15 @@ void SkeletonsToNodes( NODE *node )
     else           NearNodes = &node->NearNodes;
     auto &amap = node->lids;
     auto &u_leaf = node->data.u_leaf[ 0 ];
-    //beg = omp_get_wtime();
-    //u_leaf.resize( w.row(), lids.size(), 0.0 );
+
+    /** zero-out u_leaf */
     u_leaf.resize( 0, 0 );
-    u_leaf.resize( lids.size(), w.row(), 0.0 );
-    //u_leaf_time = omp_get_wtime() - beg;
-
-    assert( u_leaf.size() == w.row() * lids.size() );
-
-//    /** reduce direct iteractions from 4 copies */
-//    for ( size_t p = 1; p < 4; p ++ )
-//    {
-//      for ( size_t i = 0; i < u_leaf.size(); i ++ )
-//      {
-//        u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
-//      }
-//    }
+    u_leaf.resize( lids.size(), nrhs, 0.0 );
 
     /** accumulate far interactions */
     if ( data.isskel )
     {
-      //xgemm
-      //(
-      //  "T", "N",
-      //  u_leaf.row(), u_leaf.col(), proj.row(),
-      //  1.0, u_skel.data(), u_skel.row(),
-      //         proj.data(),   proj.row(),
-      //  1.0, u_leaf.data(), u_leaf.row()
-      //);
-
+      /** u_leaf += P' * u_skel */
       xgemm
       (
         "T", "N",
@@ -2164,15 +2150,6 @@ void SkeletonsToNodes( NODE *node )
       );
     }
 
-//    /** assemble u_leaf back to u */
-//    for ( size_t j = 0; j < amap.size(); j ++ )
-//    {
-//      for ( size_t i = 0; i < u.row(); i ++ )
-//      {
-//        //u[ amap[ j ] * u.row() + i ] = u_leaf[ j * u.row() + i ];
-//        u[ amap[ j ] * u.row() + i ] = u_leaf( j, i );
-//      }
-//    }
     after_writeback_time = omp_get_wtime() - beg;
 
     //printf( "u_leaf %.3E before %.3E after %.3E\n",
@@ -2205,7 +2182,7 @@ void SkeletonsToNodes( NODE *node )
   }
   //printf( "\n" );
 
-}; // end SkeletonsToNodes()
+}; /** end SkeletonsToNodes() */
 
 
 template<bool NNPRUNE, typename NODE, typename T>
@@ -2237,7 +2214,7 @@ class SkeletonsToNodesTask : public hmlp::Task
       if ( arg->isleaf )
       {
         size_t m = proj.col();
-        size_t n = w.row();
+        size_t n = w.col();
         size_t k = proj.row();
         flops += 2.0 * m * n * k;
         mops  += 2.0 * ( m * n + n * k + m * k );
@@ -2251,7 +2228,7 @@ class SkeletonsToNodesTask : public hmlp::Task
         else
         {
           size_t m = proj.col();
-          size_t n = w.row();
+          size_t n = w.col();
           size_t k = proj.row();
           flops += 2.0 * m * n * k;
           mops  += 2.0 * ( m * n + n * k + m * k );
@@ -2393,12 +2370,13 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
-  auto &u = *node->setup->u;
 
   auto &lids = node->lids;
   auto &data = node->data;
   auto &amap = node->lids;
   auto &NearKab = data.NearKab;
+
+  size_t nrhs = w.col();
 
   std::set<NODE*> *NearNodes;
   if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
@@ -2417,7 +2395,7 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
   }
   else
   {
-    u_leaf.resize( lids.size(), w.row(), 0.0 );
+    u_leaf.resize( lids.size(), nrhs, 0.0 );
   }
 
   if ( NearKab.size() ) /** Kab is cached */
@@ -2455,7 +2433,6 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
       if ( itbeg <= itptr && itptr < itend )
       {
         auto &bmap = (*it)->lids;
-        //auto wb = w( bmap );
         auto wb = (*it)->data.w_leaf;
 
         /** evaluate the submatrix */
@@ -2521,7 +2498,7 @@ class LeavesToLeavesTask : public hmlp::Task
       assert( arg->isleaf );
 
       size_t m = lids.size();
-      size_t n = w.row();
+      size_t n = w.col();
 
       std::set<NODE*> *NearNodes;
       if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
@@ -3503,33 +3480,27 @@ void Evaluate
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
-  auto amap = std::vector<size_t>( 1 );
+  size_t nrhs = w.col();
 
+  auto amap = std::vector<size_t>( 1 );
   amap[ 0 ] = lid;
 
   if ( !SYMBOLIC ) // No potential evaluation.
   {
-    assert( potentials.size() == amap.size() * w.row() );
+    assert( potentials.size() == amap.size() * nrhs );
   }
 
   if ( !data.isskel || node->ContainAny( nnandi ) )
   {
-    //printf( "level %lu is not prunable\n", node->l );
     if ( node->isleaf )
     {
       if ( SYMBOLIC )
       {
+        /** add lid to notprune list. We use a lock */
         data.lock.Acquire();
         {
-          // Add lid to notprune list. We use a lock.
-          if ( NNPRUNE ) 
-          {
-            node->NNNearIDs.insert( lid );
-          }
-          else           
-          {
-            node->NearIDs.insert( lid );
-          }
+          if ( NNPRUNE ) node->NNNearIDs.insert( lid );
+          else           node->NearIDs.insert( lid );
         }
         data.lock.Release();
       }
@@ -3538,14 +3509,23 @@ void Evaluate
 #ifdef DEBUG_SPDASKIT
         printf( "level %lu direct evaluation\n", node->l );
 #endif
-        auto Kab = K( amap, lids ); // amap.size()-by-lids.size()
-        auto wb  = w( lids ); // nrhs-by-lids.size()
+        /** amap.size()-by-lids.size() */
+        auto Kab = K( amap, lids ); 
+
+        /** all right hand sides */
+        std::vector<size_t> bmap( nrhs );
+        for ( size_t j = 0; j < bmap.size(); j ++ )
+          bmap[ j ] = j;
+
+        /** lids.size()-by-nrhs */
+        auto wb  = w( lids, bmap ); 
+
         xgemm
         (
-          "N", "T",
-          Kab.row(), wb.row(), wb.col(),
+          "N", "N",
+          Kab.row(), wb.col(), wb.row(),
           1.0, Kab.data(),        Kab.row(),
-          wb.data(),         wb.row(),
+                wb.data(),         wb.row(),
           1.0, potentials.data(), potentials.row()
         );
       }
@@ -3564,14 +3544,8 @@ void Evaluate
       data.lock.Acquire();
       {
         // Add lid to prunable list.
-        if ( NNPRUNE ) 
-        {
-          node->FarIDs.insert( lid );
-        }
-        else           
-        {
-          node->NNFarIDs.insert( lid );
-        }
+        if ( NNPRUNE ) node->FarIDs.insert( lid );
+        else           node->NNFarIDs.insert( lid );
       }
       data.lock.Release();
     }
@@ -3587,7 +3561,7 @@ void Evaluate
         "N", "N",
         Kab.row(), w_skel.col(), w_skel.row(),
         1.0, Kab.data(),        Kab.row(),
-        w_skel.data(),     w_skel.row(),
+          w_skel.data(),     w_skel.row(),
         1.0, potentials.data(), potentials.row()
       );          
     }
@@ -3615,7 +3589,7 @@ void Evaluate
   size_t lid = tree.Getlid( gid );
 
   potentials.clear();
-  potentials.resize( 1, w.row(), 0.0 );
+  potentials.resize( 1, w.col(), 0.0 );
 
   if ( NNPRUNE )
   {
@@ -3671,9 +3645,12 @@ hmlp::Data<T> Evaluate
   /** clean up all r/w dependencies left on tree nodes */
   tree.DependencyCleanUp();
 
-  /** nrhs-by-n initialize potentials */
+  /** n-by-nrhs initialize potentials */
+  size_t n    = weights.row();
+  size_t nrhs = weights.col();
+
   beg = omp_get_wtime();
-  hmlp::Data<T> potentials( weights.row(), weights.col(), 0.0 );
+  hmlp::Data<T> potentials( n, nrhs, 0.0 );
   tree.setup.w = &weights;
   tree.setup.u = &potentials;
   allocate_time = omp_get_wtime() - beg;
@@ -3691,7 +3668,29 @@ hmlp::Data<T> Evaluate
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
     auto *node = *(level_beg + node_ind);
-    weights.GatherColumns( true, node->lids, node->data.w_leaf );
+
+
+
+    //weights.GatherColumns( true, node->lids, node->data.w_leaf );
+
+    auto &gids = node->gids;
+    auto &w_leaf = node->data.w_leaf;
+
+    if ( w_leaf.row() != gids.size() || w_leaf.col() != weights.col() )
+    {
+      w_leaf.resize( gids.size(), weights.col() );
+    }
+
+    for ( size_t j = 0; j < w_leaf.col(); j ++ )
+    {
+      for ( size_t i = 0; i < w_leaf.row(); i ++ )
+      {
+        w_leaf( i, j ) = weights( gids[ i ], j ); 
+      }
+    };
+
+
+
   }
   forward_permute_time = omp_get_wtime() - beg;
 
@@ -3845,10 +3844,20 @@ hmlp::Data<T> Evaluate
     auto *node = *(level_beg + node_ind);
     auto &amap = node->lids;
     auto &u_leaf = node->data.u_leaf[ 0 ];
+
+
+
     /** assemble u_leaf back to u */
-    for ( size_t j = 0; j < amap.size(); j ++ )
-      for ( size_t i = 0; i < potentials.row(); i ++ )
-        potentials[ amap[ j ] * potentials.row() + i ] += u_leaf( j, i );
+    //for ( size_t j = 0; j < amap.size(); j ++ )
+    //  for ( size_t i = 0; i < potentials.row(); i ++ )
+    //    potentials[ amap[ j ] * potentials.row() + i ] += u_leaf( j, i );
+
+
+    for ( size_t j = 0; j < potentials.col(); j ++ )
+      for ( size_t i = 0; i < amap.size(); i ++ )
+        potentials( amap[ i ], j ) += u_leaf( i, j );
+
+
   }
   backward_permute_time = omp_get_wtime() - beg;
 
@@ -4394,18 +4403,16 @@ void ComputeError( NODE *node, hmlp::Data<T> potentials )
 
 
 /**
- *  @brief
+ *  @brief 
  */ 
 template<typename TREE, typename T>
 T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 {
   auto &K = *tree.setup.K;
   auto &w = *tree.setup.w;
-  auto lid = tree.Getlid( gid );
 
-  auto amap = std::vector<size_t>( 1 );
+  auto amap = std::vector<size_t>( 1, gid );
   auto bmap = std::vector<size_t>( K.col() );
-  amap[ 0 ] = lid;
   for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
 
   auto Kab = K( amap, bmap );
@@ -4413,10 +4420,10 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 
   xgemm
   (
-    "N", "T",
-    Kab.row(), w.row(), w.col(),
-    1.0, Kab.data(),        Kab.row(),
-          w.data(),          w.row(),
+    "N", "N",
+    Kab.row(), w.col(), w.row(),
+    1.0,   Kab.data(),   Kab.row(),
+             w.data(),     w.row(),
     0.0, exact.data(), exact.row()
   );          
 
@@ -4426,9 +4433,9 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
 
   xgemm
   (
-    "N", "T",
-    Kab.row(), w.row(), w.col(),
-    -1.0, Kab.data(),        Kab.row(),
+    "N", "N",
+    Kab.row(), w.col(), w.row(),
+    -1.0, Kab.data(),       Kab.row(),
           w.data(),          w.row(),
      1.0, potentials.data(), potentials.row()
   );          
@@ -4459,17 +4466,19 @@ class SimpleGOFMM
 
     void Multiply( hmlp::Data<T> &y, hmlp::Data<T> &x )
     {
-      hmlp::Data<T> weights( x.col(), x.row() );
+      //hmlp::Data<T> weights( x.col(), x.row() );
 
-      for ( size_t j = 0; j < x.col(); j ++ )
-        for ( size_t i = 0; i < x.row(); i ++ )
-          weights( j, i ) = x( i, j );
+      //for ( size_t j = 0; j < x.col(); j ++ )
+      //  for ( size_t i = 0; i < x.row(); i ++ )
+      //    weights( j, i ) = x( i, j );
 
-      auto potentials = hmlp::gofmm::Evaluate( *tree_ptr, weights );
 
-      for ( size_t j = 0; j < y.col(); j ++ )
-        for ( size_t i = 0; i < y.row(); i ++ )
-          y( i, j ) = potentials( j, i );
+      y = hmlp::gofmm::Evaluate( *tree_ptr, x );
+      //auto potentials = hmlp::gofmm::Evaluate( *tree_ptr, weights );
+
+      //for ( size_t j = 0; j < y.col(); j ++ )
+      //  for ( size_t i = 0; i < y.row(); i ++ )
+      //    y( i, j ) = potentials( j, i );
 
     };
 

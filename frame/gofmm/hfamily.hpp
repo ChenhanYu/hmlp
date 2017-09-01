@@ -1972,14 +1972,14 @@ void ComputeError( TREE &tree, T lambda,
   assert( weights.row() == potentials.row() );
   assert( weights.col() == potentials.col() );
 
-  size_t nrhs = weights.row();
-  size_t n = weights.col();
+  size_t n    = weights.row();
+  size_t nrhs = weights.col();
 
   /** shift lambda and make it a column vector */
   hmlp::Data<T> rhs( n, nrhs );
   for ( size_t j = 0; j < nrhs; j ++ )
     for ( size_t i = 0; i < n; i ++ )
-      rhs( i, j ) = potentials( j, i ) + lambda * weights( j, i );
+      rhs( i, j ) = potentials( i, j ) + lambda * weights( i, j );
 
   /** potentials = inv( K + lambda * I ) * potentials */
   hmlp::hfamily::Solve<NODE, T>( tree, rhs );
@@ -2003,11 +2003,11 @@ void ComputeError( TREE &tree, T lambda,
 
     for ( size_t i = 0; i < n; i ++ )
     {
-      T sse = rhs( i, j ) - weights( j, i );
+      T sse = rhs( i, j ) - weights( i, j );
       assert( rhs( i, j ) == rhs( i, j ) );
       sse = sse * sse;
 
-      nrm2 += weights( j, i ) * weights( j, i );
+      nrm2 += weights( i, j ) * weights( i, j );
       err2 += sse;
 
       //printf( "%lu %3.1E\n", i, sse );
