@@ -50,7 +50,7 @@ export OPENBLASROOT=${OPENBLASROOT}
 export OMP_NUM_THREADS=10
 
 if [[ ${icesmachine} == *"lando"* ]]; then
-  export OMP_NUM_THREADS=24
+  export OMP_NUM_THREADS=20
 fi
 
 

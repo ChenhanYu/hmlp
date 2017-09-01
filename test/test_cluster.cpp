@@ -50,7 +50,9 @@ void test_cluster( int d, int n, int ncluster, int niter, T tol,
 {
   /** data points */
   hmlp::Data<T> X( d, n ); 
-  
+ 
+  T beg, spectral_t, gofmm_kkmeans_t, gofmm_spectral_t;
+
   if ( user_points_filename.size() )
   {
     /** read data points from files */
@@ -115,33 +117,50 @@ void test_cluster( int d, int n, int ncluster, int niter, T tol,
   if ( nclass ) cluster.ProvideLabels( nclass, &Y );
 
 
-  for ( size_t step = 0; step < 10; step ++ )
+  for ( size_t step = 0; step < 5; step ++ )
   {
-    T h = 0.07 + 0.01 * step;
+    T h = 2.5 + 0.1 * step;
     kernel_s<T> kernel;
     kernel.type = KS_GAUSSIAN;
     /** h = 1.0, Gaussian bandwidth (scal = -1 / 2h^2) */
     kernel.scal = -1.0 / ( 2.0 * h * h );
 
     printf( "h = %E\n", h );
+
+    T budget = 0.03;
+    //cluster.InitializeAssignments();
+    //beg = omp_get_wtime(); 
+    //cluster.KernelKmeans( kernel, niter, tol, budget );
+    //gofmm_kkmeans_t = omp_get_wtime() - beg;
+    //cluster.NMI();
+    //printf( "GOFMM KernelKmeans %Es\n", gofmm_kkmeans_t );
+
     //printf( "KernelKmeans\n" );
+    //cluster.InitializeAssignments();
     //cluster.KernelKmeans( kernel, niter, tol );
     //cluster.NMI();
-
-    printf( "GOFMM KernelKmeans\n" );
-    T budget = 0.03;
-    cluster.KernelKmeans( kernel, niter, tol, budget );
-    cluster.NMI();
-
 
     /** try linear Kmeans */
     //cluster.Kmeans( niter, tol );
     //cluster.NMI();
 
-    /** try spectral clustering with power methods */
-    printf( "Spectral\n" );
-    cluster.Spectral( kernel );
+
+    cluster.InitializeAssignments();
+    beg = omp_get_wtime(); 
+    cluster.Spectral( kernel, tol, budget );
+    gofmm_spectral_t = omp_get_wtime() - beg;
     cluster.NMI();
+    printf( "GOFMM Spectral %Es\n", gofmm_spectral_t );
+
+
+    /** try spectral clustering with power methods */
+    //cluster.InitializeAssignments();
+    //beg = omp_get_wtime(); 
+    //cluster.Spectral( kernel );
+    //spectral_t = omp_get_wtime() - beg;
+    //cluster.NMI();
+    //printf( "Spectral %Es\n", spectral_t );
+
   }
 
 }; /** end test_cluster() */

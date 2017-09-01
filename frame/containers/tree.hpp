@@ -38,6 +38,8 @@
 #include <containers/data.hpp>
 #include <primitives/combinatorics.hpp>
 
+#define REPORT_ANN_STATUS 0
+
 //#define DEBUG_TREE 1
 
 
@@ -1318,7 +1320,10 @@ class Tree
       double mops= 0.0;
 
       // This loop has to be sequential to prevent from race condiditon on NN.
-      printf( "========================================================\n");
+      if ( REPORT_ANN_STATUS )
+      {
+        printf( "========================================================\n");
+      }
       for ( int t = 0; t < n_tree; t ++ )      
       {
         //TreePartition( 2 * k, max_depth, gids, lids );
@@ -1346,8 +1351,11 @@ class Tree
           knn_acc += node->data.knn_acc;
           num_acc += node->data.num_acc;
         }
-        printf( "ANN iter %2d, average accuracy %.2lf%% (over %4lu samples)\n", 
-            t, knn_acc / num_acc, num_acc );
+        if ( REPORT_ANN_STATUS )
+        {
+          printf( "ANN iter %2d, average accuracy %.2lf%% (over %4lu samples)\n", 
+              t, knn_acc / num_acc, num_acc );
+        }
 
         /** clean up for the new iteration */
         #pragma omp parallel for
@@ -1371,7 +1379,10 @@ class Tree
         printf( "\n" );
 #endif
       }
-      printf( "========================================================\n\n");
+      if ( REPORT_ANN_STATUS )
+      {
+        printf( "========================================================\n\n");
+      }
 
       
       if ( SORTED )
@@ -1690,6 +1701,14 @@ class Tree
         }
       }
     }; /** end TraverseDown() */
+
+    void DependencyCleanUp()
+    {
+      for ( size_t i = 0; i < treelist.size(); i ++ )
+      {
+        treelist[ i ]->DependencyCleanUp();
+      }
+    }; /** end DependencyCleanUp() */
 
 
     /**

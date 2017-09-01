@@ -32,6 +32,8 @@
 
 #define MAX_BATCH_SIZE 4
 
+#define REPORT_RUNTIME_STATUS 0
+
 // #define DEBUG_RUNTIME 1
 // #define DEBUG_SCHEDULER 1
 
@@ -735,7 +737,9 @@ void Scheduler::Finalize()
   }
 #else
 #endif
-  Summary();
+
+  /** print out statistics of this epoch */
+  if ( REPORT_RUNTIME_STATUS ) Summary();
 
   /** reset remaining time */
   for ( int i = 0; i < n_worker; i ++ )
@@ -1133,7 +1137,7 @@ void Scheduler::Summary()
     total_flops += tasklist[ i ]->event.GetFlops();
     total_mops  += tasklist[ i ]->event.GetMops();
   }
-  printf( "flops %E mops %E\n", total_flops, total_mops );
+  printf( "Epoch summary: flops %E mops %E\n", total_flops, total_mops );
 
 
 #ifdef DUMP_ANALYSIS_DATA

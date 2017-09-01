@@ -15,6 +15,81 @@
 namespace hmlp
 {
 
+template<typename PARAM, typename T>
+class VirtualNormalizedGraph
+{
+  public:
+
+    VirtualNormalizedGraph( size_t n, PARAM *param, T sigma )
+    {
+      this->n = n;
+      this->param = param;
+      this->sigma = sigma;
+      
+      assert( param );
+      hmlp::Data<T> ones( n, (size_t)1, 1.0 );
+      Degree.resize( n, (size_t)1, 0.0 );
+      param->Multiply( Degree, ones );
+    };
+
+    /** y = A * x + Sigma * x */
+    void Multiply( hmlp::Data<T> &y, hmlp::Data<T> &x )
+    {
+      assert( param );
+      assert( y.row() == n && x.row() == n );
+      assert( y.col() == x.col() );
+
+      size_t nrhs = y.col();
+      hmlp::Data<T> temp = x;
+
+      /** temp = D^{-1/2} * x */
+      for ( size_t j = 0; j < nrhs; j ++ )
+        for ( size_t i = 0; i < n; i ++ )
+          temp( i, j ) /= std::sqrt( Degree[ i ] );
+
+      /** zero-out */
+      for ( size_t j = 0; j < nrhs; j ++ )
+        for ( size_t i = 0; i < n; i ++ )
+          y( i, j ) = 0.0;
+
+      /** y += A * temp */
+      param->Multiply( y, temp );
+
+      /** y = D^{-1/2} * y */
+      for ( size_t j = 0; j < nrhs; j ++ )
+        for ( size_t i = 0; i < n; i ++ )
+          y( i, j ) /= std::sqrt( Degree[ i ] );
+
+      /** y += sigma * x */
+      if ( sigma )
+      {
+        for ( size_t j = 0; j < nrhs; j ++ )
+          for ( size_t i = 0; i < n; i ++ )
+            y( i, j ) += sigma * x( i, j );
+      }
+    };
+
+    void Multiply( hmlp::Data<T> &y )
+    {
+      assert( param );
+      hmlp::Data<T> x = y;
+      Multiply( y, x );
+    };
+
+  private:
+
+    size_t n = 0;
+
+    T sigma = 0.0;
+
+    PARAM *param = NULL;
+
+    hmlp::Data<T> Degree;
+
+}; /** end class VirtualNormalizedGraph */
+
+
+
 template<typename T>
 class Cluster
 {
@@ -49,6 +124,14 @@ class Cluster
     {
       this->nclass = nclass;
       this->labels = labels;
+    };
+
+    void InitializeAssignments()
+    {
+      for ( size_t i = 0; i < n; i ++ )
+      {
+        (*assignments)[ i ] = i % ncluster;
+      }
     };
 
 
@@ -182,17 +265,15 @@ class Cluster
 
 
     /** use a Lanczos method without restart */
-    virtual void Spectral( kernel_s<T> &kernel )
+    template<typename VIRTUALMATRIX>
+    void Spectral( VIRTUALMATRIX &G )
     {
-      /** create a kernel matrix */
-      KernelMatrix<T> K( n, n, d, kernel, *X );
+      ///** create a kernel matrix */
+      //KernelMatrix<T> K( n, n, d, kernel, *X );
 
-      /** all one vector (indicators) */
-      hmlp::Data<T> ones( n, 1, 1.0 );
-
-      /** get the weights i.e. Degree = K * ones */
-      std::vector<T> Degree( n, 0 );
-      K.Multiply( 1, Degree, ones );
+      ///** create a matrix-free D^{-1/2}KD^{-1/2} */
+      //T spectrum_shift = 0.0;
+      //VirtualNormalizedGraph<KernelMatrix<T>, T> G( n, &K, spectrum_shift );
 
       /** number of eigenpairs to compute */
       size_t neig = ncluster;
@@ -203,7 +284,7 @@ class Cluster
 
       /** k-step Lanczos + LAPACK xstev */
       size_t num_krylov = 5 * neig;
-      hmlp::lanczos( K, n, neig, num_krylov, Sigma, V );
+      hmlp::lanczos( G, n, neig, num_krylov, Sigma, V );
 
       /** spherical initialization (point-wise normalization) */
       for ( size_t i = 0; i < n; i ++ ) 
@@ -222,6 +303,42 @@ class Cluster
       spherical_cluster.Kmeans( 30, 1E-3 );
 
     }; /** end Spectral() */
+
+    void Spectral( kernel_s<T> &kernel )
+    {
+      /** create a kernel matrix */
+      KernelMatrix<T> K( n, n, d, kernel, *X );
+
+      /** create a matrix-free D^{-1/2}KD^{-1/2} */
+      T spectrum_shift = 0.0;
+      VirtualNormalizedGraph<KernelMatrix<T>, T> G( n, &K, spectrum_shift );
+
+      /** calling matrix-independent spectral clustering */
+      Spectral( G );
+    };
+
+    /** use a Lanczos method without restart */
+    void Spectral( kernel_s<T> &kernel, T stol, T budget )
+    {
+      /** create a kernel matrix */
+      KernelMatrix<T> K( n, n, d, kernel, *X );
+
+      /** create a simple GOFMM compression */
+      hmlp::gofmm::SimpleGOFMM<T, KernelMatrix<T>> H( K, stol, budget );
+     
+      /** create a matrix-free D^{-1/2}KD^{-1/2} */
+      T spectrum_shift = 0.0;
+      VirtualNormalizedGraph<hmlp::gofmm::SimpleGOFMM<T, KernelMatrix<T>>, T> 
+        G( n, &H, spectrum_shift );
+
+      /** calling matrix-independent spectral clustering */
+      Spectral( G );
+
+    }; /** end Spectral() */
+
+
+
+
 
 
     std::vector<size_t> ClusterPermutation( std::vector<int> &amap,
@@ -381,11 +498,13 @@ class Cluster
         kernel_s<T> &kernel, 
         std::vector<int> &amap, size_t niter, T tol, T budget )
     {
+
+
       /** create a kernel matrix */
       KernelMatrix<T> K( n, n, d, kernel, *X );
 
 		  /** */
-      auto *tree_ptr = hmlp::gofmm::Compress<T>( K, 1E-3, 0.03 );
+      auto *tree_ptr = hmlp::gofmm::Compress<T>( K, tol, budget );
 		  auto &tree = *tree_ptr;
 
       /** get D = [ K( 0, 0 ), ..., K( n-1, n-1 ) ) */
@@ -402,6 +521,62 @@ class Cluster
 
       /** compute the approximate degree */
       auto Degree = hmlp::gofmm::Evaluate( tree, ones );
+
+
+      /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
+      std::size_t ntest = 100;
+      T nnerr_avg = 0.0;
+      T nonnerr_avg = 0.0;
+      T fmmerr_avg = 0.0;
+      //printf( "========================================================\n");
+      //printf( "Accuracy report\n" );
+      //printf( "========================================================\n");
+      for ( size_t i = 0; i < ntest; i ++ )
+      {
+        hmlp::Data<T> potentials( 1, 1 );
+        /** ASKIT treecode with NN pruning */
+        //hmlp::gofmm::Evaluate<false, true>( tree, i, potentials );
+        //printf( "ASKIT NN\n" ); fflush( stdout );
+        //auto nnerr = hmlp::gofmm::ComputeError( tree, i, potentials );
+        T nnerr = 0.0;
+        /** ASKIT treecode without NN pruning */
+        //hmlp::gofmm::Evaluate<false, false>( tree, i, potentials );
+        //printf( "ASKIT no NN\n" ); fflush( stdout );
+        //auto nonnerr = hmlp::gofmm::ComputeError( tree, i, potentials );
+        T nonnerr = 0.0;
+        //printf( "potentials.col() %lu\n", potentials.col() ); fflush( stdout );
+        /** get results from GOFMM */
+        for ( size_t p = 0; p < potentials.col(); p ++ )
+        {
+          potentials[ p ] = Degree( p, i );
+        }
+        auto fmmerr = ComputeError( tree, i, potentials );
+
+        /** only print 10 values. */
+        if ( i < 0 )
+        {
+          printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+              i, nnerr, nonnerr, fmmerr );
+        }
+        nnerr_avg += nnerr;
+        nonnerr_avg += nonnerr;
+        fmmerr_avg += fmmerr;
+      }
+      printf( "========================================================\n");
+      printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+          nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
+      printf( "========================================================\n");
+      // ------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
 
       /** cluster permutation  */
       std::vector<std::vector<int>> bmap( ncluster );
@@ -524,7 +699,7 @@ class Cluster
         }
       }
 
-      Confusion.Print();
+      //Confusion.Print();
 
       /** if nclass == ncluster then compute the accuracy */
       if ( nclass == ncluster )

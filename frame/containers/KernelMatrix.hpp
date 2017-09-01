@@ -293,6 +293,11 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
         u[ i ] = u[ i ] / std::sqrt( Degree[ i ] );
     };
 
+
+    /**
+     *
+     *
+     */ 
     void Multiply( size_t nrhs, T* u, T* w )
     {
       std::vector<int> amap( this->row() );
@@ -314,8 +319,6 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
         exit( 1 );
       }
     };
-
-
 
     /** u( umap ) += K( amap, bmap ) * w( wmap ) */
     template<typename TINDEX>
@@ -355,10 +358,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
 
 
     /** u += K * w */
-    void Multiply( 
-        size_t nrhs,
-        std::vector<T> &u,
-        std::vector<T> &w )
+    void Multiply( size_t nrhs, std::vector<T> &u, std::vector<T> &w )
     {
       std::vector<int> amap( this->row() );
       std::vector<int> bmap( this->col() );
@@ -367,6 +367,14 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       Multiply( nrhs, u, amap, bmap, w );
     };
 
+    void Multiply( hmlp::Data<T> &u, hmlp::Data<T> &w )
+    {
+      assert( u.row() == this->row() );
+      assert( w.row() == this->col() );
+      assert( u.col() == w.col() );
+      size_t nrhs = u.col();
+      Multiply( nrhs, u, w );
+    };
 
 
     void Print()
@@ -433,6 +441,13 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
     kernel_s<T> kernel;
 
 }; /** end class KernelMatrix */
+
+
+
+
+
+
+
 }; /** end namespace hmlp */
 
 #endif /** define KERNELMATRIX_HPP */

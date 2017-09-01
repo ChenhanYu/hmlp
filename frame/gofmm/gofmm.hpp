@@ -71,6 +71,10 @@
 //#define DEBUG_SPDASKIT 1
 #define REPORT_ANN_ACCURACY 1
 
+#define REPORT_COMPRESS_STATUS 1
+#define REPORT_EVALUATE_STATUS 1
+
+
 #define OMPLEVEL 0
 #define OMPRECTASK 0
 #define OMPDAGTASK 0
@@ -1838,26 +1842,41 @@ class UpdateWeightsTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      if ( !arg->parent ) 
+      //if ( !arg->parent ) 
+      //{
+      //  this->Enqueue();
+      //  return;
+      //}
+
+      //auto &w_skel = arg->data.w_skel;
+      //w_skel.DependencyAnalysis( hmlp::ReadWriteType::W, this );
+
+      //if ( !arg->isleaf )
+      //{
+      //  auto &w_lskel = arg->lchild->data.w_skel;
+      //  auto &w_rskel = arg->rchild->data.w_skel;
+      //  w_lskel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      //  w_rskel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      //}
+      //else
+      //{
+      //  this->Enqueue();
+      //}
+    
+
+
+
+      if ( arg->parent ) 
       {
-        this->Enqueue();
-        return;
+        arg->DependencyAnalysis( hmlp::ReadWriteType::W, this );
       }
-
-      auto &w_skel = arg->data.w_skel;
-      w_skel.DependencyAnalysis( hmlp::ReadWriteType::W, this );
-
       if ( !arg->isleaf )
       {
-        auto &w_lskel = arg->lchild->data.w_skel;
-        auto &w_rskel = arg->rchild->data.w_skel;
-        w_lskel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        w_rskel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
       }
-      else
-      {
-        this->Enqueue();
-      }
+      this->TryEnqueue();
+
     };
 
     void Execute( Worker* user_worker )
@@ -2035,17 +2054,33 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
       std::set<NODE*> *FarNodes;
       FarNodes = &arg->NNFarNodes;
 
-      if ( !arg->parent || !FarNodes->size() ) this->Enqueue();
+      //if ( !arg->parent || !FarNodes->size() ) this->Enqueue();
 
-      //printf( "node %lu write u_skel ", arg->treelist_id );
-      u_skel.DependencyAnalysis( hmlp::ReadWriteType::W, this );
-      for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+      ////printf( "node %lu write u_skel ", arg->treelist_id );
+      //u_skel.DependencyAnalysis( hmlp::ReadWriteType::W, this );
+      //for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+      //{
+      //  //printf( "%lu ", (*it)->treelist_id );
+      //  auto &w_skel = (*it)->data.w_skel;
+      //  w_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      //}
+      ////printf( "\n" );
+     
+
+
+
+
+      if ( FarNodes->size() )
       {
-        //printf( "%lu ", (*it)->treelist_id );
-        auto &w_skel = (*it)->data.w_skel;
-        w_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->DependencyAnalysis( hmlp::ReadWriteType::W, this );
+        for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+        {
+          (*it)->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        }
       }
-      //printf( "\n" );
+      this->TryEnqueue();
+      
+      
     };
 
     void Execute( Worker* user_worker )
@@ -2289,31 +2324,47 @@ class SkeletonsToNodesTask : public hmlp::Task
 #ifdef DEBUG_SPDASKIT
       printf( "Skel2Node DepenencyAnalysis %lu\n", arg->treelist_id );
 #endif
-      if ( !arg->parent ) 
+      //if ( !arg->parent ) 
+      //{
+      //  this->Enqueue();
+      //  return;
+      //}
+
+      //auto &u_skel = arg->data.u_skel;
+      //u_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
+
+      //if ( !arg->isleaf )
+      //{
+      //  auto &u_lskel = arg->lchild->data.u_skel;
+      //  auto &u_rskel = arg->rchild->data.u_skel;
+      //  u_lskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      //  u_rskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      //}
+      //else
+      //{
+      //  /** impose rw dependencies on multiple copies */
+      //  //for ( size_t p = 0; p < 4; p ++ )
+      //  //{
+      //  //  auto &u_leaf = arg->data.u_leaf[ p ];
+      //  //  u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      //  //}
+      //}
+
+      if ( arg->parent )
       {
-        this->Enqueue();
-        return;
+        arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
       }
-
-      auto &u_skel = arg->data.u_skel;
-      u_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
-
       if ( !arg->isleaf )
       {
-        auto &u_lskel = arg->lchild->data.u_skel;
-        auto &u_rskel = arg->rchild->data.u_skel;
-        u_lskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        u_rskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
       }
-      else
-      {
-        /** impose rw dependencies on multiple copies */
-        //for ( size_t p = 0; p < 4; p ++ )
-        //{
-        //  auto &u_leaf = arg->data.u_leaf[ p ];
-        //  u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        //}
-      }
+      this->TryEnqueue();
+
+
+
+
+
     };
 
     void Execute( Worker* user_worker )
@@ -3617,6 +3668,9 @@ hmlp::Data<T> Evaluate
   double allocate_time, computeall_time;
   double forward_permute_time, backward_permute_time;
 
+  /** clean up all r/w dependencies left on tree nodes */
+  tree.DependencyCleanUp();
+
   /** nrhs-by-n initialize potentials */
   beg = omp_get_wtime();
   hmlp::Data<T> potentials( weights.row(), weights.col(), 0.0 );
@@ -3626,7 +3680,10 @@ hmlp::Data<T> Evaluate
 
 
   /** permute weights into w_leaf */
-  printf( "Forward permute ...\n" ); fflush( stdout );
+  if ( REPORT_EVALUATE_STATUS )
+  {
+    printf( "Forward permute ...\n" ); fflush( stdout );
+  }
   beg = omp_get_wtime();
   int n_nodes = ( 1 << tree.depth );
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
@@ -3641,7 +3698,10 @@ hmlp::Data<T> Evaluate
 
 
   /** Compute all N2S, S2S, S2N, L2L */
-  printf( "N2S, S2S, S2N, L2L (HMLP Runtime) ...\n" ); fflush( stdout );
+  if ( REPORT_EVALUATE_STATUS )
+  {
+    printf( "N2S, S2S, S2N, L2L (HMLP Runtime) ...\n" ); fflush( stdout );
+  }
   if ( SYMMETRIC_PRUNE )
   {
     beg = omp_get_wtime();
@@ -3774,7 +3834,10 @@ hmlp::Data<T> Evaluate
 
 
   /** permute back */
-  printf( "Backward permute ...\n" ); fflush( stdout );
+  if ( REPORT_EVALUATE_STATUS )
+  {
+    printf( "Backward permute ...\n" ); fflush( stdout );
+  }
   beg = omp_get_wtime();
   #pragma omp parallel for
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -3794,22 +3857,29 @@ hmlp::Data<T> Evaluate
   evaluation_time += computeall_time;
   evaluation_time += backward_permute_time;
   time_ratio = 100 / evaluation_time;
-  printf( "========================================================\n");
-  printf( "GOFMM evaluation phase\n" );
-  printf( "========================================================\n");
-  printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
-      allocate_time, allocate_time * time_ratio );
-  printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
-      forward_permute_time, forward_permute_time * time_ratio );
-  printf( "N2S, S2S, S2N, L2L -------------------- %5.2lfs (%5.1lf%%)\n", 
-      computeall_time, computeall_time * time_ratio );
-  printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
-      backward_permute_time, backward_permute_time * time_ratio );
-  printf( "========================================================\n");
-  printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
-      evaluation_time, evaluation_time * time_ratio );
-  printf( "========================================================\n\n");
 
+  if ( REPORT_EVALUATE_STATUS )
+  {
+    printf( "========================================================\n");
+    printf( "GOFMM evaluation phase\n" );
+    printf( "========================================================\n");
+    printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+        allocate_time, allocate_time * time_ratio );
+    printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
+        forward_permute_time, forward_permute_time * time_ratio );
+    printf( "N2S, S2S, S2N, L2L -------------------- %5.2lfs (%5.1lf%%)\n", 
+        computeall_time, computeall_time * time_ratio );
+    printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
+        backward_permute_time, backward_permute_time * time_ratio );
+    printf( "========================================================\n");
+    printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+        evaluation_time, evaluation_time * time_ratio );
+    printf( "========================================================\n\n");
+  }
+
+
+  /** clean up all r/w dependencies left on tree nodes */
+  tree.DependencyCleanUp();
 
   /** return nrhs-by-N outputs */
   return potentials;
@@ -3912,7 +3982,10 @@ hmlp::tree::Tree<
 	rkdt.setup.metric = metric; 
   rkdt.setup.splitter = rkdtsplitter;
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
-  printf( "NeighborSearch ...\n" ); fflush( stdout );
+  if ( REPORT_COMPRESS_STATUS )
+  {
+    printf( "NeighborSearch ...\n" ); fflush( stdout );
+  }
   beg = omp_get_wtime();
   if ( NN.size() != n * k )
   {
@@ -3921,7 +3994,10 @@ hmlp::tree::Tree<
   }
   else
   {
-    printf( "not performed (precomputed or k=0) ...\n" ); fflush( stdout );
+    if ( REPORT_COMPRESS_STATUS )
+    {
+      printf( "not performed (precomputed or k=0) ...\n" ); fflush( stdout );
+    }
   }
   ann_time = omp_get_wtime() - beg;
 
@@ -3956,7 +4032,10 @@ hmlp::tree::Tree<
   tree.setup.k = k;
   tree.setup.s = s;
   tree.setup.stol = stol;
-  printf( "TreePartitioning ...\n" ); fflush( stdout );
+  if ( REPORT_COMPRESS_STATUS )
+  {
+    printf( "TreePartitioning ...\n" ); fflush( stdout );
+  }
   beg = omp_get_wtime();
   tree.TreePartition( gids, lids );
   tree_time = omp_get_wtime() - beg;
@@ -3969,13 +4048,14 @@ hmlp::tree::Tree<
   //mkl_set_num_threads( 4 );
   hmlp_set_num_workers( 17 );
 #else
-  //mkl_set_dynamic( 0 );
-  if ( omp_get_max_threads() > 8 )
+  //if ( omp_get_max_threads() > 8 )
+  //{
+  //  hmlp_set_num_workers( omp_get_max_threads() / 2 );
+  //}
+  if ( REPORT_COMPRESS_STATUS )
   {
-    //mkl_set_num_threads( 2 );
-    hmlp_set_num_workers( omp_get_max_threads() / 2 );
+    printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
   }
-  printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
 #endif
 
 
@@ -3986,7 +4066,10 @@ hmlp::tree::Tree<
 
 
   /** Skeletonization */
-  printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
+  if ( REPORT_COMPRESS_STATUS )
+  {
+    printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
+  }
   const bool AUTODEPENDENCY = true;
   beg = omp_get_wtime();
   tree.template TraverseUp       <AUTODEPENDENCY, true>( skeltask );
@@ -3994,20 +4077,9 @@ hmlp::tree::Tree<
   tree.template TraverseUnOrdered<AUTODEPENDENCY, true>( projtask );
   if ( CACHE )
     tree.template TraverseLeafs  <AUTODEPENDENCY, true>( cachenearnodestask );
-  printf( "before run\n" ); fflush( stdout );
   other_time += omp_get_wtime() - beg;
   hmlp_run();
   skel_time = omp_get_wtime() - beg;
-  printf( "Done\n" ); fflush( stdout );
-
-
-#ifdef HMLP_AVX512
-  //mkl_set_dynamic( 1 );
-  //mkl_set_num_threads( omp_get_max_threads() );
-#else
-  //mkl_set_dynamic( 1 );
- // mkl_set_num_threads( omp_get_max_threads() );
-#endif
 
 
   /** (optional for comparison) parallel level-by-level traversal */
@@ -4049,13 +4121,19 @@ hmlp::tree::Tree<
 
   /** MergeFarNodes */
   beg = omp_get_wtime();
-  printf( "MergeFarNodes ...\n" ); fflush( stdout );
+  if ( REPORT_COMPRESS_STATUS )
+  {
+    printf( "MergeFarNodes ...\n" ); fflush( stdout );
+  }
   hmlp::gofmm::MergeFarNodes<SYMMETRIC>( tree );
   mergefarnodes_time = omp_get_wtime() - beg;
 
   /** CacheFarNodes */
   beg = omp_get_wtime();
-  printf( "CacheFarNodes ...\n" ); fflush( stdout );
+  if ( REPORT_COMPRESS_STATUS )
+  {
+    printf( "CacheFarNodes ...\n" ); fflush( stdout );
+  }
   hmlp::gofmm::CacheFarNodes<NNPRUNE, CACHE>( tree );
   cachefarnodes_time = omp_get_wtime() - beg;
 
@@ -4076,21 +4154,27 @@ hmlp::tree::Tree<
   compress_time += mergefarnodes_time;
   compress_time += cachefarnodes_time;
   time_ratio = 100.0 / compress_time;
-  printf( "========================================================\n");
-  printf( "GOFMM compression phase\n" );
-  printf( "========================================================\n");
-  printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
-  printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
-  printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
-  printf( "                (Level-by-Level ) ----- %5.2lfs\n", ref_time );
-  printf( "                (omp task       ) ----- %5.2lfs\n", omptask_time );
-  printf( "                (Omp task depend) ----- %5.2lfs\n", omptask45_time );
-  printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
-  printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
-  printf( "========================================================\n");
-  printf( "Compress (%4.2lf not compressed) -------- %5.2lfs (%5.1lf%%)\n", 
-      exact_ratio, compress_time, compress_time * time_ratio );
-  printf( "========================================================\n\n");
+  if ( REPORT_COMPRESS_STATUS )
+  {
+    printf( "========================================================\n");
+    printf( "GOFMM compression phase\n" );
+    printf( "========================================================\n");
+    printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
+    printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
+    printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
+    printf( "                (Level-by-Level ) ----- %5.2lfs\n", ref_time );
+    printf( "                (omp task       ) ----- %5.2lfs\n", omptask_time );
+    printf( "                (Omp task depend) ----- %5.2lfs\n", omptask45_time );
+    printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
+    printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
+    printf( "========================================================\n");
+    printf( "Compress (%4.2lf not compressed) -------- %5.2lfs (%5.1lf%%)\n", 
+        exact_ratio, compress_time, compress_time * time_ratio );
+    printf( "========================================================\n\n");
+  }
+
+  /** clean up all r/w dependencies left on tree nodes */
+  tree_ptr->DependencyCleanUp();
 
   /** return the hierarhical compreesion of K as a binary tree */
   //return tree;
@@ -4173,6 +4257,28 @@ hmlp::tree::Tree<
   size_t m = 128;
   size_t k = 16;
   size_t s = m;
+
+  /** */
+  if ( n >= 16384 )
+  {
+    m = 128;
+    k = 20;
+    s = 256;
+  }
+
+  if ( n >= 32768 )
+  {
+    m = 256;
+    k = 24;
+    s = 384;
+  }
+
+  if ( n >= 65536 )
+  {
+    m = 512;
+    k = 32;
+    s = 512;
+  }
 
 	/** creatgin configuration for all user-define arguments */
 	Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
@@ -4333,6 +4439,48 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
   return err / nrm2;
 }; /** end ComputeError() */
 
+
+
+
+template<typename T, typename SPDMATRIX>
+class SimpleGOFMM
+{
+  public:
+
+    SimpleGOFMM( SPDMATRIX &K, T stol, T budget )
+    {
+      tree_ptr = Compress( K, stol, budget );
+    };
+
+    ~SimpleGOFMM()
+    {
+      if ( tree_ptr ) delete tree_ptr;
+    };
+
+    void Multiply( hmlp::Data<T> &y, hmlp::Data<T> &x )
+    {
+      hmlp::Data<T> weights( x.col(), x.row() );
+
+      for ( size_t j = 0; j < x.col(); j ++ )
+        for ( size_t i = 0; i < x.row(); i ++ )
+          weights( j, i ) = x( i, j );
+
+      auto potentials = hmlp::gofmm::Evaluate( *tree_ptr, weights );
+
+      for ( size_t j = 0; j < y.col(); j ++ )
+        for ( size_t i = 0; i < y.row(); i ++ )
+          y( i, j ) = potentials( j, i );
+
+    };
+
+  private:
+
+    /** GOFMM tree */
+    hmlp::tree::Tree<
+      hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
+      hmlp::gofmm::Data<T>, 2, T> *tree_ptr = NULL; 
+
+}; /** end class SimpleGOFMM */
 
 
 

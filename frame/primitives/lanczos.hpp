@@ -2,6 +2,7 @@
 #define LANCZOS_HPP
 
 #include <limits>
+#include <functional>
 
 #include <hmlp.h>
 #include <containers/data.hpp>
@@ -43,7 +44,9 @@ void lanczos(
     U( i, (size_t)0 ) /= beta[ 0 ];
 
   /** w = A * U( :, 0 )*/
-  A.NormalizedMultiply( 1, w.data(), U.data() );  
+  //A.NormalizedMultiply( 1, w.data(), U.data() );
+  for ( size_t i = 0; i < n; i ++ ) w[ i ] = U[ i ];
+  A.Multiply( w );  
   
   /** update alpha[ 0 ] */
   for ( size_t i = 0; i < n; i ++ )
@@ -83,8 +86,10 @@ void lanczos(
     }
 
     /** w = A * U( :, iter )*/
-    for ( size_t i = 0; i < n; i ++ ) w[ i ] = 0.0;
-    A.NormalizedMultiply( 1, w.data(), U.data() + iter * n );  
+    //for ( size_t i = 0; i < n; i ++ ) w[ i ] = 0.0;
+    //A.NormalizedMultiply( 1, w.data(), U.data() + iter * n );  
+    for ( size_t i = 0; i < n; i ++ ) w[ i ] = U( i, iter );
+    A.Multiply( w );  
 
     /** update alpha[ iter ] */
     for ( size_t i = 0; i < n; i ++ )

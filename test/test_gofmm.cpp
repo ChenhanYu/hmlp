@@ -129,7 +129,6 @@ void test_gofmm
   /** Evaluate u ~ K * w */
   hmlp::Data<T> w( nrhs, n ); w.rand();
   auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
-  u = Evaluate<true, false, true, true, CACHE>( tree, w );
 
 
 #ifdef HMLP_AVX512
