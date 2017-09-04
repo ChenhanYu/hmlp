@@ -136,8 +136,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     /** the default constructor */
     Data() : m( 0 ), n( 0 ) {};
 
-    Data( std::size_t m, std::size_t n ) 
-      : std::vector<T, Allocator>( m * n )
+    Data( std::size_t m, std::size_t n ) : std::vector<T, Allocator>( m * n )
     { 
       this->m = m;
       this->n = n;
@@ -156,18 +155,6 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       this->m = m;
       this->n = n;
       this->read( m, n, filename );
-
-      //std::cout << filename << std::endl;
-
-      //std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
-      //if ( file.is_open() )
-      //{
-      //  auto size = file.tellg();
-      //  assert( size == m * n * sizeof(T) );
-      //  file.seekg( 0, std::ios::beg );
-      //  file.read( (char*)this->data(), size );
-      //  file.close();
-      //}
     };
 
     void resize( std::size_t m, std::size_t n )
@@ -496,7 +483,11 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     std::size_t n;
 
-}; // end class Data
+}; /** end class Data */
+
+
+
+
 
 
 #ifdef HMLP_MIC_AVX512

@@ -1736,7 +1736,7 @@ void UpdateWeights( NODE *node )
   printf( "%lu UpdateWeight done\n", node->treelist_id ); fflush( stdout );
 #endif
 
-}; // end void SetWeights()
+}; /** end UpdateWeights() */
 
 
 /**
@@ -1915,9 +1915,8 @@ void SkeletonsToSkeletons( NODE *node )
 
   double beg, kij_s2s_time = 0.0, u_skel_time, s2s_time;
 
-  std::set<NODE*> *FarNodes;
+  auto *FarNodes = &node->FarNodes;
   if ( NNPRUNE ) FarNodes = &node->NNFarNodes;
-  else           FarNodes = &node->FarNodes;
 
   auto &K = *node->setup->K;
   auto &data = node->data;
@@ -2126,9 +2125,6 @@ void SkeletonsToNodes( NODE *node )
 
   if ( node->isleaf )
   {
-    std::set<NODE*> *NearNodes;
-    if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
-    else           NearNodes = &node->NearNodes;
     auto &amap = node->lids;
     auto &u_leaf = node->data.u_leaf[ 0 ];
 
@@ -3668,8 +3664,6 @@ hmlp::Data<T> Evaluate
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
     auto *node = *(level_beg + node_ind);
-
-
 
     //weights.GatherColumns( true, node->lids, node->data.w_leaf );
 

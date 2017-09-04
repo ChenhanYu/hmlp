@@ -246,11 +246,15 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
 
-      printf( "rank %d n %lu gids.size() %lu --", 
-          rank, this->n, this->gids.size() ); fflush( stdout );
-      for ( size_t i = 0; i < this->gids.size(); i ++ )
-        printf( "%lu ", this->gids[ i ] );
-      printf( "\n" ); fflush( stdout );
+      //printf( "rank %d n %lu gids.size() %lu --", 
+      //    rank, this->n, this->gids.size() ); fflush( stdout );
+      //for ( size_t i = 0; i < this->gids.size(); i ++ )
+      //  printf( "%lu ", this->gids[ i ] );
+      //printf( "\n" ); fflush( stdout );
+
+
+
+
 
       if ( child )
       {
@@ -307,8 +311,8 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
             &recv_size, 1, MPI_INT, partner_rank, 10,
             comm, &status );
 
-        printf( "rank %d kept_size %lu sent_size %d recv_size %d\n", 
-            rank, kept_gids.size(), sent_size, recv_size ); fflush( stdout );
+        //printf( "rank %d kept_size %lu sent_size %d recv_size %d\n", 
+        //    rank, kept_gids.size(), sent_size, recv_size ); fflush( stdout );
 
         /** resize recv_gids */
         recv_gids.resize( recv_size );
@@ -343,9 +347,9 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     {
       int global_rank = 0;
       hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
-      printf( "grank %d l %lu lrank %d offset %lu n %lu\n", 
-          global_rank, this->l, this->rank, this->offset, this->n );
-      hmlp_print_binary( this->morton );
+      //printf( "grank %d l %lu lrank %d offset %lu n %lu\n", 
+      //    global_rank, this->l, this->rank, this->offset, this->n );
+      //hmlp_print_binary( this->morton );
     };
 
     Node *child = NULL;
@@ -381,9 +385,9 @@ class LetNode : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
     /** inherit all parameters from hmlp::tree::Node */
 
-    LetNode( size_t morton )
+    LetNode( SETUP *setup, size_t morton )
       : hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
-        ( NULL, (size_t)0, (size_t)1, NULL ) 
+        ( setup, (size_t)0, (size_t)1, NULL ) 
     {
       this->morton = morton;
     };
@@ -419,14 +423,20 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
      **/
 
     /** define our tree node type as NODE */
-    typedef Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
+    //typedef Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
+
+    /** */
+    typedef Node<SETUP, N_CHILDREN, NODEDATA, T> MPINODE;
 
     /** define our tree node type as NODE */
     typedef LetNode<SETUP, N_CHILDREN, NODEDATA, T> LETNODE;
 
 
     /** distribued tree (a list of tree nodes) */
-    std::vector<NODE*> mpitreelists;
+    std::vector<MPINODE*> mpitreelists;
+
+    /** local essential tree nodes] (this is not thread-safe) */
+    std::map<size_t, LETNODE*> lettreelist;
 
     /** inherit constructor */
     Tree() : hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Tree()
@@ -467,7 +477,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       size_t mylevel = 0;
 
       /** root( setup, n = 0, l = 0, parent = NULL ) */
-      auto *root = new NODE( &(this->setup), 
+      auto *root = new MPINODE( &(this->setup), 
           this->n, mylevel, gids, NULL, mycomm );
 
       /** push root to the mpi treelist */
@@ -497,7 +507,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
         /** create the child */
         auto *parent = mpitreelists.back();
-        auto *child  = new NODE( &(this->setup), 
+        auto *child  = new MPINODE( &(this->setup), 
             (size_t)0, mylevel, parent, mycomm );
 
         //printf( "size %d rank %d color %d level %d here\n",
@@ -614,20 +624,20 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 
 
-      printf( "\n" ); fflush( stdout );
-      node = mpitreelists.front();
-      while ( node )
-      {
-        node->Print();
-        node = node->child;
-      }
-      printf( "\n" ); fflush( stdout );
+      //printf( "\n" ); fflush( stdout );
+      //node = mpitreelists.front();
+      //while ( node )
+      //{
+      //  node->Print();
+      //  node = node->child;
+      //}
+      //printf( "\n" ); fflush( stdout );
 
-      for ( size_t i = 0; i < this->treelist.size(); i ++ )
-      {
-        this->treelist[ i ]->Print();
-      }
-      printf( "\n" ); fflush( stdout );
+      //for ( size_t i = 0; i < this->treelist.size(); i ++ )
+      //{
+      //  this->treelist[ i ]->Print();
+      //}
+      //printf( "\n" ); fflush( stdout );
 
 
 
@@ -665,7 +675,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     /**
      *  currently only used in DrawInteraction()
      */ 
-    void Offset( NODE *node, size_t offset )
+    void Offset( MPINODE *node, size_t offset )
     {
       if ( node->GetCommSize() < 2 )
       {
@@ -695,7 +705,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
      *  @brief Distributed Morton ID
      */ 
     template<size_t LEVELOFFSET=4>
-    void Morton( NODE *node, size_t morton )
+    void Morton( MPINODE *node, size_t morton )
     {
       /** call shared memory Morton ID */
       if ( node->GetCommSize() < 2 )
@@ -740,7 +750,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       assert( mpitreelists.size() );
      
       using NULLTASK = hmlp::NULLTask<hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>>;
-      using MPINULLTASK = hmlp::NULLTask<NODE>;
+      using MPINULLTASK = hmlp::NULLTask<MPINODE>;
 
 
       /** 
@@ -787,11 +797,11 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
             }
           }
         }
-        printf( "finish level %d\n", l );
+        //printf( "finish level %d\n", l );
       }
 
       /** traverse the distributed tree upward */
-      NODE *node = mpitreelists.back();
+      MPINODE *node = mpitreelists.back();
       while ( node )
       {
         /** create mpi tasks */
@@ -815,21 +825,131 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
          *  move to its parent 
          *  IMPORTANT: here we need to cast the pointer back to mpitree::Node*
          */
-        node = (NODE*)node->parent;
+        node = (MPINODE*)node->parent;
 
       } /** end while( node ) */
-
-
-
-
-
-
     }; /** end ParallelTraverseUp() */
 
 
 
 
 
+
+
+    template<bool USE_RUNTIME, 
+      typename TASK1, typename MPITASK1,
+      typename TASK2, typename MPITASK2>
+    void ParallelTraverseDown( 
+        TASK1 &dummy1, MPITASK1 &mpidummy1, 
+        TASK2 &dummy2, MPITASK2 &mpidummy2 )
+    {
+      /** local and distributed treelists must be non-empty */
+      assert( this->treelist.size() );
+      assert( mpitreelists.size() );
+     
+      using NULLTASK = hmlp::NULLTask<hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>>;
+      using MPINULLTASK = hmlp::NULLTask<MPINODE>;
+
+
+      /** traverse the distributed tree downward */
+      MPINODE *node = mpitreelists.front();
+      while ( node )
+      {
+        /** create mpi tasks */
+        if ( !std::is_same<MPINULLTASK, MPITASK1>::value )
+        {
+          auto *mpitask1 = new MPITASK1();
+          mpitask1->Submit();
+          mpitask1->Set( node );
+          mpitask1->DependencyAnalysis();
+        }
+        /** create tasks and perform dependency analysis */
+        if ( !std::is_same<MPINULLTASK, MPITASK2>::value )
+        {
+          auto *mpitask2 = new MPITASK2();
+          mpitask2->Submit();
+          mpitask2->Set( node );
+          mpitask2->DependencyAnalysis();
+        }
+
+        /** 
+         *  move to its parent 
+         *  IMPORTANT: here we need to cast the pointer back to mpitree::Node*
+         */
+        node = (MPINODE*)node->child;
+
+      } /** end while( node ) */
+
+
+      /** 
+       *  traverse the local tree without the root
+       *
+       *  IMPORTANT: local root alias of the distributed leaf node
+       *  IMPORTANT: here l must be int, size_t will wrap over 
+       *
+       */
+      for ( int l = 1; l <= this->depth; l ++ )
+      {
+        std::size_t n_nodes = 1 << l;
+        auto level_beg = this->treelist.begin() + n_nodes - 1;
+
+        if ( !USE_RUNTIME )
+        { 
+          printf( "No implementation!!\n" ); fflush( stdout );
+          exit( 1 );
+        }
+        else
+        {
+          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+          {
+            auto *node = *(level_beg + node_ind);
+            /** create the first normal task is it is not a NULLTask */
+            if ( !std::is_same<NULLTASK, TASK1>::value )
+            {
+              auto *task1 = new TASK1();
+              task1->Submit();
+              //printf( "finish task1 submit\n" ); fflush( stdout );
+              task1->Set( node );
+              //printf( "finish task1 set\n" ); fflush( stdout );
+              task1->DependencyAnalysis();
+              //printf( "finish task1 create\n" ); fflush( stdout );
+            }
+            /** create the second task and perform dependency analysis */
+            if ( !std::is_same<NULLTASK, TASK2>::value )
+            {
+              auto *task2 = new TASK2();
+              task2->Submit();
+              task2->Set( node );
+              task2->DependencyAnalysis();
+              //printf( "finish task2 create\n" ); fflush( stdout );
+            }
+          }
+        }
+      }
+    }; /** end ParallelTraverseDown() */
+
+
+
+
+
+
+
+
+
+
+
+    void DependencyCleanUp()
+    {
+      for ( size_t i = 0; i < mpitreelists.size(); i ++ )
+      {
+        mpitreelists[ i ]->DependencyCleanUp();
+      }
+
+      hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::DependencyCleanUp();
+
+      /** TODO also clean up the LET node */
+
+    }; /** end DependencyCleanUp() */
 
 
 

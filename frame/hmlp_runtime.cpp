@@ -32,7 +32,7 @@
 
 #define MAX_BATCH_SIZE 4
 
-#define REPORT_RUNTIME_STATUS 0
+#define REPORT_RUNTIME_STATUS 1
 
 // #define DEBUG_RUNTIME 1
 // #define DEBUG_SCHEDULER 1

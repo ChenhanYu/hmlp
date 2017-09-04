@@ -155,6 +155,32 @@ Datatype GetMPIDatatype()
 }; /** end GetMPIDatatype() */
 
 
+
+template<typename TSEND>
+int Send( TSEND *buf, int count, 
+    int dest, int tag, Comm comm )
+{
+  Datatype datatype = GetMPIDatatype<TSEND>();
+  return Send( buf, count, datatype, dest, tag, comm );
+}; /** end Send() */
+
+
+template<typename TRECV>
+int Recv( TRECV *buf, int count, 
+    int source, int tag, Comm comm, Status *status )
+{
+  Datatype datatype = GetMPIDatatype<TRECV>();
+  return Recv( buf, count, datatype, source, tag, comm, status );
+}; /** end Recv() */
+
+template<typename T>
+int Bcast( T *buffer, int count, int root, Comm comm )
+{
+  Datatype datatype = GetMPIDatatype<T>();
+  return Bcast( buffer, count, datatype, root, comm );
+}; /** end Bcast() */
+
+
 template<typename TSEND, typename TRECV>
 int Sendrecv( 
     TSEND *sendbuf, int sendcount, int dest,   int sendtag, 
@@ -168,7 +194,70 @@ int Sendrecv(
       recvbuf, recvcount, recvtype, source, recvtag,
       comm, status );
 
-};
+}; /** end Sendrecv() */
+
+
+template<typename T>
+int Allreduce( T* sendbuf, T* recvbuf, int count, Op op, Comm comm )
+{
+  Datatype datatype = GetMPIDatatype<T>();
+  return Allreduce( sendbuf, recvbuf, count, datatype, op, comm );
+}; /** end Allreduce() */
+
+
+
+
+
+
+
+
+/**
+ *  @brief This is a short hand for sending a vector, which
+ *         involves two MPI_Send() calls.
+ */
+template<typename T>
+int SendVector( 
+    std::vector<T> &bufvector, int dest, int tag, Comm comm )
+{
+  Datatype datatype = GetMPIDatatype<T>();
+  size_t count = bufvector.size();
+
+  /** send the count size first */
+  //printf( "beg send count %lu to %d\n", count, dest );
+  Send( &count, 1, dest, tag, comm );
+  //printf( "end send count %lu to %d\n", count, dest );
+
+  /** now send the vector itself */
+  return Send( bufvector.data(), count, dest, tag, comm );
+
+}; /** end SendVector() */
+
+
+
+/**
+ *  @brief This is a short hand for receving a vector, which
+ *         involves two MPI_Recv() calls.
+ */
+template<typename T>
+int RecvVector(
+    std::vector<T> &bufvector, int source, int tag, Comm comm, Status *status )
+{
+  Datatype datatype = GetMPIDatatype<T>();
+  size_t count = 0;
+
+  /** recv the count size first */
+  //printf( "beg recv count %lu from %d\n", count, source );
+  Recv( &count, 1, source, tag, comm, status );
+  //printf( "end recv count %lu from %d\n", count, source );
+
+  /** resize receiving vector */
+  bufvector.resize( count );
+
+  /** now recv the vector itself */
+  return Recv( bufvector.data(), count, source, tag, comm, status );
+
+}; /** end RecvVector() */
+
 
 
 template<typename T>
@@ -193,16 +282,10 @@ int ExchangeVector(
       sendvector.data(), send_size,   dest, sendtag,
       recvvector.data(), recv_size, source, recvtag, 
       comm, status );
-};
+
+}; /** end ExchangeVector() */
 
 
-
-template<typename T>
-int Allreduce( T* sendbuf, T* recvbuf, int count, Op op, Comm comm )
-{
-  Datatype datatype = GetMPIDatatype<T>();
-  return Allreduce( sendbuf, recvbuf, count, datatype, op, comm );
-};
 
 
 
