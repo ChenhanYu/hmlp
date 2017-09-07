@@ -155,8 +155,28 @@ int Allreduce( void *sendbuf, void *recvbuf, int count,
 };
 
 
+int Alltoall( void *sendbuf, int sendcount, Datatype sendtype,
+    void *recvbuf, int recvcount, Datatype recvtype, Comm comm )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Alltoall( sendbuf, sendcount, sendtype,
+      recvbuf, recvcount, recvtype, comm ); 
+#else
+  return 0;
+#endif
+};
 
 
+int Alltoallv( void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype, 
+    void *recvbuf, int *recvcounts, int *rdispls, Datatype recvtype, Comm comm )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Alltoallv( sendbuf, sendcounts, sdispls, sendtype,
+      recvbuf, recvcounts, rdispls, recvtype, comm ); 
+#else
+  return 0;
+#endif
+};
 
 }; /** end namespace mpi */
 }; /** end namespace hmlp */

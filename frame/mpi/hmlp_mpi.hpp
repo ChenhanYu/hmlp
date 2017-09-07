@@ -122,6 +122,14 @@ int Scan( void *sendbuf, void *recvbuf, int count,
 int Allreduce( void* sendbuf, void* recvbuf, int count,
     Datatype datatype, Op op, Comm comm );
 
+int Alltoall( void *sendbuf, int sendcount, Datatype sendtype,
+    void *recvbuf, int recvcount, Datatype recvtype, Comm comm );
+
+int Alltoallv( void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype, 
+    void *recvbuf, int *recvcounts, int *rdispls, Datatype recvtype, Comm comm );
+
+
+
 
 template<typename T>
 struct NumberIntPair { T val; int key; };
@@ -196,7 +204,6 @@ int Sendrecv(
 
 }; /** end Sendrecv() */
 
-
 template<typename T>
 int Allreduce( T* sendbuf, T* recvbuf, int count, Op op, Comm comm )
 {
@@ -205,10 +212,26 @@ int Allreduce( T* sendbuf, T* recvbuf, int count, Op op, Comm comm )
 }; /** end Allreduce() */
 
 
+template<typename TSEND, typename TRECV>
+int Alltoall( TSEND *sendbuf, int sendcount,
+    TRECV *recvbuf, int recvcount, Comm comm )
+{
+  Datatype sendtype = GetMPIDatatype<TSEND>();
+  Datatype recvtype = GetMPIDatatype<TRECV>();
+  return Alltoall( sendbuf, sendcount, sendtype, 
+      recvbuf, recvcount, recvtype, comm );
+}; /** end Alltoall() */
 
 
-
-
+template<typename TSEND, typename TRECV>
+int Alltoallv( TSEND *sendbuf, int *sendcounts, int *sdispls,
+    TRECV *recvbuf, int *recvcounts, int *rdispls, Comm comm )
+{
+  Datatype sendtype = GetMPIDatatype<TSEND>();
+  Datatype recvtype = GetMPIDatatype<TRECV>();
+  return Alltoallv( sendbuf, sendcount, sdispls, sendtype, 
+      recvbuf, recvcount, rdispls, recvtype, comm );
+}; /** end Alltoallv() */
 
 
 /**
@@ -285,6 +308,58 @@ int ExchangeVector(
 
 }; /** end ExchangeVector() */
 
+
+template<typename T>
+int All2allVector(
+    std::vector<std::vector<T>> &sendvector, 
+    std::vector<std::vector<T>> &recvvector, Comm comm )
+{
+  int size = 0;
+  Comm_size( comm, &size );
+
+  assert( sendvector.size() == size )
+
+  std::vector<T> sendbuf;
+  std::vector<T> recvbuf;
+  std::vector<int> sendcounts( size, 0 );
+  std::vector<int> recvcounts( size, 0 );
+  std::vector<int> sdispls( size + 1, 0 );
+  std::vector<int> rdispls( size + 1, 0 );
+
+  for ( size_t j = 0; j < size; j ++ )
+  {
+    sendcount[ j ] = sendvector[ j ].size();
+    sdispls[ j + 1 ] = sdispls[ j ] + sendcounts[ j ];
+    sendbuf.insert( sendbuf.end(), sendvector[ j ].beg(), sendvector[ j ].end() );
+  }
+
+  /** exchange sendcount */
+  Alltoall(
+      sendcounts.data(), size, 
+      recvcounts.data(), size, comm );
+
+  size_t total_recvcount = 0;
+  for ( size_t j = 0; j < size; j ++ )
+  {
+    rdispls[ j + 1 ] = rdispls[ j ] + recvcounts[ j ];
+    total_recvcount += recvcounts[ j ];
+  }
+
+  /** resize receving buffer */
+  recvbuf.resize( total_recvcount );
+
+  Alltoallv(
+      sendbuf.data(), sendcounts.data(), sdispls.data(), 
+      recvbuf.data(), recvcounts.data(), rdispls.data(), comm );
+
+  recvvector.resize( size );
+  for ( size_t j = 0; j < size; j ++ )
+  {
+    recvvector[ j ].insert( recvvector[ j ].end(), 
+        recvbuf.beg() + rdispls[ j ], recvcounts[ j ] );
+  }
+
+}; /** end All2allVector() */
 
 
 

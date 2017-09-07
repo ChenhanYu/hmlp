@@ -44,7 +44,6 @@
 #include <mkl.h>
 #endif
 
-
 /** GOFMM templates */
 #include <mpi/mpigofmm.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
@@ -52,6 +51,8 @@
 /** use an implicit matrix */
 #include <containers/VirtualMatrix.hpp>
 
+
+#include <mpi/DistData.hpp>
 
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>
@@ -109,6 +110,13 @@ void test_gofmm
 		splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
 	  config );
 	auto &tree = *tree_ptr;
+
+
+  //hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
+  //  global_w( n, nrhs, MPI_COMM_WORLD );
+
+  //hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
+  //  global_w( MPI_COMM_WORLD );
 
 
   /** Evaluate u ~ K * w */

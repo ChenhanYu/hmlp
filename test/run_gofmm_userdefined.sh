@@ -19,13 +19,13 @@ m=64
 ## maximum off-diagonal ranks
 s=64
 ## number of neighbors
-k=32
+k=0
 ## number of right hand sides
 nrhs=512
 ## user tolerance
 stol=1E-5
 ## user computation budget
-budget=0.03
+budget=0.00
 ## distance type (geometry, kernel, angle)
 distance="angle"
 ## spdmatrix type (testsuit, dense, kernel, userdefine)
@@ -33,10 +33,13 @@ matrixtype="testsuit"
 
 # ======= Do not change anything below this line ========
 if [ "${HMLP_USE_MPI}" = true ]; 
-then mpiexec="mpirun -n 2"; 
+then mpiexec="mpirun -n 4"; 
 else mpiexec=""; 
 fi
-executable=./test_gofmm.x
+if [ "${HMLP_USE_MPI}" = true ]; 
+then executable="./test_mpigofmm.x"
+else executable="./test_gofmm.x";
+fi
 echo "@PRIM"
 echo 'gofmm'
 # =======================================================
