@@ -471,7 +471,7 @@ template<typename MPINODE>
 void DistUpdateWeights( MPINODE *node )
 {
   /** MPI */
-  MPI_Status status;
+  hmlp::mpi::Status status;
   int global_rank = 0; 
   hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
   hmlp::mpi::Comm comm = node->GetComm();
@@ -785,7 +785,7 @@ void DistSkeletonsToNodes( NODE *node )
     auto *child = node->child;
     auto *childFarNodes = &(child->FarNodes);
     auto *child_sibling = (*childFarNodes->begin());
-    MPI_Status status;
+    hmlp::mpi::Status status;
 
     if ( rank == 0 )
     {
@@ -1913,7 +1913,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
      *  
      */
     NODE *child = node->child;
-    MPI_Status status;
+    hmlp::mpi::Status status;
 
 
     /**

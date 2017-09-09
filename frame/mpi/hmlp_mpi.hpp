@@ -30,6 +30,38 @@
 #define MPI_ERRORS_RETURN           0
 #define MPI_ERRORS_ARE_FATAL        1
 #define MPI_MAX_PROCESSOR_NAME     24
+
+#define MPI_UNSIGNED_CHAR           2
+#define MPI_UNSIGNED_SHORT          5
+#define MPI_UNSIGNED                7 
+#define MPI_UNSIGNED_LONG           9
+#define MPI_UNSIGNED_LONG_LONG     13
+
+//#define MPI_FLOAT_INT              17
+//#define MPI_DOUBLE_INT             18
+//#define MPI_LONG_INT               19
+//#define MPI_SHORT_INT              20
+//#define MPI_2INT                   21
+//#define MPI_LONG_DOUBLE_INT        22
+
+
+typedef int MPI_Op;
+
+#define MPI_MAX    (MPI_Op)(100)
+#define MPI_MIN    (MPI_Op)(101)
+#define MPI_SUM    (MPI_Op)(102)
+#define MPI_PROD   (MPI_Op)(103)
+#define MPI_LAND   (MPI_Op)(104)
+#define MPI_BAND   (MPI_Op)(105)
+#define MPI_LOR    (MPI_Op)(106)
+#define MPI_BOR    (MPI_Op)(107)
+#define MPI_LXOR   (MPI_Op)(108)
+#define MPI_BXOR   (MPI_Op)(109)
+#define MPI_MINLOC (MPI_Op)(110)
+#define MPI_MAXLOC (MPI_Op)(111)
+
+
+
 #endif
 
 

@@ -4,10 +4,10 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-#export CC=icc
-#export CXX=icpc
-export CC=${CC}
-export CXX=${CXX}
+export CC=icc
+export CXX=icpc
+#export CC=${CC}
+#export CXX=${CXX}
 
 ##
 ## Ingore this flag if you are "not using" MacOS.
@@ -33,7 +33,7 @@ export MKLROOT=${MKLROOT}
 export OPENBLASROOT=${OPENBLASROOT}
 
 ## Setup the maximum number of threads.
-export OMP_NUM_THREADS=10
+export OMP_NUM_THREADS=2
 
 
 
@@ -66,7 +66,7 @@ export HMLP_ARCH_MINOR=sandybridge
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 
 ## Distributed environment poptions (if true, compile with MPI)
-export HMLP_USE_MPI=true
+export HMLP_USE_MPI=false
 
 ## GPU compiler options (if true, compile the gpu library as well).
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it).

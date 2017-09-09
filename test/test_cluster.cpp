@@ -25,6 +25,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fstream>
 #include <omp.h>
 #include <math.h>
 #include <hmlp.h>
@@ -117,9 +118,9 @@ void test_cluster( int d, int n, int ncluster, int niter, T tol,
   if ( nclass ) cluster.ProvideLabels( nclass, &Y );
 
 
-  for ( size_t step = 0; step < 5; step ++ )
+  for ( size_t step = 0; step < 1; step ++ )
   {
-    T h = 2.5 + 0.1 * step;
+    T h = 1.0 + 0.1 * step;
     kernel_s<T> kernel;
     kernel.type = KS_GAUSSIAN;
     /** h = 1.0, Gaussian bandwidth (scal = -1 / 2h^2) */
@@ -145,21 +146,31 @@ void test_cluster( int d, int n, int ncluster, int niter, T tol,
     //cluster.NMI();
 
 
-    cluster.InitializeAssignments();
-    beg = omp_get_wtime(); 
-    cluster.Spectral( kernel, tol, budget );
-    gofmm_spectral_t = omp_get_wtime() - beg;
-    cluster.NMI();
-    printf( "GOFMM Spectral %Es\n", gofmm_spectral_t );
+    //cluster.InitializeAssignments();
+    //beg = omp_get_wtime(); 
+    //cluster.Spectral( kernel, tol, budget );
+    //gofmm_spectral_t = omp_get_wtime() - beg;
+    //cluster.NMI();
+    //printf( "GOFMM Spectral %Es\n", gofmm_spectral_t );
 
 
     /** try spectral clustering with power methods */
-    //cluster.InitializeAssignments();
-    //beg = omp_get_wtime(); 
-    //cluster.Spectral( kernel );
-    //spectral_t = omp_get_wtime() - beg;
+    cluster.InitializeAssignments();
+    beg = omp_get_wtime(); 
+    cluster.Spectral( kernel );
+    spectral_t = omp_get_wtime() - beg;
     //cluster.NMI();
-    //printf( "Spectral %Es\n", spectral_t );
+    printf( "Spectral %Es\n", spectral_t );
+
+    for ( size_t i = 0; i < n; i ++ )
+    {
+      printf( "%d ", assignments[ i ] );
+    }
+    printf( "\n" );
+
+    std::ofstream fout( "label.dat", std::ios::out | std::ios::binary);
+    fout.write((char*)assignments.data(), assignments.size() * sizeof(int));
+    fout.close();
 
   }
 
