@@ -115,8 +115,42 @@ void test_gofmm
   //hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
   //  global_w( n, nrhs, MPI_COMM_WORLD );
 
-  //hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
-  //  global_w( MPI_COMM_WORLD );
+  hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
+    w_rblk( n, nrhs, MPI_COMM_WORLD );
+
+  w_rblk.rand();
+
+
+  /** */
+  hmlp::DistData<hmlp::Distribution_t::RIDS, hmlp::Distribution_t::STAR, T> 
+    w_rids( n, nrhs, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
+
+  hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
+    w_goal( n, nrhs, MPI_COMM_WORLD );
+
+
+  /** redistribute from RBLK to RIDS */
+  w_rids = w_rblk;
+  //printf( "finish redistribute\n" ); fflush( stdout );
+
+  /** redistribute from RIDS to RBLK */
+  w_goal = w_rids;
+  //printf( "finish redistribute\n" ); fflush( stdout );
+
+
+  assert( w_rblk.size() == w_goal.size() );
+
+  for ( size_t i = 0; i < w_rblk.size(); i ++ )
+  {
+    assert( w_rblk[ i ] == w_goal[ i ] );
+    if ( w_rblk[ i ] != w_goal[ i ] )
+    {
+      printf( "%ld, %E, %E\n", i, w_rblk[ i ], w_goal[ i ] );
+      break;
+    }
+  }
+
+
 
 
   /** Evaluate u ~ K * w */
