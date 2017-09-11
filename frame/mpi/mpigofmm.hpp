@@ -23,9 +23,9 @@
 #define GOFMM_MPI_HPP
 
 #include <mpi/tree_mpi.hpp>
+#include <mpi/DistData.hpp>
 #include <gofmm/gofmm.hpp>
 #include <primitives/combinatorics.hpp>
-
 
 using namespace hmlp::gofmm;
 
@@ -2345,10 +2345,12 @@ template<
   bool     CACHE = true, 
   typename TREE, 
   typename T>
-hmlp::Data<T> Evaluate
+hmlp::DistData<RIDS, STAR, T> Evaluate
 ( 
   TREE &tree,
-  hmlp::Data<T> &weights
+  /** weights need to be in [RIDS,STAR] distribution */
+  hmlp::DistData<RIDS, STAR, T> &weights,
+  mpi::Comm comm
 )
 {
   const bool AUTO_DEPENDENCY = true;
@@ -2374,8 +2376,10 @@ hmlp::Data<T> Evaluate
   size_t n    = weights.row();
   size_t nrhs = weights.col();
 
-  /** */
-  hmlp::Data<T> potentials( n, nrhs, 0.0 );
+  /** potentials must be in [RIDS,STAR] distribution */
+  hmlp::DistData<RIDS, STAR, T> potentials( n, nrhs, tree.treelist[ 0 ]->gids, comm );
+  potentials.setvalue( 0.0 );
+
   tree.setup.w = &weights;
   tree.setup.u = &potentials;
 
@@ -2756,6 +2760,53 @@ hmlp::mpitree::Tree<
 
 
 
+
+
+
+
+/**
+ *  @brief Here MPI_Allreduce is required.
+ */ 
+template<typename TREE, typename T>
+T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials, mpi::Comm comm )
+{
+  auto &K = *tree.setup.K;
+  auto &w = *tree.setup.w;
+
+  auto  I = std::vector<size_t>( 1, gid );
+  auto &J = tree.treelist[ 0 ]->gids;
+  auto Kab = K( I, J );
+
+  auto loc_exact = potentials;
+  auto glb_exact = potentials;
+
+  xgemm
+  (
+    "N", "N",
+    Kab.row(), w.col(), w.row(),
+    1.0,       Kab.data(),       Kab.row(),
+                 w.data(),         w.row(),
+    0.0, loc_exact.data(), loc_exact.row()
+  );          
+
+  /** Allreduce K( gid, : ) * w( : ) */
+  mpi::Allreduce( 
+      loc_exact.data(), glb_exact.data(), 
+      loc_exact.size(), MPI_SUM, comm );
+
+  auto nrm2 = hmlp_norm( glb_exact.row(),  glb_exact.col(), 
+                         glb_exact.data(), glb_exact.row() ); 
+
+  for ( size_t j = 0; j < potentials.col(); j ++ )
+  {
+    potentials( (size_t)0, j ) -= glb_exact( (size_t)0, j );
+  }
+
+  auto err = hmlp_norm(  potentials.row(), potentials.col(), 
+                        potentials.data(), potentials.row() ); 
+
+  return err / nrm2;
+}; /** end ComputeError() */
 
 
 

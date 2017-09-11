@@ -151,17 +151,24 @@ void test_gofmm
   }
 
 
-
+  /** MPI */
+  int comm_size, comm_rank;
+  hmlp::mpi::Comm comm = MPI_COMM_WORLD;
+  hmlp::mpi::Comm_size( comm, &comm_size );
+  hmlp::mpi::Comm_rank( comm, &comm_rank );
 
   /** Evaluate u ~ K * w */
   hmlp::Data<T> w( n, nrhs ); w.rand();
-  auto u = hmlp::mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w );
+  //auto u = hmlp::mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w );
+  auto u_rids = hmlp::mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, comm );
 
 
 
+  hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
+    u_rblk( n, nrhs, MPI_COMM_WORLD );
 
-
-
+  /** redistribution */
+  u_rblk = u_rids;
 
 
   /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
@@ -169,14 +176,33 @@ void test_gofmm
   T nnerr_avg = 0.0;
   T nonnerr_avg = 0.0;
   T fmmerr_avg = 0.0;
-  printf( "========================================================\n");
-  printf( "Accuracy report\n" );
-  printf( "========================================================\n");
+
+  if ( comm_rank == 0 )
+  {
+    printf( "========================================================\n");
+    printf( "Accuracy report\n" );
+    printf( "========================================================\n");
+  }
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    size_t gid = tree.treelist[ 0 ]->gids[ i ];
+    //size_t gid = tree.treelist[ 0 ]->gids[ i ];
 
     hmlp::Data<T> potentials( (size_t)1, nrhs );
+ 
+    if ( comm_rank == ( i % comm_size ) )
+    {
+      for ( size_t p = 0; p < potentials.col(); p ++ )
+      {
+        potentials[ p ] = u_rblk( i , p );
+      }
+    }
+
+    /** bcast potentials to all MPI processes */
+    hmlp::mpi::Bcast( potentials.data(), nrhs, i % comm_size, comm );
+
+
+
+
     /** ASKIT treecode with NN pruning */
     //Evaluate<false, true>( tree, i, potentials );
     //auto nnerr = ComputeError( tree, i, potentials );
@@ -186,29 +212,26 @@ void test_gofmm
     //auto nonnerr = ComputeError( tree, i, potentials );
     T nonnerr = 0.0;
 
-
-
-    /** get results from GOFMM */
-    for ( size_t p = 0; p < potentials.col(); p ++ )
-    {
-      potentials[ p ] = u( gid, p );
-    }
-    auto fmmerr = ComputeError( tree, gid, potentials );
+    //auto fmmerr = ComputeError( tree, i, potentials );
+    auto fmmerr = hmlp::mpigofmm::ComputeError( tree, i, potentials, comm );
 
     /** only print 10 values. */
-    if ( i < 10 )
+    if ( i < 10 && comm_rank == 0 )
     {
       printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-          gid, nnerr, nonnerr, fmmerr );
+          i, nnerr, nonnerr, fmmerr );
     }
     nnerr_avg += nnerr;
     nonnerr_avg += nonnerr;
     fmmerr_avg += fmmerr;
   }
-  printf( "========================================================\n");
-  printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-      nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
-  printf( "========================================================\n");
+  if ( comm_rank == 0 )
+  {
+    printf( "========================================================\n");
+    printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+        nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
+    printf( "========================================================\n");
+  }
   // ------------------------------------------------------------------------
 
 
