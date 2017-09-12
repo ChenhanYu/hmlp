@@ -23,8 +23,8 @@
 /** CONV2D templates */
 #include <primitives/conv2d.hpp>
 
-/** Sandy-bridge kernels */
-#include <rank_k_d8x4.hpp>
+/** Haswell kernels */
+#include <rank_k_d8x6.hpp>
 
 using namespace hmlp::cnn;
 
@@ -51,14 +51,15 @@ void conv2d
 	double *C
 )
 {
-  rank_k_asm_d8x4 semiringkernel;
-  rank_k_asm_d8x4 microkernel;
+  rank_k_asm_d8x6 semiringkernel;
+  rank_k_asm_d8x6 microkernel;
 
   conv2d<
-    104, 1024, 256, 8, 4, 
-    104, 1024,      8, 4, 32,
+    72, 960, 256, 8, 6, 
+    72, 960,      8, 6, 32,
     false,
-    rank_k_asm_d8x4, rank_k_asm_d8x4,
+    rank_k_asm_d8x6, 
+    rank_k_asm_d8x6,
     double, double, double, double>
 	(
     w0, h0, d0, s, p, batchSize,

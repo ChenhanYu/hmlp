@@ -8,14 +8,14 @@ struct semiring_mrxnr
   OP2 op2;
   TV initV;
 
-  // Strassen interface: ignore op1, op2 and initV.
+  /** Strassen interface: ignore op1, op2 and initV */
   inline void operator()
   ( 
     int k, 
     TA *a, 
     TB *b,
     int len,
-    TV **v, int ldv, TV *alpha, 
+    TV **v_list, int ldv, TV *alpha_list, 
     aux_s<TA, TB, TC, TV> *aux 
   ) const 
   {
@@ -40,13 +40,13 @@ struct semiring_mrxnr
         #pragma simd
         for ( int i = 0; i < MR; i ++ ) 
         {
-          v[ t ][ j * ldv + i ] += alpha[ t ] * regV[ j * MR + i ];
+          v_list[ t ][ j * ldv + i ] += alpha_list[ t ] * regV[ j * MR + i ];
         }
       }
     }
   };
 
-  // Non-Strassen interface
+  /** Non-Strassen interface */
   inline void operator()
   ( 
     int k, 

@@ -39,23 +39,23 @@
 #include <hmlp_internal.hpp>
 
 void bli_sgemm_asm_8x8
-     (
-       dim_t               k,
-       float*     restrict alpha,
-       float*     restrict a,
-       float*     restrict b,
-       float*     restrict beta,
-       float*     restrict c, inc_t rs_c, inc_t cs_c,
-       //auxinfo_t* restrict data,
-       //cntx_t*    restrict cntx
-       aux_s<float, float, float, float> *aux
-     )
+(
+  dim_t               k,
+  float*     restrict alpha,
+  float*     restrict a,
+  float*     restrict b,
+  float*     restrict beta,
+  float*     restrict c, inc_t rs_c, inc_t cs_c,
+  //auxinfo_t* restrict data,
+  //cntx_t*    restrict cntx
+  aux_s<float, float, float, float> *aux
+)
 {
-	//void*   a_next = bli_auxinfo_next_a( data );
-	//void*   b_next = bli_auxinfo_next_b( data );
+  //void*   a_next = bli_auxinfo_next_a( data );
+  //void*   b_next = bli_auxinfo_next_b( data );
 
-    uint64_t   k_iter = k / 4;
-    uint64_t   k_left = k % 4;
+  uint64_t   k_iter = k / 4;
+  uint64_t   k_left = k % 4;
 
 	__asm__ volatile
 	(
@@ -1020,22 +1020,21 @@ void bli_sgemm_asm_8x8
 }
 
 void bli_dgemm_asm_8x4
-     (
-       dim_t               k,
-       double*    restrict alpha,
-       double*    restrict a,
-       double*    restrict b,
-       double*    restrict beta,
-       double*    restrict c, inc_t rs_c, inc_t cs_c,
-       //auxinfo_t* restrict data,
-       //cntx_t*    restrict cntx
-       aux_s<double, double, double, double> *aux
-     )
+(
+  dim_t               k,
+  double*    restrict alpha,
+  double*    restrict a,
+  double*    restrict b,
+  double*    restrict beta,
+  double*    restrict c, inc_t rs_c, inc_t cs_c,
+  //auxinfo_t* restrict data,
+  //cntx_t*    restrict cntx
+  aux_s<double, double, double, double> *aux
+)
 {
 	////void*   a_next = bli_auxinfo_next_a( data );
 	//void*   b_next = bli_auxinfo_next_b( data );
 	void*   b_next = (void*)aux->b_next;
-
 
 	uint64_t   k_iter = k / 4;
 	uint64_t   k_left = k % 4;

@@ -24,11 +24,10 @@
 /** GKMX templates */
 #include <primitives/gkmx.hpp>
 
-/** Sandy-bridge micro-kernels */
-#include <rank_k_d8x4.hpp>
+/** Haswell micro-kernels */
+#include <rank_k_d8x6.hpp>
 
 using namespace hmlp::gkmx;
-
 
 template<typename T>
 struct identity 
@@ -61,16 +60,15 @@ void gkmx_dfma
   double *C, int ldc
 )
 {
-  // Sandy-bridge
-  rank_k_asm_d8x4 semiringkernel;
-  rank_k_asm_d8x4 microkernel;
+  rank_k_asm_d8x6 semiringkernel;
+  rank_k_asm_d8x6 microkernel;
 
   gkmx<
-    104, 4096, 256, 8, 4, 
-    104, 4096,      8, 4, 32,
+    72, 960, 256, 8, 6, 
+    72, 960,      8, 6, 32,
     false, true,
-    rank_k_asm_d8x4, 
-    rank_k_asm_d8x4,
+    rank_k_asm_d8x6, 
+    rank_k_asm_d8x6,
     double, double, double, double>
   (
     transA, transB,
@@ -82,6 +80,7 @@ void gkmx_dfma
     semiringkernel,
     microkernel
   );
+
 };
 
 
@@ -101,9 +100,10 @@ void gkmx_dfma_simple
 
   double initV = 0.0;
 
-  gkmm
-  <104, 4096, 256, 8, 4, 104, 4096, 8, 4, 32,
-  false, true>
+  gkmm<
+    72, 960, 256, 8, 6, 
+    72, 960,      8, 6, 32,
+    false, true>
   (
     transA, transB,
     m, n, k,

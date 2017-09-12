@@ -1,6 +1,10 @@
 #ifndef AVX_TYPE_H
 #define AVX_TYPE_H
 
+/** AVX headers */
+#include <immintrin.h> 
+
+
 typedef union 
 {
   __m256d v;
@@ -15,4 +19,4 @@ typedef union
   int d[ 4 ];
 } v4li_t;
 
-#endif // define AVX_TYPE_H
+#endif /** define AVX_TYPE_H */

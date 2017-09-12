@@ -126,7 +126,7 @@ struct variable_bandwidth_gaussian_int_d8x4
     v4df_t c_tmp, aa_tmp, bb_tmp, w_tmp;
 
     // Rank-k update segment
-    #include "rank_k_int_d8x4.segment"
+    #include "component/rank_k_int_d8x4.hpp"
 
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( aa ) );
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( bb ) );
@@ -271,10 +271,10 @@ struct variable_bandwidth_gaussian_int_d8x4
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( w ) );
 
     // c = exp( c );
-    #include "exp_int_d8x4.segment"
+    #include "component/exp_int_d8x4.hpp"
 
     // Multiple rhs kernel summation.
-    #include "weighted_sum_int_d8x4.segment"
+    #include "component/weighted_sum_int_d8x4.hpp"
 
   }; // end inline void operator
 }; // end struct variable_bandwidth_gaussian_ref_d8x4
