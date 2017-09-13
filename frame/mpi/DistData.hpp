@@ -96,9 +96,121 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
 {
   public:
 
+    DistData( size_t m, size_t n, mpi::Comm comm ) : 
+      DistDataBase<T>( m, n, comm ) 
+    {
+      /** MPI */
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      size_t edge_n = n % size;
+      size_t local_n = ( n - edge_n ) / size;
+      if ( rank < edge_n ) local_n ++;
+
+      /** resize the local buffer */
+      this->resize( m, local_n );
+    };
+
+
+    /**
+     *  Overload operator () to allow accessing data using gids
+     */ 
+    T & operator () ( size_t i , size_t j )
+    {
+      /** assert that Kij is stored on this MPI process */
+      assert( j % this->GetSize() == this->GetRank() );
+
+      /** return reference of Kij */
+      return DistDataBase<T>::operator () ( i, j / this->GetSize() );
+    };
+
+
+    /**
+     *  Overload operator () to return a local submatrix using gids
+     */ 
+    hmlp::Data<T> operator () ( std::vector<size_t> I, std::vector<size_t> J )
+    {
+      for ( auto it = J.begin(); it != J.end(); it ++ )
+      {
+        /** assert that Kij is stored on this MPI process */
+        assert( (*it) % this->GetSize() == this->GetRank() );
+        (*it) = (*it) / this->GetSize();
+      }
+      return DistDataBase<T>::operator () ( I, J );
+    };
+
+
+    /** redistribute from CIRC to CBLK */
+    DistData<STAR, CBLK, T> & operator = ( const DistData<CIRC, CIRC, T> &A )
+    {
+      printf( "not implemented yet\n" );
+      exit( 1 );
+      return (*this);
+    };
+
+    
+    /** redistribute from CIDS to CBLK */
+    DistData<STAR, CBLK, T> & operator = ( DistData<STAR, CIDS, T> &A )
+    {
+      /** MPI */
+      mpi::Comm comm = this->GetComm();
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      /** allocate buffer for ids */
+      std::vector<std::vector<size_t>> sendids = A.CBLKOwnership();
+      std::vector<std::vector<size_t>> recvids( size );
+
+      /** exchange cids */
+      mpi::AlltoallVector( sendids, recvids, comm );
+      
+      /** allocate buffer for data */
+      std::vector<std::vector<T>> senddata( size );
+      std::vector<std::vector<T>> recvdata( size );
+
+      std::vector<size_t> amap( this->row() );
+      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
+
+      /** extract rows from A<RBLK,STAR> */
+      for ( size_t p = 0; p < size; p ++ )
+      {
+        /** recvids should be gids (not local posiiton) */
+        senddata[ p ] = A( amap, sendids[ p ] );
+      }
+
+      /** exchange data */
+      mpi::AlltoallVector( senddata, recvdata, comm );
+
+
+      for ( size_t p = 0; p < size; p ++ )
+      {
+        size_t ld = this->row();
+
+        for ( size_t j = 0; j < recvids[ p ].size(); j ++ )
+        {
+          size_t cid = recvids[ p ][ j ];
+
+          for ( size_t i = 0; i < this->row(); i ++ )
+          {
+            (*this)( i, cid ) = recvdata[ p ][ j * ld + i ];
+          }
+        };
+      };
+
+      /** free all buffers and return */
+      return (*this);
+    };
+
+
+
+
+
+
+
   private:
 
-};
+}; /** end class DistData<STAR, CBLK, T> */
+
 
 
 /**
@@ -129,8 +241,6 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
       this->resize( local_m, n );
     };
 
-
-    //DistData( mpi::Comm comm ) : DistDataBase<T>( comm ) {};
 
 
     /**
@@ -163,7 +273,8 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
     /** redistribute from CIRC to RBLK */
     DistData<RBLK, STAR, T> & operator = ( const DistData<CIRC, CIRC, T> &A )
     {
-
+      printf( "not implemented yet\n" );
+      exit( 1 );
       return (*this);
     };
 
@@ -225,21 +336,164 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
 }; /** end class DistData<RBLK, START, T> */
 
 
+
+
+/**
+ *  @brief Ecah MPI process own ( cids.size() ) columns of A,
+ *         and cids denote the distribution. i.e.
+ *         ranki owns A(:,cids[0]), 
+ *                    A(:,cids[1]), 
+ *                    A(:,cids[2]), ...
+ */ 
 template<typename T>
 class DistData<STAR, CIDS, T> : public DistDataBase<T>
 {
   public:
 
-    /** redistribution from CBLK to CIDS */
-    DistData<STAR, CIDS, T> & operator = ( const DistData<STAR, CBLK, T> &A )
+
+    /** default constructor */
+    DistData( size_t m, size_t n, std::vector<size_t> &cids, mpi::Comm comm ) : 
+      DistDataBase<T>( m, n, comm ) 
     {
+      /** now check if (sum cids.size() == n) */
+      size_t bcast_n = cids.size();
+      size_t reduc_n = 0;
+      mpi::Allreduce( &bcast_n, &reduc_n, 1, MPI_SUM, comm );
+      assert( reduc_n == n );
+      this->cids = cids;
+      this->resize( m, cids.size() );
+
+      for ( size_t j = 0; j < cids.size(); j ++ )
+        cid2col[ cids[ j ] ] = j;      
+    };
+
+
+    /**
+     *  Overload operator () to allow accessing data using gids
+     */ 
+    T & operator () ( size_t i , size_t j )
+    {
+      /** assert that Kij is stored on this MPI process */
+      assert( cid2col.count( j ) == 1 );
+      /** return reference of Kij */
+      return DistDataBase<T>::operator () ( i, cid2col[ j ] );
+    };
+
+
+    /**
+     *  Overload operator () to return a local submatrix using gids
+     */ 
+    hmlp::Data<T> operator () ( std::vector<size_t> I, std::vector<size_t> J )
+    {
+      for ( auto it = J.begin(); it != J.end(); it ++ )
+      {
+        /** assert that Kij is stored on this MPI process */
+        assert( cid2col.count(*it) == 1 );
+        (*it) = cid2col[ (*it) ];
+      }
+      return DistDataBase<T>::operator () ( I, J );
+    };
+
+
+    /**
+     *  @brief Return a vector of vector that indicates the RBLK ownership
+     *         of each MPI rank.
+     */ 
+    std::vector<std::vector<size_t>> CBLKOwnership()
+    {
+      /** MPI */
+      mpi::Comm comm = this->GetComm();
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      std::vector<std::vector<size_t>> ownership( size );
+
+      for ( auto it = cids.begin(); it != cids.end(); it ++ )
+      {
+        size_t cid = (*it);
+        /** 
+         *  While in CBLK distribution, rid is owned by 
+         *  rank ( cid % size ) at position ( cid / size ) 
+         */
+        ownership[ cid % size ].push_back( cid );
+      };
+
+      return ownership;
+
+    }; /** end CBLKOwnership() */
+
+
+    /** redistribution from CBLK to CIDS */
+    DistData<STAR, CIDS, T> & operator = ( DistData<STAR, CBLK, T> &A )
+    {
+      /** assertion: must provide rids */
+      assert( cids.size() );
+
+      /** MPI */
+      mpi::Comm comm = this->GetComm();
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      /** allocate buffer for ids */
+      std::vector<std::vector<size_t>> sendids = CBLKOwnership();
+      std::vector<std::vector<size_t>> recvids( size );
+
+      /** 
+       *  exchange cids: 
+       *
+       *  sendids contain all  required ids from each rank
+       *  recvids contain all requested ids from each rank
+       *
+       */
+      mpi::AlltoallVector( sendids, recvids, comm );
+
+
+      /** allocate buffer for data */
+      std::vector<std::vector<T>> senddata( size );
+      std::vector<std::vector<T>> recvdata( size );
+
+      std::vector<size_t> amap( this->row() );
+      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
+
+
+      /** extract columns from A<STAR,CBLK> */
+      for ( size_t p = 0; p < size; p ++ )
+      {
+        /** recvids should be gids (not local posiiton) */
+        senddata[ p ] = A( amap, recvids[ p ] );
+        assert( senddata[ p ].size() == amap.size() * recvids[ p ].size() );
+      }
+
+      /** exchange data */
+      mpi::AlltoallVector( senddata, recvdata, comm );
+
+
+      for ( size_t p = 0; p < size; p ++ )
+      {
+        assert( recvdata[ p ].size() == sendids[ p ].size() * this->row() );
+
+        size_t ld = this->row();
+
+        for ( size_t j = 0; j < sendids[ p ].size(); j ++ )
+        {
+          size_t cid = sendids[ p ][ j ];
+          for ( size_t i = 0; i < this->row(); i ++ )
+          {
+            (*this)( i, cid ) = recvdata[ p ][ j * ld + i ];
+          }
+        };
+      };
+
       return *this;
     };
 
   private:
 
     std::vector<size_t> cids;
-};
+
+    std::map<size_t, size_t> cid2col;
+
+}; /** end class DistData<STAR, CIDS, T> */
 
 
 
@@ -340,7 +594,6 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
     {
       /** assertion: must provide rids */
       assert( rids.size() );
-
 
       /** MPI */
       mpi::Comm comm = this->GetComm();

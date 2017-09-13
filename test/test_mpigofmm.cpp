@@ -151,6 +151,35 @@ void test_gofmm
   }
 
 
+  hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CBLK, T> 
+    NN_cblk( nrhs, n, MPI_COMM_WORLD );
+  NN_cblk.rand();
+  hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CIDS, T> 
+    NN_cids( nrhs, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
+  hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CBLK, T> 
+    NN_goal( nrhs, n, MPI_COMM_WORLD );
+
+  /** redistribute from RBLK to RIDS */
+  NN_cids = NN_cblk;
+
+  /** redistribute from RIDS to RBLK */
+  NN_goal = NN_cids;
+  
+  for ( size_t i = 0; i < NN_cblk.size(); i ++ )
+  {
+    assert( NN_cblk[ i ] == NN_goal[ i ] );
+    if ( NN_cblk[ i ] != NN_goal[ i ] )
+    {
+      printf( "%ld, %E, %E\n", i, NN_cblk[ i ], NN_goal[ i ] );
+      break;
+    }
+  }
+
+
+
+
+
+
   /** MPI */
   int comm_size, comm_rank;
   hmlp::mpi::Comm comm = MPI_COMM_WORLD;
