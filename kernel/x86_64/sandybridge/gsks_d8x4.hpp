@@ -1,112 +1,42 @@
 #include <stdio.h>
 #include <math.h>
-#include <immintrin.h> // AVX
 
+/** self-defined vector type */
+#include <avx_type.h> 
+/** HMLP */
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
-#include <avx_type.h> // self-defined vector type
 
-// #define DEBUG_MICRO 1
 
-struct gaussian_ref_d8x4 
+
+struct gsks_gaussian_int_s8x8
 {
-  inline void operator()(
-      //ks_t *kernel,
-      kernel_s<double> *kernel,
-      int k,
-      int nrhs,
-      double *u,
-      double *a, double *a2, 
-      double *b, double *b2,
-      double *w,
-      double *c, int ldc,
-      aux_s<double, double, double, double> *aux ) const 
+  inline GSKS_OPERATOR(float) const
   {
-    double c_reg[ 8 * 4 ] = { 0.0 };
-
-    for ( int p = 0; p < k; p ++ ) 
-    {
-      #pragma unroll
-      for ( int j = 0; j < 4; j ++ )
-      {
-        #pragma unroll
-        for ( int i = 0; i < 8; i ++ ) 
-        {
-          c_reg[ j * 8 + i ] += a[ p * 8 + i ] * b[ p * 4 + j ];
-        }
-      }
-    }
-
-    if ( aux->pc ) 
-    {
-      #pragma unroll
-      for ( int j = 0; j < 4; j ++ )
-      {
-        #pragma unroll
-        for ( int i = 0; i < 8; i ++ ) 
-        {
-          c_reg[ j * 8 + i ] += c[ j * ldc + i ];
-        }
-      }
-    }
-
-#ifdef DEBUG_MICRO
-    printf( "gaussian_ref_d8x4: c_reg\n" );
-    for ( int i = 0; i < 8; i ++ ) 
-    {
-      for ( int j = 0; j < 4; j ++ )
-      {
-        //printf( "%E (%E) ", c_reg[ j * 8 + i ], c[ j * 8 + i ] );
-        printf( "%E ", c_reg[ j * 8 + i ] );
-      }
-      printf( "\n" );
-    }
-#endif
-
-    #pragma unroll
-    for ( int j = 0; j < 4; j ++ )
-    {
-      #pragma unroll
-      for ( int i = 0; i < 8; i ++ ) 
-      {
-        c_reg[ j * 8 + i ] *= -2.0;
-        c_reg[ j * 8 + i ] += a2[ i ] + b2[ j ];
-        c_reg[ j * 8 + i ] *= kernel->scal;
-        c_reg[ j * 8 + i ]  = exp( c_reg[ j * 8 + i ] );
-      }
-    }
-
-    #pragma unroll
-    for ( int j = 0; j < 4; j ++ )
-    {
-      #pragma unroll
-      for ( int i = 0; i < 8; i ++ ) 
-      {
-        u[ i ] += c_reg[ j * 8 + i ] * w[ j ];
-      }
-    }    
-
-  } // end inline void operator
-
-}; // end struct gaussian_ref_d8x4
+    printf( "not implemented yet\n" );
+    exit( 1 );
+  };
+};
 
 
 
-struct gaussian_int_d8x4 
+
+struct gsks_gaussian_int_d8x4 
 {
-  inline void operator()
-  (
-   //ks_t *ker,
-   kernel_s<double> *ker,
-   int k,
-   int rhs,
-   double *u,
-   double *a, double *aa, 
-   double *b, double *bb,
-   double *w,
-   double *c, int ldc,
-   aux_s<double, double, double, double> *aux 
-  ) const 
+  //inline void operator()
+  //(
+  //  kernel_s<double> *ker,
+  //  int k,
+  //  int rhs,
+  //  double *u,
+  //  double *a, double *aa, 
+  //  double *b, double *bb,
+  //  double *w,
+  //  double *c, int ldc,
+  //  aux_s<double, double, double, double> *aux 
+  //) const 
+
+  inline GSKS_OPERATOR(double) const
   {
     int    i, rhs_left;
     double neg2 = -2.0;
@@ -122,8 +52,8 @@ struct gaussian_int_d8x4
     v4df_t b0, b1, b2, b3, B0; // prefetched B
     v4df_t c_tmp, aa_tmp, bb_tmp, w_tmp;
 
-    // Rank-k update segment
-    #include "rank_k_int_d8x4.segment"
+    /** rank-k update segment */
+    #include "component/rank_k_int_d8x4.hpp"
 
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( aa ) );
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( bb ) );
@@ -225,20 +155,20 @@ struct gaussian_int_d8x4
     c47_3.v  = _mm256_mul_pd( aa_tmp.v, c47_3.v );
 
 
-    // Preload u03, u47
+    /** preload u03, u47 */
     u03.v    = _mm256_load_pd( (double*)u );
     u47.v    = _mm256_load_pd( (double*)( u + 4 ) );
 
 
-    // Prefetch u and w
+    /** prefetch u and w */
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( u + 8 ) );
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( w ) );
 
-    // c = exp( c );
-    #include "exp_int_d8x4.segment"
+    /** c = exp( c ) */
+    #include "component/exp_int_d8x4.hpp"
 
-    // Multiple rhs kernel summation.
-    #include "weighted_sum_int_d8x4.segment"
+    /** multiple rhs kernel summation */
+    #include "component/weighted_sum_int_d8x4.hpp"
 
-  } // end inline void operator
-}; // end struct gaussian_ref_d8x4
+  }; /** end inline void operator */
+}; /** end struct gaussian_ref_d8x4 */

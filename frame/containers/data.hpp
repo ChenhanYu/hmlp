@@ -307,6 +307,11 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       }
     }; 
 
+    void setvalue( T value )
+    {
+      for ( auto it = this->begin(); it != this->end(); it ++ )
+        (*it) = value;
+    };
 
     template<bool SYMMETRIC = false>
     void rand( T a, T b )

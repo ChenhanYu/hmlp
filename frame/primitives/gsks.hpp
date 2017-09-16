@@ -398,17 +398,17 @@ template<
   bool USE_L2NORM, bool USE_VAR_BANDWIDTH, bool USE_STRASSEN,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TB, typename TC, typename TV>
-void gsks(
-    //ks_t *kernel,
-    kernel_s<TC> *kernel,
-    int m, int n, int k,
-    TC *u,         int *umap,
-    TA *A, TA *A2, int *amap,
-    TB *B, TB *B2, int *bmap,
-    TC *w,         int *wmap,
-    SEMIRINGKERNEL semiringkernel,
-    MICROKERNEL microkernel
-    )
+void gsks
+(
+  kernel_s<TC> *kernel,
+  int m, int n, int k,
+  TC *u,         int *umap,
+  TA *A, TA *A2, int *amap,
+  TB *B, TB *B2, int *bmap,
+  TC *w,         int *wmap,
+  SEMIRINGKERNEL semiringkernel,
+  MICROKERNEL microkernel
+)
 {
   int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
   int ldpackc = 0, padn = 0, nc = NC, pack_nc = PACK_NC;
@@ -500,192 +500,7 @@ void gsks(
       packC_buff, ldpackc, padn
     );
 
-
-
-
-/*
-    TC *packu = NULL;
-    TA *packA = NULL, *packA2 = NULL, *packAh = NULL;
-    TB *packB = NULL, *packB2 = NULL, *packBh = NULL;
-    TC *packw = NULL;
-    TV *packC = NULL;
-
-    packu  = packu_buff  + ( thread.jc_id * ic_nt * jr_nt + thread.ic_id * jr_nt + thread.jr_id ) * PACK_MC * KS_RHS;
-    packA  = NULL;
-    packA2 = packA2_buff + ( thread.jc_id * ic_nt + thread.ic_id ) * PACK_MC;
-    packAh = packAh_buff + ( thread.jc_id * ic_nt + thread.ic_id ) * PACK_MC;
-    packB  = packB_buff  + ( thread.jc_id                        ) * pack_nc * KC;
-    packB2 = packB2_buff + ( thread.jc_id                        ) * pack_nc;
-    packBh = packBh_buff + ( thread.jc_id                        ) * pack_nc;
-    packw  = packw_buff  + ( thread.jc_id                        ) * pack_nc;
-    packC  = packC_buff  + ( thread.jc_id                        ) * ldpackc * padn;
-
-    for ( auto jc  = thread.jc_id * nc; 
-               jc  < n; 
-               jc += jc_nt * nc )                          // beg 6th loop 
-    {
-      auto &jc_comm = *thread.jc_comm;
-      auto jb = min( n - jc, nc );
-
-      for ( auto pc = 0; pc < k; pc += KC )                // beg 5th loop 
-      {
-        auto &pc_comm = *thread.pc_comm;
-        auto pb = min( k - pc, KC );
-        auto is_the_last_pc_iteration = ( pc + KC >= k );
-
-        packA = packA_buff + thread.jc_id * ic_nt * PACK_MC * KC 
-                           + thread.ic_id         * PACK_MC * pb;
-
-        for ( auto j   = thread.ic_jr * NR, 
-                   jp  = thread.ic_jr * PACK_NR; 
-                   j   < jb; 
-                   j  += pc_comm.GetNumThreads() * NR, 
-                   jp += pc_comm.GetNumThreads() * PACK_NR ) 
-        {
-          pack2D<true, PACK_NR>                            // packB
-          (
-            min( jb - j, NR ), pb, 
-            &B[ pc ], k, &bmap[ jc + j ], &packB[ jp * pb ] 
-          );
-
-
-          if ( is_the_last_pc_iteration )
-          {
-            pack2D<true, PACK_NR, true>                    // packw
-            (
-              min( jb - j, NR ), 1, 
-              &w[ 0 ], 1, &wmap[ jc + j ], &packw[ jp * 1 ] 
-            );
-
-            if ( USE_L2NORM )
-            {
-              pack2D<true, PACK_NR>                        // packB2
-              (
-                min( jb - j, NR ), 1, 
-                &B2[ 0 ], 1, &bmap[ jc + j ], &packB2[ jp * 1 ] 
-              );
-            }
-
-            if ( USE_VAR_BANDWIDTH )
-            {
-              pack2D<true, PACK_NR>                        // packBh
-              (
-                min( jb - j, NR ), 1, 
-                kernel->hj, 1, &bmap[ jc + j ], &packBh[ jp * 1 ] 
-              );
-            }
-          }
-        }
-        pc_comm.Barrier();
-
-        for ( auto ic  = thread.ic_id * MC; 
-                   ic  < m; 
-                   ic += ic_nt * MC )                      // beg 4th loop
-        {
-          auto &ic_comm = *thread.ic_comm;
-          auto ib = min( m - ic, MC );
-
-          for ( auto i   = thread.jr_id * MR, 
-                     ip  = thread.jr_id * PACK_MR; 
-                     i   < ib; 
-                     i  += jr_nt * MR, 
-                     ip += jr_nt * PACK_MR )     
-          {
-            pack2D<true, PACK_MR>                          // packA 
-            ( 
-              min( ib - i, MR ), pb,
-              &A[ pc ], k, &amap[ ic + i ], &packA[ ip * pb ] 
-            );
-
-            if ( is_the_last_pc_iteration )               
-            {
-              if ( USE_L2NORM )
-              {
-                pack2D<true, PACK_MR>                      // packA2
-                (
-                  min( ib - i, MR ), 1, 
-                  &A2[ 0 ], 1, &amap[ ic + i ], &packA2[ ip * 1 ] 
-                );
-              }
-
-              if ( USE_VAR_BANDWIDTH )                     // variable bandwidths
-              {
-                pack2D<true, PACK_MR>                      // packAh
-                (
-                  min( ib - i, MR ), 1, 
-                  kernel->hi, 1, &amap[ ic + i ], &packAh[ ip * 1 ] 
-                );
-              }
-            }
-          }
-
-          if ( is_the_last_pc_iteration )                  // Initialize packu to zeros.
-          {
-            for ( auto i = 0, ip = 0; i < ib; i += MR, ip += PACK_MR )
-            {
-              for ( auto ir = 0; ir < min( ib - i, MR ); ir ++ )
-              {
-                packu[ ip + ir ] = 0.0;
-              }
-            }
-          }
-          ic_comm.Barrier();
-
-
-          if ( is_the_last_pc_iteration )                  // fused_macro_kernel
-          {
-            fused_macro_kernel
-            <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
-            (
-              kernel,
-              thread, 
-              ic, jc, pc,
-              ib, jb, pb,
-              packu,
-              packA, packA2, packAh,
-              packB, packB2, packBh,
-              packw,
-              packC + ic * padn,                           // packed
-              ( ( ib - 1 ) / MR + 1 ) * MR,                // packed ldc
-              microkernel
-            );
-          }
-          else                                             // semiring rank-k update
-          {
-            rank_k_macro_kernel
-            <KC, MR, NR, PACK_MR, PACK_NR, SEMIRINGKERNEL, TA, TB, TC, TV>
-            (  
-              thread, 
-              ic, jc, pc,
-              ib, jb, pb,
-              packA,
-              packB,
-              packC + ic * padn,                           // packed
-              ( ( ib - 1 ) / MR + 1 ) * MR,                // packed ldc
-              semiringkernel
-            );
-          }
-          ic_comm.Barrier();                               // sync all jr_id!!
-
-          if ( is_the_last_pc_iteration )
-          {
-            for ( auto i = 0, ip = 0; i < ib; i += MR, ip += PACK_MR )
-            {
-              for ( auto ir = 0; ir < min( ib - i, MR ); ir ++ )
-              {
-                TC *uptr = &( u[ umap[ ic + i + ir ] ] );
-                #pragma omp atomic update                  // concurrent write
-                *uptr += packu[ ip + ir ];
-              }
-            }
-            ic_comm.Barrier();                             // sync all jr_id!!
-          }
-        }                                                  // end 4th loop
-        pc_comm.Barrier();
-      }                                                    // end 5th loop
-    }                                                      // end 6th loop
-  */
-  }                                                        // end omp region
+  } /** end omp region */
 
   hmlp_free( packA_buff );
   hmlp_free( packB_buff );
@@ -696,7 +511,7 @@ void gsks(
     hmlp_free( packA2_buff );
     hmlp_free( packB2_buff );
   }
-}                                                          // end gsks
+} /** end gsks() */
 
 
 /**
@@ -899,7 +714,7 @@ void gsks_ref
 } // end void gsks_ref
 
 
-}; // end namespace gsks
-}; // end namespace hmlp
+}; /** end namespace gsks */
+}; /** end namespace hmlp */
 
 #endif // define GSKS_HXX

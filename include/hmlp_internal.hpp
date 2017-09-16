@@ -30,11 +30,9 @@
 
 #define restrict __restrict__
 
-//#define dim_t std::size_t
-//#define int_t std::size_t
-typedef std::size_t dim_t;
-typedef std::size_t inc_t;
 
+typedef unsigned long long dim_t;
+typedef unsigned long long inc_t;
 
 template<typename TA, typename TB, typename TC, typename TV>
 struct aux_s
@@ -83,4 +81,71 @@ struct aux_s
 };
 
 
-#endif // define HMLP_INTERNAL_HPP
+
+
+#define BLIS_GEMM_KERNEL(name,type)    \
+  void name                            \
+  (                                    \
+    dim_t             k,               \
+    type*    restrict alpha,           \
+    type*    restrict a,               \
+    type*    restrict b,               \
+    type*    restrict beta,            \
+    type*    restrict c,               \
+    inc_t rs_c, inc_t cs_c,            \
+    aux_s<type, type, type, type> *aux \
+  )                                    \
+
+#define GEMM_OPERATOR(type)            \
+  void operator()                      \
+  (                                    \
+    int k,                             \
+    type *a,                           \
+    type *b,                           \
+    type *c, int ldc,                  \
+    aux_s<type, type, type, type> *aux \
+  )                                    \
+
+#define STRA_OPERATOR(type)            \
+  void operator()                      \
+  (                                    \
+    int k,                             \
+    type *a,                           \
+    type *b,                           \
+    int len,                           \
+    type **c_list, int ldc,            \
+    type *alpha_list,                  \
+    aux_s<type, type, type, type> *aux \
+  )                                    \
+
+#define GSKS_OPERATOR(type)            \
+  void operator()                      \
+  (                                    \
+    kernel_s<type> *ker,               \
+    int k,                             \
+    int rhs,                           \
+    type *u,                           \
+    type *a, type *aa,                 \
+    type *b, type *bb,                 \
+    type *w,                           \
+    type *c, int ldc,                  \
+    aux_s<type, type, type, type> *aux \
+  )                                    \
+
+#define GSKNN_OPERATOR(type)           \
+  void operator()                      \
+  (                                    \
+    kernel_s<type> *ker,               \
+    int k,                             \
+    int r,                             \
+    type *a, type *aa,                 \
+    type *b, type *bb,                 \
+    type *c,                           \
+    aux_s<type, type, type, type> *aux \
+    int *bmap                          \
+  )                                    \
+
+
+
+
+#endif /** define HMLP_INTERNAL_HPP */

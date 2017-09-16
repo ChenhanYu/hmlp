@@ -23,9 +23,9 @@
 #define GOFMM_MPI_HPP
 
 #include <mpi/tree_mpi.hpp>
+#include <mpi/DistData.hpp>
 #include <gofmm/gofmm.hpp>
 #include <primitives/combinatorics.hpp>
-
 
 using namespace hmlp::gofmm;
 
@@ -33,6 +33,156 @@ namespace hmlp
 {
 namespace mpigofmm
 {
+
+
+
+
+
+/** compute all2c (distance to the approximate centroid) */
+template<typename T>
+std::vector<T> AllToCentroid
+( 
+  DistanceMetric metric,
+  hmlp::Data<T> &DII, /** diagonals of K( I, I ) */
+  hmlp::Data<T> &KIC, /**              K( I, C ) */
+  hmlp::Data<T> &DCC  /** diagonals of K( C, C ) */
+)
+{
+  /** distances from I to C */
+  std::vector<T> I2C( KIC.row(), 0.0 );
+
+  switch ( metric )
+  {
+    case KERNEL_DISTANCE:
+    {
+      I2C = DII;
+      #pragma omp parallel for
+      for ( size_t i = 0; i < KIC.row(); i ++ )
+        for ( size_t j = 0; j < KIC.col(); j ++ )
+          I2C[ i ] -= ( 2.0 / KIC.col() ) * KIC( i, j );
+
+      break;
+    }
+    case ANGLE_DISTANCE:
+    {
+      #pragma omp parallel for
+      for ( size_t i = 0; i < KIC.row(); i ++ )
+        for ( size_t j = 0; j < KIC.col(); j ++ )
+          I2C[ i ] += ( 1.0 - ( KIC( i, j ) * KIC( i, j ) ) / 
+              ( DII[ i ] * DCC[ j ] ) );
+
+      break;
+    }
+    default:
+    {
+      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
+      exit( 1 );
+    }
+  } /** end switch ( metric ) */
+
+  return I2C;
+
+}; /** end AllToCentroid() */
+
+
+
+
+
+/** compute all2f (distance to the farthest point) */
+template<typename T>
+std::vector<T> AllToFarthest
+(
+  DistanceMetric metric,
+  hmlp::Data<T> &DII, /**  */
+  hmlp::Data<T> &KIP, /**  */
+  T             &kpp
+)
+{
+  /** distances from I to P */
+  std::vector<T> I2P( KIP.row(), 0.0 );
+
+  switch ( metric )
+  {
+    case KERNEL_DISTANCE:
+    {
+      #pragma omp parallel for
+      for ( size_t i = 0; i < KIP.row(); i ++ )
+          I2P[ i ] = DII[ i ] - 2.0 * KIP[ i ] + kpp;
+
+      break;
+    }
+    case ANGLE_DISTANCE:
+    {
+      #pragma omp parallel for
+      for ( size_t i = 0; i < KIP.row(); i ++ )
+          I2P[ i ] = ( 1.0 - ( KIP[ i ] * KIP[ i ] ) / 
+              ( DII[ i ] * kpp ) );
+
+      break;
+    }
+    default:
+    {
+      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
+      exit( 1 );
+    }
+  } /** end switch ( metric ) */
+
+  return I2P;
+
+}; /** end AllToFarthest() */
+
+
+template<typename T>
+std::vector<T> AllToLeftRight
+( 
+  DistanceMetric metric,
+  hmlp::Data<T> &DII,
+  hmlp::Data<T> &KIP,
+  hmlp::Data<T> &KIQ,
+  T              kpp,
+  T              kqq
+)
+{
+  /** distance differences between I to P and I to Q */
+  std::vector<T> I2PQ( KIP.row(), 0.0 );
+
+  switch ( metric )
+  {
+    case KERNEL_DISTANCE:
+    {
+      #pragma omp parallel for
+      for ( size_t i = 0; i < KIP.row(); i ++ )
+          I2PQ[ i ] = KIP[ i ] - KIQ[ i ];
+
+      break;
+    }
+    case ANGLE_DISTANCE:
+    {
+      #pragma omp parallel for
+      for ( size_t i = 0; i < KIP.row(); i ++ )
+        I2PQ[ i ] = ( KIP[ i ] * KIP[ i ] ) / ( DII[ i ] * kpp ) - 
+                    ( KIQ[ i ] * KIQ[ i ] ) / ( DII[ i ] * kqq );
+
+      break;
+    }
+    default:
+    {
+      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
+      exit( 1 );
+    }
+  } /** end switch ( metric ) */
+
+  return I2PQ;
+
+}; /** end AllToLeftRight() */
+
+
+
+
+
+
+
+
 
 
 
@@ -59,151 +209,6 @@ struct centersplit
   size_t n_centroid_samples = 1;
 
 
-
-  /** compute all2c (distance to the approximate centroid) */
-  std::vector<T> AllToCentroid( std::vector<size_t> &gids ) const
-  {
-    /** declaration */
-    SPDMATRIX &K = *Kptr;
-    std::vector<T> temp( gids.size(), 0.0 );
-
-    /** loop over each point in gids */
-    #pragma omp parallel for
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      switch ( metric )
-      {
-        case KERNEL_DISTANCE:
-        {
-          temp[ i ] = K( gids[ i ], gids[ i ] );
-          for ( size_t j = 0; j < n_centroid_samples; j ++ )
-          {
-            /** important sample ( Kij, j ) if provided */
-            std::pair<T, size_t> sample = K.ImportantSample( gids[ i ] );
-            temp[ i ] -= ( 2.0 / n_centroid_samples ) * sample.first;
-          }
-          break;
-        }
-        case ANGLE_DISTANCE:
-        {
-          temp[ i ] = 0.0;
-          for ( size_t j = 0; j < n_centroid_samples; j ++ )
-          {
-            /** important sample ( Kij, j ) if provided */
-            std::pair<T, size_t> sample = K.ImportantSample( gids[ i ] );
-            T kij = sample.first;
-            T kii = K( gids[ i ], gids[ i ] );
-            T kjj = K( sample.second, sample.second );
-            temp[ i ] += ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-          }
-          temp[ i ] /= n_centroid_samples;
-          break;
-        }
-        default:
-        {
-          printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
-          exit( 1 );
-        }
-      } /** end switch ( metric ) */
-    }
-
-    return temp;
-
-  }; /** end AllToCentroid() */
-
-
-
-  /** compute all2f (distance to the farthest point) */
-  std::vector<T> AllToFarthest( std::vector<size_t> &gids, size_t gidf2c ) const
-  {
-    /** declaration */
-    SPDMATRIX &K = *Kptr;
-    std::vector<T> temp( gids.size(), 0.0 );
-
-    /** loop over each point in gids */
-    #pragma omp parallel for
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      switch ( metric )
-      {
-        case KERNEL_DISTANCE:
-        {
-          T kij = K( gids[ i ],    gidf2c );
-          T kii = K( gids[ i ], gids[ i ] );
-          temp[ i ] = kii - 2.0 * kij;
-          break;
-        }
-        case ANGLE_DISTANCE:
-        {
-          T kij = K( gids[ i ],    gidf2c );
-          T kii = K( gids[ i ], gids[ i ] );
-          T kjj = K(    gidf2c,    gidf2c );
-          temp[ i ] = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-          break;
-        }
-        default:
-        {
-          printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
-          exit( 1 );
-        }
-      } /** end switch ( metric ) */
-    }
-
-    return temp;
-
-  }; /** end AllToFarthest() */
-
-
-
-  /** compute all projection i.e. dip - diq for all i */
-  std::vector<T> AllToLeftRight( std::vector<size_t> &gids,
-      size_t gidf2c, size_t gidf2f ) const
-  {
-    /** declaration */
-    SPDMATRIX &K = *Kptr;
-    std::vector<T> temp( gids.size(), 0.0 );
-
-    /** loop over each point in gids */
-    #pragma omp parallel for
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      switch ( metric )
-      {
-        case KERNEL_DISTANCE:
-        {
-          T kip = K( gids[ i ], gidf2f );
-          T kiq = K( gids[ i ], gidf2c );
-          temp[ i ] = kip - kiq;
-          break;
-        }
-        case ANGLE_DISTANCE:
-        {
-          T kip = K( gids[ i ],    gidf2f );
-          T kiq = K( gids[ i ],    gidf2c );
-          T kii = K( gids[ i ], gids[ i ] );
-          T kpp = K(    gidf2f,    gidf2f );
-          T kqq = K(    gidf2c,    gidf2c );
-          /** ingore 1 from both terms */
-          temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
-          break;
-        }
-        default:
-        {
-          printf( "centersplit() invalid splitting scheme\n" ); fflush( stdout );
-          exit( 1 );
-        }
-      }
-    }
-
-    return temp;
-
-  }; /** end AllToLeftRight() */
-
-
-
-
-
-
 	/** overload the operator */
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
@@ -226,7 +231,31 @@ struct centersplit
 
     /** compute all2c (distance to the approximate centroid) */
     beg = omp_get_wtime();
-    temp = AllToCentroid( gids );
+
+    /** diagonal entries */
+    hmlp::Data<T> DII( n, (size_t)1 ), DCC( n_centroid_samples, (size_t)1 );
+
+    /** collecting DII */
+    for ( size_t i = 0; i < gids.size(); i ++ )
+    {
+      DII[ i ] = K( gids[ i ], gids[ i ] );
+    }
+
+    /** collecting column samples of K and DCC */
+    std::vector<size_t> column_samples( n_centroid_samples );
+    for ( size_t j = 0; j < n_centroid_samples; j ++ )
+    {
+      /** just use the first few gids */
+      column_samples[ j ] = gids[ j ];
+      DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
+    }
+
+    /** collecting KIC */
+    auto KIC = K( gids, column_samples );
+
+    //temp = AllToCentroid( gids );
+    temp = AllToCentroid( metric, DII, KIC, DCC );
+
     d2c_time = omp_get_wtime() - beg;
 
     /** find f2c (farthest from center) */
@@ -236,7 +265,19 @@ struct centersplit
 
     /** compute the all2f (distance to farthest point) */
     beg = omp_get_wtime();
-    temp = AllToFarthest( gids, gidf2c );
+
+    /** collecting KIP */
+    std::vector<size_t> P( 1, gidf2c );
+    auto KIP = K( gids, P );
+
+    /** get diagonal entry kpp */
+    T kpp = K( gidf2c, gidf2c );
+
+    /** compute the all2f (distance to farthest point) */
+    temp = AllToFarthest( metric, DII, KIP, kpp );
+
+    //temp = AllToFarthest( gids, gidf2c );
+    //
     d2f_time = omp_get_wtime() - beg;
 
     /** find f2f (far most to far most) */
@@ -248,12 +289,18 @@ struct centersplit
 
     /** compute all2leftright (projection i.e. dip - diq) */
     beg = omp_get_wtime();
-    temp = AllToLeftRight( gids, gidf2c, gidf2f );
+
+    /** collecting KIQ */
+    std::vector<size_t> Q( 1, gidf2f );
+    auto KIQ = K( gids, Q );
+
+    /** get diagonal entry kpp */
+    T kqq = K( gidf2f, gidf2f );
+
+    /** compute all2leftright (projection i.e. dip - diq) */
+    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp, kqq );
+
     projection_time = omp_get_wtime() - beg;
-
-
-
-
 
 
     /** parallel median search */
@@ -328,8 +375,29 @@ struct centersplit
     /** early return */
     if ( n == 0 ) return split;
 
+    /** diagonal entries */
+    hmlp::Data<T> DII( n, (size_t)1 ), DCC( n_centroid_samples, (size_t)1 );
+
+    /** collecting DII */
+    for ( size_t i = 0; i < gids.size(); i ++ )
+    {
+      DII[ i ] = K( gids[ i ], gids[ i ] );
+    }
+
+    /** collecting column samples of K and DCC */
+    std::vector<size_t> column_samples( n_centroid_samples );
+    for ( size_t j = 0; j < n_centroid_samples; j ++ )
+    {
+      /** just use the first few gids */
+      column_samples[ j ] = gids[ j ];
+      DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
+    }
+
+    /** collecting KIC */
+    auto KIC = K( gids, column_samples );
+
     /** compute d2c (distance to the approx centroid) for each owned point */
-    temp = AllToCentroid( gids );
+    temp = AllToCentroid( metric, DII, KIC, DCC );
 
     /** find the f2c (far most to center) from points owned */
     auto itf2c = std::max_element( temp.begin(), temp.end() );
@@ -352,12 +420,15 @@ struct centersplit
     //    max_pair.val, max_pair.key ); fflush( stdout );
     //printf( "rank %d gidf2c %d\n", rank, gidf2c  ); fflush( stdout );
 
+    /** collecting KIP */
+    std::vector<size_t> P( 1, gidf2c );
+    auto KIP = K( gids, P );
 
+    /** get diagonal entry kpp */
+    T kpp = K( gidf2c, gidf2c );
 
-    /** compute all2f (distance to farthest point) */
-    temp = AllToFarthest( gids, gidf2c );
-
-
+    /** compute the all2f (distance to farthest point) */
+    temp = AllToFarthest( metric, DII, KIP, kpp );
 
 
     /** find f2f (far most to far most) from owned points */
@@ -380,10 +451,15 @@ struct centersplit
     //    max_pair.val, max_pair.key ); fflush( stdout );
     //printf( "rank %d gidf2f %d\n", rank, gidf2f  ); fflush( stdout );
 
+    /** collecting KIQ */
+    std::vector<size_t> Q( 1, gidf2f );
+    auto KIQ = K( gids, Q );
+
+    /** get diagonal entry kpp */
+    T kqq = K( gidf2f, gidf2f );
 
     /** compute all2leftright (projection i.e. dip - diq) */
-    temp = AllToLeftRight( gids, gidf2c, gidf2f );
-
+    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp, kqq );
 
     /** parallel median select */
     T  median = hmlp::combinatorics::Select( n / 2, temp, comm );
@@ -456,6 +532,75 @@ struct centersplit
 
 
 }; /** end struct centersplit */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<typename NODE>
+void FindNeighbors( NODE *node, DistanceMetric metric )
+{
+  /** in distributed environment, it has type DistData<STAR, CIDS, T> */
+  auto &NN   = *(node->setup->NN);
+  auto &gids = node->gids;
+
+
+  /** rho+k nearest neighbors */
+  switch ( metric )
+  {
+    case GEOMETRY_DISTANCE:
+    {
+      auto &X = *(node->setup->X);
+      break;
+    }
+    case KERNEL_DISTANCE:
+    {
+      auto &K = *(node->setup->K);
+      auto KIJ = K( gids, gids );
+
+      break;
+    }
+    case ANGLE_DISTANCE:
+    {
+      auto &K = *(node->setup->K);
+      auto KIJ = K( gids, gids );
+
+      break;
+    }
+    default:
+    {
+      exit( 1 );
+    }
+  }
+
+
+  /** merge with the existing neighbor list and remove duplication */
+
+
+
+}; /** end FindNeighbors() */
+
+
+
+template<typename NODE>
+void MergeNeighbors( NODE *node )
+{
+  /** merge with the existing neighbor list and remove duplication */
+};
+
+
+
 
 
 
@@ -2345,10 +2490,12 @@ template<
   bool     CACHE = true, 
   typename TREE, 
   typename T>
-hmlp::Data<T> Evaluate
+hmlp::DistData<RIDS, STAR, T> Evaluate
 ( 
   TREE &tree,
-  hmlp::Data<T> &weights
+  /** weights need to be in [RIDS,STAR] distribution */
+  hmlp::DistData<RIDS, STAR, T> &weights,
+  mpi::Comm comm
 )
 {
   const bool AUTO_DEPENDENCY = true;
@@ -2374,8 +2521,10 @@ hmlp::Data<T> Evaluate
   size_t n    = weights.row();
   size_t nrhs = weights.col();
 
-  /** */
-  hmlp::Data<T> potentials( n, nrhs, 0.0 );
+  /** potentials must be in [RIDS,STAR] distribution */
+  hmlp::DistData<RIDS, STAR, T> potentials( n, nrhs, tree.treelist[ 0 ]->gids, comm );
+  potentials.setvalue( 0.0 );
+
   tree.setup.w = &weights;
   tree.setup.u = &potentials;
 
@@ -2663,8 +2812,8 @@ hmlp::mpitree::Tree<
   beg = omp_get_wtime();
   if ( NN.size() != n * k )
   {
-    NN = rkdt.template AllNearestNeighbor<SORTED>
-         ( n_iter, k, 10, gids, lids, initNN, knntask );
+    //NN = rkdt.template AllNearestNeighbor<SORTED>
+    //     ( n_iter, k, 10, gids, lids, initNN, knntask );
   }
   else
   {
@@ -2756,6 +2905,53 @@ hmlp::mpitree::Tree<
 
 
 
+
+
+
+
+/**
+ *  @brief Here MPI_Allreduce is required.
+ */ 
+template<typename TREE, typename T>
+T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials, mpi::Comm comm )
+{
+  auto &K = *tree.setup.K;
+  auto &w = *tree.setup.w;
+
+  auto  I = std::vector<size_t>( 1, gid );
+  auto &J = tree.treelist[ 0 ]->gids;
+  auto Kab = K( I, J );
+
+  auto loc_exact = potentials;
+  auto glb_exact = potentials;
+
+  xgemm
+  (
+    "N", "N",
+    Kab.row(), w.col(), w.row(),
+    1.0,       Kab.data(),       Kab.row(),
+                 w.data(),         w.row(),
+    0.0, loc_exact.data(), loc_exact.row()
+  );          
+
+  /** Allreduce K( gid, : ) * w( : ) */
+  mpi::Allreduce( 
+      loc_exact.data(), glb_exact.data(), 
+      loc_exact.size(), MPI_SUM, comm );
+
+  auto nrm2 = hmlp_norm( glb_exact.row(),  glb_exact.col(), 
+                         glb_exact.data(), glb_exact.row() ); 
+
+  for ( size_t j = 0; j < potentials.col(); j ++ )
+  {
+    potentials( (size_t)0, j ) -= glb_exact( (size_t)0, j );
+  }
+
+  auto err = hmlp_norm(  potentials.row(), potentials.col(), 
+                        potentials.data(), potentials.row() ); 
+
+  return err / nrm2;
+}; /** end ComputeError() */
 
 
 

@@ -25,8 +25,9 @@
 #include <type_traits>
 #include <cstdint>
 
-#include <hmlp_mpi.hpp>
+#include <mpi/hmlp_mpi.hpp>
 #include <containers/tree.hpp>
+#include <mpi/DistData.hpp>
 
 namespace hmlp
 {
@@ -463,6 +464,41 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       //printf( "end ~Tree() distributed\n" ); fflush( stdout );
     };
 
+
+    /**
+     *  @brief free all tree nodes including local tree nodes,
+     *         distributed tree nodes and let nodes
+     */ 
+    void CleanUp()
+    {
+      /** free all local tree nodes */
+      if ( this->treelist.size() )
+      {
+        for ( size_t i = 0; i < this->treelist.size(); i ++ )
+          if ( this->treelist[ i ] ) delete this->treelist[ i ];
+      }
+      this->treelist.clear();
+
+      /** free all distributed tree nodes */
+      if ( mpitreelists.size() )
+      {
+        for ( size_t i = 0; i < mpitreelists.size() - 1; i ++ )
+          if ( mpitreelists[ i ] ) delete mpitreelists[ i ];
+      }
+      mpitreelists.clear();
+
+      /** free all local essential tree nodes */
+      if ( lettreelist.size() )
+      {
+        for ( size_t i = 0; i < lettreelist.size(); i ++ )
+          if ( lettreelist[ i ] ) delete lettreelist[ i ];
+      }
+      lettreelist.clear();
+
+    }; /** end CleanUp() */
+
+
+
     /** 
      *  @breif allocate distributed tree node
      *
@@ -532,25 +568,77 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       hmlp::mpi::Barrier( comm );
     };
 
-    //template<bool SORTED, typename KNNTASK>
-    //hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
-    //(
-    //  std::size_t n_tree,
-    //  std::size_t k, std::size_t max_depth,
-    //  std::vector<std::size_t> &gids,
-    //  std::vector<std::size_t> &lids,
-    //  std::pair<T, std::size_t> initNN,
-    //  KNNTASK &dummy
-    //)
-    //{
-    //  /** k-by-N */
-    //  hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
 
 
 
-    //  return NN;
+    /** */
+    template<bool SORTED, typename KNNTASK>
+    hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> AllNearestNeighbor
+    (
+      std::size_t n_tree,
+      std::size_t k, 
+      std::size_t max_depth,
+      //std::vector<std::size_t> &gids,
+      //std::vector<std::size_t> &lids,
+      std::pair<T, std::size_t> initNN,
+      KNNTASK &dummy
+    )
+    {
+      /** k-by-N */
+      hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> NN( k, this->n, initNN );
 
-    //}; /** end AllNearestNeighbor() */
+      /** use leaf size = 4 * k  */
+      setup.m = 4 * k;
+      if ( setup.m < 32 ) setup.m = 32;
+
+      /** Clean the treelist */
+      CleanUp();
+
+      /** */
+      TreePartition( this->n );
+
+
+      for ( size_t t = 0; t < n_tree; t ++ )
+      {
+        /** queries computed in CIDS distribution  */
+        hmlp::DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
+            this->treelist[ 0 ]->gids, initNN );
+
+        /** queries computed in CBLK distribution */
+        hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> Q_cblk( k, this->n, initNN );
+
+        /** 
+         *  notice that setup.NN has type Data<std::pair<T, size_t>>,
+         *  but that is fine because DistData inherits Data
+         */
+        setup.NN = &Q_cids;
+
+        /** (TASK) perform rho+k nearest neighbors */
+        //TraverseLeafs<false, false>( dummy );
+
+        /** redistribute from CIDS to CBLK */
+        Q_cblk = Q_cids; 
+
+        /** (LOCAL) write a function to merge Q_cblk with NN */
+        
+        /** Clean the treelist */
+        CleanUp();
+
+        /** overlap with merging */
+        TreePartition( this->n );
+
+        hmlp_run();
+      }
+
+
+
+
+    
+
+
+      return NN;
+
+    }; /** end AllNearestNeighbor() */
 
     
 

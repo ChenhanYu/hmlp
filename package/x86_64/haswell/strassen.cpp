@@ -24,8 +24,8 @@
 /** STRASSEN templates */
 #include <primitives/strassen.hpp>
 
-/** Sandy-bridge micro-kernel */
-#include <rank_k_d8x4.hpp>
+/** Haswell micro-kernel */
+#include <rank_k_d8x6.hpp>
 
 using namespace hmlp::strassen;
 
@@ -51,15 +51,15 @@ void strassen
 	double *C, int ldc
 )
 {
-  rank_k_asm_d8x4 stra_semiringkernel;
-  rank_k_asm_d8x4 stra_microkernel;
+  rank_k_asm_d8x6 stra_semiringkernel;
+  rank_k_asm_d8x6 stra_microkernel;
 
   strassen<
-    104, 4096, 256, 8, 4, 
-    104, 4096,      8, 4, 32,
+    72, 960, 256, 8, 6, 
+    72, 960,      8, 6, 32,
     false,
-    rank_k_asm_d8x4, 
-    rank_k_asm_d8x4,
+    rank_k_asm_d8x6, 
+    rank_k_asm_d8x6,
     double, double, double, double>
 	(
     transA, transB,

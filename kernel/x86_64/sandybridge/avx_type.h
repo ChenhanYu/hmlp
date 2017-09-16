@@ -15,4 +15,4 @@ typedef union
   int d[ 4 ];
 } v4li_t;
 
-#endif // define AVX_TYPE_H
+#endif /** define AVX_TYPE_H */

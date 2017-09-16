@@ -97,7 +97,7 @@ struct conv_relu_pool2x2_int_d8x4
     __asm__ volatile( "prefetcht0 0(%0)    \n\t" : :"r"( c ) );
 
     // Rank-k update segment
-    #include "rank_k_int_d8x4.segment"
+    #include "component/rank_k_int_d8x4.hpp"
 
     // Store back
     if ( aux->pc ) 

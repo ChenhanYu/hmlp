@@ -22,9 +22,9 @@
 /** GSKNN templates */
 #include <primitives/gsknn.hpp>
 
-/** Sandy-bridge micro-kernels */
-#include <rank_k_d8x4.hpp>
-#include <rnn_r_int_d8x4_row.hpp>
+/** Haswell micro-kernels */
+#include <rank_k_d8x6.hpp>
+//#include <rnn_r_int_d8x4_row.hpp>
 
 using namespace hmlp::gsknn;
 
@@ -38,22 +38,25 @@ void gsknn
 {
   const bool USE_STRASSEN = false;
 
-  rank_k_asm_d8x4 semiringkernel;
-  rnn_r_int_d8x4_row microkernel;
-  gsknn<
-    104, 2048, 256, 8, 4, 
-    104, 2048,      8, 4, 32,
-    USE_STRASSEN,
-    rank_k_asm_d8x4,
-    rnn_r_int_d8x4_row,
-    double, double, double, double>
-  (
-    m, n, k, r,
-    A, A2, amap,
-    B, B2, bmap,
-    D,     I,
-    semiringkernel, microkernel
-  );
+  rank_k_asm_d8x6 semiringkernel;
+  //rnn_r_int_d8x4_row microkernel;
+  //gsknn<
+  //  104, 2048, 256, 8, 4, 
+  //  104, 2048,      8, 4, 32,
+  //  USE_STRASSEN,
+  //  rank_k_asm_d8x4,
+  //  rnn_r_int_d8x4_row,
+  //  double, double, double, double>
+  //(
+  //  m, n, k, r,
+  //  A, A2, amap,
+  //  B, B2, bmap,
+  //  D,     I,
+  //  semiringkernel, microkernel
+  //);
+
+  printf( "not implemented yet\n" );
+  exit( 1 );
 };
 
 void gsknn
