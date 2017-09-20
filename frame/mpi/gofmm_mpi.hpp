@@ -35,6 +35,173 @@ namespace mpigofmm
 {
 
 
+/**
+ *  @biref This class does not have to inherit DistData, but it have to 
+ *         inherit DistVirtualMatrix<T>
+ *
+ */ 
+template<typename T>
+class DistSPDMatrix : public hmlp::DistData<STAR, CBLK, T>
+{
+  public:
+
+    DistSPDMatrix( size_t m, size_t n, mpi::Comm comm ) : 
+      DistData<STAR, CBLK, T>( m, n, comm )
+    {
+    };
+
+
+    /** ESSENTIAL: this is an abstract function  */
+    virtual T operator()( size_t i, size_t j, hmlp::mpi::Comm comm )
+    {
+      T Kij = 0;
+
+      /** MPI */
+      int size, rank;
+      hmlp::mpi::Comm_size( comm, &size );
+      hmlp::mpi::Comm_rank( comm, &rank );
+
+      std::vector<std::vector<size_t>> sendrids( size );
+      std::vector<std::vector<size_t>> recvrids( size );
+      std::vector<std::vector<size_t>> sendcids( size );
+      std::vector<std::vector<size_t>> recvcids( size );
+
+      /** request Kij from rank ( j % size ) */
+      sendrids[ j % size ].push_back( i );    
+      sendcids[ j % size ].push_back( j );    
+
+      /** exchange ids */
+      mpi::AlltoallVector( sendrids, recvrids, comm );
+      mpi::AlltoallVector( sendcids, recvcids, comm );
+
+      /** allocate buffer for data */
+      std::vector<std::vector<T>> senddata( size );
+      std::vector<std::vector<T>> recvdata( size );
+
+      /** fetch subrows */
+      for ( size_t p = 0; p < size; p ++ )
+      {
+        assert( recvrids[ p ].size() == recvcids[ p ].size() );
+        for ( size_t j = 0; j < recvcids[ p ].size(); j ++ )
+        {
+          size_t rid = recvrids[ p ][ j ];
+          size_t cid = recvcids[ p ][ j ];
+          senddata[ p ].push_back( (*this)( rid, cid ) );
+        }
+      }
+
+      /** exchange data */
+      mpi::AlltoallVector( senddata, recvdata, comm );
+
+      for ( size_t p = 0; p < size; p ++ )
+      {
+        assert( recvdata[ p ].size() <= 1 );
+        if ( recvdata[ p ] ) Kij = recvdata[ p ][ 0 ];
+      }
+
+      return Kij;
+    };
+
+
+    /** ESSENTIAL: return a submatrix */
+    virtual hmlp::Data<T> operator()
+		( std::vector<size_t> &imap, std::vector<size_t> &jmap, hmlp::mpi::Comm comm )
+    {
+      hmlp::Data<T> KIJ( imap.size(), jmap.size() );
+
+      /** MPI */
+      int size, rank;
+      hmlp::mpi::Comm_size( comm, &size );
+      hmlp::mpi::Comm_rank( comm, &rank );
+
+
+
+      std::vector<std::vector<size_t>> jmapcids( size );
+
+      std::vector<std::vector<size_t>> sendrids( size );
+      std::vector<std::vector<size_t>> recvrids( size );
+      std::vector<std::vector<size_t>> sendcids( size );
+      std::vector<std::vector<size_t>> recvcids( size );
+
+      /** request KIJ from rank ( j % size ) */
+      for ( size_t j = 0; j < jmap.size(); j ++ )
+      {
+        size_t cid = jmap[ j ];
+        sendcids[ cid % size ].push_back( cid );
+        jmapcids[ cid % size ].push_back(   j );
+      }
+
+      for ( size_t p = 0; p < size; p ++ )
+      {
+        if ( sendcids[ p ].size() ) sendrids[ p ] = imap;
+      }
+
+      /** exchange ids */
+      mpi::AlltoallVector( sendrids, recvrids, comm );
+      mpi::AlltoallVector( sendcids, recvcids, comm );
+
+      /** allocate buffer for data */
+      std::vector<hmlp::Data<T>> senddata( size );
+      std::vector<hmlp::Data<T>> recvdata( size );
+
+      /** fetch submatrix */
+      for ( size_t p = 0; p < size; p ++ )
+      {
+        if ( recvcids[ p ].size() && recvrids[ p ].size() )
+        {
+          senddata[ p ] = (*this)( recvrids[ p ], recvcids[ p ] );
+        }
+      }
+
+      /** exchange data */
+      mpi::AlltoallVector( senddata, recvdata, comm );
+
+      /** merging data */
+      for ( size_t p = 0; j < size; p ++ )
+      {
+        assert( recvdata[ p ].size() == imap.size() * recvcids[ p ].size() );
+        recvdata[ p ].resize( imap.size(), recvcids[ p ].size() );
+        for ( size_t j = 0; j < recvcids[ p ]; i ++ )
+        {
+          for ( size_t i = 0; i < imap.size(); i ++ )
+          {
+            KIJ( i, jmapcids[ p ][ j ] ) = recvdata[ p ]( i, j );
+          }
+        }
+      };
+
+      return KIJ;
+    };
+
+
+
+
+
+    virtual hmlp::Data<T> operator()
+		( std::vector<int> &imap, std::vector<int> &jmap, hmlp::mpi::Comm comm )
+    {
+      printf( "operator() not implemented yet\n" );
+      exit( 1 );
+    };
+
+
+
+    /** overload operator */
+
+
+  private:
+
+}; /** end class DistSPDMatrix */
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -652,13 +819,12 @@ void DistUpdateWeights( MPINODE *node )
       auto &w_rskel = child_sibling->data.w_skel;
      
       /** recv child->w_skel from rank / 2 */
-      //hmlp::mpi::RecvVector( w_rskel, size / 2, 0, comm, &status );    
       hmlp::mpi::ExchangeVector(
             w_lskel, size / 2, 0, 
             w_rskel, size / 2, 0, comm, &status );
 
-      size_t sl   = w_lskel.size() / nrhs;
-      size_t sr   = w_rskel.size() / nrhs;
+      size_t sl = w_lskel.size() / nrhs;
+      size_t sr = w_rskel.size() / nrhs;
 
       /** resize w_rskel to properly set m and n */
       w_rskel.resize( sr, nrhs );
@@ -678,7 +844,7 @@ void DistUpdateWeights( MPINODE *node )
       /** w_skel = proj( l ) * w_lskel */
       xgemm
       (
-        "N", "N",
+        "No-transpose", "No-transpose",
         w_skel.row(), nrhs, sl,
         1.0,    proj.data(),    proj.row(),
              w_lskel.data(),            sl,
@@ -688,7 +854,7 @@ void DistUpdateWeights( MPINODE *node )
       /** w_skel += proj( r ) * w_rskel */
       xgemm
       (
-        "N", "N",
+        "No-transpose", "No-transpose",
         w_skel.row(), nrhs, sr,
         1.0,    proj.data() + proj.row() * sl, proj.row(),
              w_rskel.data(), sr,
@@ -696,6 +862,7 @@ void DistUpdateWeights( MPINODE *node )
       );
     }
 
+    /** the rank that holds the skeleton weight of the right child */
     if ( rank == size / 2 )
     {
       auto &w_lskel = child_sibling->data.w_skel;
@@ -720,20 +887,19 @@ void DistUpdateWeights( MPINODE *node )
 
 
 /**
- *  @brief Notice that NODE here can be either Tree::Node
- *         or MPITree::Node.
+ *  @brief Notice that NODE here is MPITree::Node.
  */ 
-template<typename MPINODE>
+template<typename NODE>
 class DistUpdateWeightsTask : public hmlp::Task
 {
   public:
 
-    MPINODE *arg;
+    NODE *arg;
 
-    void Set( MPINODE *user_arg )
+    void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "n2s" );
+      name = std::string( "DistN2S" );
       {
         //label = std::to_string( arg->treelist_id );
         std::ostringstream ss;
@@ -755,9 +921,6 @@ class DistUpdateWeightsTask : public hmlp::Task
       priority = true;
     };
 
-    //void Prefetch( Worker* user_worker )
-    //{
-    //};
 
 
     void DependencyAnalysis()
@@ -789,7 +952,9 @@ class DistUpdateWeightsTask : public hmlp::Task
 
       //printf( "rank %d level %lu DistUpdateWeights\n", 
       //    global_rank, arg->l ); fflush( stdout );
+
       hmlp::mpigofmm::DistUpdateWeights( arg );
+
       //printf( "rank %d level %lu DistUpdateWeights end\n", 
       //    global_rank, arg->l ); fflush( stdout );
     };
@@ -813,7 +978,7 @@ class DistSkeletonsToSkeletonsTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "idsts2s" );
+      name = std::string( "DistS2S" );
       {
         //label = std::to_string( arg->treelist_id );
         std::ostringstream ss;
@@ -855,17 +1020,32 @@ class DistSkeletonsToSkeletonsTask : public hmlp::Task
       auto *FarNodes = &arg->FarNodes;
       if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
 
+
+      /** only write to this node while there is Far interaction */
       if ( FarNodes->size() )
-      {
         arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
-        {
-          (*it)->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        }
+
+      /** depends on all the far interactions, waiting for skeleton weight */
+      for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+      {
+        (*it)->DependencyAnalysis( hmlp::ReadWriteType::R, this );
       }
+
       this->TryEnqueue();
     };
 
+
+
+    /**
+     *  @brief Notice that S2S depends on all Far interactions, which
+     *         may include local tree nodes or let nodes. 
+     *         For HSS case, the only Far interaction is the sibling.
+     *         Skeleton weight of the sibling will always be exchanged
+     *         by default in N2S. Thus, currently we do not need 
+     *         a distributed S2S, because the skeleton weight is already
+     *         in place.
+     *
+     */ 
     void Execute( Worker* user_worker )
     {
       auto *node = arg;
@@ -880,7 +1060,7 @@ class DistSkeletonsToSkeletonsTask : public hmlp::Task
       }
       else
       {
-        /** only 0th rank will execute this task */
+        /** only 0th rank (owner) will execute this task */
         if ( rank == 0 )
         {
           hmlp::gofmm::SkeletonsToSkeletons<NNPRUNE>( node );
@@ -893,7 +1073,7 @@ class DistSkeletonsToSkeletonsTask : public hmlp::Task
 
 
 /**
- *
+ *  @brief
  */ 
 template<bool NNPRUNE, typename NODE, typename T>
 void DistSkeletonsToNodes( NODE *node )
@@ -920,10 +1100,12 @@ void DistSkeletonsToNodes( NODE *node )
 
   if ( size < 2 )
   {
+    /** call the shared-memory implementation */
     hmlp::gofmm::SkeletonsToNodes<NNPRUNE, NODE, T>( node );
   }
   else
   {
+    /** early return */
     if ( !node->parent || !node->data.isskel ) return;
 
     /** get the child node  */
@@ -968,6 +1150,7 @@ void DistSkeletonsToNodes( NODE *node )
       hmlp::mpi::SendVector( u_rskel, size / 2, 0, comm );
     }
 
+    /**  */
     if ( rank == size / 2 )
     {
       hmlp::Data<T> u_rskel;
@@ -997,7 +1180,7 @@ class DistSkeletonsToNodesTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "s2n" );
+      name = std::string( "DistS2N" );
       {
         //label = std::to_string( arg->treelist_id );
         std::ostringstream ss;
@@ -1110,7 +1293,7 @@ class DistLeavesToLeavesTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "distl2l" );
+      name = std::string( "DistL2L" );
       {
         //label = std::to_string( arg->treelist_id );
         std::ostringstream ss;
@@ -2198,7 +2381,7 @@ class ParallelGetSkeletonMatrixTask : public hmlp::Task
  *  @brief Skeletonization with interpolative decomposition.
  */ 
 template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
-void ParallelSkeletonize( NODE *node )
+void DistSkeletonize( NODE *node )
 {
   /** early return if we do not need to skeletonize */
   if ( !node->parent ) return;
@@ -2263,7 +2446,7 @@ void ParallelSkeletonize( NODE *node )
     skels[ i ] = candidate_cols[ skels[ i ] ];
   }
 
-}; /** end ParallelSkeletonize() */
+}; /** end DistSkeletonize() */
 
 
 
@@ -2279,7 +2462,7 @@ class SkeletonizeTask : public hmlp::Task
     {
       std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "sk" );
+      name = std::string( "Skel" );
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
@@ -2325,7 +2508,9 @@ class SkeletonizeTask : public hmlp::Task
     void Execute( Worker* user_worker )
     {
       //printf( "%d Par-Skel beg\n", global_rank );
-      ParallelSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+
+      DistSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+
       //printf( "%d Par-Skel end\n", global_rank );
     };
 
@@ -2338,7 +2523,7 @@ class SkeletonizeTask : public hmlp::Task
  *
  */ 
 template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
-class ParallelSkeletonizeTask : public hmlp::Task
+class DistSkeletonizeTask : public hmlp::Task
 {
   public:
 
@@ -2348,7 +2533,7 @@ class ParallelSkeletonizeTask : public hmlp::Task
     {
       std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "par-sk" );
+      name = std::string( "DistSkel" );
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
@@ -2399,12 +2584,12 @@ class ParallelSkeletonizeTask : public hmlp::Task
       if ( arg->GetCommRank() == 0 )
       {
         //printf( "%d Par-Skel beg\n", global_rank );
-        ParallelSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+        DistSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
         //printf( "%d Par-Skel end\n", global_rank );
       }
     };
 
-}; /** end class ParallelSkeletonTask */
+}; /** end class DistSkeletonTask */
 
 
 
@@ -2690,7 +2875,7 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
 
 
 /**
- *  @brielf template of the compress routine
+ *  @brief template of the compress routine
  */ 
 template<
   bool        ADAPTIVE, 
@@ -2736,6 +2921,7 @@ hmlp::mpitree::Tree<
   using LETNODE            = hmlp::mpitree::LetNode<SETUP, N_CHILDREN, DATA, T>;
   using TREE               = hmlp::mpitree::Tree<SETUP, DATA, N_CHILDREN, T>;
 
+  /** instantiate tasks with NODE and MPINODE */
   using NULLTASK           = hmlp::NULLTask<NODE>;
   using MPINULLTASK        = hmlp::NULLTask<MPINODE>;
 
@@ -2743,7 +2929,7 @@ hmlp::mpitree::Tree<
   using MPIGETMATRIXTASK   = hmlp::mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE>;
 
   using SKELTASK           = hmlp::mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
-  using MPISKELTASK        = hmlp::mpigofmm::ParallelSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T>;
+  using MPISKELTASK        = hmlp::mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T>;
 
   using PROJTASK           = hmlp::gofmm::InterpolateTask<NODE, T>;
   using MPIPROJTASK        = hmlp::mpigofmm::InterpolateTask<MPINODE, T>;

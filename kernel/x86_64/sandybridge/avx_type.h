@@ -1,6 +1,11 @@
 #ifndef AVX_TYPE_H
 #define AVX_TYPE_H
 
+
+/** AVX support */
+#include <immintrin.h>
+#include <hmlp_internal.hpp>
+
 typedef union 
 {
   __m256d v;

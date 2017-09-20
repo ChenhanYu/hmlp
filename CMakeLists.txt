@@ -228,9 +228,12 @@ endif()
 # (OPTIONAL) MPI configurations
 # ---------------------------
 if ($ENV{HMLP_USE_MPI} MATCHES "true")
+  message("MPI is enable") 
   find_package(MPI REQUIRED)
   include_directories(${MPI_CXX_INCLUDE_PATH})
-  set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DHMLP_USE_MPI")
+  set(HMLP_CFLAGS          "${HMLP_CFLAGS} -DHMLP_USE_MPI")
+else ()
+  message("MPI is disable") 
 endif ()
 
 

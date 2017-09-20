@@ -53,7 +53,7 @@
 
 #include <containers/tree.hpp>
 #include <containers/data.hpp>
-#include <gofmm/hfamily.hpp>
+#include <gofmm/igofmm.hpp>
 
 /** gpu related */
 #ifdef HMLP_USE_CUDA

@@ -877,7 +877,7 @@ class Tree
 
 
     /**
-     *
+     *  @brief parition points using a binary tree where the root is given
      *
      */
     void TreePartition( NODE *root )

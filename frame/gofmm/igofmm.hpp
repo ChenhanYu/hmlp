@@ -138,6 +138,19 @@ class Factor
           isleft, isleaf, isroot, n, nl, nr, s, sl, sr );
     };
 
+    bool DoULVFactorization()
+    {
+      return do_ulv_factorization;
+    };
+
+    bool IsSymmetric()
+    {
+      return is_symmetric;
+    };
+
+
+
+
 
     void CheckCondition()
     {

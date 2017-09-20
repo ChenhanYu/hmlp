@@ -45,7 +45,7 @@
 #endif
 
 /** GOFMM templates */
-#include <mpi/mpigofmm.hpp>
+#include <mpi/gofmm_mpi.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
 #include <containers/KernelMatrix.hpp>
 /** use an implicit matrix */

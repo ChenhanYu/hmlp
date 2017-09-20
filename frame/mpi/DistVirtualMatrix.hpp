@@ -48,7 +48,7 @@ template<typename T, class Allocator = std::allocator<T> >
  *         be virtual. To inherit DistVirtualMatrix, you "must" implement
  *         the evaluation operator. Otherwise, the code won't compile.
  */ 
-class VirtualMatrix
+class DistVirtualMatrix
 {
   public:
 
@@ -71,42 +71,33 @@ class VirtualMatrix
 
     /** ESSENTIAL: return a submatrix */
     virtual hmlp::Data<T> operator()
-		  ( std::vector<size_t> &imap, std::vector<size_t> &jmap, hmlp::mpi::Comm comm )
-    {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-      #pragma omp parallel for
-      for ( size_t j = 0; j < jmap.size(); j ++ )
-        for ( size_t i = 0; i < imap.size(); i ++ )
-          submatrix[ j * imap.size() + i ] = 
-						(*this)( imap[ i ], jmap[ j ], comm );
-      return submatrix;
-		};
+		  ( std::vector<size_t> &imap, std::vector<size_t> &jmap, hmlp::mpi::Comm comm ) = 0;
 
     virtual hmlp::Data<T> operator()
-		  ( std::vector<int> &imap, std::vector<int> &jmap, hmlp::mpi::Comm comm )
-    {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-      #pragma omp parallel for
-      for ( size_t j = 0; j < jmap.size(); j ++ )
-        for ( size_t i = 0; i < imap.size(); i ++ )
-          submatrix[ j * imap.size() + i ] = 
-						(*this)( imap[ i ], jmap[ j ], comm );
-      return submatrix;
-		};
+		  ( std::vector<int> &imap, std::vector<int> &jmap, hmlp::mpi::Comm comm ) = 0;
+//    {
+//      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+//      #pragma omp parallel for
+//      for ( size_t j = 0; j < jmap.size(); j ++ )
+//        for ( size_t i = 0; i < imap.size(); i ++ )
+//          submatrix[ j * imap.size() + i ] = 
+//						(*this)( imap[ i ], jmap[ j ], comm );
+//      return submatrix;
+//		};
 
-    virtual std::pair<T, size_t> ImportantSample( size_t j, hmlp::mpi::Comm comm )
-    {
-      size_t i = std::rand() % m;
-      std::pair<T, size_t> sample( (*this)( i, j, comm ), i );
-      return sample; 
-    }; /** end ImportantSample() */
+    //virtual std::pair<T, size_t> ImportantSample( size_t j, hmlp::mpi::Comm comm )
+    //{
+    //  size_t i = std::rand() % m;
+    //  std::pair<T, size_t> sample( (*this)( i, j, comm ), i );
+    //  return sample; 
+    //}; /** end ImportantSample() */
 
-    virtual std::pair<T, int> ImportantSample( int j, hmlp::mpi::Comm comm )
-    {
-      int i = std::rand() % m;
-      std::pair<T, int> sample( (*this)( i, j, comm ), i );
-      return sample; 
-    }; /** end ImportantSample() */
+    //virtual std::pair<T, int> ImportantSample( int j, hmlp::mpi::Comm comm )
+    //{
+    //  int i = std::rand() % m;
+    //  std::pair<T, int> sample( (*this)( i, j, comm ), i );
+    //  return sample; 
+    //}; /** end ImportantSample() */
 
 
 

@@ -436,7 +436,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     /** distribued tree (a list of tree nodes) */
     std::vector<MPINODE*> mpitreelists;
 
-    /** local essential tree nodes] (this is not thread-safe) */
+    /** local essential tree nodes (this is not thread-safe) */
     std::map<size_t, LETNODE*> lettreelist;
 
     /** inherit constructor */
@@ -644,7 +644,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 
     /**
-     *  @brief partition 
+     *  @brief partition n points using a distributed binary tree
      *
      */ 
     void TreePartition( size_t n ) 
@@ -656,10 +656,10 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       this->n = n;
       this->m = this->setup.m;
 
-      /** local problem size */
+      /** local problem size (assuming Round-Robin) */
       num_points_owned = ( n - 1 ) / size + 1;
 
-      /** initial gids distribution */
+      /** initial gids distribution (asssuming Round-Robin) */
       std::vector<size_t> gids( num_points_owned, 0 );
       for ( size_t i = 0; i < num_points_owned; i ++ )
         gids[ i ] = rank * num_points_owned + i;
