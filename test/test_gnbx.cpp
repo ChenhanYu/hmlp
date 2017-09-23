@@ -34,8 +34,8 @@
 void gnbx
 (
 	int m, int n, int k,
-	double *A, int lda,
-  double *B, int ldb,
+	float  *A, int lda,
+  float  *B, int ldb,
   double *C, int ldc
 );
 
@@ -97,10 +97,11 @@ void compute_error
  * @param  k       Data point dimension
  * --------------------------------------------------------------------------
  */
-template<typename T>
-void test_gkmx( int m, int n, int k ) 
+template<typename TLOWPRECISION, typename T>
+void test_gnbx( int m, int n, int k ) 
 {
   T *A, *B, *C, *C_ref;
+  TLOWPRECISION *A_f, *B_f;
   double ref_beg, ref_time, gkmx_beg, gkmx_time;
   double flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 0.0 );
 
@@ -111,11 +112,15 @@ void test_gkmx( int m, int n, int k )
   // Memory allocation for all common buffers
   // ------------------------------------------------------------------------
 #ifdef HMLP_MIC_AVX512
+  A_f   = (TLOWPRECISION*)hbw_malloc( sizeof(TLOWPRECISION) * m * k );
+  B_f   = (TLOWPRECISION*)hbw_malloc( sizeof(TLOWPRECISION) * k * n );
   A     = (T*)hbw_malloc( sizeof(T) * m * k );
   B     = (T*)hbw_malloc( sizeof(T) * k * n );
   C     = (T*)hbw_malloc( sizeof(T) * m * n );
   C_ref = (T*)hbw_malloc( sizeof(T) * m * n );
 #else
+  A_f   = (TLOWPRECISION*)malloc( sizeof(TLOWPRECISION) * m * k );
+  B_f   = (TLOWPRECISION*)malloc( sizeof(TLOWPRECISION) * k * n );
   A     = (T*)malloc( sizeof(T) * m * k );
   B     = (T*)malloc( sizeof(T) * k * n );
   //C     = (T*)malloc( sizeof(T) * m * n );
@@ -132,7 +137,8 @@ void test_gkmx( int m, int n, int k )
   {
     for ( auto p = 0; p < k; p ++ ) 
     {
-      A[ i * k + p ] = (T)( rand() % 100 ) / 1000.0;	
+      A_f[ i * k + p ] = (T)( rand() % 100 ) / 1000.0;
+      A[ i * k + p ] = A_f[ i * k + p ];
     }
   }
 
@@ -140,7 +146,8 @@ void test_gkmx( int m, int n, int k )
   {
     for ( auto p = 0; p < k; p ++ ) 
     {
-      B[ j * k + p ] = (T)( rand() % 100 ) / 1000.0;	
+      B_f[ j * k + p ] = (T)( rand() % 100 ) / 1000.0;	
+      B[ j * k + p ] = B_f[ j * k + p ];
     }
   }
   // ------------------------------------------------------------------------
@@ -153,14 +160,14 @@ void test_gkmx( int m, int n, int k )
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
     //gkmx_sfma
-    gkmx_dfma
+    //gkmx_dfma
     //gkmx_dfma_simple
-    //gnbx
+    gnbx
     (
-      HMLP_OP_N, HMLP_OP_N,
+      //HMLP_OP_N, HMLP_OP_N,
       m, n, k,
-      A, m,
-      B, k,
+      A_f, m,
+      B_f, k,
       C, m 
     );
   }
@@ -194,148 +201,6 @@ void test_gkmx( int m, int n, int k )
       m, n, k, flops / gkmx_time, flops / ref_time );
 
 
-  // ------------------------------------------------------------------------
-  // Call my implementation (TN)
-  // ------------------------------------------------------------------------
-  for ( auto iter = -1; iter < n_iter; iter ++ ) 
-  {
-    if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    //gkmx_sfma
-    gkmx_dfma
-    //gkmx_dfma_simple
-    (
-      HMLP_OP_T, HMLP_OP_N,
-      m, n, k,
-      A, k,
-      B, k,
-      C, m 
-    );
-  }
-  gkmx_time = omp_get_wtime() - gkmx_beg;
-  // ------------------------------------------------------------------------
-
-  // ------------------------------------------------------------------------
-  // Call the reference function (TN)
-  // ------------------------------------------------------------------------
-  for ( auto iter = -1; iter < n_iter; iter ++ ) 
-  {
-    if ( iter == 0 ) ref_beg = omp_get_wtime();
-    hmlp::xgemm
-    ( 
-      "T", "N", 
-      m, n, k, 
-      1.0, A,     k, 
-           B,     k, 
-      0.0, C_ref, m 
-    );
-  }
-  ref_time = omp_get_wtime() - ref_beg;
-  // ------------------------------------------------------------------------
-
-  ref_time  /= n_iter;
-  gkmx_time /= n_iter;
-
-  compute_error( m, n, C, m, C_ref, m );
-
-  printf( "TN %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
-      m, n, k, flops / gkmx_time, flops / ref_time );
-
-
-
-  // ------------------------------------------------------------------------
-  // Call my implementation (TT)
-  // ------------------------------------------------------------------------
-  for ( auto iter = -1; iter < n_iter; iter ++ ) 
-  {
-    if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    //gkmx_sfma
-    gkmx_dfma
-    //gkmx_dfma_simple
-    (
-      HMLP_OP_T, HMLP_OP_T,
-      m, n, k,
-      A, k,
-      B, n,
-      C, m 
-    );
-  }
-  gkmx_time = omp_get_wtime() - gkmx_beg;
-  // ------------------------------------------------------------------------
-
-  // ------------------------------------------------------------------------
-  // Call the reference function (TT)
-  // ------------------------------------------------------------------------
-  for ( auto iter = -1; iter < n_iter; iter ++ ) 
-  {
-    if ( iter == 0 ) ref_beg = omp_get_wtime();
-    hmlp::xgemm
-    ( 
-      "T", "T", 
-      m, n, k, 
-      1.0, A,     k, 
-           B,     n, 
-      0.0, C_ref, m 
-    );
-  }
-  ref_time = omp_get_wtime() - ref_beg;
-  // ------------------------------------------------------------------------
-
-  ref_time  /= n_iter;
-  gkmx_time /= n_iter;
-
-  compute_error( m, n, C, m, C_ref, m );
-
-  printf( "TT %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
-      m, n, k, flops / gkmx_time, flops / ref_time );
-
-
-
-  // ------------------------------------------------------------------------
-  // Call my implementation (NT)
-  // ------------------------------------------------------------------------
-  for ( auto iter = -1; iter < n_iter; iter ++ ) 
-  {
-    if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    //gkmx_sfma
-    gkmx_dfma
-    //gkmx_dfma_simple
-    (
-      HMLP_OP_N, HMLP_OP_T,
-      m, n, k,
-      A, m,
-      B, n,
-      C, m 
-    );
-  }
-  gkmx_time = omp_get_wtime() - gkmx_beg;
-  // ------------------------------------------------------------------------
-
-  // ------------------------------------------------------------------------
-  // Call the reference function (NT)
-  // ------------------------------------------------------------------------
-  for ( auto iter = -1; iter < n_iter; iter ++ ) 
-  {
-    if ( iter == 0 ) ref_beg = omp_get_wtime();
-    hmlp::xgemm
-    ( 
-      "N", "T", 
-      m, n, k, 
-      1.0, A,     m, 
-           B,     n, 
-      0.0, C_ref, m 
-    );
-  }
-  ref_time = omp_get_wtime() - ref_beg;
-  // ------------------------------------------------------------------------
-
-  ref_time  /= n_iter;
-  gkmx_time /= n_iter;
-
-  compute_error( m, n, C, m, C_ref, m );
-
-  printf( "NT %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
-      m, n, k, flops / gkmx_time, flops / ref_time );
-
 #ifdef HMLP_MIC_AVX512
   hbw_free( A );
   hbw_free( B );
@@ -362,7 +227,7 @@ int main( int argc, char *argv[] )
   hmlp_init();
 
   //test_gkmx<float>( m, n, k );
-  test_gkmx<double>( m, n, k );
+  test_gnbx<float, double>( m, n, k );
 
   hmlp_finalize();
 
