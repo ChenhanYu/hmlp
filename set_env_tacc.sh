@@ -100,7 +100,7 @@ fi
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 
 ## Distributed environment poptions (if true, compile with MPI)
-export HMLP_USE_MPI=false
+export HMLP_USE_MPI=true
 
 ## GPU compiler options (if true, compile the gpu library as well).
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it).

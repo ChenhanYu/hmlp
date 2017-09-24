@@ -48,33 +48,40 @@ template<typename T, class Allocator = std::allocator<T> >
  *         be virtual. To inherit DistVirtualMatrix, you "must" implement
  *         the evaluation operator. Otherwise, the code won't compile.
  */ 
-class DistVirtualMatrix
+class DistVirtualMatrix : public mpi::MPIObject
 {
   public:
 
-		DistVirtualMatrix() {};
+    DistVirtualMatrix() {};
 
-		DistVirtualMatrix( std::size_t m, std::size_t n )
-		{
-			this->m = m;
-			this->n = n;
-		};
+    DistVirtualMatrix( size_t m, size_t n, mpi::Comm comm )
+      : mpi::MPIObject( comm )
+    {
+      this->m = m;
+      this->n = n;
+    };
 
     /** ESSENTIAL: return number of coumns */
-    virtual std::size_t row() { return m; };
+    virtual size_t row() 
+    { 
+      return m; 
+    };
 
     /** ESSENTIAL: return number of rows */
-    virtual std::size_t col() { return n; };
+    virtual size_t col() 
+    { 
+      return n; 
+    };
 
     /** ESSENTIAL: this is an abstract function  */
-    virtual T operator()( std::size_t i, std::size_t j, hmlp::mpi::Comm comm ) = 0; 
+    virtual T operator()( size_t i, size_t j ) = 0; 
 
     /** ESSENTIAL: return a submatrix */
     virtual hmlp::Data<T> operator()
-		  ( std::vector<size_t> &imap, std::vector<size_t> &jmap, hmlp::mpi::Comm comm ) = 0;
+    ( 
+      std::vector<size_t> &I, std::vector<size_t> &J 
+    ) = 0;
 
-    virtual hmlp::Data<T> operator()
-		  ( std::vector<int> &imap, std::vector<int> &jmap, hmlp::mpi::Comm comm ) = 0;
 //    {
 //      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
 //      #pragma omp parallel for
@@ -101,11 +108,12 @@ class DistVirtualMatrix
 
 
 
-	private:
+  private:
 
-		std::size_t m;
+    size_t m = 0;
 
-    std::size_t n;
+    size_t n = 0;
+
 
 }; /** end class DistVirtualMatrix */
 

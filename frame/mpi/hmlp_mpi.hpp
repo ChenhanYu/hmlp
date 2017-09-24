@@ -64,11 +64,14 @@ typedef int MPI_Op;
 
 #endif
 
-
-#include <type_traits>
-#include <cstdint>
+#include <stdlib.h>
 #include <stdint.h>
 #include <limits.h>
+#include <type_traits>
+#include <cstdint>
+#include <cassert>
+#include <vector>
+
 #if SIZE_MAX == UCHAR_MAX
 #define HMLP_MPI_SIZE_T MPI_UNSIGNED_CHAR
 #elif SIZE_MAX == USHRT_MAX
@@ -83,9 +86,12 @@ typedef int MPI_Op;
 #error "what is happening here?"
 #endif
 
-#include <hmlp_runtime.hpp>
+//#include <hmlp_runtime.hpp>
 
 
+
+
+//#include <containers/data.hpp>
 
 
 namespace hmlp
@@ -161,6 +167,53 @@ int Alltoall(
 int Alltoallv( 
     void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype, 
     void *recvbuf, int *recvcounts, int *rdispls, Datatype recvtype, Comm comm );
+
+
+/** 
+ *  HMLP MPI extension
+ */ 
+
+class MPIObject
+{
+  public:
+
+    MPIObject( mpi::Comm comm )
+    {
+      this->comm = comm;
+    };
+
+    mpi::Comm GetComm()
+    {
+      return comm;
+    }
+
+    int Comm_size()
+    {
+      int size;
+      mpi::Comm_size( comm, &size );
+      return size;
+    };
+
+    int Comm_rank()
+    {
+      int rank;
+      mpi::Comm_rank( comm, &rank );
+      return rank;
+    };
+
+    int Barrier()
+    {
+      return mpi::Barrier( comm );
+    };
+
+
+  private:
+
+    mpi::Comm comm = MPI_COMM_WORLD;
+
+}; /** end class MPIObject */
+
+
 
 
 /**
@@ -360,6 +413,7 @@ int AlltoallVector(
   Comm_rank( comm, &rank );
 
   assert( sendvector.size() == size );
+  assert( recvvector.size() == size );
 
   std::vector<T> sendbuf;
   std::vector<T> recvbuf;
@@ -369,12 +423,13 @@ int AlltoallVector(
   std::vector<int> rdispls( size + 1, 0 );
 
   //printf( "rank %d ", rank );
-  for ( size_t j = 0; j < size; j ++ )
+  for ( size_t p = 0; p < size; p ++ )
   {
-    sendcounts[ j ] = sendvector[ j ].size();
-    sdispls[ j + 1 ] = sdispls[ j ] + sendcounts[ j ];
+    sendcounts[ p ] = sendvector[ p ].size();
+    sdispls[ p + 1 ] = sdispls[ p ] + sendcounts[ p ];
     sendbuf.insert( sendbuf.end(), 
-        sendvector[ j ].begin(), sendvector[ j ].end() );
+        sendvector[ p ].begin(), 
+        sendvector[ p ].end() );
     //printf( "%d ", sendcounts[ j ] );
   }
   //printf( "\n" );
@@ -384,9 +439,7 @@ int AlltoallVector(
   //Barrier( comm );
 
   /** exchange sendcount */
-  Alltoall(
-      sendcounts.data(), 1, 
-      recvcounts.data(), 1, comm );
+  Alltoall( sendcounts.data(), 1, recvcounts.data(), 1, comm );
 
 
   //printf( "after Alltoall\n" ); fflush( stdout );
@@ -394,10 +447,10 @@ int AlltoallVector(
 
   //printf( "rank %d ", rank );
   size_t total_recvcount = 0;
-  for ( size_t j = 0; j < size; j ++ )
+  for ( size_t p = 0; p < size; p ++ )
   {
-    rdispls[ j + 1 ] = rdispls[ j ] + recvcounts[ j ];
-    total_recvcount += recvcounts[ j ];
+    rdispls[ p + 1 ] = rdispls[ p ] + recvcounts[ p ];
+    total_recvcount += recvcounts[ p ];
     //printf( "%d ", recvcounts[ j ] );
   }
   //printf( "\n" );
@@ -420,17 +473,74 @@ int AlltoallVector(
 
 
   recvvector.resize( size );
-  for ( size_t j = 0; j < size; j ++ )
+  for ( size_t p = 0; p < size; p ++ )
   {
-    recvvector[ j ].insert( 
-        recvvector[ j ].end(), 
-        recvbuf.begin() + rdispls[ j ], 
-        recvbuf.begin() + rdispls[ j + 1 ] );
+    recvvector[ p ].insert( recvvector[ p ].end(), 
+        recvbuf.begin() + rdispls[ p ], 
+        recvbuf.begin() + rdispls[ p + 1 ] );
   }
 
   return 0;
 
-}; /** end All2allVector() */
+}; /** end AlltoallVector() */
+
+
+
+/**
+ *  This interface supports hmlp::Data. [ m, n ] will be set
+ *  after the routine.
+ *
+ */ 
+//template<typename T>
+//int AlltoallVector(
+//    std::vector<hmlp::Data<T>> &sendvector, 
+//    std::vector<hmlp::Data<T>> &recvvector, Comm comm )
+//{
+//  int size = 0;
+//  int rank = 0;
+//  Comm_size( comm, &size );
+//  Comm_rank( comm, &rank );
+//
+//  assert( sendvector.size() == size );
+//  assert( recvvector.size() == size );
+//
+//  std::vector<T> sendbuf;
+//  std::vector<T> recvbuf;
+//  std::vector<int> sendcounts( size, 0 );
+//  std::vector<int> recvcounts( size, 0 );
+//  std::vector<int> sdispls( size + 1, 0 );
+//  std::vector<int> rdispls( size + 1, 0 );
+//
+//
+//  for ( size_t p = 0; p < size; p ++ )
+//  {
+//    sendcounts[ p ] = sendvector[ p ].size();
+//    sdispls[ p + 1 ] = sdispls[ p ] + sendcounts[ p ];
+//    sendbuf.insert( sendbuf.end(), 
+//        sendvector[ p ].begin(), 
+//        sendvector[ p ].end() );
+//  }
+//
+//  /** exchange sendcount */
+//  Alltoall( sendcounts.data(), 1, recvcounts.data(), 1, comm );
+//
+//  /** compute total receiving count */
+//  size_t total_recvcount = 0;
+//  for ( size_t p = 0; p < size; p ++ )
+//  {
+//    rdispls[ p + 1 ] = rdispls[ p ] + recvcounts[ p ];
+//    total_recvcount += recvcounts[ p ];
+//  }
+//
+//  /** resize receving buffer */
+//  recvbuf.resize( total_recvcount );
+//
+//
+//
+//
+//
+//
+//}; /** end AlltoallVector() */
 
 
 

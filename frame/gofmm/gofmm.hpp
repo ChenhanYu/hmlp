@@ -638,11 +638,19 @@ struct centersplit
     /** diagonal entries */
     hmlp::Data<T> DII( n, (size_t)1 ), DCC( n_centroid_samples, (size_t)1 );
 
+
+    printf( "shared enter DII\n" ); fflush( stdout );
+
     /** collecting DII */
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      DII[ i ] = K( gids[ i ], gids[ i ] );
-    }
+    //for ( size_t i = 0; i < gids.size(); i ++ )
+    //{
+    //  DII[ i ] = K( gids[ i ], gids[ i ] );
+    //}
+    DII = K( gids );
+
+
+    printf( "shared after DII\n" ); fflush( stdout );
+
 
     /** collecting column samples of K and DCC */
     std::vector<size_t> column_samples( n_centroid_samples );
@@ -650,8 +658,9 @@ struct centersplit
     {
       /** just use the first few gids */
       column_samples[ j ] = gids[ j ];
-      DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
+      //DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
     }
+    DCC = K( column_samples );
 
     /** collecting KIC */
     auto KIC = K( gids, column_samples );
@@ -1351,6 +1360,64 @@ void BuildNeighbors( NODE *node, size_t nsamples )
     //printf("Interior sampling neighbor size: %lu\n", snids.size());
   }
 }; // end BuildNeighbors()
+
+
+
+
+
+
+/**
+ *  @brief This routine seperate the original skeletonization step into
+ *         two parts: 1) preparation and 2) computation.
+ */ 
+//template<typename NODE>
+//void GetSkeletonMatrix( NODE *node )
+//{
+//  /** gather shared data and create reference */
+//  auto &K = *(node->setup->K);
+//
+//  /** gather per node data and create reference */
+//  auto &data = node->data;
+//  auto &candidate_rows = data.candidate_rows;
+//  auto &candidate_cols = data.candidate_cols;
+//  auto &KIJ = data.KIJ;
+//
+//  /** this node belongs to the local tree */
+//  auto *lchild = node->lchild;
+//  auto *rchild = node->rchild;
+//
+//  if ( node->isleaf )
+//  {
+//    /** use all columns */
+//    candidate_cols = node->gids;
+//  }
+//  else
+//  {
+//    /** concatinate [ lskels, rskels ] */
+//    auto &lskels = lchild->data.skels;
+//    auto &rskels = rchild->data.skels;
+//    candidate_cols = lskels;
+//    candidate_cols.insert( candidate_cols.end(), 
+//        rskels.begin(), rskels.end() );
+//  }
+//
+//  /** sample off-diagonal rows */
+//  RowSamples( node, 2 * candidate_cols.size() );
+//  /** get KIJ for skeletonization */
+//  KIJ = K( candidate_rows, candidate_cols );
+//
+//}; /** end GetSkeletonMatrix() */
+
+
+
+
+
+
+
+
+
+
+
 
 
 

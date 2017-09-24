@@ -52,13 +52,13 @@ class VirtualMatrix
 {
   public:
 
-		VirtualMatrix() {};
+    VirtualMatrix() {};
 
-		VirtualMatrix( std::size_t m, std::size_t n )
-		{
-			this->m = m;
-			this->n = n;
-		};
+    VirtualMatrix( std::size_t m, std::size_t n )
+    {
+      this->m = m;
+      this->n = n;
+    };
 
     /** ESSENTIAL: return number of coumns */
     virtual std::size_t row() { return m; };
@@ -78,9 +78,9 @@ class VirtualMatrix
       for ( size_t j = 0; j < jmap.size(); j ++ )
         for ( size_t i = 0; i < imap.size(); i ++ )
           submatrix[ j * imap.size() + i ] = 
-						(*this)( imap[ i ], jmap[ j ] );
+            (*this)( imap[ i ], jmap[ j ] );
       return submatrix;
-		};
+    };
 
     virtual hmlp::Data<T> operator()
 		  ( std::vector<int> &imap, std::vector<int> &jmap )
@@ -90,9 +90,9 @@ class VirtualMatrix
       for ( size_t j = 0; j < jmap.size(); j ++ )
         for ( size_t i = 0; i < imap.size(); i ++ )
           submatrix[ j * imap.size() + i ] = 
-						(*this)( imap[ i ], jmap[ j ] );
+            (*this)( imap[ i ], jmap[ j ] );
       return submatrix;
-		};
+    };
 
     virtual std::pair<T, size_t> ImportantSample( size_t j )
     {
@@ -109,10 +109,9 @@ class VirtualMatrix
     }; /** end ImportantSample() */
 
 
+  private:
 
-	private:
-
-		std::size_t m;
+    std::size_t m;
 
     std::size_t n;
 
