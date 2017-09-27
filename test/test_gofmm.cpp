@@ -462,29 +462,29 @@ int main( int argc, char *argv[] )
 
 
   /** generate a Gaussian kernel matrix from the coordinates */
-//  if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
-//  {
-//    using T = double;
-//    {
-//      /** read the coordinates from the file */
-//      hmlp::Data<T> X( d, n, user_points_filename );
-//
-//      /** setup the kernel object as Gaussian */
-//      kernel_s<T> kernel;
-//      kernel.type = KS_GAUSSIAN;
-//      kernel.scal = -0.5 / ( h * h );
-//
-//      /** spd kernel matrix format (implicitly create) */
-//      hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
-//
-//      /** (optional) provide neighbors, leave uninitialized otherwise */
-//      hmlp::Data<std::pair<T, std::size_t>> NN;
-//
-//      /** routine */
-//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-//      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-//    }
-//  }
+  if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
+  {
+    using T = double;
+    {
+      /** read the coordinates from the file */
+      hmlp::Data<T> X( d, n, user_points_filename );
+
+      /** setup the kernel object as Gaussian */
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5 / ( h * h );
+
+      /** spd kernel matrix format (implicitly create) */
+      hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
+
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+
+      /** routine */
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+    }
+  }
 
   /** test simple interface */
 //	if ( !spdmatrix_type.compare( "testsuit" ) && SIMPLE )
@@ -518,39 +518,39 @@ int main( int argc, char *argv[] )
 
 
   /** create a random spd matrix, which is diagonal-dominant */
-	if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
+  if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
   {
-		using T = double;
-		{
-			/** no geometric coordinates provided */
-			hmlp::Data<T> *X = NULL;
-			/** dense spd matrix format */
-			hmlp::gofmm::SPDMatrix<T> K;
-			K.resize( n, n );
-			/** random spd initialization */
-			K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-			/** (optional) provide neighbors, leave uninitialized otherwise */
-			hmlp::Data<std::pair<T, std::size_t>> NN;
-			/** routine */
-			test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-				( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-		}
-		{
+    using T = double;
+    {
+      /** no geometric coordinates provided */
+      hmlp::Data<T> *X = NULL;
+      /** dense spd matrix format */
+      hmlp::gofmm::SPDMatrix<T> K;
+      K.resize( n, n );
+      /** random spd initialization */
+      K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      /** routine */
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+    }
+    {
       d = 4;
-			/** generate coordinates from normal(0,1) distribution */
-			hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
+      /** generate coordinates from normal(0,1) distribution */
+      hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
       /** setup the kernel object as Gaussian */
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
       /** spd kernel matrix format (implicitly create) */
       hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
-			/** (optional) provide neighbors, leave uninitialized otherwise */
-			hmlp::Data<std::pair<T, std::size_t>> NN;
-			/** routine */
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-		}
+        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+    }
   }
 
 

@@ -244,6 +244,41 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       return submatrix;
     }; 
 
+
+
+    /** get the diagonal of KII, i.e. diag( K( I, I ) ) */
+    hmlp::Data<T> Diagonal( std::vector<size_t> &I )
+    {
+      /** 
+       *  return values
+       */
+      hmlp::Data<T> DII( I.size(), 1, 0.0 );
+
+      /** at this moment we already have the corrdinates on this process */
+      switch ( kernel.type )
+      {
+        case KS_GAUSSIAN:
+        {
+          for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
+          break;
+        }
+        default:
+        {
+          printf( "invalid kernel type\n" );
+          exit( 1 );
+          break;
+        }
+      }
+
+      return DII;
+
+    };
+
+
+
+
+
+
     /** important sampling */
     template<typename TINDEX>
     std::pair<T, TINDEX> ImportantSample( TINDEX j )

@@ -4,8 +4,130 @@
 #include <containers/data.hpp>
 #include <mpi/hmlp_mpi.hpp>
 
+
+
 namespace hmlp
 {
+
+
+
+
+namespace mpi
+{
+/**
+ *  This interface supports hmlp::Data. [ m, n ] will be set
+ *  after the routine.
+ *
+ */ 
+template<typename T>
+int AlltoallData(
+    size_t m,
+    std::vector<hmlp::Data<T>> &sendvector, 
+    std::vector<hmlp::Data<T>> &recvvector, mpi::Comm comm )
+{
+  int size = 0;
+  int rank = 0;
+  Comm_size( comm, &size );
+  Comm_rank( comm, &rank );
+
+  assert( sendvector.size() == size );
+  assert( recvvector.size() == size );
+
+
+  /** determine the concatenated dimension */
+  //size_t m = 0;
+
+  ///** all data need to have the same m */
+  //for ( size_t p = 0; p < size; p ++ )
+  //{
+  //  if ( sendvector[ p ].row() )
+  //  {
+  //    if ( m ) assert( m == sendvector[ p ].row() );
+  //    else     m = sendvector[ p ].row();
+  //  }
+  //}
+
+  //printf( "after all assertion m %lu\n", m ); fflush( stdout );
+
+
+
+  std::vector<T> sendbuf;
+  std::vector<T> recvbuf;
+  std::vector<int> sendcounts( size, 0 );
+  std::vector<int> recvcounts( size, 0 );
+  std::vector<int> sdispls( size + 1, 0 );
+  std::vector<int> rdispls( size + 1, 0 );
+
+  for ( size_t p = 0; p < size; p ++ )
+  {
+    sendcounts[ p ] = sendvector[ p ].size();
+    sdispls[ p + 1 ] = sdispls[ p ] + sendcounts[ p ];
+    sendbuf.insert( sendbuf.end(), 
+        sendvector[ p ].begin(), 
+        sendvector[ p ].end() );
+  }
+
+  /** exchange sendcount */
+  Alltoall( sendcounts.data(), 1, recvcounts.data(), 1, comm );
+
+  //printf( "after Alltoall\n" ); fflush( stdout );
+
+
+  /** compute total receiving count */
+  size_t total_recvcount = 0;
+  for ( size_t p = 0; p < size; p ++ )
+  {
+    rdispls[ p + 1 ] = rdispls[ p ] + recvcounts[ p ];
+    total_recvcount += recvcounts[ p ];
+  }
+
+  /** resize receving buffer */
+  recvbuf.resize( total_recvcount );
+
+  Alltoallv(
+      sendbuf.data(), sendcounts.data(), sdispls.data(), 
+      recvbuf.data(), recvcounts.data(), rdispls.data(), comm );
+
+  //printf( "after Alltoallv\n" ); fflush( stdout );
+
+  recvvector.resize( size );
+  for ( size_t p = 0; p < size; p ++ )
+  {
+    recvvector[ p ].insert( recvvector[ p ].end(), 
+        recvbuf.begin() + rdispls[ p ], 
+        recvbuf.begin() + rdispls[ p + 1 ] );
+
+    if ( recvvector[ p ].size() && m )
+    {
+      recvvector[ p ].resize( m, recvvector[ p ].size() / m );
+    }
+  }
+
+  //printf( "after resize\n" ); fflush( stdout );
+  //mpi::Barrier( comm );
+
+  return 0;
+
+}; /** end AlltoallVector() */
+}; /** end namespace mpi */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 typedef enum 
@@ -42,12 +164,40 @@ class DistDataBase : public Data<T>
       DistDataBase( 0, 0, comm );
     };
 
-    mpi::Comm GetComm() { return comm; };
-    int GetSize() { return comm_size; };
-    int GetRank() { return comm_rank; };
+    mpi::Comm GetComm() 
+    { 
+      return comm; 
+    };
 
-    size_t row() { return global_m; };
-    size_t col() { return global_n; };
+    int GetSize() 
+    { 
+      return comm_size; 
+    };
+    
+    int GetRank() 
+    { 
+      return comm_rank; 
+    };
+
+    size_t row() 
+    { 
+      return global_m; 
+    };
+
+    size_t col() 
+    { 
+      return global_n; 
+    };
+
+    size_t row_owned()
+    {
+      return Data<T>::row();
+    };
+
+    size_t col_owned()
+    {
+      return Data<T>::col();
+    };
 
   private:
 
@@ -69,6 +219,8 @@ template<Distribution_t ROWDIST, Distribution_t COLDIST, typename T>
 class DistData : public DistDataBase<T>
 {
   public:
+
+
   private:
 };
 
@@ -96,8 +248,8 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
 {
   public:
 
-    DistData( size_t m, size_t n, mpi::Comm comm ) : 
-      DistDataBase<T>( m, n, comm ) 
+    DistData( size_t m, size_t n, mpi::Comm comm ) 
+      : DistDataBase<T>( m, n, comm ) 
     {
       /** MPI */
       int size = this->GetSize();
@@ -110,6 +262,80 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       /** resize the local buffer */
       this->resize( m, local_n );
     };
+
+
+    /**
+     *  constructor that reads a binary file
+     */ 
+    DistData( size_t m, size_t n, mpi::Comm comm, std::string &filename ) 
+      : DistData<STAR, CBLK, T>( m, n, comm )
+    {
+      read( m, n, filename );
+    };
+
+    /**
+     *  read a dense column-major matrix 
+     */ 
+    void read( size_t m, size_t n, std::string &filename )
+    {
+      assert( this->row() == m );
+      assert( this->col() == n );
+
+      /** MPI */
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      /** print out filename */
+      std::cout << filename << std::endl;
+
+      std::ifstream file( filename.data(), 
+          std::ios::in|std::ios::binary|std::ios::ate );
+
+      if ( file.is_open() )
+      {
+        auto size = file.tellg();
+        assert( size == m * n * sizeof(T) );
+
+        //for ( size_t j = rank; j < n; j += size )
+        //{
+        //  size_t byte_offset = j * m * sizeof(T);
+        //  file.seekg( byte_offset, std::ios::beg );
+        //  file.read( (char*)this->columndata( j / size ), m * sizeof(T) );
+        //}
+
+
+        file.close();
+      }
+
+      #pragma omp parallel
+      {
+        std::ifstream ompfile( filename.data(), 
+          std::ios::in|std::ios::binary|std::ios::ate );
+
+        if ( ompfile.is_open() )
+        {
+          #pragma omp for
+          for ( size_t j = rank; j < n; j += size )
+          {
+            size_t byte_offset = j * m * sizeof(T);
+            ompfile.seekg( byte_offset, std::ios::beg );
+            ompfile.read( (char*)this->columndata( j / size ), m * sizeof(T) );
+          }
+          ompfile.close();
+        }
+      } /** end omp parallel */
+
+
+
+
+
+    }; /** end void read() */
+
+
+
+
+
+
 
 
     /**
@@ -518,6 +744,11 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
       size_t bcast_m = rids.size();
       size_t reduc_m = 0;
       mpi::Allreduce( &bcast_m, &reduc_m, 1, MPI_SUM, comm );
+
+      if ( reduc_m != m ) 
+        printf( "%lu %lu\n", reduc_m, m ); fflush( stdout );
+
+
       assert( reduc_m == m );
       this->rids = rids;
       this->resize( rids.size(), n );

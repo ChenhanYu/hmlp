@@ -53,6 +53,13 @@
 
 
 #include <mpi/DistData.hpp>
+#include <containers/DistKernelMatrix.hpp>
+
+
+
+
+
+
 
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>
@@ -64,9 +71,11 @@
 /** by default, we use binary tree */
 #define N_CHILDREN 2
 
+
+
+using namespace hmlp;
 using namespace hmlp::tree;
 using namespace hmlp::gofmm;
-
 
 
 template<
@@ -106,10 +115,10 @@ void test_gofmm
   /** compress K */
   auto *tree_ptr = hmlp::mpigofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
   ( 
-    X, K, NN, //metric, 
-		splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
-	  config );
-	auto &tree = *tree_ptr;
+   X, K, NN, //metric, 
+   splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
+   config );
+  auto &tree = *tree_ptr;
 
 
   //hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
@@ -120,10 +129,21 @@ void test_gofmm
 
   w_rblk.rand();
 
+  printf( "after w_rblk\n" ); fflush( stdout );
+
+
+
+
 
   /** */
   hmlp::DistData<hmlp::Distribution_t::RIDS, hmlp::Distribution_t::STAR, T> 
     w_rids( n, nrhs, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
+
+
+
+  printf( "after w_rids\n" ); fflush( stdout );
+
+
 
   hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
     w_goal( n, nrhs, MPI_COMM_WORLD );
@@ -382,10 +402,10 @@ int main( int argc, char *argv[] )
   size_t n, m, d, k, s, nrhs;
   double stol, budget;
 
-	/** (optional) */
+  /** (optional) */
   size_t nnz; 
-	std::string distance_type;
-	std::string spdmatrix_type;
+  std::string distance_type;
+  std::string spdmatrix_type;
   std::string user_matrix_filename;
   std::string user_points_filename;
 
@@ -413,64 +433,64 @@ int main( int argc, char *argv[] )
   /** the maximum percentage of direct matrix-multiplication */
   sscanf( argv[ 7 ], "%lf", &budget );
 
-	/** specify distance type */
-	distance_type = argv[ 8 ];
+  /** specify distance type */
+  distance_type = argv[ 8 ];
 
-	if ( !distance_type.compare( "geometry" ) )
-	{
+  if ( !distance_type.compare( "geometry" ) )
+  {
     metric = GEOMETRY_DISTANCE;
-	}
-	else if ( !distance_type.compare( "kernel" ) )
-	{
+  }
+  else if ( !distance_type.compare( "kernel" ) )
+  {
     metric = KERNEL_DISTANCE;
-	}
-	else if ( !distance_type.compare( "angle" ) )
-	{
+  }
+  else if ( !distance_type.compare( "angle" ) )
+  {
     metric = ANGLE_DISTANCE;
-	}
-	else
-	{
-		printf( "%s is not supported\n", argv[ 9 ] );
-		exit( 1 );
-	}
+  }
+  else
+  {
+    printf( "%s is not supported\n", argv[ 9 ] );
+    exit( 1 );
+  }
 
 
-	/** specify what kind of spdmatrix is used */
+  /** specify what kind of spdmatrix is used */
   spdmatrix_type = argv[ 9 ];
 
-	if ( !spdmatrix_type.compare( "testsuit" ) )
-	{
-		/** do nothing */
-	}
-	else if ( !spdmatrix_type.compare( "userdefine" ) )
-	{
-		/** do nothing */
-	}
-	else if ( !spdmatrix_type.compare( "dense" ) )
-	{
+  if ( !spdmatrix_type.compare( "testsuit" ) )
+  {
+    /** do nothing */
+  }
+  else if ( !spdmatrix_type.compare( "userdefine" ) )
+  {
+    /** do nothing */
+  }
+  else if ( !spdmatrix_type.compare( "dense" ) )
+  {
     /** (optional) provide the path to the matrix file */
     user_matrix_filename = argv[ 10 ];
     if ( argc > 11 ) 
     {
       /** (optional) provide the path to the data file */
       user_points_filename = argv[ 11 ];
-		  /** dimension of the data set */
+      /** dimension of the data set */
       sscanf( argv[ 12 ], "%lu", &d );
     }
-	}
-	else if ( !spdmatrix_type.compare( "kernel" ) )
-	{
+  }
+  else if ( !spdmatrix_type.compare( "kernel" ) )
+  {
     user_points_filename = argv[ 10 ];
-		/** number of attributes (dimensions) */
+    /** number of attributes (dimensions) */
     sscanf( argv[ 11 ], "%lu", &d );
-		/** (optional) provide Gaussian kernel bandwidth */
+    /** (optional) provide Gaussian kernel bandwidth */
     if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
-	}
-	else
-	{
-		printf( "%s is not supported\n", argv[ 9 ] );
-		exit( 1 );
-	}
+  }
+  else
+  {
+    printf( "%s is not supported\n", argv[ 9 ] );
+    exit( 1 );
+  }
 
   /** Message Passing Interface */
   int size = -1, rank = -1;
@@ -513,29 +533,52 @@ int main( int argc, char *argv[] )
 
 
   /** generate a Gaussian kernel matrix from the coordinates */
-//  if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
-//  {
-//    using T = double;
-//    {
-//      /** read the coordinates from the file */
-//      hmlp::Data<T> X( d, n, user_points_filename );
-//
-//      /** setup the kernel object as Gaussian */
-//      kernel_s<T> kernel;
-//      kernel.type = KS_GAUSSIAN;
-//      kernel.scal = -0.5 / ( h * h );
-//
-//      /** spd kernel matrix format (implicitly create) */
-//      hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
-//
-//      /** (optional) provide neighbors, leave uninitialized otherwise */
-//      hmlp::Data<std::pair<T, std::size_t>> NN;
-//
-//      /** routine */
-//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-//      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-//    }
-//  }
+  if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
+  {
+    using T = double;
+    {
+      /** read the coordinates from the file */
+      hmlp::DistData<STAR, CBLK, T> X( d, n, MPI_COMM_WORLD, 
+          user_points_filename );
+
+      hmlp::Data<T> Xtmp( d, n, user_points_filename );
+
+      int size, rank;
+      mpi::Comm_size( MPI_COMM_WORLD, &size );
+      mpi::Comm_rank( MPI_COMM_WORLD, &rank );
+
+
+      for ( size_t j = 0; j < X.col_owned(); j ++ )
+      {
+        size_t cid = j * size + rank;
+        for ( size_t i = 0; i < d; i ++ )
+        {
+          assert( Xtmp( i, cid ) == X( i, cid ) );
+        }
+      }
+
+
+      printf( "pass all assertion\n" ); fflush( stdout );
+      mpi::Barrier( MPI_COMM_WORLD );
+
+      /** setup the kernel object as Gaussian */
+      kernel_s<T> kernel;
+      kernel.type = KS_GAUSSIAN;
+      kernel.scal = -0.5 / ( h * h );
+
+
+
+      /** spd kernel matrix format (implicitly create) */
+      hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, MPI_COMM_WORLD );
+
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+
+      /** routine */
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+    }
+  }
 
   /** test simple interface */
 //	if ( !spdmatrix_type.compare( "testsuit" ) && SIMPLE )
@@ -569,64 +612,41 @@ int main( int argc, char *argv[] )
 
 
   /** create a random spd matrix, which is diagonal-dominant */
-	if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
+  if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
   {
-		using T = double;
-		{
-			/** no geometric coordinates provided */
-			hmlp::Data<T> *X = NULL;
-			/** dense spd matrix format */
-			hmlp::gofmm::SPDMatrix<T> K;
-			K.resize( n, n );
-			/** random spd initialization */
-			K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-			/** (optional) provide neighbors, leave uninitialized otherwise */
-			hmlp::Data<std::pair<T, std::size_t>> NN;
-			/** routine */
-			test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-				( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-		}
-		//{
+    using T = double;
+    {
+      /** no geometric coordinates provided */
+      hmlp::Data<T> *X = NULL;
+      /** dense spd matrix format */
+      hmlp::gofmm::SPDMatrix<T> K;
+      K.resize( n, n );
+      /** random spd initialization */
+      K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      /** routine */
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+    }
+    //{
     //  d = 4;
-		//	/** generate coordinates from normal(0,1) distribution */
-		//	hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
+    //	/** generate coordinates from normal(0,1) distribution */
+    //	hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
     //  /** setup the kernel object as Gaussian */
     //  kernel_s<T> kernel;
     //  kernel.type = KS_GAUSSIAN;
     //  kernel.scal = -0.5 / ( h * h );
     //  /** spd kernel matrix format (implicitly create) */
     //  hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
-		//	/** (optional) provide neighbors, leave uninitialized otherwise */
-		//	hmlp::Data<std::pair<T, std::size_t>> NN;
-		//	/** routine */
+    //	/** (optional) provide neighbors, leave uninitialized otherwise */
+    //	hmlp::Data<std::pair<T, std::size_t>> NN;
+    //	/** routine */
     //  test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
     //  ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
 		//}
   }
 
-
-//  /** generate (read) a CSC sparse matrix */
-//  if ( SPARSETESTSUIT )
-//  {
-//    const bool SYMMETRIC = false;
-//    const bool LOWERTRIANGULAR = true;
-//    {
-//      /** no geometric coordinates provided */
-//      hmlp::Data<T> *X = NULL;
-//      /** filename, problem size, nnz */
-//      std::string filename = DATADIR + std::string( "bcsstk10.mtx" );
-//      n = 1086;
-//      nnz = 11578;
-//      /** CSC format */
-//      hmlp::CSC<SYMMETRIC, T> K( n, n, nnz );
-//      K.readmtx<LOWERTRIANGULAR, false>( filename );
-//      /** use non-zero pattern as neighbors */
-//      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::gofmm::SparsePattern<true, true, T>( n, k, K );
-//      /** routine */
-//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, metric, T>
-//      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
-//    }
-//  }
 
 
   /** HMLP API call to terminate the runtime */

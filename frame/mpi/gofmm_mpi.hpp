@@ -67,7 +67,7 @@ class DistSPDMatrix : public hmlp::DistData<STAR, CBLK, T>
       std::vector<std::vector<size_t>> recvcids( size );
 
       /** request Kij from rank ( j % size ) */
-      sendrids[ j % size ].push_back( i );    
+      sendrids[ i % size ].push_back( i );    
       sendcids[ j % size ].push_back( j );    
 
       /** exchange ids */
@@ -349,6 +349,154 @@ class DistSPDMatrix : public hmlp::DistData<STAR, CBLK, T>
 
 
 
+/**
+ *  This is a relax version of the CenterSplit, which does
+ *  not require accessing to any entry of the matrix.
+ *  Instead, we only have submatrix K( I, J ), diag( K( I, I ) )
+ *  and diag( K( J, J ) ), where I and J can be disjoint or 
+ *  have some overlapping.
+ *  That is we have proper distances define on all I to all J,
+ *  and we find P, Q in I the two farest points to split J.
+ */ 
+template<typename T>
+struct LimitedMemoryCenterSplit
+{
+
+  /** (default) using angle distance from the Gram vector space */
+  DistanceMetric metric = ANGLE_DISTANCE;
+
+
+  /** */
+  std::vector<size_t> *S;
+
+  /** diag( K( S, S ) ) */
+  Data<T> *DSS = NULL;
+
+  /** we use [STAR, CBLK] distribution in the distributed tree node */
+  DistData<STAR, CBLK, T> *K_cblk = NULL;
+  DistData<STAR, CBLK, T> *D_cblk = NULL;
+
+  /** we use [STAR, CIDS] distribution in the local tree node */
+  DistData<STAR, CIDS, T> *K_cids = NULL;
+  DistData<STAR, CBLK, T> *D_cids = NULL;
+
+
+  /** 
+   *  shared-memory operator 
+   *  
+   *  While calling this splitter, K_cids has been redistributed from K_cblk
+   *  according to the gids. K_cids contain all 
+   *
+   *
+   */
+  inline std::vector<std::vector<std::size_t> > operator()
+  ( 
+    std::vector<std::size_t>& gids,
+    std::vector<std::size_t>& lids
+  ) const 
+  {
+    /** MPI */
+    int size, rank, global_rank;
+    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+
+    std::vector<size_t> C( S->size() );
+    for ( size_t i = 0; i < S->size(); i ++ ) C[ i ] = i;
+
+    /** collecting KSI */
+    auto KSI = (*K_cids)( C, gids );
+
+    /** collecting DII */
+    auto DII = (*D_cids)( std::vector<size_t>( 1, 0 ), gids );
+
+
+    /** 
+     *  compute d2c (distance to the approximate centroid) 
+     *
+     *  AllToCentroid can take KIC or KCI. DII and DCC can
+     *  either be rows or columns. Here we take KCI, DII
+     *  as a row, and DCC as a column.
+     */
+    auto S2I = SamplesToAll( metric, *DSS, KSI, DII );
+
+
+
+
+
+    /** find f2c (farthest from center) */
+    auto itf2c = std::max_element( temp.begin(), temp.end() );
+    auto idf2c = std::distance( temp.begin(), itf2c );
+    auto gidf2c = gids[ idf2c ];
+
+
+//    /** collecting KPI */
+//    std::vector<size_t> P( 1, gidf2c );
+//    auto KIP = K( gids, P );
+//
+//    /** get diagonal entry kpp */
+//    T kpp = K( gidf2c, gidf2c );
+//
+//    /** compute the all2f (distance to farthest point) */
+//    temp = AllToFarthest( metric, DII, KIP, kpp );
+//
+//    //temp = AllToFarthest( gids, gidf2c );
+//    //
+//    d2f_time = omp_get_wtime() - beg;
+//
+//    /** find f2f (far most to far most) */
+//    beg = omp_get_wtime();
+//    auto itf2f = std::max_element( temp.begin(), temp.end() );
+//    auto idf2f = std::distance( temp.begin(), itf2f );
+//    auto gidf2f = gids[ idf2f ];
+//    max_time = omp_get_wtime() - beg;
+//
+//
+//    /** compute all2leftright (projection i.e. dip - diq) */
+//    beg = omp_get_wtime();
+//
+//    /** collecting KIQ */
+//    std::vector<size_t> Q( 1, gidf2f );
+//    auto KIQ = K( gids, Q );
+//
+//    /** get diagonal entry kpp */
+//    T kqq = K( gidf2f, gidf2f );
+//
+//    /** compute all2leftright (projection i.e. dip - diq) */
+//    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp, kqq );
+//
+//    projection_time = omp_get_wtime() - beg;
+
+
+
+
+
+
+  };
+
+
+  /** distributed operator */
+  inline std::vector<std::vector<size_t> > operator()
+  ( 
+    std::vector<size_t>& gids,
+    hmlp::mpi::Comm comm
+  ) const 
+  {
+    /** all assertions */
+    assert( N_SPLIT == 2 );
+    assert( this->Kptr );
+
+    /** declaration */
+    int size, rank, global_rank;
+    hmlp::mpi::Comm_size( comm, &size );
+    hmlp::mpi::Comm_rank( comm, &rank );
+    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+    SPDMATRIX &K = *(this->Kptr);
+    std::vector<std::vector<size_t>> split( N_SPLIT );
+
+  };
+
+}; /** end struct LimitedMemoryCenterSplit */
+
+
 
 
 
@@ -368,148 +516,6 @@ template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 {
 
-//  /** closure */
-//  SPDMATRIX *Kptr = NULL;
-//
-//	/** (default) using angle distance from the Gram vector space */
-//  DistanceMetric metric = ANGLE_DISTANCE;
-//
-//  /** number samples to approximate centroid */
-//  size_t n_centroid_samples = 1;
-//
-//
-//	/** overload the operator */
-//  inline std::vector<std::vector<std::size_t> > operator()
-//  ( 
-//    std::vector<std::size_t>& gids,
-//    std::vector<std::size_t>& lids
-//  ) const 
-//  {
-//    /** all assertions */
-//    assert( N_SPLIT == 2 );
-//    assert( Kptr );
-//
-//    /** declaration */
-//    SPDMATRIX &K = *Kptr;
-//    std::vector<std::vector<std::size_t>> split( N_SPLIT );
-//    size_t n = gids.size();
-//    std::vector<T> temp( n, 0.0 );
-//
-//    /** all timers */
-//    double beg, d2c_time, d2f_time, projection_time, max_time;
-//
-//    /** compute all2c (distance to the approximate centroid) */
-//    beg = omp_get_wtime();
-//
-//    /** diagonal entries */
-//    hmlp::Data<T> DII( n, (size_t)1 ), DCC( n_centroid_samples, (size_t)1 );
-//
-//    /** collecting DII */
-//    for ( size_t i = 0; i < gids.size(); i ++ )
-//    {
-//      DII[ i ] = K( gids[ i ], gids[ i ] );
-//    }
-//
-//    /** collecting column samples of K and DCC */
-//    std::vector<size_t> column_samples( n_centroid_samples );
-//    for ( size_t j = 0; j < n_centroid_samples; j ++ )
-//    {
-//      /** just use the first few gids */
-//      column_samples[ j ] = gids[ j ];
-//      DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
-//    }
-//
-//    /** collecting KIC */
-//    auto KIC = K( gids, column_samples );
-//
-//    //temp = AllToCentroid( gids );
-//    temp = hmlp::gofmm::AllToCentroid( metric, DII, KIC, DCC );
-//
-//    d2c_time = omp_get_wtime() - beg;
-//
-//    /** find f2c (farthest from center) */
-//    auto itf2c = std::max_element( temp.begin(), temp.end() );
-//    auto idf2c = std::distance( temp.begin(), itf2c );
-//    auto gidf2c = gids[ idf2c ];
-//
-//    /** compute the all2f (distance to farthest point) */
-//    beg = omp_get_wtime();
-//
-//    /** collecting KIP */
-//    std::vector<size_t> P( 1, gidf2c );
-//    auto KIP = K( gids, P );
-//
-//    /** get diagonal entry kpp */
-//    T kpp = K( gidf2c, gidf2c );
-//
-//    /** compute the all2f (distance to farthest point) */
-//    temp = hmlp::gofmm::AllToFarthest( metric, DII, KIP, kpp );
-//
-//    //temp = AllToFarthest( gids, gidf2c );
-//    //
-//    d2f_time = omp_get_wtime() - beg;
-//
-//    /** find f2f (far most to far most) */
-//    beg = omp_get_wtime();
-//    auto itf2f = std::max_element( temp.begin(), temp.end() );
-//    auto idf2f = std::distance( temp.begin(), itf2f );
-//    auto gidf2f = gids[ idf2f ];
-//    max_time = omp_get_wtime() - beg;
-//
-//    /** compute all2leftright (projection i.e. dip - diq) */
-//    beg = omp_get_wtime();
-//
-//    /** collecting KIQ */
-//    std::vector<size_t> Q( 1, gidf2f );
-//    auto KIQ = K( gids, Q );
-//
-//    /** get diagonal entry kpp */
-//    T kqq = K( gidf2f, gidf2f );
-//
-//    /** compute all2leftright (projection i.e. dip - diq) */
-//    temp = hmlp::gofmm::AllToLeftRight( metric, DII, KIP, KIQ, kpp, kqq );
-//
-//    projection_time = omp_get_wtime() - beg;
-//
-//
-//    /** parallel median search */
-//    T median;
-//
-//    if ( 1 )
-//    {
-//      median = hmlp::combinatorics::Select( n, n / 2, temp );
-//    }
-//    else
-//    {
-//      auto temp_copy = temp;
-//      std::sort( temp_copy.begin(), temp_copy.end() );
-//      median = temp_copy[ n / 2 ];
-//    }
-//
-//    split[ 0 ].reserve( n / 2 + 1 );
-//    split[ 1 ].reserve( n / 2 + 1 );
-//
-//    /** TODO: Can be parallelized */
-//    std::vector<std::size_t> middle;
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
-//      else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-//      else                               middle.push_back( i );
-//    }
-//
-//    for ( size_t i = 0; i < middle.size(); i ++ )
-//    {
-//      if ( split[ 0 ].size() <= split[ 1 ].size() ) 
-//        split[ 0 ].push_back( middle[ i ] );
-//      else                                          
-//        split[ 1 ].push_back( middle[ i ] );
-//    }
-//
-//    return split;
-//  };
-
-
   /** shared-memory operator */
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
@@ -517,14 +523,19 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     std::vector<std::size_t>& lids
   ) const 
   {
+    /** MPI */
+    int size, rank, global_rank;
+    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+
+    printf( "rank %d enter shared centersplit n = %lu\n", 
+        global_rank, gids.size() ); fflush( stdout );
+
     return hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>::operator()
       ( gids, lids );
   };
 
 
-
-
-	/** distributed operator */
+  /** distributed operator */
   inline std::vector<std::vector<size_t> > operator()
   ( 
     std::vector<size_t>& gids,
@@ -536,11 +547,15 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     assert( this->Kptr );
 
     /** declaration */
-    int size, rank;
+    int size, rank, global_rank;
     hmlp::mpi::Comm_size( comm, &size );
     hmlp::mpi::Comm_rank( comm, &rank );
+    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
     SPDMATRIX &K = *(this->Kptr);
     std::vector<std::vector<size_t>> split( N_SPLIT );
+
+
+
 
     /** reduce to get the total size of gids */
     int n = 0;
@@ -551,6 +566,11 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     hmlp::mpi::Allreduce( &num_points_owned, &n, 1, 
         MPI_INT, MPI_SUM, comm );
 
+
+    printf( "rank %d enter distributed centersplit n = %d\n", global_rank, n ); fflush( stdout );
+
+
+
     /** early return */
     if ( n == 0 ) return split;
 
@@ -558,10 +578,11 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     hmlp::Data<T> DII( n, (size_t)1 ), DCC( this->n_centroid_samples, (size_t)1 );
 
     /** collecting DII */
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      DII[ i ] = K( gids[ i ], gids[ i ] );
-    }
+    //for ( size_t i = 0; i < gids.size(); i ++ )
+    //{
+    //  DII[ i ] = K( gids[ i ], gids[ i ] );
+    //}
+    DII = K.Diagonal( gids );
 
     /** collecting column samples of K and DCC */
     std::vector<size_t> column_samples( this->n_centroid_samples );
@@ -569,11 +590,20 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     {
       /** just use the first few gids */
       column_samples[ j ] = gids[ j ];
-      DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
+      //DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
     }
+    DCC = K.Diagonal( column_samples );
+
+
+
+    //printf( "rank %d enter DCC n = %d\n", rank, n ); fflush( stdout );
+
 
     /** collecting KIC */
     auto KIC = K( gids, column_samples );
+
+
+    //printf( "rank %d after KIC n = %d\n", rank, n ); fflush( stdout );
 
     /** compute d2c (distance to the approx centroid) for each owned point */
     temp = hmlp::gofmm::AllToCentroid( this->metric, DII, KIC, DCC );
@@ -602,6 +632,11 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     /** collecting KIP */
     std::vector<size_t> P( 1, gidf2c );
     auto KIP = K( gids, P );
+
+
+    //printf( "rank %d after KIP n = %d\n", rank, n ); fflush( stdout );
+
+
 
     /** get diagonal entry kpp */
     T kpp = K( gidf2c, gidf2c );
@@ -633,6 +668,10 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     /** collecting KIQ */
     std::vector<size_t> Q( 1, gidf2f );
     auto KIQ = K( gids, Q );
+
+
+    //printf( "rank %d after KIQ n = %d\n", rank, n ); fflush( stdout );
+
 
     /** get diagonal entry kpp */
     T kqq = K( gidf2f, gidf2f );
@@ -682,7 +721,7 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     hmlp::mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
 
     printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
-        rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
+        global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
         nlhs, nmid, nrhs ); fflush( stdout );
 
     /** assign points in the middle to left or right */
@@ -720,7 +759,6 @@ template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct randomsplit : public hmlp::gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 {
 
-
   /** shared-memory operator */
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
@@ -732,7 +770,7 @@ struct randomsplit : public hmlp::gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
       ( gids, lids );
   };
 
-	/** distributed operator */
+  /** distributed operator */
   inline std::vector<std::vector<size_t> > operator()
   (
     std::vector<size_t>& gids,
@@ -751,6 +789,8 @@ struct randomsplit : public hmlp::gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     std::vector<std::vector<size_t>> split( N_SPLIT );
 
 
+    /** TODO: (Severin) */
+
 
     return split;
   };
@@ -767,7 +807,10 @@ struct randomsplit : public hmlp::gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 
 
 
-
+/**
+ *  @brief TODO: (Severin)
+ *
+ */ 
 template<typename NODE>
 void FindNeighbors( NODE *node, DistanceMetric metric )
 {
@@ -806,8 +849,6 @@ void FindNeighbors( NODE *node, DistanceMetric metric )
 
 
   /** merge with the existing neighbor list and remove duplication */
-
-
 
 }; /** end FindNeighbors() */
 
@@ -2152,7 +2193,8 @@ void RowSamples( NODE *node, size_t nsamples )
 
 
 /**
- *  @brief Involve MPI routins
+ *  @brief Involve MPI routines. All MPI process must devote at least
+ *         one thread to participate in this function to avoid deadlock.
  */ 
 template<typename NODE>
 void GetSkeletonMatrix( NODE *node )
@@ -2187,7 +2229,12 @@ void GetSkeletonMatrix( NODE *node )
 
   /** sample off-diagonal rows */
   RowSamples( node, 2 * candidate_cols.size() );
-  /** get KIJ for skeletonization */
+  /** 
+   *  get KIJ for skeletonization 
+   *
+   *  notice that operator () may involve MPI collaborative communication.
+   *
+   */
   KIJ = K( candidate_rows, candidate_cols );
 
 }; /** end GetSkeletonMatrix() */
@@ -2311,16 +2358,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
     if ( rank == 0 )
     {
       std::vector<int> recv_buff;
-      //int recv_size = 0;
-      //hmlp::mpi::Recv( &recv_size, 1, MPI_INT, 
-      //    size / 2, 10, comm, &status );
-      //recv_buff.resize( recv_size, 0 );
-      //hmlp::mpi::Recv( recv_buff.data(), recv_size, MPI_INT, 
-      //    size / 2, 10, comm, &status );
-
-
       hmlp::mpi::RecvVector( recv_buff, size / 2, 10, comm, &status );
-
 
       /** concatinate [ lskels, rskels ] */
       candidate_cols= child->data.skels;
@@ -2329,8 +2367,6 @@ void ParallelGetSkeletonMatrix( NODE *node )
         candidate_cols.push_back( recv_buff[ i ] );
       /** sample off-diagonal rows */
       RowSamples( node, 2 * candidate_cols.size() );
-      /** get KIJ for skeletonization */
-      KIJ = K( candidate_rows, candidate_cols );
     }
 
     if ( rank == size / 2 )
@@ -2339,15 +2375,26 @@ void ParallelGetSkeletonMatrix( NODE *node )
       std::vector<int> send_buff( send_size, 0 );
       for ( size_t i = 0; i < send_size; i ++ )
         send_buff[ i ] = child->data.skels[ i ];
-      //hmlp::mpi::Send( &send_size, 1, MPI_INT, 
-      //    0, 10, comm );
-      //hmlp::mpi::Send( send_buff.data(), send_size, MPI_INT, 
-      //    0, 10, comm );
-
       hmlp::mpi::SendVector( send_buff, 0, 10, comm );
-
-
     }
+
+    /** only rank-0 has non-empty I and J sets */ 
+    if ( rank != 0 ) 
+    {
+      assert( !candidate_rows.size() );
+      assert( !candidate_cols.size() );
+    }
+
+
+    /** 
+     *  Now rank-0 has the correct ( I, J ). All other ranks in the
+     *  communicator must flush their I and J sets before evaluation.
+     *  all MPI process must participate in operator () 
+     */
+    KIJ = K( candidate_rows, candidate_cols );
+
+
+
   }
 
 }; /** end ParallelGetSkeletonMatrix() */
@@ -2736,7 +2783,11 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
   mpi::Comm comm
 )
 {
-  const bool AUTO_DEPENDENCY = true;
+  /** MPI */
+  int size, rank;
+  mpi::Comm_size( comm, &size );
+  mpi::Comm_rank( comm, &rank );
+
 
   /** get type NODE = TREE::NODE */
   using NODE = typename TREE::NODE;
@@ -2759,8 +2810,14 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
   size_t n    = weights.row();
   size_t nrhs = weights.col();
 
+
+  printf( "before alocating potentials\n" ); fflush( stdout );
+
+
+
   /** potentials must be in [RIDS,STAR] distribution */
-  hmlp::DistData<RIDS, STAR, T> potentials( n, nrhs, tree.treelist[ 0 ]->gids, comm );
+  auto &gids_owned = tree.treelist[ 0 ]->gids;
+  hmlp::DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, comm );
   potentials.setvalue( 0.0 );
 
   tree.setup.w = &weights;
@@ -2906,8 +2963,34 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
   }
 
 
-  tree.DependencyCleanUp(); 
 
+  if ( rank == 0 && REPORT_EVALUATE_STATUS )
+  {
+    printf( "========================================================\n");
+    printf( "GOFMM evaluation phase\n" );
+    printf( "========================================================\n");
+    printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+        allocate_time, allocate_time * time_ratio );
+    printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
+        forward_permute_time, forward_permute_time * time_ratio );
+    printf( "N2S, S2S, S2N, L2L -------------------- %5.2lfs (%5.1lf%%)\n", 
+        computeall_time, computeall_time * time_ratio );
+    printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
+        backward_permute_time, backward_permute_time * time_ratio );
+    printf( "========================================================\n");
+    printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+        evaluation_time, evaluation_time * time_ratio );
+    printf( "========================================================\n\n");
+  }
+
+
+
+
+
+
+
+
+  tree.DependencyCleanUp(); 
 
   return potentials;
 
@@ -2952,6 +3035,14 @@ hmlp::mpitree::Tree<
 	Configuration<T> &config
 )
 {
+  /** MPI */
+  int size, rank;
+  mpi::Comm_size( MPI_COMM_WORLD, &size );
+  mpi::Comm_rank( MPI_COMM_WORLD, &rank );
+
+
+
+
   /** get all user-defined parameters */
   DistanceMetric metric = config.MetricType();
   size_t n = config.ProblemSize();
@@ -3092,15 +3183,17 @@ hmlp::mpitree::Tree<
   tree.setup.s = s;
   tree.setup.stol = stol;
   printf( "TreePartitioning ...\n" ); fflush( stdout );
+  mpi::Barrier( MPI_COMM_WORLD );
   beg = omp_get_wtime();
   tree.TreePartition( n );
+  mpi::Barrier( MPI_COMM_WORLD );
   tree_time = omp_get_wtime() - beg;
   printf( "end TreePartitioning ...\n" ); fflush( stdout );
  
 
   /** Skeletonization */
   printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
-  const bool AUTODEPENDENCY = true;
+  mpi::Barrier( MPI_COMM_WORLD );
   beg = omp_get_wtime();
   tree.template ParallelTraverseUp<true>( 
       getmatrixtask, mpigetmatrixtask, skeltask, mpiskeltask );
@@ -3118,6 +3211,7 @@ hmlp::mpitree::Tree<
   //printf( "before run\n" ); fflush( stdout );
   other_time += omp_get_wtime() - beg;
   hmlp_run();
+  mpi::Barrier( MPI_COMM_WORLD );
   skel_time = omp_get_wtime() - beg;
   //printf( "Done\n" ); fflush( stdout );
 
@@ -3131,12 +3225,54 @@ hmlp::mpitree::Tree<
   tree.template ParallelTraverseUp<true>( 
       cachefarnodestask, mpicachefarnodestask, nulltask, mpinulltask );
   hmlp_run();
+
+
+
+
+
+  double exact_ratio = (double) m / n; 
+
+  if ( rank == 0 && REPORT_COMPRESS_STATUS )
+  {
+    compress_time += ann_time;
+    compress_time += tree_time;
+    compress_time += skel_time;
+    compress_time += mergefarnodes_time;
+    compress_time += cachefarnodes_time;
+    time_ratio = 100.0 / compress_time;
+    printf( "========================================================\n");
+    printf( "GOFMM compression phase\n" );
+    printf( "========================================================\n");
+    printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
+    printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
+    printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
+    printf( "                (Level-by-Level ) ----- %5.2lfs\n", ref_time );
+    printf( "                (omp task       ) ----- %5.2lfs\n", omptask_time );
+    printf( "                (Omp task depend) ----- %5.2lfs\n", omptask45_time );
+    printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
+    printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
+    printf( "========================================================\n");
+    printf( "Compress (%4.2lf not compressed) -------- %5.2lfs (%5.1lf%%)\n", 
+        exact_ratio, compress_time, compress_time * time_ratio );
+    printf( "========================================================\n\n");
+  }
+
+
+
+
+
+
+
+
+
+
+  /** cleanup all w/r dependencies on tree nodes */
   tree_ptr->DependencyCleanUp();
-
-
 
   /** global barrier to make sure all processes have completed */
   hmlp::mpi::Barrier( MPI_COMM_WORLD );
+
+
 
   return tree_ptr;
 
