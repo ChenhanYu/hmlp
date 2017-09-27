@@ -349,6 +349,154 @@ class DistSPDMatrix : public hmlp::DistData<STAR, CBLK, T>
 
 
 
+/**
+ *  This is a relax version of the CenterSplit, which does
+ *  not require accessing to any entry of the matrix.
+ *  Instead, we only have submatrix K( I, J ), diag( K( I, I ) )
+ *  and diag( K( J, J ) ), where I and J can be disjoint or 
+ *  have some overlapping.
+ *  That is we have proper distances define on all I to all J,
+ *  and we find P, Q in I the two farest points to split J.
+ */ 
+template<typename T>
+struct LimitedMemoryCenterSplit
+{
+
+  /** (default) using angle distance from the Gram vector space */
+  DistanceMetric metric = ANGLE_DISTANCE;
+
+
+  /** */
+  std::vector<size_t> *S;
+
+  /** diag( K( S, S ) ) */
+  Data<T> *DSS = NULL;
+
+  /** we use [STAR, CBLK] distribution in the distributed tree node */
+  DistData<STAR, CBLK, T> *K_cblk = NULL;
+  DistData<STAR, CBLK, T> *D_cblk = NULL;
+
+  /** we use [STAR, CIDS] distribution in the local tree node */
+  DistData<STAR, CIDS, T> *K_cids = NULL;
+  DistData<STAR, CBLK, T> *D_cids = NULL;
+
+
+  /** 
+   *  shared-memory operator 
+   *  
+   *  While calling this splitter, K_cids has been redistributed from K_cblk
+   *  according to the gids. K_cids contain all 
+   *
+   *
+   */
+  inline std::vector<std::vector<std::size_t> > operator()
+  ( 
+    std::vector<std::size_t>& gids,
+    std::vector<std::size_t>& lids
+  ) const 
+  {
+    /** MPI */
+    int size, rank, global_rank;
+    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+
+    std::vector<size_t> C( S->size() );
+    for ( size_t i = 0; i < S->size(); i ++ ) C[ i ] = i;
+
+    /** collecting KSI */
+    auto KSI = (*K_cids)( C, gids );
+
+    /** collecting DII */
+    auto DII = (*D_cids)( std::vector<size_t>( 1, 0 ), gids );
+
+
+    /** 
+     *  compute d2c (distance to the approximate centroid) 
+     *
+     *  AllToCentroid can take KIC or KCI. DII and DCC can
+     *  either be rows or columns. Here we take KCI, DII
+     *  as a row, and DCC as a column.
+     */
+    auto S2I = SamplesToAll( metric, *DSS, KSI, DII );
+
+
+
+
+
+    /** find f2c (farthest from center) */
+    auto itf2c = std::max_element( temp.begin(), temp.end() );
+    auto idf2c = std::distance( temp.begin(), itf2c );
+    auto gidf2c = gids[ idf2c ];
+
+
+//    /** collecting KPI */
+//    std::vector<size_t> P( 1, gidf2c );
+//    auto KIP = K( gids, P );
+//
+//    /** get diagonal entry kpp */
+//    T kpp = K( gidf2c, gidf2c );
+//
+//    /** compute the all2f (distance to farthest point) */
+//    temp = AllToFarthest( metric, DII, KIP, kpp );
+//
+//    //temp = AllToFarthest( gids, gidf2c );
+//    //
+//    d2f_time = omp_get_wtime() - beg;
+//
+//    /** find f2f (far most to far most) */
+//    beg = omp_get_wtime();
+//    auto itf2f = std::max_element( temp.begin(), temp.end() );
+//    auto idf2f = std::distance( temp.begin(), itf2f );
+//    auto gidf2f = gids[ idf2f ];
+//    max_time = omp_get_wtime() - beg;
+//
+//
+//    /** compute all2leftright (projection i.e. dip - diq) */
+//    beg = omp_get_wtime();
+//
+//    /** collecting KIQ */
+//    std::vector<size_t> Q( 1, gidf2f );
+//    auto KIQ = K( gids, Q );
+//
+//    /** get diagonal entry kpp */
+//    T kqq = K( gidf2f, gidf2f );
+//
+//    /** compute all2leftright (projection i.e. dip - diq) */
+//    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp, kqq );
+//
+//    projection_time = omp_get_wtime() - beg;
+
+
+
+
+
+
+  };
+
+
+  /** distributed operator */
+  inline std::vector<std::vector<size_t> > operator()
+  ( 
+    std::vector<size_t>& gids,
+    hmlp::mpi::Comm comm
+  ) const 
+  {
+    /** all assertions */
+    assert( N_SPLIT == 2 );
+    assert( this->Kptr );
+
+    /** declaration */
+    int size, rank, global_rank;
+    hmlp::mpi::Comm_size( comm, &size );
+    hmlp::mpi::Comm_rank( comm, &rank );
+    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+    SPDMATRIX &K = *(this->Kptr);
+    std::vector<std::vector<size_t>> split( N_SPLIT );
+
+  };
+
+}; /** end struct LimitedMemoryCenterSplit */
+
+
 
 
 
@@ -434,7 +582,7 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     //{
     //  DII[ i ] = K( gids[ i ], gids[ i ] );
     //}
-    DII = K( gids );
+    DII = K.Diagonal( gids );
 
     /** collecting column samples of K and DCC */
     std::vector<size_t> column_samples( this->n_centroid_samples );
@@ -444,7 +592,7 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
       column_samples[ j ] = gids[ j ];
       //DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
     }
-    DCC = K( column_samples );
+    DCC = K.Diagonal( column_samples );
 
 
 

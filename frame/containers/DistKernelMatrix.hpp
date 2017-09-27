@@ -60,6 +60,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         mpi::Comm comm )
     : sources_sqnorms( 1, m, comm ), 
       targets_sqnorms( 1, n, comm ),
+      all_dimensions( d ),
       DistVirtualMatrix<T>( m, n, comm )
     {
       assert( m == n );
@@ -68,6 +69,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       this->kernel = kernel;
       this->sources = &sources;
       this->targets = &sources;
+      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
       /** compute square 2-norms for Euclidian family */
       ComputeSquare2Norm();
     };
@@ -83,6 +85,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         mpi::Comm comm )
     : sources_sqnorms( 1, m, comm ), 
       targets_sqnorms( 1, n, comm ),
+      all_dimensions( d ),
       DistVirtualMatrix<T>( m, n, comm )
     {
       this->is_symmetric = false;
@@ -90,6 +93,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       this->kernel = kernel;
       this->sources = &sources;
       this->targets = &targets;
+      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
       /** compute square 2-norms for Euclidian family */
       ComputeSquare2Norm();
     };
@@ -149,6 +153,150 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
      *  and return a value Kij. Thus, all MPI processes in the communicator
      *  must invoke this operator to avoid dead lock.
      */
+//    T operator()( size_t i, size_t j )
+//    {
+//      /** MPI */
+//      int size = this->Comm_size();
+//      int rank = this->Comm_rank();
+//
+//      /** return value */
+//      T Kij = 0.0;
+//
+//      /** check if target i and source j are both owned by this MPI process */
+//      std::vector<std::vector<size_t>> sendrids( size );
+//      std::vector<std::vector<size_t>> recvrids( size );
+//      std::vector<std::vector<size_t>> sendcids( size );
+//      std::vector<std::vector<size_t>> recvcids( size );
+//
+//      /** request Kij from rank ( j % size ) */
+//      sendrids[ i % size ].push_back( i );    
+//      sendcids[ j % size ].push_back( j );    
+//
+//      /** exchange ids */
+//      mpi::AlltoallVector( sendrids, recvrids, this->GetComm() );
+//      mpi::AlltoallVector( sendcids, recvcids, this->GetComm() );
+//
+//      /** allocate buffer for data */
+//      //std::vector<hmlp::Data<T>> sendsrcs( size );
+//      //std::vector<hmlp::Data<T>> recvsrcs( size );
+//      //std::vector<hmlp::Data<T>> sendtars( size );
+//      //std::vector<hmlp::Data<T>> recvtars( size );
+//
+//      std::vector<std::vector<T>> sendsrcs( size );
+//      std::vector<std::vector<T>> recvsrcs( size );
+//      std::vector<std::vector<T>> sendtars( size );
+//      std::vector<std::vector<T>> recvtars( size );
+//
+//
+//
+//      std::vector<size_t> amap( d );
+//      for ( size_t k = 0; k < d; k ++ ) amap[ k ] = k;
+//
+//      for ( size_t p = 0; p < size; p ++ )
+//      {
+//        if ( recvcids[ p ].size() )
+//        {
+//          sendsrcs[ p ] = (*sources)( amap, recvcids[ p ] );
+//        }
+//        if ( recvrids[ p ].size() )
+//        {
+//          sendtars[ p ] = (*targets)( amap, recvrids[ p ] );
+//        }
+//      };
+//
+//      /** exchange coordinates */
+//      mpi::AlltoallVector( sendsrcs, recvsrcs, this->GetComm() );
+//      mpi::AlltoallVector( sendtars, recvtars, this->GetComm() );
+//
+//      std::vector<T> itargets( d );
+//      std::vector<T> jsources( d );
+//
+//      for ( size_t p = 0; p < size; p ++ )
+//      {
+//        if ( recvsrcs[ p ].size() ) jsources = recvsrcs[ p ];
+//        if ( recvtars[ p ].size() ) itargets = recvtars[ p ];
+//      }
+//
+//      /** at this moment we already have the corrdinates on this process */
+//      switch ( kernel.type )
+//      {
+//        case KS_GAUSSIAN:
+//        {
+//          for ( size_t k = 0; k < d; k++ )
+//          {
+//            T tar = itargets[ k ];
+//            T src = jsources[ k ];
+//            Kij += ( tar - src ) * ( tar - src );
+//          }
+//          Kij = exp( kernel.scal * Kij );
+//          break;
+//        }
+//        default:
+//        {
+//          printf( "invalid kernel type\n" );
+//          exit( 1 );
+//          break;
+//        }
+//      }
+//      return Kij;
+//    };
+
+
+    std::vector<int> GetCacheLine( std::vector<size_t> &request )
+    {
+      /** initialize lines as -1 */
+      std::vector<int> lines( request.size(), -1 );
+      for ( size_t i = 0; i < request.size(); i ++ )
+      {
+        size_t gid = request[ i ];
+        if ( id2cacheline.count( gid ) ) lines[ i ] = id2cacheline[ gid ]; 
+      }
+      return lines;
+    }; /** end GetCacheLine() */
+
+
+
+    hmlp::Data<T> GetCoordinates( size_t j )
+    {
+      /** MPI */
+      int size = this->Comm_size();
+      int rank = this->Comm_rank();
+      /** destination rank in CBLK (Round-Robin) distribution */
+      int dest = j % size;
+
+
+      std::vector<size_t> J( 1, j );
+
+      /** if j is on this rank [STAR, CBLK] */
+      if ( dest == rank )
+      {
+        return (*sources)( all_dimensions, J );
+      }
+      else
+      {
+        /** check if j is cached */
+        auto lineids = GetCacheLine( J );
+        if ( lineids[ 0 ] != -1 )
+        {
+          std::vector<size_t> lines( 1, lineids[ 0 ] );
+          return cached_sources( all_dimensions, lines );
+        }
+        else
+        {
+          hmlp::Data<T> XJ( d, 1 );
+          int tag = omp_get_thread_num() + 128;
+          /** issue a request to dest for source( j ) */
+          mpi::Send( &j, 1, dest, tag, this->GetComm() );
+          /** wait to recv the coorinates */
+          mpi::Status status;
+          mpi::Recv( XJ.data(), XJ.size(), dest, tag, this->GetComm(), &status );
+          return XJ;
+        }
+      }
+    }; /** end GetCoordinates() */
+
+
+
     T operator()( size_t i, size_t j )
     {
       /** MPI */
@@ -157,61 +305,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
       /** return value */
       T Kij = 0.0;
-
-      /** check if target i and source j are both owned by this MPI process */
-      std::vector<std::vector<size_t>> sendrids( size );
-      std::vector<std::vector<size_t>> recvrids( size );
-      std::vector<std::vector<size_t>> sendcids( size );
-      std::vector<std::vector<size_t>> recvcids( size );
-
-      /** request Kij from rank ( j % size ) */
-      sendrids[ i % size ].push_back( i );    
-      sendcids[ j % size ].push_back( j );    
-
-      /** exchange ids */
-      mpi::AlltoallVector( sendrids, recvrids, this->GetComm() );
-      mpi::AlltoallVector( sendcids, recvcids, this->GetComm() );
-
-      /** allocate buffer for data */
-      //std::vector<hmlp::Data<T>> sendsrcs( size );
-      //std::vector<hmlp::Data<T>> recvsrcs( size );
-      //std::vector<hmlp::Data<T>> sendtars( size );
-      //std::vector<hmlp::Data<T>> recvtars( size );
-
-      std::vector<std::vector<T>> sendsrcs( size );
-      std::vector<std::vector<T>> recvsrcs( size );
-      std::vector<std::vector<T>> sendtars( size );
-      std::vector<std::vector<T>> recvtars( size );
-
-
-
-      std::vector<size_t> amap( d );
-      for ( size_t k = 0; k < d; k ++ ) amap[ k ] = k;
-
-      for ( size_t p = 0; p < size; p ++ )
-      {
-        if ( recvcids[ p ].size() )
-        {
-          sendsrcs[ p ] = (*sources)( amap, recvcids[ p ] );
-        }
-        if ( recvrids[ p ].size() )
-        {
-          sendtars[ p ] = (*targets)( amap, recvrids[ p ] );
-        }
-      };
-
-      /** exchange coordinates */
-      mpi::AlltoallVector( sendsrcs, recvsrcs, this->GetComm() );
-      mpi::AlltoallVector( sendtars, recvtars, this->GetComm() );
-
-      std::vector<T> itargets( d );
-      std::vector<T> jsources( d );
-
-      for ( size_t p = 0; p < size; p ++ )
-      {
-        if ( recvsrcs[ p ].size() ) jsources = recvsrcs[ p ];
-        if ( recvtars[ p ].size() ) itargets = recvtars[ p ];
-      }
+ 
+      /** get coordinates */
+      hmlp::Data<T> itargets = GetCoordinates( i );
+      hmlp::Data<T> jsources = GetCoordinates( j );
 
       /** at this moment we already have the corrdinates on this process */
       switch ( kernel.type )
@@ -235,7 +332,15 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         }
       }
       return Kij;
+
     };
+
+
+
+
+
+
+
 
 
     /** ESSENTIAL: return K( I, J ) */
@@ -419,7 +524,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 
     /** get the diagonal of KII, i.e. diag( K( I, I ) ) */
-    hmlp::Data<T> operator () ( std::vector<size_t> &I )
+    hmlp::Data<T> Diagonal( std::vector<size_t> &I )
     {
       /** MPI */
       int size = this->Comm_size();
@@ -578,6 +683,56 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     };
 
 
+    virtual void BusyWaiting()
+    {
+      /** Iprobe flag */
+      int flag = 0;
+
+      /** Iprobe and Recv status */
+      mpi::Status status;
+
+      /** buffer for I and J */
+      size_t buff_size = 8192;
+      std::vector<size_t> I;
+
+      /** reserve space for I and J */
+      I.reserve( buff_size );
+
+      while( mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, this->GetComm(), &flag, &status ) )
+      {
+        /** if receive any message, then handle it */
+        if ( flag )
+        {
+          /** extract info from status */
+          int recv_src = status.MPI_SOURCE;
+          int recv_tag = status.MPI_TAG;
+          int recv_cnt;
+
+          /** get I object count */
+          mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+
+          /** recv (typeless) I by matching SOURCE and TAG */
+          I.resize( recv_cnt );
+          mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
+              this->GetComm(), &status );
+
+          auto XI = (*sources)( all_dimensions, I );
+
+          /** blocking send */
+          mpi::Send( XI.data(), XI.size(), recv_src, recv_tag, this->GetComm() );
+        }
+      };
+
+    }; /** end BusyWaiting() */
+
+
+
+
+
+
+
+
+
 
 
 
@@ -608,6 +763,15 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     DistData<STAR, CIDS, T> *sources_cids = NULL;
 
     DistData<STAR, CIDS, T> *targets_cids = NULL;
+
+    /** map gids to cacahed_coordinates */
+    std::map<size_t, size_t> id2cacheline;
+
+    /** d-by-cachesize */
+    Data<T> cached_sources;
+
+    /** */
+    std::vector<size_t> all_dimensions;
 
 
 

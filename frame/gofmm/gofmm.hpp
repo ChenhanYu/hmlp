@@ -308,7 +308,19 @@ template<typename T>
 class SPDMatrix : public hmlp::Data<T>
 {
   public:
+
+    hmlp::Data<T> Diagonal( std::vector<size_t> &I )
+    {
+      hmlp::Data<T> DII( I.size(), 1 );
+
+      for ( size_t i = 0; i < I.size(); i ++ )
+        DII[ i ] = (*this)( I[ i ], I[ i ] );
+
+      return DII;
+    };
+
   private:
+
 }; /** end class SPDMatrix */
 
 
@@ -438,6 +450,10 @@ class Summary
 
 /** 
  *  @brief compute all2c (distance to the approximate centroid) 
+ *
+ *         Notice that DII and DCC are essentially vectors, which
+ *         are not sensitive of either they are rows or columns.
+ *         However, KIC is a mamtrix and its dimensions must match.
  */
 template<typename T>
 std::vector<T> AllToCentroid
@@ -449,28 +465,52 @@ std::vector<T> AllToCentroid
 )
 {
   /** distances from I to C */
-  std::vector<T> I2C( KIC.row(), 0.0 );
+  std::vector<T> I2C( DII.size(), 0.0 );
 
   switch ( metric )
   {
     case KERNEL_DISTANCE:
     {
       I2C = DII;
-      #pragma omp parallel for
-      for ( size_t i = 0; i < KIC.row(); i ++ )
-        for ( size_t j = 0; j < KIC.col(); j ++ )
-          I2C[ i ] -= ( 2.0 / KIC.col() ) * KIC( i, j );
 
+      if ( KIC.row() == DII.size() && KIC.col() == DCC.size() )
+      {
+        #pragma omp parallel for
+        for ( size_t i = 0; i < DII.size(); i ++ )
+          for ( size_t j = 0; j < DCC.size(); j ++ )
+            I2C[ i ] -= ( 2.0 / DII.size() ) * KIC( i, j );
+      }
+      else
+      {
+        /** in this case, this is actually KCI */
+        auto &KCI = KIC;
+        #pragma omp parallel for
+        for ( size_t i = 0; i < DII.size(); i ++ )
+          for ( size_t j = 0; j < DCC.size(); j ++ )
+            I2C[ i ] -= ( 2.0 / DII.size() ) * KCI( j, i );
+      }
       break;
     }
     case ANGLE_DISTANCE:
     {
-      #pragma omp parallel for
-      for ( size_t i = 0; i < KIC.row(); i ++ )
-        for ( size_t j = 0; j < KIC.col(); j ++ )
-          I2C[ i ] += ( 1.0 - ( KIC( i, j ) * KIC( i, j ) ) / 
-              ( DII[ i ] * DCC[ j ] ) );
-
+      if ( KIC.row() == DII.size() && KIC.col() == DCC.size() )
+      {
+        #pragma omp parallel for
+        for ( size_t i = 0; i < DII.size(); i ++ )
+          for ( size_t j = 0; j < DCC.size(); j ++ )
+            I2C[ i ] += ( 1.0 - ( KIC( i, j ) * KIC( i, j ) ) / 
+                ( DII[ i ] * DCC[ j ] ) );
+      }
+      else
+      {
+        printf( "bug!!!!!!!!!\n" ); fflush( stdout );
+        /** in this case, this is actually KCI */
+        auto &KCI = KIC;
+        for ( size_t i = 0; i < DII.size(); i ++ )
+          for ( size_t j = 0; j < DCC.size(); j ++ )
+            I2C[ i ] += ( 1.0 - ( KCI( j, i ) * KCI( j, i ) ) / 
+                ( DII[ i ] * DCC[ j ] ) );
+      }
       break;
     }
     default:
@@ -581,6 +621,65 @@ std::vector<T> AllToLeftRight
 
 
 
+//template<typename T>
+//std::vector<std::pair<T,size_t>> SamplesToAll
+//(
+//  DistanceMetric metric,
+//  hmlp::Data<T> &DSS,
+//  hmlp::Data<T> &KSI,
+//  hmlp::Data<T> &DII
+//)
+//{
+//  /** average distances from samples S to all points I */
+//  std::vector<std::pair<T, size_t>> S2I( DSS.size() ); 
+//
+//  /** initialization */
+//  for ( size_t s = 0; s < S2I.size(); s ++ )
+//  {
+//    S2I[ s ].first  = 0;
+//    S2I[ s ].second = s;
+//  }
+//
+//  switch ( metric )
+//  {
+//    case KERNEL_DISTANCE:
+//    {
+//      #pragma omp parallel for
+//      for ( size_t s = 0; s < DSS.size(); s ++ )
+//        for ( size_t i = 0; i < DII.size(); i ++ )
+//          S2I[ s ] += ( DSS[ s ] * DSS[ s ] - 2 * KSI( s, i ) ) / DII.size();
+//      break;
+//    }
+//    case ANGLE_DISTANCE:
+//    {
+//      #pragma omp parallel for
+//      for ( size_t s = 0; s < DSS.size(); s ++ )
+//        for ( size_t i = 0; i < DII.size(); i ++ )
+//          S2I[ s ] += ( 1.0 - ( K( s, i ) * K( s, i ) ) / 
+//              ( DSS[ s ] * DII[ i ] ) );
+//      break;
+//    }
+//    default:
+//    {
+//      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
+//      exit( 1 );
+//    }
+//  } /** end switch ( metric ) */
+//
+//  /** pair sorting */
+//  struct 
+//  {
+//    bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
+//    {   
+//      return a.first < b.first;
+//    }   
+//  } DistanceLess;
+//
+//  
+//
+//  return S2I;
+//}; /** end SamplesToAll() */
+
 
 
 
@@ -607,7 +706,7 @@ struct centersplit
   /** closure */
   SPDMATRIX *Kptr = NULL;
 
-	/** (default) using angle distance from the Gram vector space */
+  /** (default) using angle distance from the Gram vector space */
   DistanceMetric metric = ANGLE_DISTANCE;
 
   /** number samples to approximate centroid */
@@ -639,17 +738,17 @@ struct centersplit
     hmlp::Data<T> DII( n, (size_t)1 ), DCC( n_centroid_samples, (size_t)1 );
 
 
-    printf( "shared enter DII\n" ); fflush( stdout );
+    //printf( "shared enter DII\n" ); fflush( stdout );
 
     /** collecting DII */
     //for ( size_t i = 0; i < gids.size(); i ++ )
     //{
     //  DII[ i ] = K( gids[ i ], gids[ i ] );
     //}
-    DII = K( gids );
+    DII = K.Diagonal( gids );
 
 
-    printf( "shared after DII\n" ); fflush( stdout );
+    //printf( "shared after DII\n" ); fflush( stdout );
 
 
     /** collecting column samples of K and DCC */
@@ -660,7 +759,7 @@ struct centersplit
       column_samples[ j ] = gids[ j ];
       //DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
     }
-    DCC = K( column_samples );
+    DCC = K.Diagonal( column_samples );
 
     /** collecting KIC */
     auto KIC = K( gids, column_samples );

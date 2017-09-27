@@ -100,6 +100,11 @@ namespace hmlp
 namespace mpi
 {
 
+/**
+ *  MPI 1.0 functionality
+ */ 
+
+
 #ifdef HMLP_USE_MPI
 typedef MPI_Status Status;
 typedef MPI_Comm Comm;
@@ -108,19 +113,16 @@ typedef MPI_Op Op;
 #else
 typedef struct 
 {
-  int source;
-  int tag;
-  int error;
-  int len;
-  int type;
+  int count;
+  int cancelled;
+  int MPI_SOURCE;
+  int MPI_TAG;
+  int MPI_ERROR;
 } Status;
 typedef int Comm;
 typedef int Datatype;
 typedef int Op;
 #endif
-
-
-
 
 
 int Init( int *argc, char ***argv );
@@ -137,6 +139,8 @@ int Sendrecv(
     void *sendbuf, int sendcount, Datatype sendtype, int dest, int sendtag, 
     void *recvbuf, int recvcount, Datatype recvtype, int source, int recvtag,
     Comm comm, Status *status );
+
+int Get_count( Status *status, Datatype datatype, int *count );
 
 int Comm_size( Comm comm, int *size );
 
@@ -167,6 +171,16 @@ int Alltoall(
 int Alltoallv( 
     void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype, 
     void *recvbuf, int *recvcounts, int *rdispls, Datatype recvtype, Comm comm );
+
+
+/**
+ *  MPI 2.0 and 3.0 functionality
+ */ 
+int Probe( int source, int tag, Comm comm, Status *status );
+int Iprobe( int source, int tag, Comm comm, int *flag, Status *status );
+
+
+
 
 
 /** 
@@ -206,12 +220,13 @@ class MPIObject
       return mpi::Barrier( comm );
     };
 
-
   private:
 
     mpi::Comm comm = MPI_COMM_WORLD;
 
 }; /** end class MPIObject */
+
+
 
 
 

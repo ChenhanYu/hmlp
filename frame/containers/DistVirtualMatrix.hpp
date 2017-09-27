@@ -107,6 +107,71 @@ class DistVirtualMatrix : public mpi::MPIObject
     //}; /** end ImportantSample() */
 
 
+    /**
+     *  this routine is executed by the serving worker
+     *  wait and receive message from any source
+     */ 
+    virtual void BusyWaiting()
+    {
+      /** Iprobe flag */
+      int flag = 0;
+
+      /** Iprobe and Recv status */
+      mpi::Status status;
+
+      /** buffer for I and J */
+      size_t buff_size = 8192;
+      std::vector<size_t> I;
+      std::vector<size_t> J;
+
+      /** reserve space for I and J */
+      I.reserve( buff_size );
+      J.reserve( buff_size );
+
+      while( mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, this->GetComm(), &flag, &status ) )
+      {
+        /** if receive any message, then handle it */
+        if ( flag )
+        {
+          /** extract info from status */
+          int recv_src = status.MPI_SOURCE;
+          int recv_tag = status.MPI_TAG;
+          int recv_cnt;
+
+          /** get I object count */
+          mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+
+          /** recv (typeless) I by matching SOURCE and TAG */
+          I.resize( recv_cnt );
+          mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
+              this->GetComm(), &status );
+
+          /** blocking Probe the message that contains J */
+          mpi::Probe( recv_src, recv_tag, this->GetComm(), &status );
+
+          /** get J object count */
+          mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+
+          /** recv (typeless) I by matching SOURCE and TAG */
+          J.resize( recv_cnt );
+          mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag, 
+              this->GetComm(), &status );
+
+          /** 
+           *  this invoke the operator () to get K( I, J )  
+           *
+           *  notice that operator () can invoke MPI routines,
+           *  but limited to one-sided routines without blocking.
+           */
+          auto KIJ = (*this)( I, J );
+
+          /** blocking send */
+          mpi::Send( KIJ.data(), KIJ.size(), recv_src, recv_tag, this->GetComm() );
+        }
+      };
+
+    }; /** end BusyWaiting() */
+
 
   private:
 

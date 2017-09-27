@@ -247,7 +247,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
 
 
     /** get the diagonal of KII, i.e. diag( K( I, I ) ) */
-    hmlp::Data<T> operator () ( std::vector<size_t> &I )
+    hmlp::Data<T> Diagonal( std::vector<size_t> &I )
     {
       /** 
        *  return values

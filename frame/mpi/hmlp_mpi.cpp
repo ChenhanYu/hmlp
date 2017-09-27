@@ -5,6 +5,11 @@ namespace hmlp
 namespace mpi
 {
 
+/**
+ *  MPI 1.0 functionality
+ */ 
+
+
 int Init( int *argc, char ***argv )
 {
 #ifdef HMLP_USE_MPI
@@ -45,20 +50,32 @@ int Recv( void *buf, int count, Datatype datatype,
 #endif
 };
 
-int Sendrecv( void *sendbuf, int sendcount, Datatype sendtype,
-    int dest, int sendtag, void *recvbuf, int recvcount,
-    Datatype recvtype, int source, int recvtag,
+int Sendrecv( 
+    void *sendbuf, int sendcount, Datatype sendtype, int   dest, int sendtag, 
+    void *recvbuf, int recvcount, Datatype recvtype, int source, int recvtag,
     Comm comm, Status *status )
 {
 #ifdef HMLP_USE_MPI
-  return MPI_Sendrecv( sendbuf, sendcount, sendtype, 
-      dest, sendtag, recvbuf, recvcount,
-      recvtype, source, recvtag,
+  return MPI_Sendrecv( 
+      sendbuf, sendcount, sendtype,   dest, sendtag, 
+      recvbuf, recvcount, recvtype, source, recvtag,
       comm, (MPI_Status*)status );
 #else
   return 0;
 #endif
 };
+
+
+int Get_count( Status *status, Datatype datatype, int *count )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Get_count( (MPI_Status*)status, datatype, count );
+#else
+  return 0;
+#endif
+};
+
+
 
 int Comm_size( Comm comm, int *size )
 {
@@ -177,6 +194,33 @@ int Alltoallv( void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype,
   return 0;
 #endif
 };
+
+
+
+/**
+ *  MPI 2.0 and 3.0 functionality
+ */ 
+
+
+int Probe( int source, int tag, Comm comm, Status *status )
+{
+#ifdef HMLP_USE_MPI
+  return Probe( source, tag, comm, (MPI_Status*)status );
+#else
+  return 0;
+#endif
+}; /** end Probe() */
+
+int Iprobe( int source, int tag, Comm comm, int *flag, Status *status )
+{
+#ifdef HMLP_USE_MPI
+  return Iprobe( source, tag, comm, flag, (MPI_Status*)status );
+#else
+  return 0;
+#endif
+}; /** end Iprobe() */
+
+
 
 }; /** end namespace mpi */
 }; /** end namespace hmlp */
