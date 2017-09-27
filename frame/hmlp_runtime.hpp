@@ -272,6 +272,31 @@ class NULLTask : public Task
 
 
 
+/**
+ *  @brief Recursive task sibmission
+ */ 
+template<typename ARG, typename TASK, typename... Args>
+void RecuTaskSubmit( ARG *arg, TASK& dummy, Args&... dummyargs )
+{
+  using NULLTASK = NULLTask<ARG>;
+
+  /** create the first normal task is it is not a NULLTask */
+  if ( !std::is_same<NULLTASK, TASK>::value )
+  {
+    auto task = new TASK();
+    task->Submit();
+    task->Set( arg );
+    task->DependencyAnalysis();
+  }
+
+  /** now recurs to Args&... args, types are deduced automatically */
+  RecuTaskSubmit( arg, dummy, dummyargs... );
+
+}; /** end RecuDistTaskSubmit() */
+
+
+
+
 class ReadWrite
 {
   public:

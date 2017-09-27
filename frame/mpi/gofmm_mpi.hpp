@@ -3195,8 +3195,28 @@ hmlp::mpitree::Tree<
   printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
   mpi::Barrier( MPI_COMM_WORLD );
   beg = omp_get_wtime();
-  tree.template ParallelTraverseUp<true>( 
-      getmatrixtask, mpigetmatrixtask, skeltask, mpiskeltask );
+
+
+
+
+  //tree.template ParallelTraverseUp<true>( 
+  //    getmatrixtask, mpigetmatrixtask, skeltask, mpiskeltask );
+
+  tree.LocaTraverseUp( getmatrixtask, skeltask );
+  tree.DistTraverseUp( mpigetmatrixtask, mpiskeltask );
+
+
+
+
+
+
+
+
+
+
+
+
+
   /** FindNearNodes (executed with skeletonization) */
   auto *findnearnodestask = new FINDNEARNODESTASK();
   findnearnodestask->Set( &tree, budget );

@@ -29,6 +29,10 @@
 #include <containers/tree.hpp>
 #include <mpi/DistData.hpp>
 
+
+using namespace hmlp;
+
+
 namespace hmlp
 {
 namespace mpitree
@@ -187,7 +191,7 @@ struct centersplit
  *
  */ 
 template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
-class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 {
   public:
 
@@ -196,17 +200,17 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
     /** constructor for inner node (gids and n unassigned) */
     Node( SETUP *setup, size_t n, size_t l, 
-        Node *parent, hmlp::mpi::Comm comm ) 
+        Node *parent, mpi::Comm comm ) 
     /** inherits from */
-      : hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+      : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
         ( setup, n, l, parent ) 
     {
       /** local communicator */
       this->comm = comm;
       
       /** get size and rank */
-      hmlp::mpi::Comm_size( comm, &size );
-      hmlp::mpi::Comm_rank( comm, &rank );
+      mpi::Comm_size( comm, &size );
+      mpi::Comm_rank( comm, &rank );
     };
 
 
@@ -214,7 +218,7 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     /** constructor for root */
     Node( SETUP *setup, size_t n, size_t l,
         std::vector<size_t> &gids,
-        Node *parent, hmlp::mpi::Comm comm ) 
+        Node *parent, mpi::Comm comm ) 
     /** inherits from */
       : Node<SETUP, N_CHILDREN, NODEDATA, T>
         ( setup, n, l, parent, comm ) 
@@ -241,7 +245,7 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
       int num_points_owned = (this->gids).size();
 
       /** n = sum( num_points_owned ) over all MPI processes in comm */
-      hmlp::mpi::Allreduce( &num_points_owned, &num_points_total, 
+      mpi::Allreduce( &num_points_owned, &num_points_total, 
           1, MPI_SUM, comm );
       this->n = num_points_total;
 
@@ -307,7 +311,7 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
         /** exchange recv_gids.size() */
-        hmlp::mpi::Sendrecv( 
+        mpi::Sendrecv( 
             &sent_size, 1, MPI_INT, partner_rank, 10,
             &recv_size, 1, MPI_INT, partner_rank, 10,
             comm, &status );
@@ -319,7 +323,7 @@ class Node : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
         recv_gids.resize( recv_size );
 
         /** exchange recv_gids.size() */
-        hmlp::mpi::Sendrecv( 
+        mpi::Sendrecv( 
             sent_gids.data(), sent_size, MPI_INT, partner_rank, 20,
             recv_gids.data(), recv_size, MPI_INT, partner_rank, 20,
             comm, &status );
@@ -424,7 +428,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
      **/
 
     /** define our tree node type as NODE */
-    //typedef Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
+    typedef tree::Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
 
     /** */
     typedef Node<SETUP, N_CHILDREN, NODEDATA, T> MPINODE;
@@ -679,9 +683,13 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
-      /** exame the results */
+      /** use the local root to allocate local tree nodes */
+      auto *local_tree_root = mpitreelists.back();
+      hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::AllocateNodes( 
+          local_tree_root );
+    
       auto *node = mpitreelists.front();
-
+      /** distributed split */
       while ( node )
       {
          //node->Print();
@@ -691,7 +699,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 
       /** TODO: local tree */
-      auto *local_tree_root = mpitreelists.back();
+      //auto *local_tree_root = mpitreelists.back();
       hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::TreePartition(
           local_tree_root );
 
@@ -767,7 +775,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     {
       if ( node->GetCommSize() < 2 )
       {
-        hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Offset( node, offset );
+        tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Offset( node, offset );
         return;
       }
 
@@ -798,7 +806,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** call shared memory Morton ID */
       if ( node->GetCommSize() < 2 )
       {
-        hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Morton( node, morton );
+        tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Morton( node, morton );
         return;
       }
 
@@ -819,6 +827,127 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 
 
+    template<typename TASK, typename... Args>
+    void LocaTraverseUp( TASK &dummy, Args&... args )
+    {
+      /** contain at lesat one tree node */
+      assert( this->treelist.size() );
+
+      /** 
+       *  traverse the local tree without the root
+       *
+       *  IMPORTANT: local root alias of the distributed leaf node
+       *  IMPORTANT: here l must be int, size_t will wrap over 
+       *
+       */
+      for ( int l = this->depth; l >= 1; l -- )
+      {
+        size_t n_nodes = 1 << l;
+        auto level_beg = this->treelist.begin() + n_nodes - 1;
+
+        /** loop over each node at level-l */
+        for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+        {
+          auto *node = *(level_beg + node_ind);
+          RecuTaskSubmit( node, dummy, args... );
+        }
+      }
+    }; /** end LocaTraverseUp() */
+
+
+    template<typename TASK, typename... Args>
+    void DistTraverseUp( TASK &dummy, Args&... args )
+    {
+      MPINODE *node = mpitreelists.back();
+      while ( node )
+      {
+        RecuTaskSubmit( node, dummy, args... );
+        /** move to its parent */
+        node = (MPINODE*)node->parent;
+      }
+    }; /** end DistTraverseUp() */
+
+
+    template<typename TASK, typename... Args>
+    void LocaTraverseDown( TASK &dummy, Args&... args )
+    {
+      /** contain at lesat one tree node */
+      assert( this->treelist.size() );
+
+      /** 
+       *  traverse the local tree without the root
+       *
+       *  IMPORTANT: local root alias of the distributed leaf node
+       *  IMPORTANT: here l must be int, size_t will wrap over 
+       *
+       */
+      for ( int l = 1; l <= this->depth; l ++ )
+      {
+        size_t n_nodes = 1 << l;
+        auto level_beg = this->treelist.begin() + n_nodes - 1;
+
+        for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+        {
+          auto *node = *(level_beg + node_ind);
+          RecuTaskSubmit( node, dummy, args... );
+        }
+      }
+    }; /** end LocaTraverseDown() */
+
+
+    template<typename TASK, typename... Args>
+    void DistTraverseDown( TASK &dummy, Args&... args )
+    {
+      MPINODE *node = mpitreelists.front();
+      while ( node )
+      {
+        RecuTaskSubmit( node, dummy, args... );
+        /** 
+         *  move to its child 
+         *  IMPORTANT: here we need to cast the pointer back to mpitree::Node*
+         */
+        node = (MPINODE*)node->child;
+      }
+    }; /** end DistTraverseDown() */
+
+
+    template<typename TASK, typename... Args>
+    void LocaTraverseLeafs( TASK &dummy, Args&... args )
+    {
+      /** contain at lesat one tree node */
+      assert( this->treelist.size() );
+
+      int n_nodes = 1 << depth;
+      auto level_beg = treelist.begin() + n_nodes - 1;
+
+      for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+      {
+        auto *node = *(level_beg + node_ind);
+        RecuTaskSubmit( node, dummy, args... );
+      }
+    }; /** end LocaTraverseLeaf() */
+
+
+    /**
+     *  @brief For unordered traversal, we just call local
+     *         downward traversal.
+     */ 
+    template<typename TASK, typename... Args>
+    void LocaTraverseUnOrdered( TASK &dummy, Args&... args )
+    {
+      LocaTraverseDown( dummy, args... );
+    }; /** end LocaTraverseUnOrdered() */
+
+
+    /**
+     *  @brief For unordered traversal, we just call distributed
+     *         downward traversal.
+     */ 
+    template<typename TASK, typename... Args>
+    void DistTraverseUnOrdered( TASK &dummy, Args&... args )
+    {
+      DistTraverseDown( dummy, args... );
+    }; /** end DistTraverseUnOrdered() */
 
 
 
@@ -1024,8 +1153,6 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 
 
-
-
     void DependencyCleanUp()
     {
       for ( size_t i = 0; i < mpitreelists.size(); i ++ )
@@ -1033,7 +1160,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
         mpitreelists[ i ]->DependencyCleanUp();
       }
 
-      hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::DependencyCleanUp();
+      tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::DependencyCleanUp();
 
       /** TODO also clean up the LET node */
 
@@ -1045,7 +1172,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
   private:
 
     /** global communicator */
-    hmlp::mpi::Comm comm = MPI_COMM_WORLD;
+    mpi::Comm comm = MPI_COMM_WORLD;
 
     /** global communicator size */
     int size = 1;
