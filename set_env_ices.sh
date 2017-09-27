@@ -99,6 +99,16 @@ export HMLP_MAGMA_DIR=/users/chenhan/Projects/magma-2.2.0
 ## Output google site data
 export HMLP_ANALYSIS_DATA=false
 
+## Build a independent sandbox
+export HMLP_BUILD_SANDBOX=true
+
+## Decide whether to compile the runtime system or not
+export HMLP_HAVE_RUNTIME=true
+if [ ! -f $PWD/frame/hmlp_runtime.cpp ]; then
+  echo "Disable HMLP runtime system"
+  export HMLP_HAVE_RUNTIME=false
+fi
+
 ## Advance OpenMP options
 export OMP_NESTED=false
 export OMP_PROC_BIND=spread

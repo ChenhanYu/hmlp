@@ -35,20 +35,69 @@
 #include <set>
 #include <omp.h>
 
+#ifdef HMLP_HAVE_RUNTIME
 #include <hmlp_device.hpp>
+#endif /** ifdef HMLP_HAVE_RUNTIME */
 
 
 namespace hmlp
 {
 
 
-//typedef enum 
-//{
-//  HOST,
-//  NVIDIA_GPU,
-//  OTHER_GPU,
-//  TI_DSP
-//} DeviceType;
+typedef enum 
+{
+  HMLP_SCHEDULE_DEFAULT,
+  HMLP_SCHEDULE_ROUND_ROBIN,
+  HMLP_SCHEDULE_UNIFORM,
+  HMLP_SCHEDULE_HEFT
+} SchedulePolicy;
+
+
+
+class range
+{
+  public:
+
+    range( int beg, int end, int inc );
+
+    int beg();
+
+    int end();
+
+    int inc();
+
+  private:
+
+    std::tuple<int, int, int > info;
+
+};
+
+range GetRange
+( 
+  SchedulePolicy strategy, 
+  int beg, int end, int nb, 
+  int tid, int nparts 
+);
+
+range GetRange
+( 
+  int beg, int end, int nb, 
+  int tid, int nparts 
+);
+
+range GetRange
+( 
+  int beg, int end, int nb 
+);
+
+
+
+
+
+
+
+
+
 
 
 class thread_communicator 
@@ -110,21 +159,21 @@ class Worker
 
     void Communicator( thread_communicator *comm );
 
-    void SetDevice( class Device *device );
-
-    class Device *GetDevice();
-
-    bool Execute( class Task *task );
-
-    void WaitExecute();
-
-    float EstimateCost( class Task* task );
-
-    class Scheduler *scheduler;
-
-#ifdef USE_PTHREAD_RUNTIME
-    pthread_t pthreadid;
-#endif
+//    void SetDevice( class Device *device );
+//
+//    class Device *GetDevice();
+//
+//    bool Execute( class Task *task );
+//
+//    void WaitExecute();
+//
+//    float EstimateCost( class Task* task );
+//
+//    class Scheduler *scheduler;
+//
+//#ifdef USE_PTHREAD_RUNTIME
+//    pthread_t pthreadid;
+//#endif
 
     int tid;
 
@@ -154,11 +203,35 @@ class Worker
 
     thread_communicator *ic_comm;
 
+
+
+
+#ifdef HMLP_HAVE_RUNTIME
+
+    void SetDevice( class Device *device );
+
+    class Device *GetDevice();
+
+    bool Execute( class Task *task );
+
+    void WaitExecute();
+
+    float EstimateCost( class Task* task );
+
+    class Scheduler *scheduler;
+
+#ifdef USE_PTHREAD_RUNTIME
+    pthread_t pthreadid;
+#endif
+
   private:
 
-    class Task *current_task;
+    class Task *current_task = NULL;
 
-    class Device *device;
+    class Device *device = NULL;
+
+#endif /** ifdef HMLP_HAVE_RUNTIME */
+
 
 }; /** end class Worker */
 

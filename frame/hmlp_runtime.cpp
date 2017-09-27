@@ -54,104 +54,104 @@ namespace hmlp
 /** IMPORTANT: we allocate a static runtime system per (MPI) process */
 static RunTime rt;
 
-range::range( int beg, int end, int inc )
-{
-  info = std::make_tuple( beg, end, inc );
-};
-
-int range::beg()
-{
-  return std::get<0>( info );
-};
-
-int range::end()
-{
-  return std::get<1>( info );
-};
-
-int range::inc()
-{
-  return std::get<2>( info );
-};
-
-range GetRange
-( 
-  SchedulePolicy strategy, 
-  int beg, int end, int nb, int tid, int nparts 
-)
-{
-  switch ( strategy )
-  {
-    case HMLP_SCHEDULE_DEFAULT:
-      {
-        auto tid_beg = beg + tid * nb;
-        auto tid_inc = nparts * nb;
-        return range( tid_beg, end, tid_inc );
-      }
-    case HMLP_SCHEDULE_ROUND_ROBIN:
-      {
-        auto tid_beg = beg + tid * nb;
-        auto tid_inc = nparts * nb;
-        return range( tid_beg, end, tid_inc );
-      }
-    case HMLP_SCHEDULE_UNIFORM:
-      printf( "GetRange(): HMLP_SCHEDULE_UNIFORM not yet implemented yet.\n" );
-      exit( 1 );
-    case HMLP_SCHEDULE_HEFT:
-      {
-        assert( nparts == 4 );
-        int len = end - beg - 1;
-        int big = ( len * 30 ) / 100 + 1;
-        int sma = ( len * 20 ) / 100 + 1;
-
-        int tid_beg, tid_end;
-
-        if ( tid == 0 )
-        {
-          tid_beg = beg;
-          tid_end = beg + big;
-        }
-        beg += big;
-
-        if ( tid == 1 )
-        {
-          tid_beg = beg;
-          tid_end = beg + sma;
-        }
-        beg += sma;
-
-        if ( tid == 2 )
-        {
-          tid_beg = beg;
-          tid_end = beg + sma;
-        }
-        beg += sma;
-
-        if ( tid == 3 )
-        {
-          tid_beg = beg;
-          tid_end = beg + big;
-        }
-        beg += big;
-
-        if ( tid_end > end ) tid_end = end;
-        return range( tid_beg, tid_end, nb );
-      }
-    default:
-      printf( "GetRange(): not a legal scheduling strategy.\n" );
-      exit( 1 );
-  }
-};
-
-range GetRange( int beg, int end, int nb, int tid, int nparts )
-{
-  return GetRange( HMLP_SCHEDULE_DEFAULT, beg, end, nb, tid, nparts );
-};
-
-range GetRange( int beg, int end, int nb )
-{
-  return GetRange( HMLP_SCHEDULE_DEFAULT, beg, end, nb, 0, 1 );
-};
+//range::range( int beg, int end, int inc )
+//{
+//  info = std::make_tuple( beg, end, inc );
+//};
+//
+//int range::beg()
+//{
+//  return std::get<0>( info );
+//};
+//
+//int range::end()
+//{
+//  return std::get<1>( info );
+//};
+//
+//int range::inc()
+//{
+//  return std::get<2>( info );
+//};
+//
+//range GetRange
+//( 
+//  SchedulePolicy strategy, 
+//  int beg, int end, int nb, int tid, int nparts 
+//)
+//{
+//  switch ( strategy )
+//  {
+//    case HMLP_SCHEDULE_DEFAULT:
+//      {
+//        auto tid_beg = beg + tid * nb;
+//        auto tid_inc = nparts * nb;
+//        return range( tid_beg, end, tid_inc );
+//      }
+//    case HMLP_SCHEDULE_ROUND_ROBIN:
+//      {
+//        auto tid_beg = beg + tid * nb;
+//        auto tid_inc = nparts * nb;
+//        return range( tid_beg, end, tid_inc );
+//      }
+//    case HMLP_SCHEDULE_UNIFORM:
+//      printf( "GetRange(): HMLP_SCHEDULE_UNIFORM not yet implemented yet.\n" );
+//      exit( 1 );
+//    case HMLP_SCHEDULE_HEFT:
+//      {
+//        assert( nparts == 4 );
+//        int len = end - beg - 1;
+//        int big = ( len * 30 ) / 100 + 1;
+//        int sma = ( len * 20 ) / 100 + 1;
+//
+//        int tid_beg, tid_end;
+//
+//        if ( tid == 0 )
+//        {
+//          tid_beg = beg;
+//          tid_end = beg + big;
+//        }
+//        beg += big;
+//
+//        if ( tid == 1 )
+//        {
+//          tid_beg = beg;
+//          tid_end = beg + sma;
+//        }
+//        beg += sma;
+//
+//        if ( tid == 2 )
+//        {
+//          tid_beg = beg;
+//          tid_end = beg + sma;
+//        }
+//        beg += sma;
+//
+//        if ( tid == 3 )
+//        {
+//          tid_beg = beg;
+//          tid_end = beg + big;
+//        }
+//        beg += big;
+//
+//        if ( tid_end > end ) tid_end = end;
+//        return range( tid_beg, tid_end, nb );
+//      }
+//    default:
+//      printf( "GetRange(): not a legal scheduling strategy.\n" );
+//      exit( 1 );
+//  }
+//};
+//
+//range GetRange( int beg, int end, int nb, int tid, int nparts )
+//{
+//  return GetRange( HMLP_SCHEDULE_DEFAULT, beg, end, nb, tid, nparts );
+//};
+//
+//range GetRange( int beg, int end, int nb )
+//{
+//  return GetRange( HMLP_SCHEDULE_DEFAULT, beg, end, nb, 0, 1 );
+//};
 
 /**
  *  @brief Lock

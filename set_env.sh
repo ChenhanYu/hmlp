@@ -26,7 +26,7 @@ export HMLP_USE_INTEL=true
 export HMLP_USE_BLAS=true
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
-#export MKLROOT=/opt/intel/mkl
+export MKLROOT=/opt/intel/mkl
 export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
@@ -79,6 +79,17 @@ export HMLP_MAGMA_DIR=/users/chenhan/Projects/magma-2.2.0
 
 ## Output google site data
 export HMLP_ANALYSIS_DATA=false
+
+## Build a independent sandbox
+export HMLP_BUILD_SANDBOX=true
+
+## Decide whether to compile the runtime system or not
+export HMLP_HAVE_RUNTIME=true
+if [ ! -f $PWD/frame/hmlp_runtime.cpp ]; then
+  echo "Disable HMLP runtime system"
+  export HMLP_HAVE_RUNTIME=false
+fi
+
 
 ## Advance OpenMP options
 export OMP_NESTED=false

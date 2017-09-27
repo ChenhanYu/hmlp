@@ -47,54 +47,54 @@
 namespace hmlp
 {
 
-typedef enum 
-{
-  HMLP_SCHEDULE_DEFAULT,
-  HMLP_SCHEDULE_ROUND_ROBIN,
-  HMLP_SCHEDULE_UNIFORM,
-  HMLP_SCHEDULE_HEFT
-} SchedulePolicy;
+//typedef enum 
+//{
+//  HMLP_SCHEDULE_DEFAULT,
+//  HMLP_SCHEDULE_ROUND_ROBIN,
+//  HMLP_SCHEDULE_UNIFORM,
+//  HMLP_SCHEDULE_HEFT
+//} SchedulePolicy;
 
 typedef enum { ALLOCATED, NOTREADY, QUEUED, RUNNING, DONE, CANCELLED } TaskStatus;
 
 typedef enum { R, W, RW } ReadWriteType;
 
 
-class range
-{
-  public:
-
-    range( int beg, int end, int inc );
-
-    int beg();
-
-    int end();
-
-    int inc();
-
-  private:
-
-    std::tuple<int, int, int > info;
-
-};
-
-range GetRange
-( 
-  SchedulePolicy strategy, 
-  int beg, int end, int nb, 
-  int tid, int nparts 
-);
-
-range GetRange
-( 
-  int beg, int end, int nb, 
-  int tid, int nparts 
-);
-
-range GetRange
-( 
-  int beg, int end, int nb 
-);
+//class range
+//{
+//  public:
+//
+//    range( int beg, int end, int inc );
+//
+//    int beg();
+//
+//    int end();
+//
+//    int inc();
+//
+//  private:
+//
+//    std::tuple<int, int, int > info;
+//
+//};
+//
+//range GetRange
+//( 
+//  SchedulePolicy strategy, 
+//  int beg, int end, int nb, 
+//  int tid, int nparts 
+//);
+//
+//range GetRange
+//( 
+//  int beg, int end, int nb, 
+//  int tid, int nparts 
+//);
+//
+//range GetRange
+//( 
+//  int beg, int end, int nb 
+//);
 
 /**
  * @brief Lock

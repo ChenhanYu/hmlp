@@ -224,12 +224,8 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 2 ], "%d", &n );
   sscanf( argv[ 3 ], "%d", &k );
 
-  hmlp_init();
 
-  //test_gkmx<float>( m, n, k );
   test_gnbx<float, double>( m, n, k );
-
-  hmlp_finalize();
 
   return 0;
 };

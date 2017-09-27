@@ -1,9 +1,3 @@
-
-
-
-
-
-
 # Check cmake version.
 # ---------------------------
 cmake_minimum_required (VERSION 2.8)
@@ -17,9 +11,6 @@ set (HMLP_VERSION_PATCH 0)
 set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
 ENABLE_TESTING()
 
-# Cmake scripts and modules
-# ---------------------------
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
 
 # Decide architecture
 # ---------------------------
@@ -187,15 +178,6 @@ elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "haswell")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -mavx")
 endif()
 
-
-# Whether to compile the runtime system
-# ---------------------------
-if ($ENV{HMLP_HAVE_RUNTIME} MATCHES "true")
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DHMLP_HAVE_RUNTIME")
-endif()
-
-
-
 # Configure the path structure.
 # ---------------------------
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -203,38 +185,6 @@ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RELEASE_POSTFIX "")
 set (CMAKE_DEBUG_POSTFIX "-debug")
-
-
-# Python support
-# ---------------------------
-#find_package(PythonLibs REQUIRED)
-#include_directories(${PYTHON_INCLUDE_DIRS})
-# message("${PYTHON_LIBRARIES}")
-# message("${PYTHON_INCLUDE_DIRS}")
-find_program(PYTHON "python")
-if (PYTHON)
-  set(SETUP_PY_IN ${CMAKE_SOURCE_DIR}/python/setup.in.py)
-  set(SETUP_PY    ${CMAKE_BINARY_DIR}/python/setup.py)
-  #replace all cmake variables with the correct values
-  configure_file(${SETUP_PY_IN} ${SETUP_PY})
-  set(HMLP_PYX_IN ${CMAKE_SOURCE_DIR}/python/hmlp.pyx)
-  set(HMLP_PYX    ${CMAKE_BINARY_DIR}/python/hmlp.pyx)
-  configure_file(${HMLP_PYX_IN} ${HMLP_PYX})
-  #set(CHMLP_PXD_IN ${CMAKE_SOURCE_DIR}/python/chmlp.pxd)
-  #set(CHMLP_PXD    ${CMAKE_BINARY_DIR}/python/chmlp.pxd)
-  #configure_file(${CHMLP_PXD_IN} ${CHMLP_PXD})
-  set(GOFMM_PYX_IN ${CMAKE_SOURCE_DIR}/python/gofmm.pyx)
-  set(GOFMM_PYX    ${CMAKE_BINARY_DIR}/python/gofmm.pyx)
-  configure_file(${GOFMM_PYX_IN} ${GOFMM_PYX})
-  #set(CGOFMM_PXD_IN ${CMAKE_SOURCE_DIR}/python/cgofmm.pxd)
-  #set(CGOFMM_PXD    ${CMAKE_BINARY_DIR}/python/cgofmm.pxd)
-  #configure_file(${CGOFMM_PXD_IN} ${CGOFMM_PXD})
-  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --prefix=${CMAKE_BINARY_DIR})")
-  #install(CODE "execute_process(COMMAND CC=${CMAKE_C_COMPILER} ${PYTHON} ${SETUP_PY} build_ext -i)")
-endif()
-
-
-
 
 
 # (OPTIONAL) MPI configurations
@@ -249,14 +199,10 @@ else ()
 endif ()
 
 
-
-
 # Remove -rdynamic
 # ---------------------------
 set (CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 set (CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
-
-
 
 
 # (OPTIONAL) GPU Compiler sptions
@@ -284,11 +230,6 @@ if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
 endif()
 
 
-# Pthread runtime
-# ---------------------------
-# set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_PTHREAD_RUNTIME")
-
-
 # Dump analysis data to google site
 # ---------------------------
 if ($ENV{HMLP_ANALYSIS_DATA} MATCHES "true")
@@ -300,27 +241,6 @@ endif()
 # ---------------------------
 set (CMAKE_C_FLAGS        "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
 set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS} -std=c++11")
-
-
-# Linking infos.
-# ---------------------------
-#if (($ENV{HMLP_USE_BLAS} MATCHES "true") OR ($ENV{HMLP_USE_VML} MATCHES "true"))
-#  if ($ENV{HMLP_USE_INTEL} MATCHES "true")
-#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
-#    include_directories ("${MKL_DIR}/include")
-#  else ($ENV{HMLP_USE_INTEL} MATCHES "true")
-#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-#  endif ()
-#endif ()
-
-#if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm"))
-#  if (DEFINED QSML_DIR)
-#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
-#    #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
-#    include_directories ("${QSML_DIR}/include")
-#  endif()
-#endif()
-
 
 
 # Headers
@@ -350,8 +270,6 @@ file (GLOB PACKAGE_CXX_SRC   ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
 file (GLOB PACKAGE_CU_SRC    ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 
-#SET(CMAKE_ASM_COMPILE_OBJECT "<CMAKE_ASM_COMPILER> -o <OBJECT> <SOURCE>")
-
 
 # Build the static library.
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
@@ -362,18 +280,7 @@ else ()
   add_library (hmlp SHARED ${FRAME_CC_SRC} 
     ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
-  #if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND NOT ($ENV{HMLP_USE_INTEL} MATCHES "true"))
-  #  target_link_libraries (hmlp ${BLAS_LIBRARIES})
-  #endif ()
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
-
-
-# add_library (dyhmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
-#     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
-# if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_USE_INTEL} MATCHES "true"))
-#   target_link_libraries (dyhmlp -mkl=parallel)
-# endif()
-
 
 
 # Build the executable files.
@@ -396,90 +303,6 @@ foreach( testsrc ${TEST_CXX_SRC} )
 endforeach()
 
 
-## Also build the target paper artifact
-# ---------------------------
-set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
-if (ARTIFACT_PATH MATCHES "sc17gofmm")
-  set(ARTIFACT_PATH "${CMAKE_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")
-  file (GLOB ARTIFACT_CXX_SRC    ${ARTIFACT_PATH}/*.cpp)
-  file (GLOB ARTIFACT_SCRIPTS    ${ARTIFACT_PATH}/*.sh)
-  file (GLOB ARTIFACT_DATASETS   ${ARTIFACT_PATH}/datasets/*.m)
-  foreach( artifactsrc ${ARTIFACT_CXX_SRC} )
-    string( REPLACE ".cpp" ".x" artifactexe ${artifactsrc} )
-    get_filename_component( artifactexe ${artifactsrc} NAME_WE )
-    add_executable( "${artifactexe}.x" ${artifactsrc} )
-    target_link_libraries( "${artifactexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
-  endforeach( artifactsrc ${ARTIFACT_CXX_SRC} )
-  install (FILES ${ARTIFACT_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
-  install (FILES ${ARTIFACT_DATASETS} DESTINATION ${CMAKE_BINARY_DIR}/bin/datasets)
-endif()
-
-
-## Also build the sandbox
-# ---------------------------
-set(BUILD_SANDBOX $ENV{HMLP_BUILD_SANDBOX})
-if (BUILD_SANDBOX MATCHES "true")
-  file (GLOB SANDBOX_ENV ${CMAKE_SOURCE_DIR}/set_env.sh )
-
-  file (GLOB SANDBOX_SRC ${CMAKE_SOURCE_DIR}/frame/blas_lapack_prototypes.hpp
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.cpp
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.cu
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.h
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_thread.cpp
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_thread.hpp
-                         #${CMAKE_SOURCE_DIR}/frame/hmlp_runtime.cpp
-                         #${CMAKE_SOURCE_DIR}/frame/hmlp_runtime.hpp
-                         #${CMAKE_SOURCE_DIR}/frame/hmlp_device.cpp
-                         #${CMAKE_SOURCE_DIR}/frame/hmlp_device.hpp
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_util.hpp )
-
-                       #file (GLOB SANDBOX_EXT ${CMAKE_SOURCE_DIR}/frame/external/*)
-  file (GLOB SANDBOX_PRI ${CMAKE_SOURCE_DIR}/frame/primitives/gnbx.hpp)
-  file (GLOB SANDBOX_PKG ${CMAKE_SOURCE_DIR}/package/x86_64/sandybridge/gnbx.cpp)
-  file (GLOB SANDBOX_EXE ${CMAKE_SOURCE_DIR}/test/test_gnbx.cpp)
-
-  #file (GLOB SANDBOX_INC ${CMAKE_SOURCE_DIR}/include/*)
-  install(FILES ${SANDBOX_ENV} DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
-  install(FILES ${CMAKE_SOURCE_DIR}/cmake/sandbox_CMakeLists.txt DESTINATION 
-    ${CMAKE_BINARY_DIR}/sandbox RENAME CMakeLists.txt)
-  install(FILES ${SANDBOX_SRC} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame)
-  #install(FILES ${SANDBOX_EXT} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame/external)
-  install(FILES ${SANDBOX_PRI} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame/primitives)
-  install(FILES ${SANDBOX_PKG} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/package/x86_64/sandybridge)
-  install(FILES ${SANDBOX_EXE} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/test)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/frame/external DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/kernel DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/include DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
-endif()
-
-
-
-
-# add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)
-# target_link_libraries(test_dgsks_list.x gsks)
-
-
-
-# Build GPU GKMX test suit
-if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  # add_executable (test_spdaskit_gpu.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit_gpu.cu)
-  # target_link_libraries(test_spdaskit_gpu.x hmlp)
-  # cuda_add_cublas_to_target(test_spdaskit_gpu.x)
-endif ()
-if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-  target_link_libraries(test_gkmm_gpu.x magma)
-  target_link_libraries(test_strassen_gpu.x magma)
-endif()
-
-
-
-
-
-
-# Install shell script
-# ---------------------------
-file (GLOB HMLP_SCRIPTS ${CMAKE_SOURCE_DIR}/test/*.sh)
-install (FILES ${HMLP_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
 
 
 # Report
