@@ -273,6 +273,18 @@ class NULLTask : public Task
 
 
 /**
+ *  @brief Recursive task sibmission (base case)
+ */ 
+template<typename ARG>
+void RecuTaskSubmit( ARG *arg )
+{
+	/** do nothing */
+}; /** end RecuDistTaskSubmit() */
+
+
+
+
+/**
  *  @brief Recursive task sibmission
  */ 
 template<typename ARG, typename TASK, typename... Args>
@@ -290,7 +302,7 @@ void RecuTaskSubmit( ARG *arg, TASK& dummy, Args&... dummyargs )
   }
 
   /** now recurs to Args&... args, types are deduced automatically */
-  RecuTaskSubmit( arg, dummy, dummyargs... );
+  RecuTaskSubmit( arg, dummyargs... );
 
 }; /** end RecuDistTaskSubmit() */
 

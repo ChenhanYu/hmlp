@@ -2227,8 +2227,13 @@ void GetSkeletonMatrix( NODE *node )
         rskels.begin(), rskels.end() );
   }
 
+  size_t nsamples = 2 * candidate_cols.size();
+
+  /** make sure we at least m samples */
+  if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
+
   /** sample off-diagonal rows */
-  RowSamples( node, 2 * candidate_cols.size() );
+  RowSamples( node, nsamples );
   /** 
    *  get KIJ for skeletonization 
    *
@@ -2365,8 +2370,16 @@ void ParallelGetSkeletonMatrix( NODE *node )
       candidate_cols.reserve( candidate_cols.size() + recv_buff.size() );
       for ( size_t i = 0; i < recv_buff.size(); i ++ )
         candidate_cols.push_back( recv_buff[ i ] );
+
+
+      size_t nsamples = 2 * candidate_cols.size();
+
+      /** make sure we at least m samples */
+      if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
+
+
       /** sample off-diagonal rows */
-      RowSamples( node, 2 * candidate_cols.size() );
+      RowSamples( node, nsamples );
     }
 
     if ( rank == size / 2 )
@@ -3202,7 +3215,7 @@ hmlp::mpitree::Tree<
   //tree.template ParallelTraverseUp<true>( 
   //    getmatrixtask, mpigetmatrixtask, skeltask, mpiskeltask );
 
-  tree.LocaTraverseUp( getmatrixtask, skeltask );
+  tree.LocaTraverseUp(    getmatrixtask,    skeltask );
   tree.DistTraverseUp( mpigetmatrixtask, mpiskeltask );
 
 

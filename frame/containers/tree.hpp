@@ -890,25 +890,30 @@ class Tree
       /** all assertion */
       assert( N_CHILDREN == 2 );
 
-      int max_depth = setup.max_depth;
+      /** compute the global tree depth */
+			int glb_depth = std::ceil( std::log( n / m ) );
+			if ( glb_depth > setup.max_depth ) glb_depth = setup.max_depth;
+
+			/** compute the local tree depth */
+			depth = glb_depth - root->l;
 
       /** clean up  */
       treelist.clear();
       treequeue.clear();
 
       /** reserve space for local tree nodes */
-      treelist.reserve( ( root->n / m ) * N_CHILDREN );
+      treelist.reserve( 1 << ( depth + 1 ) );
 
       /** assume complete tree, compute the local tree depth first */
-      depth = 0;
-      size_t num_points_per_node = root->n;
-      while ( num_points_per_node > m && root->l + depth < max_depth )
-      {
-        num_points_per_node = ( num_points_per_node + 1 ) / N_CHILDREN;
-        depth ++;
-      }
-      size_t num_nodes_in_local_tree = 
-        ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
+      //depth = 0;
+      //size_t num_points_per_node = root->n;
+      //while ( num_points_per_node > m && root->l + depth < max_depth )
+      //{
+      //  num_points_per_node = ( num_points_per_node + 1 ) / N_CHILDREN;
+      //  depth ++;
+      //}
+      //size_t num_nodes_in_local_tree = 
+      //  ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
 
       /** push root into the treelist */
       treequeue.push_back( root );
@@ -919,7 +924,7 @@ class Tree
         /** assign local tree node id */
         node->treelist_id = treelist.size();
         /** account for the depth of the distributed tree */
-        if ( node->l < root->l + depth )
+        if ( node->l <= root->l + depth )
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
@@ -948,57 +953,57 @@ class Tree
     {
       assert( N_CHILDREN == 2 );
       
-//      /** declaration */
-//      std::deque<NODE*> treequeue;
-//      int max_depth = setup.max_depth;
-//
-//      /** reset the warning flag and clean up the treelist */
-//      has_uneven_split = false;
-//      treelist.clear();
-//      treequeue.clear();
-//      treelist.reserve( ( root->n / m ) * N_CHILDREN );
-//
-//      /** assume complete tree, compute the local tree depth first */
-//      depth = 0;
-//      size_t num_points_per_node = root->n;
-//      while ( num_points_per_node > m && root->l + depth < max_depth )
-//      {
-//        num_points_per_node = ( num_points_per_node + 1 ) / N_CHILDREN;
-//        depth ++;
-//      }
-//      size_t num_nodes_in_local_tree = 
-//        ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
-//
-//      /** TODO: remove lid in the future?? */
-//      root->lids = root->gids;
-//
-//
-//      /** push root into the treelist */
-//      treequeue.push_back( root );
-//
-//      /** allocate children */
-//      while ( auto *node = treequeue.front() )
-//      {
-//        /** assign local tree node id */
-//        node->treelist_id = treelist.size();
-//        /** account for the depth of the distributed tree */
-//        if ( node->l < root->l + depth )
-//        {
-//          for ( int i = 0; i < N_CHILDREN; i ++ )
-//          {
-//            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
-//            treequeue.push_back( node->kids[ i ] );
-//          }
-//        }
-//        else
-//        {
-//          treequeue.push_back( NULL );
-//        }
-//        treelist.push_back( node );
-//        treequeue.pop_front();
-//      }
-//
-//      //printf( "local treelist.size() %lu\n", treelist.size() ); fflush( stdout );
+      /** declaration */
+      std::deque<NODE*> treequeue;
+      int max_depth = setup.max_depth;
+
+      /** reset the warning flag and clean up the treelist */
+      has_uneven_split = false;
+      treelist.clear();
+      treequeue.clear();
+      treelist.reserve( ( root->n / m ) * N_CHILDREN );
+
+      /** assume complete tree, compute the local tree depth first */
+      depth = 0;
+      size_t num_points_per_node = root->n;
+      while ( num_points_per_node > m && root->l + depth < max_depth )
+      {
+        num_points_per_node = ( num_points_per_node + 1 ) / N_CHILDREN;
+        depth ++;
+      }
+      size_t num_nodes_in_local_tree = 
+        ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
+
+      /** TODO: remove lid in the future?? */
+      root->lids = root->gids;
+
+
+      /** push root into the treelist */
+      treequeue.push_back( root );
+
+      /** allocate children */
+      while ( auto *node = treequeue.front() )
+      {
+        /** assign local tree node id */
+        node->treelist_id = treelist.size();
+        /** account for the depth of the distributed tree */
+        if ( node->l < root->l + depth )
+        {
+          for ( int i = 0; i < N_CHILDREN; i ++ )
+          {
+            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
+            treequeue.push_back( node->kids[ i ] );
+          }
+        }
+        else
+        {
+          treequeue.push_back( NULL );
+        }
+        treelist.push_back( node );
+        treequeue.pop_front();
+      }
+
+      //printf( "local treelist.size() %lu\n", treelist.size() ); fflush( stdout );
 
 
 

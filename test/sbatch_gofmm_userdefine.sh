@@ -2,9 +2,9 @@
 #SBATCH -A PADAS
 #SBATCH -J GOFMM
 #SBATCH -o gofmm_output.out
-#SBATCH -p normal
-#SBATCH -t 00:30:00
-#SBATCH -n 4
+#SBATCH -p gpu
+#SBATCH -t 00:10:00
+#SBATCH -n 1
 #SBATCH -N 1
 
 export OMP_NUM_THREADS=10
@@ -31,9 +31,9 @@ declare -a dataarray=(
 ## problem size
 n=5000
 ## maximum leaf node size
-m=64
+m=128
 ## maximum off-diagonal ranks
-s=64
+s=128
 ## number of neighbors
 k=0
 ## number of right hand sides
@@ -58,7 +58,8 @@ matrixtype="testsuit"
 #fi
 
 mpiexec="ibrun tacc_affinity"
-executable="test_mpigofmm.x"
+#executable="test_mpigofmm.x"
+executable="test_gofmm.x"
 
 
 echo "@PRIM"

@@ -501,6 +501,12 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
     }; /** end CleanUp() */
 
+	
+
+
+
+
+
 
 
     /** 
@@ -515,6 +521,11 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       int myrank  = rank;
       int mycolor = 0;
       size_t mylevel = 0;
+
+
+			/** TODO: gids should be initialized as XBLK */
+
+
 
       /** root( setup, n = 0, l = 0, parent = NULL ) */
       auto *root = new MPINODE( &(this->setup), 
@@ -570,6 +581,12 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       }
       /** synchronize */
       hmlp::mpi::Barrier( comm );
+
+			/** allocate local tree nodes */
+      auto *local_tree_root = mpitreelists.back();
+      tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::AllocateNodes( 
+          local_tree_root );
+
     };
 
 
@@ -683,11 +700,10 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
-      /** use the local root to allocate local tree nodes */
-      auto *local_tree_root = mpitreelists.back();
-      hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::AllocateNodes( 
-          local_tree_root );
-    
+
+
+			/** TODO use task scheduler */
+
       auto *node = mpitreelists.front();
       /** distributed split */
       while ( node )
@@ -697,11 +713,17 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
          node = node->child;
       };
 
-
       /** TODO: local tree */
-      //auto *local_tree_root = mpitreelists.back();
+      auto *local_tree_root = mpitreelists.back();
       hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::TreePartition(
           local_tree_root );
+
+
+
+
+
+
+
 
 
 
@@ -840,6 +862,9 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
        *  IMPORTANT: here l must be int, size_t will wrap over 
        *
        */
+
+			printf( "depth %lu\n", this->depth ); fflush( stdout );
+
       for ( int l = this->depth; l >= 1; l -- )
       {
         size_t n_nodes = 1 << l;
