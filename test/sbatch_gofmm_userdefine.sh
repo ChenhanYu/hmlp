@@ -31,9 +31,9 @@ declare -a dataarray=(
 ## problem size
 n=5000
 ## maximum leaf node size
-m=128
+m=64
 ## maximum off-diagonal ranks
-s=128
+s=64
 ## number of neighbors
 k=0
 ## number of right hand sides
@@ -58,8 +58,8 @@ matrixtype="testsuit"
 #fi
 
 mpiexec="ibrun tacc_affinity"
-#executable="test_mpigofmm.x"
-executable="test_gofmm.x"
+executable="test_mpigofmm.x"
+#executable="test_gofmm.x"
 
 
 echo "@PRIM"

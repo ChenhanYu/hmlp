@@ -569,7 +569,10 @@ int main( int argc, char *argv[] )
 
 
       /** spd kernel matrix format (implicitly create) */
-      hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, MPI_COMM_WORLD );
+      //hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, MPI_COMM_WORLD );
+
+			hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
+
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
       hmlp::Data<std::pair<T, std::size_t>> NN;
@@ -623,6 +626,10 @@ int main( int argc, char *argv[] )
       K.resize( n, n );
       /** random spd initialization */
       K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+
+			/** broadcast K to all other rank */
+      hmlp::mpi::Bcast( K.data(), n * n, 0, MPI_COMM_WORLD );
+
       /** (optional) provide neighbors, leave uninitialized otherwise */
       hmlp::Data<std::pair<T, std::size_t>> NN;
       /** routine */
