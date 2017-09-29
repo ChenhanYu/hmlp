@@ -633,7 +633,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     void AllocateNodes( std::vector<size_t> &gids )
     {
       /** decide the number of distributed tree level according to mpi size */
-      int mycomm  = comm;
+      auto mycomm  = comm;
       int mysize  = size;
       int myrank  = rank;
       int mycolor = 0;

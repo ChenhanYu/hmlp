@@ -107,6 +107,11 @@ class DistVirtualMatrix : public mpi::MPIObject
     //}; /** end ImportantSample() */
 
 
+		bool IsBackGroundMessage( int tag )
+		{
+			return ( tag > background_tag_offset );
+		};
+
     /**
      *  this routine is executed by the serving worker
      *  wait and receive message from any source
@@ -138,42 +143,46 @@ class DistVirtualMatrix : public mpi::MPIObject
           int recv_tag = status.MPI_TAG;
           int recv_cnt;
 
-          /** get I object count */
-          mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+					if ( IsBackGroundMessage( recv_tag ) )
+					{
+						/** get I object count */
+						mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
 
-          /** recv (typeless) I by matching SOURCE and TAG */
-          I.resize( recv_cnt );
-          mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
-              this->GetComm(), &status );
+						/** recv (typeless) I by matching SOURCE and TAG */
+						I.resize( recv_cnt );
+						mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
+								this->GetComm(), &status );
 
-          /** blocking Probe the message that contains J */
-          mpi::Probe( recv_src, recv_tag, this->GetComm(), &status );
+						/** blocking Probe the message that contains J */
+						mpi::Probe( recv_src, recv_tag, this->GetComm(), &status );
 
-          /** get J object count */
-          mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+						/** get J object count */
+						mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
 
-          /** recv (typeless) I by matching SOURCE and TAG */
-          J.resize( recv_cnt );
-          mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag, 
-              this->GetComm(), &status );
+						/** recv (typeless) I by matching SOURCE and TAG */
+						J.resize( recv_cnt );
+						mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag, 
+								this->GetComm(), &status );
 
-          /** 
-           *  this invoke the operator () to get K( I, J )  
-           *
-           *  notice that operator () can invoke MPI routines,
-           *  but limited to one-sided routines without blocking.
-           */
-          auto KIJ = (*this)( I, J );
+						/** 
+						 *  this invoke the operator () to get K( I, J )  
+						 *
+						 *  notice that operator () can invoke MPI routines,
+						 *  but limited to one-sided routines without blocking.
+						 */
+						auto KIJ = (*this)( I, J );
 
-          /** blocking send */
-          mpi::Send( KIJ.data(), KIJ.size(), recv_src, recv_tag, this->GetComm() );
-        }
+						/** blocking send */
+						mpi::Send( KIJ.data(), KIJ.size(), recv_src, recv_tag, this->GetComm() );
+					}
+				}
 
 				if ( *do_terminate ) break;
       };
 
     }; /** end BackGroundProcess() */
 
+		
 
   private:
 
@@ -181,6 +190,7 @@ class DistVirtualMatrix : public mpi::MPIObject
 
     size_t n = 0;
 
+		const int background_tag_offset = 128;
 
 }; /** end class DistVirtualMatrix */
 

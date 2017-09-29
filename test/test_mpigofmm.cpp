@@ -569,9 +569,9 @@ int main( int argc, char *argv[] )
 
 
       /** spd kernel matrix format (implicitly create) */
-      //hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, MPI_COMM_WORLD );
+      hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, MPI_COMM_WORLD );
 
-			hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
+			//hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
 
 
       /** (optional) provide neighbors, leave uninitialized otherwise */

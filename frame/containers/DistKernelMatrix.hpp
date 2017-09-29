@@ -786,7 +786,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 					int recv_tag = status.MPI_TAG;
 					int recv_cnt;
 
-					if ( recv_tag >= background_tag_offset )
+					if ( this->IsBackGroundMessage( recv_tag ) )
 					{
 
 						/** get I object count */
@@ -857,9 +857,6 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     /** */
     std::vector<size_t> all_dimensions;
-
-		const int background_tag_offset = 128;
-
 
     //Data<T> &sources;
 
