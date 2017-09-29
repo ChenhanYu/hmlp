@@ -175,6 +175,11 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
 {
   public:
 
+		void BackGroundProcess( bool *do_terminate )
+		{
+			K->BackGroundProcess( do_terminate );
+		};
+
     /** humber of neighbors */
     size_t k = 32;
 
@@ -318,6 +323,11 @@ class SPDMatrix : public hmlp::Data<T>
 
       return DII;
     };
+
+
+    virtual void BackGroundProcess( bool *do_terminate )
+		{
+		};
 
   private:
 

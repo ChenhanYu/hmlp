@@ -111,7 +111,7 @@ class DistVirtualMatrix : public mpi::MPIObject
      *  this routine is executed by the serving worker
      *  wait and receive message from any source
      */ 
-    virtual void BusyWaiting()
+    virtual void BackGroundProcess( bool *do_terminate )
     {
       /** Iprobe flag */
       int flag = 0;
@@ -168,9 +168,11 @@ class DistVirtualMatrix : public mpi::MPIObject
           /** blocking send */
           mpi::Send( KIJ.data(), KIJ.size(), recv_src, recv_tag, this->GetComm() );
         }
+
+				if ( *do_terminate ) break;
       };
 
-    }; /** end BusyWaiting() */
+    }; /** end BackGroundProcess() */
 
 
   private:

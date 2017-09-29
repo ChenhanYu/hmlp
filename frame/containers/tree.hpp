@@ -176,6 +176,17 @@ class SplitTask : public hmlp::Task
       cost = 1.0;
     };
 
+		void DependencyAnalysis()
+		{
+      arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      if ( !arg->isleaf )
+      {
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      }
+      this->TryEnqueue();
+		};
+
     void Execute( Worker* user_worker )
     {
       arg->template Split<true>( 0 );
@@ -209,7 +220,7 @@ struct centersplit
 
     hmlp::Data<T> &X = *Coordinate;
     size_t d = X.row();
-    size_t n = lids.size();
+    size_t n = gids.size();
 
     T rcx0 = 0.0, rx01 = 0.0;
     std::size_t x0, x1;
@@ -890,12 +901,18 @@ class Tree
       /** all assertion */
       assert( N_CHILDREN == 2 );
 
+
       /** compute the global tree depth */
-			int glb_depth = std::ceil( std::log( n / m ) );
+			int glb_depth = std::ceil( std::log2( n / m ) );
 			if ( glb_depth > setup.max_depth ) glb_depth = setup.max_depth;
 
 			/** compute the local tree depth */
 			depth = glb_depth - root->l;
+
+			printf( "local AllocateNodes n %lu m %lu glb_depth %d loc_depth %lu\n", 
+					n, m, glb_depth, depth );
+
+
 
       /** clean up  */
       treelist.clear();
@@ -924,16 +941,20 @@ class Tree
         /** assign local tree node id */
         node->treelist_id = treelist.size();
         /** account for the depth of the distributed tree */
-        if ( node->l <= root->l + depth )
+        if ( node->l < glb_depth )
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
+            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node );
             treequeue.push_back( node->kids[ i ] );
           }
+					node->lchild = node->kids[ 0 ];
+					node->rchild = node->kids[ 1 ];
         }
         else
         {
+					/** leaf nodes */
+					node->isleaf = true;
           treequeue.push_back( NULL );
         }
         treelist.push_back( node );
@@ -1036,7 +1057,7 @@ class Tree
 
       std::deque<NODE*> treequeue;
 
-      this->n = lids.size();
+      this->n = gids.size();
       this->m = setup.m;
       int max_depth = setup.max_depth;
 
@@ -1379,7 +1400,7 @@ class Tree
     )
     {
       /** k-by-N */
-      hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
+      hmlp::Data<std::pair<T, std::size_t>> NN( k, gids.size(), initNN );
 
       /** use leaf size = 4 * k  */
       setup.m = 4 * k;

@@ -771,7 +771,7 @@ class Cluster
           auto Cq  = Confusion( ncluster,      q );
           if ( Cpq > 0.0 )
           {
-            nmi_antecedent += (-2.0) * ( Cpq / n ) * std::log( n * Cpq / ( Cp * Cq ) );
+            nmi_antecedent += (-2.0) * ( Cpq / n ) * std::log2( n * Cpq / ( Cp * Cq ) );
           }
         }
       }
@@ -780,14 +780,14 @@ class Cluster
       for ( size_t q = 0; q < nclass; q ++ )
       {
         auto Cq = Confusion( ncluster, q );
-        nmi_consequent += ( Cq / n ) * std::log( Cq / n );
+        nmi_consequent += ( Cq / n ) * std::log2( Cq / n );
       }
 
       /** consequent part (cluster) */
       for ( size_t p = 0; p < ncluster; p ++ )
       {
         auto Cp = Confusion( p, nclass );
-        nmi_consequent += ( Cp / n ) * std::log( Cp / n );
+        nmi_consequent += ( Cp / n ) * std::log2( Cp / n );
       }
     
       nmi = ( nmi_antecedent / nmi_consequent );

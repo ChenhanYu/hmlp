@@ -366,6 +366,11 @@ void Task::Submit()
   rt.scheduler->NewTask( this );
 };
 
+void Task::SetAsBackGround()
+{
+	rt.scheduler->SetBackGroundTask( this );
+};
+
 /** virtual function */
 void Task::Set( std::string user_name, void (*user_function)(Task*), void *user_arg )
 {
@@ -657,6 +662,9 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
   /** reset task counter */
   n_task = 0;
 
+	/** termination flag */
+	do_terminate = false;
+
 #ifdef USE_PTHREAD_RUNTIME
   if ( user_n_nested_worker > 1 )
   {
@@ -829,6 +837,24 @@ Task *Scheduler::TryDispatchFromNestedQueue()
 
 
 
+void Scheduler::SetBackGroundTask( Task *task )
+{
+  this->UnsetBackGroundTask();	
+	this->bgtask = task;
+};
+
+Task *Scheduler::GetBackGroundTask()
+{
+	return bgtask;
+};
+
+void Scheduler::UnsetBackGroundTask()
+{
+	if ( this->bgtask ) delete this->bgtask;
+	this->bgtask = NULL;
+};
+
+
 
 /**
  *  @brief Different from DependencyAdd, which asks programmer to manually
@@ -888,6 +914,13 @@ void* Scheduler::EntryPoint( void* arg )
   printf( "Scheduler::EntryPoint()\n" );
   printf( "pthreadid %d\n", me->tid );
 #endif
+
+	/** if there is a background task, tid = 1 is assigned to it */
+  if ( me->tid == 1 )
+	{
+		auto *bgtask = scheduler->GetBackGroundTask();
+		if ( bgtask ) me->Execute( bgtask );
+	}
 
   /** start to consume all tasks in this epoch session */
   while ( 1 )
@@ -1094,6 +1127,8 @@ void* Scheduler::EntryPoint( void* arg )
 
     if ( scheduler->n_task >= scheduler->tasklist.size() )
     {
+			/** set the termination flag to true */
+		  scheduler->do_terminate = true;
       /** sanity check: no task should left */
       if ( scheduler->ready_queue[ me->tid ].size() == 0 )
       {

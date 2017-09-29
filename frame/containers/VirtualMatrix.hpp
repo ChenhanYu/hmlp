@@ -109,6 +109,11 @@ class VirtualMatrix
     }; /** end ImportantSample() */
 
 
+    virtual void BackGroundProcess( bool *do_terminate )
+		{
+		};
+
+
   private:
 
     std::size_t m;

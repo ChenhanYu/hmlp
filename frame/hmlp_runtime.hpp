@@ -205,6 +205,8 @@ class Task
 
     void Submit();
 
+		void SetAsBackGround();
+
     virtual void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
 
     virtual void Prefetch( Worker* );
@@ -407,7 +409,15 @@ class Scheduler
 
     Task *TryDispatchFromNestedQueue();
 
+		void SetBackGroundTask( Task *task );
+
+	  Task *GetBackGroundTask();
+
+		void UnsetBackGroundTask();
+
     void Summary();
+
+		bool do_terminate = false;
 
   private:
 
@@ -420,6 +430,9 @@ class Scheduler
     Lock gpu_lock;
 
     Lock tasklist_lock;
+
+		/** background task */
+		Task *bgtask = NULL;
 
 };
 

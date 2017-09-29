@@ -186,6 +186,104 @@ struct centersplit
 
 
 
+template<typename BACKGROUND>
+class BackGroundTask : public hmlp::Task
+{
+	public:
+
+		BACKGROUND *bg = NULL;
+
+		BackGroundTask( BACKGROUND *user_bg ) : hmlp::Task()
+		{
+			bg = user_bg;
+			name = std::string( "BackGround" );
+      /** asuume computation bound */
+      cost = 9999.9;
+			/** high priority */
+      priority = true;
+		};
+
+    void Execute( Worker* user_worker )
+    {
+      bg->BackGroundProcess( &(user_worker->scheduler->do_terminate) );
+    };
+
+}; /** end class BusyGroundTask */
+
+
+template<typename NODE>
+class DistSplitTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      arg = user_arg;
+      name = std::string( "DistSplit" );
+      {
+        //label = std::to_string( arg->treelist_id );
+        std::ostringstream ss;
+        ss << arg->treelist_id;
+        label = ss.str();
+      }
+
+      double flops = 0.0;
+      double mops = 0.0;
+
+      /** setup the event */
+      event.Set( label + name, flops, mops );
+
+      /** asuume computation bound */
+      cost = 1.0;
+
+      /** low priority */
+      priority = true;
+
+
+			//printf( "finish Set level %lu\n", arg->l );
+    };
+
+
+    void DependencyAnalysis()
+    {
+			//printf( "in DependencyAnalysis level %lu\n", arg->l );
+
+      arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      if ( !arg->isleaf )
+      {
+        if ( arg->GetCommSize() > 1 )
+        {
+					assert( arg->child );
+          arg->child->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        }
+        else
+        {
+					assert( arg->lchild && arg->rchild );
+          arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+          arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        }
+      }
+      this->TryEnqueue();
+		};
+
+    void Execute( Worker* user_worker )
+    {
+      arg->Split();
+    };
+}; /** end class SplitTask */
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  *
@@ -234,6 +332,10 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
       this->child = child;
     };
 
+
+
+
+
     void Split()
     {
       /** assertion */
@@ -251,6 +353,10 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
 
+
+
+
+
       //printf( "rank %d n %lu gids.size() %lu --", 
       //    rank, this->n, this->gids.size() ); fflush( stdout );
       //for ( size_t i = 0; i < this->gids.size(); i ++ )
@@ -263,6 +369,8 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
       if ( child )
       {
+				printf( "Split(): n %lu  \n", this->n ); fflush( stdout );
+
         /** the local communicator of this node contains at least 2 processes */
         assert( size > 1 );
 
@@ -334,7 +442,16 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
           kept_gids.push_back( recv_gids[ i ] );
         
 
-      } /** end if ( child ) */
+      }
+			else
+			{
+				//printf( "Split(): n %lu  \n", this->n ); fflush( stdout );
+
+				/** TODO: deprecate lids */
+			  this->lids = this->gids;
+        tree::Node<SETUP, N_CHILDREN, NODEDATA, T>::Split<true>( 0 );
+
+		  } /** end if ( child ) */
       
       /** synchronize within local communicator */
       hmlp::mpi::Barrier( comm );
@@ -584,6 +701,10 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 			/** allocate local tree nodes */
       auto *local_tree_root = mpitreelists.back();
+
+			//printf( "" );
+
+
       tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::AllocateNodes( 
           local_tree_root );
 
@@ -696,38 +817,26 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       printf( "rank %d gids[ 0 ] %lu gids[ -1 ] %lu\n",
           rank, gids[ 0 ], gids[ gids.size() - 1 ] ); fflush( stdout );
 
-
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
+      DependencyCleanUp();
 
+			auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
+      bgtask->SetAsBackGround();
 
-			/** TODO use task scheduler */
-
-      auto *node = mpitreelists.front();
-      /** distributed split */
-      while ( node )
-      {
-         //node->Print();
-         node->Split();
-         node = node->child;
-      };
-
-      /** TODO: local tree */
-      auto *local_tree_root = mpitreelists.back();
-      hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::TreePartition(
-          local_tree_root );
+			DistSplitTask<MPINODE> mpisplittask;
+      DistTraverseDown( mpisplittask );
+			tree::SplitTask<NODE> splittask;
+			LocaTraverseDown( splittask );
+			hmlp_run();
 
 
 
 
 
 
-
-
-
-
-      /** allocate space for point Morton ID */
+      /** TODO: allocate space for point Morton ID */
       (this->setup).morton.resize( n );
 
       /** compute Morton ID for both distributed and local trees */
@@ -740,52 +849,9 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 
 
-
-
-      //printf( "\n" ); fflush( stdout );
-      //node = mpitreelists.front();
-      //while ( node )
-      //{
-      //  node->Print();
-      //  node = node->child;
-      //}
-      //printf( "\n" ); fflush( stdout );
-
-      //for ( size_t i = 0; i < this->treelist.size(); i ++ )
-      //{
-      //  this->treelist[ i ]->Print();
-      //}
-      //printf( "\n" ); fflush( stdout );
-
-
-
-
-
     }; /** end TreePartition() */
 
 
-
-
-
-    //template<bool SORTED, typename KNNTASK>
-    //hmlp::Data<std::pair<T, std::size_t>> AllNearestNeighbor
-    //(
-    //  std::size_t n_tree,
-    //  std::size_t k, std::size_t max_depth,
-    //  std::vector<std::size_t> &gids,
-    //  std::vector<std::size_t> &lids,
-    //  std::pair<T, std::size_t> initNN,
-    //  KNNTASK &dummy
-    //)
-    //{
-    //  /** k-by-N */
-    //  hmlp::Data<std::pair<T, std::size_t>> NN( k, lids.size(), initNN );
-
-
-
-    //  return NN;
-
-    //}; /** end AllNearestNeighbor() */
 
 
 
@@ -923,15 +989,17 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     template<typename TASK, typename... Args>
     void DistTraverseDown( TASK &dummy, Args&... args )
     {
-      MPINODE *node = mpitreelists.front();
+      auto *node = mpitreelists.front();
       while ( node )
       {
+				printf( "now at level %lu\n", node->l ); fflush( stdout );
         RecuTaskSubmit( node, dummy, args... );
+				printf( "RecuTaskSubmit at level %lu\n", node->l ); fflush( stdout );
         /** 
          *  move to its child 
          *  IMPORTANT: here we need to cast the pointer back to mpitree::Node*
          */
-        node = (MPINODE*)node->child;
+        node = node->child;
       }
     }; /** end DistTraverseDown() */
 

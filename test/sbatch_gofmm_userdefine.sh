@@ -24,12 +24,16 @@ declare -a filearray=(
 "/workspace/biros/sc17/data_to_use_65K/K07N65536.bin"
 )
 
-## all data files stored in dense d-by-N format
-declare -a dataarray=(
-"covetype100k"
-)
+## data files stored in dense d-by-N format
+points="/work/02794/ych/data/covtype.100k.trn.X.bin"
+## data dimension
+d=54
+## Gaussian kernel bandwidth
+h=1.0
+
+
 ## problem size
-n=5000
+n=100000
 ## maximum leaf node size
 m=64
 ## maximum off-diagonal ranks
@@ -45,7 +49,8 @@ budget=0.00
 ## distance type (geometry, kernel, angle)
 distance="angle"
 ## spdmatrix type (testsuit, dense, kernel, userdefine)
-matrixtype="testsuit"
+matrixtype="kernel"
+#matrixtype="testsuit"
 
 # ======= Do not change anything below this line ========
 #if [ "${HMLP_USE_MPI}" = true ]; 
@@ -108,5 +113,11 @@ if [[ "$matrixtype" == "dense" ]] ; then
 		echo "@STATUS"
 		echo $status
 	done
+fi
+
+if [[ "$matrixtype" == "kernel" ]] ; then
+  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $points $d $h; status=$?
+  echo "@STATUS"
+  echo $status
 fi
 # =======================================================

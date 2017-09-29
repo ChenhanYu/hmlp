@@ -527,8 +527,8 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     int size, rank, global_rank;
     hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
 
-    printf( "rank %d enter shared centersplit n = %lu\n", 
-        global_rank, gids.size() ); fflush( stdout );
+    //printf( "rank %d enter shared centersplit n = %lu\n", 
+    //    global_rank, gids.size() ); fflush( stdout );
 
     return hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>::operator()
       ( gids, lids );
@@ -727,8 +727,19 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     /** assign points in the middle to left or right */
     if ( nmid )
     {
-      int nlhs_required = ( n - 1 ) / 2 + 1 - nlhs;
-      int nrhs_required = nmid - nlhs_required;
+      int nlhs_required, nrhs_required;
+
+			if ( nlhs > nrhs )
+			{
+        nlhs_required = ( n - 1 ) / 2 + 1 - nlhs;
+        nrhs_required = nmid - nlhs_required;
+			}
+			else
+			{
+        nrhs_required = ( n - 1 ) / 2 + 1 - nrhs;
+        nlhs_required = nmid - nrhs_required;
+			}
+
       assert( nlhs_required >= 0 );
       assert( nrhs_required >= 0 );
 
@@ -3203,7 +3214,6 @@ hmlp::mpitree::Tree<
   tree_time = omp_get_wtime() - beg;
   printf( "end TreePartitioning ...\n" ); fflush( stdout );
  
-
   /** Skeletonization */
   printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
   mpi::Barrier( MPI_COMM_WORLD );
@@ -3215,6 +3225,7 @@ hmlp::mpitree::Tree<
   //tree.template ParallelTraverseUp<true>( 
   //    getmatrixtask, mpigetmatrixtask, skeltask, mpiskeltask );
 
+  tree.DependencyCleanUp();
   tree.LocaTraverseUp(    getmatrixtask,    skeltask );
   tree.DistTraverseUp( mpigetmatrixtask, mpiskeltask );
 
