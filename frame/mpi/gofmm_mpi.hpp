@@ -562,6 +562,9 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     int num_points_owned = gids.size();
     std::vector<T> temp( gids.size(), 0.0 );
 
+    printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
+
+
     /** n = sum( num_points_owned ) over all MPI processes in comm */
     hmlp::mpi::Allreduce( &num_points_owned, &n, 1, 
         MPI_INT, MPI_SUM, comm );

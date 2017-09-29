@@ -16,16 +16,11 @@ ulimit -Sc unlimited
 
 ## all SPD matrix files stored in dense column major format
 declare -a filearray=(
-"/workspace/biros/sc17/data_to_use_65K/K02N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K03N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K04N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K05N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K06N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K07N65536.bin"
+"/workspace/chenhan/data/K02N65536.bin"
 )
 
 ## data files stored in dense d-by-N format
-points="/work/02794/ych/data/covtype.100k.trn.X.bin"
+points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
 ## data dimension
 d=54
 ## Gaussian kernel bandwidth
@@ -53,15 +48,6 @@ matrixtype="kernel"
 #matrixtype="testsuit"
 
 # ======= Do not change anything below this line ========
-#if [ "${HMLP_USE_MPI}" = true ]; 
-#then mpiexec="mpirun -n 4"; 
-#else mpiexec=""; 
-#fi
-#if [ "${HMLP_USE_MPI}" = true ]; 
-#then executable="./test_mpigofmm.x"
-#else executable="./test_gofmm.x";
-#fi
-
 mpiexec="ibrun tacc_affinity"
 executable="test_mpigofmm.x"
 #executable="test_gofmm.x"

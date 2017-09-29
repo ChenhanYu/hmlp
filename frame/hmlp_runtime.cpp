@@ -919,7 +919,12 @@ void* Scheduler::EntryPoint( void* arg )
   if ( me->tid == 1 )
 	{
 		auto *bgtask = scheduler->GetBackGroundTask();
-		if ( bgtask ) me->Execute( bgtask );
+		if ( bgtask ) 
+    {
+      printf( "Enter background task\n" ); fflush( stdout );
+      me->Execute( bgtask );
+      printf( "Exit  background task\n" ); fflush( stdout );
+    }
 	}
 
   /** start to consume all tasks in this epoch session */

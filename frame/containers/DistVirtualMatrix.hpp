@@ -109,7 +109,7 @@ class DistVirtualMatrix : public mpi::MPIObject
 
 		bool IsBackGroundMessage( int tag )
 		{
-			return ( tag > background_tag_offset );
+			return ( tag >= background_tag_offset );
 		};
 
     /**

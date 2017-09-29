@@ -205,7 +205,7 @@ int Alltoallv( void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype,
 int Probe( int source, int tag, Comm comm, Status *status )
 {
 #ifdef HMLP_USE_MPI
-  return Probe( source, tag, comm, (MPI_Status*)status );
+  return MPI_Probe( source, tag, comm, (MPI_Status*)status );
 #else
   return 0;
 #endif
@@ -214,7 +214,7 @@ int Probe( int source, int tag, Comm comm, Status *status )
 int Iprobe( int source, int tag, Comm comm, int *flag, Status *status )
 {
 #ifdef HMLP_USE_MPI
-  return Iprobe( source, tag, comm, flag, (MPI_Status*)status );
+  return MPI_Iprobe( source, tag, comm, flag, (MPI_Status*)status );
 #else
   return 0;
 #endif

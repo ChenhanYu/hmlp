@@ -1,17 +1,16 @@
 ## all SPD matrix files stored in dense column major format
 declare -a filearray=(
-"/workspace/biros/sc17/data_to_use_65K/K02N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K03N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K04N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K05N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K06N65536.bin"
-"/workspace/biros/sc17/data_to_use_65K/K07N65536.bin"
+"/workspace/chenhan/data/K02N65536.bin"
 )
 
-## all data files stored in dense d-by-N format
-declare -a dataarray=(
-"covetype100k"
-)
+## data files stored in dense d-by-N format
+points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
+## data dimension
+d=54
+## Gaussian kernel bandwidth
+h=1.0
+
+
 ## problem size
 n=5000
 ## maximum leaf node size
@@ -86,5 +85,11 @@ if [[ "$matrixtype" == "dense" ]] ; then
 		echo "@STATUS"
 		echo $status
 	done
+fi
+
+if [[ "$matrixtype" == "kernel" ]] ; then
+  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $points $d $h; status=$?
+  echo "@STATUS"
+  echo $status
 fi
 # =======================================================

@@ -4,14 +4,10 @@
 ## ======================================
 icesmachine=$(hostname)
 
-module load c7
-module load intel
-module load mkl
-module load cmake
-module load python
-module load mpich2
-
-if [[ ${icesmachine} == *"lando"* ]]; then
+if [[ ${icesmachine} == *"pele"* ]]; then
+  module lood prun
+  module load intel
+  module load openmpi
   module load matlab
 fi
 
@@ -21,8 +17,8 @@ fi
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=${CC}
-export CXX=${CXX}
+export CC=icc
+export CXX=icpc
 
 ##
 ## Ingore this flag if you are "not using" MacOS.
@@ -47,12 +43,7 @@ export MKLROOT=${MKLROOT}
 export OPENBLASROOT=${OPENBLASROOT}
 
 ## Setup the maximum number of threads.
-export OMP_NUM_THREADS=10
-
-if [[ ${icesmachine} == *"lando"* ]]; then
-  export OMP_NUM_THREADS=20
-fi
-
+export OMP_NUM_THREADS=20
 
 ## ARTIFACT FOR REPRODUCIABILITY
 ## ======================================

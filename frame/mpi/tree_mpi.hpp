@@ -377,6 +377,9 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
         /** distributed split */
         auto split = this->setup->splitter( this->gids, comm );
 
+				printf( "Finish Split(): n %lu  \n", this->n ); fflush( stdout );
+
+
         /** get partner rank */
         int partner_rank = 0;
         int sent_size = 0; 
@@ -992,9 +995,10 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       auto *node = mpitreelists.front();
       while ( node )
       {
-				printf( "now at level %lu\n", node->l ); fflush( stdout );
+				//printf( "now at level %lu\n", node->l ); fflush( stdout );
         RecuTaskSubmit( node, dummy, args... );
-				printf( "RecuTaskSubmit at level %lu\n", node->l ); fflush( stdout );
+				//printf( "RecuTaskSubmit at level %lu\n", node->l ); fflush( stdout );
+
         /** 
          *  move to its child 
          *  IMPORTANT: here we need to cast the pointer back to mpitree::Node*
