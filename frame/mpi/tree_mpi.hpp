@@ -566,8 +566,12 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     /** inherit constructor */
     Tree() : hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Tree()
     {
-      ierr = hmlp::mpi::Comm_size( comm, &size );
-      ierr = hmlp::mpi::Comm_rank( comm, &rank );
+			/** create a new comm_world for */
+      mpi::Comm_dup( MPI_COMM_WORLD, &comm );
+
+			/** get size and rank */
+      mpi::Comm_size( comm, &size );
+      mpi::Comm_rank( comm, &rank );
     };
 
     /** inherit deconstructor */
@@ -834,7 +838,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 			LocaTraverseDown( splittask );
 			hmlp_run();
 
-
+      printf( "rank %d finish split\n", rank ); fflush( stdout );
 
 
 

@@ -107,10 +107,12 @@ namespace mpi
 
 #ifdef HMLP_USE_MPI
 typedef MPI_Status Status;
+typedef MPI_Request Request;
 typedef MPI_Comm Comm;
 typedef MPI_Datatype Datatype;
 typedef MPI_Op Op;
 #else
+/** if there is no generic MPI support, use the following definition */
 typedef struct 
 {
   int count;
@@ -119,10 +121,11 @@ typedef struct
   int MPI_TAG;
   int MPI_ERROR;
 } Status;
+typedef int Request;
 typedef int Comm;
 typedef int Datatype;
 typedef int Op;
-#endif
+#endif /** ifdef HMLP_USE_MPI */
 
 
 int Init( int *argc, char ***argv );
@@ -132,8 +135,14 @@ int Finalize( void );
 int Send( const void *buf, int count, Datatype datatype, 
     int dest, int tag, Comm comm );
 
+int Isend( const void *buf, int count, Datatype datatype, 
+		int dest, int tag, Comm comm, Request *request );
+
 int Recv( void *buf, int count, Datatype datatype, 
     int source, int tag, Comm comm, Status *status );
+
+int Irecv( void *buf, int count, Datatype datatype, 
+		int source, int tag, Comm comm, Request *request );
 
 int Sendrecv( 
     void *sendbuf, int sendcount, Datatype sendtype, int dest, int sendtag, 
@@ -150,10 +159,20 @@ int Comm_dup( Comm comm, Comm *newcomm );
 
 int Comm_split( Comm comm, int color, int key, Comm *newcomm );
 
+
+int Test( Request *request, int *flag, Status *status );
+
+
+
+int Barrier( Comm comm );
+
+int Ibarrier( Comm comm, Request *request );
+
 int Bcast( void *buffer, int count, Datatype datatype,
     int root, Comm comm );
 
-int Barrier( Comm comm );
+
+
 
 int Reduce( void *sendbuf, void *recvbuf, int count,
     Datatype datatype, Op op, int root, Comm comm );
@@ -176,6 +195,9 @@ int Alltoallv(
 /**
  *  MPI 2.0 and 3.0 functionality
  */ 
+
+int Init_thread( int *argc, char ***argv, int required, int *provided );
+
 int Probe( int source, int tag, Comm comm, Status *status );
 int Iprobe( int source, int tag, Comm comm, int *flag, Status *status );
 
@@ -194,12 +216,24 @@ class MPIObject
     MPIObject( mpi::Comm comm )
     {
       this->comm = comm;
+			mpi::Comm_dup( comm, &recvcomm );
+			mpi::Comm_dup( comm, &sendcomm );
     };
 
     mpi::Comm GetComm()
     {
       return comm;
-    }
+    };
+
+		mpi::Comm GetRecvComm()
+		{
+			return recvcomm;
+		};
+
+		mpi::Comm GetSendComm()
+		{
+			return sendcomm;
+		};
 
     int Comm_size()
     {
@@ -223,6 +257,12 @@ class MPIObject
   private:
 
     mpi::Comm comm = MPI_COMM_WORLD;
+
+		/** this communicator is duplicated from comm */
+		mpi::Comm recvcomm;
+
+		/** this communicator is duplicated from comm */
+		mpi::Comm sendcomm;
 
 }; /** end class MPIObject */
 

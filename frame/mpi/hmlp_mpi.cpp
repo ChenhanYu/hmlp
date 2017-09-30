@@ -32,23 +32,46 @@ int Send( const void *buf, int count, Datatype datatype,
     int dest, int tag, Comm comm )
 {
 #ifdef HMLP_USE_MPI
-  return MPI_Send( buf, count, datatype, 
-      dest, tag, comm );
+  return MPI_Send( buf, count, datatype, dest, tag, comm );
 #else
   return 0;
 #endif
 };
 
+
+
+int Isend( const void *buf, int count, Datatype datatype, 
+		int dest, int tag, Comm comm, Request *request )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Isend( buf, count, datatype, dest, tag, comm, request );
+#else
+	return 0;
+#endif
+};
+
+
 int Recv( void *buf, int count, Datatype datatype, 
     int source, int tag, Comm comm, Status *status )
 {
 #ifdef HMLP_USE_MPI
-  return MPI_Recv( buf, count, datatype, 
-      source, tag, comm, (MPI_Status*)status );
+  return MPI_Recv( buf, count, datatype, source, tag, comm, status );
 #else
   return 0;
 #endif
 };
+
+
+int Irecv( void *buf, int count, Datatype datatype, 
+		int source, int tag, Comm comm, Request *request )
+{
+#ifdef HMLP_USE_MPI
+  return Irecv( buf, count, datatype, source, tag, comm, request );
+#else
+	return 0;
+#endif
+};
+
 
 int Sendrecv( 
     void *sendbuf, int sendcount, Datatype sendtype, int   dest, int sendtag, 
@@ -59,7 +82,7 @@ int Sendrecv(
   return MPI_Sendrecv( 
       sendbuf, sendcount, sendtype,   dest, sendtag, 
       recvbuf, recvcount, recvtype, source, recvtag,
-      comm, (MPI_Status*)status );
+      comm, status );
 #else
   return 0;
 #endif
@@ -69,7 +92,7 @@ int Sendrecv(
 int Get_count( Status *status, Datatype datatype, int *count )
 {
 #ifdef HMLP_USE_MPI
-  return MPI_Get_count( (MPI_Status*)status, datatype, count );
+  return MPI_Get_count( status, datatype, count );
 #else
   return 0;
 #endif
@@ -117,6 +140,19 @@ int Comm_split( Comm comm, int color, int key, Comm *newcomm )
 #endif
 };
 
+
+
+int Test( Request *request, int *flag, Status *status )
+{
+#ifdef HMLP_USE_MPI
+	return MPI_Test( request, flag, status );
+#else
+	return 0;
+#endif
+};
+
+
+
 int Bcast( void *buffer, int count, Datatype datatype,
     int root, Comm comm )
 {
@@ -135,6 +171,18 @@ int Barrier( Comm comm )
   return 0;
 #endif
 };
+
+
+int Ibarrier( Comm comm, Request *request )
+{
+#ifdef HMLP_USE_MPI
+	return MPI_Ibarrier( comm, request );
+#else
+	return 0;
+#endif
+};
+
+
 
 
 int Reduce( void *sendbuf, void *recvbuf, int count,
@@ -201,11 +249,20 @@ int Alltoallv( void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype,
  *  MPI 2.0 and 3.0 functionality
  */ 
 
+int Init_thread( int *argc, char ***argv, int required, int *provided )
+{
+#ifdef HMLP_USE_MPI
+	return MPI_Init_thread( argc, argv, required, provided );
+#else
+	return 0;
+#endif
+};
+
 
 int Probe( int source, int tag, Comm comm, Status *status )
 {
 #ifdef HMLP_USE_MPI
-  return MPI_Probe( source, tag, comm, (MPI_Status*)status );
+  return MPI_Probe( source, tag, comm, status );
 #else
   return 0;
 #endif
@@ -214,7 +271,7 @@ int Probe( int source, int tag, Comm comm, Status *status )
 int Iprobe( int source, int tag, Comm comm, int *flag, Status *status )
 {
 #ifdef HMLP_USE_MPI
-  return MPI_Iprobe( source, tag, comm, flag, (MPI_Status*)status );
+  return MPI_Iprobe( source, tag, comm, flag, status );
 #else
   return 0;
 #endif

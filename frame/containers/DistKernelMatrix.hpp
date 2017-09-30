@@ -263,7 +263,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 			int rank = this->Comm_rank();
 
 
-      printf( "RequestSources %lu\n", J.size() ); fflush( stdout );
+      //printf( "%d RequestSources %lu\n", rank, J.size() ); fflush( stdout );
 
 			/** return value */
       hmlp::Data<T> XJ( d, J.size() );
@@ -313,16 +313,19 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 					/** tag 128 for sources */
           int tag = omp_get_thread_num() + 128;
           int max_tag = MPI_TAG_UB;
-          printf( "Sending tag %d (MAX %d) to %lu\n", tag, max_tag, p ); fflush( stdout );
+          //printf( " %d Sending tag %d (MAX %d) to %lu\n", rank, tag, max_tag, p ); fflush( stdout );
           /** issue a request to dest for source( j ) */
-          mpi::Send( Jp.data(), Jp.size(), p, tag, this->GetComm() );
-          printf( "Expect to receive %lu tag %d from %lu\n",
-              XJp.size(), tag, p ); fflush( stdout );
+          mpi::Send( Jp.data(), Jp.size(), p, tag, 
+							this->GetRecvComm() );
+          //printf( "%d Expect to receive %lu tag %d from %lu\n",
+          //    rank, XJp.size(), tag, p ); fflush( stdout );
+
           /** wait to recv the coorinates */
           mpi::Status status;
-          mpi::Recv( XJp.data(), XJp.size(), p, tag, this->GetComm(), &status );
-          printf( "Done receive %lu tag %d from %lu\n",
-              XJp.size(), tag, p ); fflush( stdout );
+          mpi::Recv( XJp.data(), XJp.size(), p, tag - 128, 
+							this->GetSendComm(), &status );
+          //printf( "%d Done receive %lu tag %d from %lu\n",
+          //    rank, XJp.size(), tag - 128, p ); fflush( stdout );
 				}
 
         for ( size_t j = 0; j < jmapcids[ p ].size(); j ++ )
@@ -770,11 +773,25 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     virtual void BackGroundProcess( bool *do_terminate )
     {
+      /** MPI */
+      int size = this->Comm_size();
+      int rank = this->Comm_rank();
+
       /** Iprobe flag */
-      int flag = 0;
+      int probe_flag = 0;
 
       /** Iprobe and Recv status */
       mpi::Status status;
+
+			/** Ibarrier flag */
+			bool has_Ibarrier = false;
+
+			/** Ibarrier request */
+		  mpi::Request request;
+
+			/** Test flag */
+			int test_flag = 0;
+
 
       /** buffer for I and J */
       size_t buff_size = 8192;
@@ -785,21 +802,29 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
       printf( "Enter DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
 
+
+
 			/** keep probing for messages */
-      while ( 1 ) 
+			while ( 1 ) 
 			{
-        // mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, 
-				//		this->GetComm(), &flag, &status );
+				int err = mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, 
+						this->GetRecvComm(), &probe_flag, &status );
+
+				if ( err != MPI_SUCCESS )
+				{
+					printf( "Iprobe error %d\n", err ); fflush( stdout );
+					continue;
+				}
 
 				/** if receive any message, then handle it */
-				if ( flag )
+				if ( probe_flag )
 				{
 					/** extract info from status */
 					int recv_src = status.MPI_SOURCE;
 					int recv_tag = status.MPI_TAG;
 					int recv_cnt;
 
-          printf( "Probe with tag %d\n", recv_tag ); fflush( stdout );
+          //printf( "Probe with tag %d\n", recv_tag ); fflush( stdout );
 
 					if ( this->IsBackGroundMessage( recv_tag ) )
 					{
@@ -808,25 +833,26 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 						/** get I object count */
 						mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
 
-            printf( "Matching message with tag %d count %d\n", 
-                recv_tag, recv_cnt ); fflush( stdout );
+            //printf( "%d Matching message with tag %d count %d from %d\n", 
+            //    rank, recv_tag, recv_cnt, recv_src ); fflush( stdout );
 
 
 						/** recv (typeless) I by matching SOURCE and TAG */
 						I.resize( recv_cnt );
 						mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
-								this->GetComm(), &status );
+								this->GetRecvComm(), &status );
 
-            printf( "access XI\n" ); fflush( stdout );
+            //printf( "%d access XI\n", rank ); fflush( stdout );
 
 
 						auto XI = (*sources)( all_dimensions, I );
 
-            printf( "finished access XI\n" ); fflush( stdout );
+            //printf( "%d Send %lu to %d tag %d\n", 
+						//		rank, XI.size(), recv_src, recv_tag - 128 ); fflush( stdout );
 
 						/** blocking send */
 						mpi::Send( XI.data(), XI.size(), recv_src, 
-								recv_tag, this->GetComm() );
+								(recv_tag - 128), this->GetSendComm() );
 					}
           else
           {
@@ -834,10 +860,15 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           }
 
           /** reset flag to zero */
-          flag = 0;
+          probe_flag = 0;
         }
 
-				if ( *do_terminate ) break;
+				if ( *do_terminate ) 
+				{
+					if ( !has_Ibarrier ) mpi::Ibarrier( this->GetComm(), &request );
+					if ( !test_flag ) mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+					if ( test_flag ) break;
+				}
       };
 
 

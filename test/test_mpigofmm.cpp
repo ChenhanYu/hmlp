@@ -494,7 +494,21 @@ int main( int argc, char *argv[] )
 
   /** Message Passing Interface */
   int size = -1, rank = -1;
-  hmlp::mpi::Init( &argc, &argv );
+
+
+
+  //hmlp::mpi::Init( &argc, &argv );
+
+	int provided;
+	hmlp::mpi::Init_thread( &argc, &argv, MPI_THREAD_MULTIPLE, &provided );
+	if ( provided != MPI_THREAD_MULTIPLE )
+	{
+		printf( "MPI_THREAD_MULTIPLE is not supported\n" ); fflush( stdout );
+	}
+
+
+
+
   hmlp::mpi::Comm_size( MPI_COMM_WORLD, &size );
   hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
   printf( "size %d rank %d\n", size, rank );
@@ -567,11 +581,15 @@ int main( int argc, char *argv[] )
       kernel.scal = -0.5 / ( h * h );
 
 
+			/** create a specific comm for the matrix */
+			mpi::Comm matrixcomm;
+			mpi::Comm_dup( MPI_COMM_WORLD, &matrixcomm );
+			
 
       /** spd kernel matrix format (implicitly create) */
-      hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, MPI_COMM_WORLD );
+      //hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
 
-			//hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
+			hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
 
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
