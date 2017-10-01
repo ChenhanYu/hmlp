@@ -98,7 +98,8 @@ void test_gofmm
 )
 {
   /** instantiation for the Spd-Askit tree */
-  using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  //using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using SETUP = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA  = hmlp::gofmm::Data<T>;
   using NODE  = Node<SETUP, N_CHILDREN, DATA, T>;
  

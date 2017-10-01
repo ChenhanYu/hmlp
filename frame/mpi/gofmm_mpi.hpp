@@ -196,305 +196,80 @@ class DistSPDMatrix : public hmlp::DistData<STAR, CBLK, T>
 
 
 
-
-
-
-
-
-
-
-
-
-///** compute all2c (distance to the approximate centroid) */
-//template<typename T>
-//std::vector<T> AllToCentroid
-//( 
-//  DistanceMetric metric,
-//  hmlp::Data<T> &DII, /** diagonals of K( I, I ) */
-//  hmlp::Data<T> &KIC, /**              K( I, C ) */
-//  hmlp::Data<T> &DCC  /** diagonals of K( C, C ) */
-//)
-//{
-//  /** distances from I to C */
-//  std::vector<T> I2C( KIC.row(), 0.0 );
-//
-//  switch ( metric )
-//  {
-//    case KERNEL_DISTANCE:
-//    {
-//      I2C = DII;
-//      #pragma omp parallel for
-//      for ( size_t i = 0; i < KIC.row(); i ++ )
-//        for ( size_t j = 0; j < KIC.col(); j ++ )
-//          I2C[ i ] -= ( 2.0 / KIC.col() ) * KIC( i, j );
-//
-//      break;
-//    }
-//    case ANGLE_DISTANCE:
-//    {
-//      #pragma omp parallel for
-//      for ( size_t i = 0; i < KIC.row(); i ++ )
-//        for ( size_t j = 0; j < KIC.col(); j ++ )
-//          I2C[ i ] += ( 1.0 - ( KIC( i, j ) * KIC( i, j ) ) / 
-//              ( DII[ i ] * DCC[ j ] ) );
-//
-//      break;
-//    }
-//    default:
-//    {
-//      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
-//      exit( 1 );
-//    }
-//  } /** end switch ( metric ) */
-//
-//  return I2C;
-//
-//}; /** end AllToCentroid() */
-//
-//
-//
-//
-//
-///** compute all2f (distance to the farthest point) */
-//template<typename T>
-//std::vector<T> AllToFarthest
-//(
-//  DistanceMetric metric,
-//  hmlp::Data<T> &DII, /**  */
-//  hmlp::Data<T> &KIP, /**  */
-//  T             &kpp
-//)
-//{
-//  /** distances from I to P */
-//  std::vector<T> I2P( KIP.row(), 0.0 );
-//
-//  switch ( metric )
-//  {
-//    case KERNEL_DISTANCE:
-//    {
-//      #pragma omp parallel for
-//      for ( size_t i = 0; i < KIP.row(); i ++ )
-//          I2P[ i ] = DII[ i ] - 2.0 * KIP[ i ] + kpp;
-//
-//      break;
-//    }
-//    case ANGLE_DISTANCE:
-//    {
-//      #pragma omp parallel for
-//      for ( size_t i = 0; i < KIP.row(); i ++ )
-//          I2P[ i ] = ( 1.0 - ( KIP[ i ] * KIP[ i ] ) / 
-//              ( DII[ i ] * kpp ) );
-//
-//      break;
-//    }
-//    default:
-//    {
-//      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
-//      exit( 1 );
-//    }
-//  } /** end switch ( metric ) */
-//
-//  return I2P;
-//
-//}; /** end AllToFarthest() */
-//
-//
-//
-//template<typename T>
-//std::vector<T> AllToLeftRight
-//( 
-//  DistanceMetric metric,
-//  hmlp::Data<T> &DII,
-//  hmlp::Data<T> &KIP,
-//  hmlp::Data<T> &KIQ,
-//  T              kpp,
-//  T              kqq
-//)
-//{
-//  /** distance differences between I to P and I to Q */
-//  std::vector<T> I2PQ( KIP.row(), 0.0 );
-//
-//  switch ( metric )
-//  {
-//    case KERNEL_DISTANCE:
-//    {
-//      #pragma omp parallel for
-//      for ( size_t i = 0; i < KIP.row(); i ++ )
-//          I2PQ[ i ] = KIP[ i ] - KIQ[ i ];
-//
-//      break;
-//    }
-//    case ANGLE_DISTANCE:
-//    {
-//      #pragma omp parallel for
-//      for ( size_t i = 0; i < KIP.row(); i ++ )
-//        I2PQ[ i ] = ( KIP[ i ] * KIP[ i ] ) / ( DII[ i ] * kpp ) - 
-//                    ( KIQ[ i ] * KIQ[ i ] ) / ( DII[ i ] * kqq );
-//
-//      break;
-//    }
-//    default:
-//    {
-//      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
-//      exit( 1 );
-//    }
-//  } /** end switch ( metric ) */
-//
-//  return I2PQ;
-//
-//}; /** end AllToLeftRight() */
-
-
-
-
-
-
 /**
- *  This is a relax version of the CenterSplit, which does
- *  not require accessing to any entry of the matrix.
- *  Instead, we only have submatrix K( I, J ), diag( K( I, I ) )
- *  and diag( K( J, J ) ), where I and J can be disjoint or 
- *  have some overlapping.
- *  That is we have proper distances define on all I to all J,
- *  and we find P, Q in I the two farest points to split J.
+ *  @brief These are data that shared by the whole local tree.
+ *         Distributed setup inherits mpitree::Setup.
  */ 
-template<typename T>
-struct LimitedMemoryCenterSplit
+template<typename SPDMATRIX, typename SPLITTER, typename T>
+class Setup : public hmlp::mpitree::Setup<SPLITTER, T>
 {
+  public:
 
-  /** (default) using angle distance from the Gram vector space */
-  DistanceMetric metric = ANGLE_DISTANCE;
+		void BackGroundProcess( bool *do_terminate )
+		{
+			K->BackGroundProcess( do_terminate );
+		};
 
+    /** humber of neighbors */
+    size_t k = 32;
 
-  /** */
-  std::vector<size_t> *S;
+    /** maximum rank */
+    size_t s = 64;
 
-  /** diag( K( S, S ) ) */
-  Data<T> *DSS = NULL;
+    /** relative error for rank-revealed QR */
+    T stol = 1E-3;
 
-  /** we use [STAR, CBLK] distribution in the distributed tree node */
-  DistData<STAR, CBLK, T> *K_cblk = NULL;
-  DistData<STAR, CBLK, T> *D_cblk = NULL;
+		/** (default) distance type */
+		DistanceMetric metric = ANGLE_DISTANCE;
 
-  /** we use [STAR, CIDS] distribution in the local tree node */
-  DistData<STAR, CIDS, T> *K_cids = NULL;
-  DistData<STAR, CBLK, T> *D_cids = NULL;
+    /** the SPDMATRIX (accessed with gids: dense, CSC or OOC) */
+    SPDMATRIX *K = NULL;
 
+    /** rhs-by-n all weights */
+    hmlp::Data<T> *w = NULL;
 
-  /** 
-   *  shared-memory operator 
-   *  
-   *  While calling this splitter, K_cids has been redistributed from K_cblk
-   *  according to the gids. K_cids contain all 
-   *
-   *
-   */
-  inline std::vector<std::vector<std::size_t> > operator()
-  ( 
-    std::vector<std::size_t>& gids,
-    std::vector<std::size_t>& lids
-  ) const 
-  {
-    /** MPI */
-    int size, rank, global_rank;
-    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+    /** n-by-nrhs all potentials */
+    hmlp::Data<T> *u = NULL;
 
-    std::vector<size_t> C( S->size() );
-    for ( size_t i = 0; i < S->size(); i ++ ) C[ i ] = i;
+    /** buffer space, either dimension needs to be n  */
+    hmlp::Data<T> *input = NULL;
+    hmlp::Data<T> *output = NULL;
 
-    /** collecting KSI */
-    auto KSI = (*K_cids)( C, gids );
+    /** regularization */
+    T lambda = 0.0;
 
-    /** collecting DII */
-    auto DII = (*D_cids)( std::vector<size_t>( 1, 0 ), gids );
+    /** whether the matrix is symmetric */
+    bool issymmetric = true;
 
+    /** use ULV or Sherman-Morrison-Woodbury */
+    bool do_ulv_factorization = true;
 
-    /** 
-     *  compute d2c (distance to the approximate centroid) 
-     *
-     *  AllToCentroid can take KIC or KCI. DII and DCC can
-     *  either be rows or columns. Here we take KCI, DII
-     *  as a row, and DCC as a column.
-     */
-    auto S2I = SamplesToAll( metric, *DSS, KSI, DII );
-
-
-
-
-
-    /** find f2c (farthest from center) */
-    auto itf2c = std::max_element( temp.begin(), temp.end() );
-    auto idf2c = std::distance( temp.begin(), itf2c );
-    auto gidf2c = gids[ idf2c ];
-
-
-//    /** collecting KPI */
-//    std::vector<size_t> P( 1, gidf2c );
-//    auto KIP = K( gids, P );
-//
-//    /** get diagonal entry kpp */
-//    T kpp = K( gidf2c, gidf2c );
-//
-//    /** compute the all2f (distance to farthest point) */
-//    temp = AllToFarthest( metric, DII, KIP, kpp );
-//
-//    //temp = AllToFarthest( gids, gidf2c );
-//    //
-//    d2f_time = omp_get_wtime() - beg;
-//
-//    /** find f2f (far most to far most) */
-//    beg = omp_get_wtime();
-//    auto itf2f = std::max_element( temp.begin(), temp.end() );
-//    auto idf2f = std::distance( temp.begin(), itf2f );
-//    auto gidf2f = gids[ idf2f ];
-//    max_time = omp_get_wtime() - beg;
-//
-//
-//    /** compute all2leftright (projection i.e. dip - diq) */
-//    beg = omp_get_wtime();
-//
-//    /** collecting KIQ */
-//    std::vector<size_t> Q( 1, gidf2f );
-//    auto KIQ = K( gids, Q );
-//
-//    /** get diagonal entry kpp */
-//    T kqq = K( gidf2f, gidf2f );
-//
-//    /** compute all2leftright (projection i.e. dip - diq) */
-//    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp, kqq );
-//
-//    projection_time = omp_get_wtime() - beg;
+}; /** end class Setup */
 
 
 
 
 
 
-  };
 
 
-  /** distributed operator */
-  inline std::vector<std::vector<size_t> > operator()
-  ( 
-    std::vector<size_t>& gids,
-    hmlp::mpi::Comm comm
-  ) const 
-  {
-    /** all assertions */
-    assert( N_SPLIT == 2 );
-    assert( this->Kptr );
 
-    /** declaration */
-    int size, rank, global_rank;
-    hmlp::mpi::Comm_size( comm, &size );
-    hmlp::mpi::Comm_rank( comm, &rank );
-    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
-    SPDMATRIX &K = *(this->Kptr);
-    std::vector<std::vector<size_t>> split( N_SPLIT );
 
-  };
 
-}; /** end struct LimitedMemoryCenterSplit */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

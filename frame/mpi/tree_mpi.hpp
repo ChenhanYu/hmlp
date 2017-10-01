@@ -277,6 +277,50 @@ class DistSplitTask : public hmlp::Task
 
 
 
+/**
+ *  @brief Data and setup that are shared with all nodes.
+ */ 
+template<typename SPLITTER, typename T>
+class Setup
+{
+  public:
+
+    Setup() {};
+
+    ~Setup() {};
+
+    /** maximum leaf node size */
+    size_t m;
+    
+    /** by default we use 4 bits = 0-15 levels */
+    size_t max_depth = 15;
+
+    /** coordinates (accessed with gids) */
+    DistData<STAR, CBLK, T> *X_cblk = NULL;
+    DistData<STAR, CIDS, T> *X      = NULL;
+
+    /** neighbors<distance, gid> (accessed with gids) */
+    DistData<STAR, CIDS, std::pair<T, std::size_t>> *NN_cblk = NULL;
+    DistData<STAR, CIDS, std::pair<T, std::size_t>> *NN      = NULL;
+
+    /** morton ids */
+    std::vector<size_t> morton;
+
+    /** tree splitter */
+    SPLITTER splitter;
+
+}; /** end class Setup */
+
+
+
+
+
+
+
+
+
+
+
 
 
 
