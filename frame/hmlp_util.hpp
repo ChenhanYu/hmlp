@@ -36,6 +36,9 @@
 #include <hbwmalloc.h>
 #endif
 
+
+#include <hmlp.h>
+
 namespace hmlp
 {
 

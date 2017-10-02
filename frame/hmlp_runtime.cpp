@@ -1149,6 +1149,13 @@ void* Scheduler::EntryPoint( void* arg )
     }
     else
     {
+			if ( scheduler->do_terminate == true )
+			{
+        printf( "worker %d has do_terminate = true, scheduler->n_task = %d, tasklist.size() %lu\n", 
+						me->tid, scheduler->n_task, scheduler->tasklist.size() ); fflush( stdout );
+				break;
+			}
+
       //printf( "worker %d\n", me->tid ); fflush( stdout );
       //#pragma omp barrier
       //if ( me->tid  == 0 ) printf( "\nnext\n" ); fflush( stdout );

@@ -51,8 +51,8 @@
 #include <primitives/lowrank.hpp>
 #include <primitives/combinatorics.hpp>
 
-#include <containers/tree.hpp>
 #include <containers/data.hpp>
+#include <gofmm/tree.hpp>
 #include <gofmm/igofmm.hpp>
 
 /** gpu related */
@@ -903,7 +903,7 @@ struct randomsplit
     assert( Kptr && ( N_SPLIT == 2 ) );
 
     SPDMATRIX &K = *Kptr;
-    size_t n = lids.size();
+    size_t n = gids.size();
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
     std::vector<T> temp( n, 0.0 );
 
@@ -1228,7 +1228,6 @@ class KNNTask : public hmlp::Task
 							}
             }
             std::pair<T, size_t> query( dist, igid );
-            //hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jlid * NN.row() );
             hmlp::HeapSelect( 1, NN.row(), &query, nn_test.data() );
             NNset.insert( igid );
           }
@@ -1372,23 +1371,21 @@ std::multimap<TB, TA> flip_map( const std::map<TA, TB> &src )
 template<typename NODE, typename T>
 void BuildNeighbors( NODE *node, size_t nsamples )
 {
-  auto &NN = node->setup->NN;
+  auto &NN = *(node->setup->NN);
   std::vector<size_t> &gids = node->gids;
-  std::vector<size_t> &lids = node->lids;
   auto &snids = node->data.snids;
   auto &pnids = node->data.pnids;
   int n = node->n;
-  int k = NN->row();
+  int k = NN.row();
   if ( node->isleaf )
   {
-    // Pruning neighbor lists/sets:
+    /** Pruning neighbor lists/sets: */
     pnids = std::unordered_set<size_t>();
-    for ( int ii = 0; ii < k / 2; ii ++ )
+    for ( size_t ii = 0; ii < k / 2; ii ++ )
     {
-      for ( int jj = 0; jj < n; jj ++ )
+      for ( size_t jj = 0; jj < n; jj ++ )
       {
-        pnids.insert( NN->data()[ lids[ jj ] * k + ii ].second );
-        //printf("%lu;",NN->data()[ gids[jj] * k + ii].second); 
+        pnids.insert( NN( ii,  gids[ jj ] ).second );
       }
     }
     /** remove "own" points */
@@ -1397,19 +1394,21 @@ void BuildNeighbors( NODE *node, size_t nsamples )
       pnids.erase( gids[ i ] );
     }
     //printf("Size of pruning neighbor set: %lu \n", pnids.size());
-    // Sampling neighbors
-    // To think about: Make building sampling neighbor adaptive.  
-    // E.g. request 0-100 closest neighbors, 
-    // if additional 100 neighbors are requested, return sneighbors 100-200 
+    /**
+		 *  Sampling neighbors
+     *  To think about: Make building sampling neighbor adaptive.  
+     *  E.g. request 0-100 closest neighbors, 
+     * if additional 100 neighbors are requested, return sneighbors 100-200 
+		 */ 
     snids = std::map<size_t, T>(); 
     std::vector<std::pair<T, size_t>> tmp ( k / 2 * n ); 
     std::set<size_t> nodeIdx( gids.begin() , gids.end() );    
-    // Allocate array for sorting 
-    for ( int ii = (k+1) / 2; ii < k; ii ++ )
+    /** Allocate array for sorting */
+    for ( size_t ii = ( k + 1 ) / 2; ii < k; ii ++ )
     {
-      for ( int jj = 0; jj < n; jj ++ )
+      for ( size_t jj = 0; jj < n; jj ++ )
       {
-        tmp [ (ii-(k+1)/2) * n + jj ] = NN->data()[ lids[ jj ] * k + ii ];
+        tmp [ ( ii - ( k + 1 ) / 2 ) * n + jj ] = NN( ii, gids[ jj ] );
       }
     }
     std::sort( tmp.begin() , tmp.end() );
@@ -1705,7 +1704,7 @@ void Skeletonize( NODE *node )
   /** random sampling or importance sampling for rows. */
   std::vector<size_t> amap;
   std::vector<size_t> bmap;
-  std::vector<size_t> &lids = node->lids;
+  std::vector<size_t> &gids = node->gids;
 
 
   /** merge children's skeletons */
@@ -1804,7 +1803,6 @@ void Skeletonize( NODE *node )
          */ 
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
              !node->ContainAny( sample_query ) )
-            //std::find( lids.begin(), lids.end(), sample ) == lids.end() )
         {
           amap.push_back( sample );
         }
@@ -1837,7 +1835,7 @@ void Skeletonize( NODE *node )
   size_t N = K.col();
   size_t m = amap.size();
   size_t n = bmap.size();
-  size_t q = lids.size();
+  size_t q = gids.size();
   /** Bill's l2 norm scaling factor */
   T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
   /** account for uniform sampling */
@@ -1868,7 +1866,7 @@ void Skeletonize( NODE *node )
     data.isskel = true;
   }
   
-  /** relabel skeletions with the real lids */
+  /** relabel skeletions with the real gids */
   for ( size_t i = 0; i < skels.size(); i ++ )
   {
     skels[ i ] = bmap[ skels[ i ] ];
@@ -2021,7 +2019,6 @@ void UpdateWeights( NODE *node )
   if ( node->isleaf )
   {
     //double beg = omp_get_wtime();
-    //w_leaf = w( node->lids );
     //double w_leaf_time = omp_get_wtime() - beg;
 
 #ifdef DEBUG_SPDASKIT
@@ -2103,14 +2100,14 @@ class UpdateWeightsTask : public hmlp::Task
 
       /** compute flops and mops */
       double flops, mops;
-      auto &lids = arg->lids;
+      auto &gids = arg->gids;
       auto &skels = arg->data.skels;
       auto &w = *arg->setup->w;
       if ( arg->isleaf )
       {
         auto m = skels.size();
         auto n = w.col();
-        auto k = lids.size();
+        auto k = gids.size();
         flops = 2.0 * m * n * k;
         mops = 2.0 * ( m * n + m * k + k * n );
       }
@@ -2454,7 +2451,7 @@ void SkeletonsToNodes( NODE *node )
   auto &w = *node->setup->w;
 
   /** Gather per node data and create reference */
-  auto &lids = node->lids;
+  auto &gids = node->gids;
   auto &data = node->data;
   auto &proj = data.proj;
   auto &skels = data.skels;
@@ -2466,12 +2463,12 @@ void SkeletonsToNodes( NODE *node )
 
   if ( node->isleaf )
   {
-    auto &amap = node->lids;
+    auto &amap = node->gids;
     auto &u_leaf = node->data.u_leaf[ 0 ];
 
     /** zero-out u_leaf */
     u_leaf.resize( 0, 0 );
-    u_leaf.resize( lids.size(), nrhs, 0.0 );
+    u_leaf.resize( gids.size(), nrhs, 0.0 );
 
     /** accumulate far interactions */
     if ( data.isskel )
@@ -2542,7 +2539,7 @@ class SkeletonsToNodesTask : public hmlp::Task
 
       //--------------------------------------
       double flops = 0.0, mops = 0.0;
-      auto &lids = arg->lids;
+      auto &gids = arg->gids;
       auto &data = arg->data;
       auto &proj = data.proj;
       auto &skels = data.skels;
@@ -2708,9 +2705,9 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
 
-  auto &lids = node->lids;
+  auto &gids = node->gids;
   auto &data = node->data;
-  auto &amap = node->lids;
+  auto &amap = node->gids;
   auto &NearKab = data.NearKab;
 
   size_t nrhs = w.col();
@@ -2732,7 +2729,7 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
   }
   else
   {
-    u_leaf.resize( lids.size(), nrhs, 0.0 );
+    u_leaf.resize( gids.size(), nrhs, 0.0 );
   }
 
   if ( NearKab.size() ) /** Kab is cached */
@@ -2744,7 +2741,6 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
     {
       if ( itbeg <= itptr && itptr < itend )
       {
-        //auto &bmap = (*it)->lids;
         //auto wb = w( bmap );
         auto wb = (*it)->data.w_leaf;
 
@@ -2758,7 +2754,7 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
           1.0,  u_leaf.data(),                           u_leaf.row()
         );
       }
-      offset += (*it)->lids.size();
+      offset += (*it)->gids.size();
       itptr ++;
     }
   }
@@ -2769,7 +2765,7 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
     {
       if ( itbeg <= itptr && itptr < itend )
       {
-        auto &bmap = (*it)->lids;
+        auto &bmap = (*it)->gids;
         auto wb = (*it)->data.w_leaf;
 
         /** evaluate the submatrix */
@@ -2824,7 +2820,7 @@ class LeavesToLeavesTask : public hmlp::Task
       /** TODO: fill in flops and mops */
       //--------------------------------------
       double flops = 0.0, mops = 0.0;
-      auto &lids = arg->lids;
+      auto &gids = arg->gids;
       auto &data = arg->data;
       auto &proj = data.proj;
       auto &skels = data.skels;
@@ -2834,7 +2830,7 @@ class LeavesToLeavesTask : public hmlp::Task
 
       assert( arg->isleaf );
 
-      size_t m = lids.size();
+      size_t m = gids.size();
       size_t n = w.col();
 
       std::set<NODE*> *NearNodes;
@@ -2855,7 +2851,7 @@ class LeavesToLeavesTask : public hmlp::Task
       {
         if ( itbeg <= itptr && itptr < itend )
         {
-          size_t k = (*it)->lids.size();
+          size_t k = (*it)->gids.size();
           flops += 2.0 * m * n * k;
           mops += m * k;
           mops += 2.0 * ( m * n + n * k + m * k );
@@ -2903,154 +2899,6 @@ class LeavesToLeavesTask : public hmlp::Task
 }; /** end class LeavesToLeaves */
 
 
-//template<typename NODE, typename T>
-//void EvaluateNode( NODE *node, NODE *target, hmlp::Data<T> &potentials )
-//{
-//  auto &w = node->setup->w;
-//  auto &lids = node->lids;
-//  auto &K = *node->setup->K;
-//  auto &data = node->data;
-//  auto *lchild = node->lchild;
-//  auto *rchild = node->rchild;
-//
-//  auto &amap = target->lids;
-//
-//  if ( potentials.size() != amap.size() * w.row() )
-//  {
-//    potentials.resize( amap.size(), w.row(), 0.0 );
-//  }
-//
-//  assert( target->isleaf );
-//
-//  if ( ( node == target ) || ( node->isleaf && !node->isskel ) )
-//  {
-//    // direct evaluation
-//#ifdef DEBUG_SPDASKIT
-//    printf( "level %lu direct evaluation\n", node->l );
-//#endif
-//    auto Kab = K( amap, lids ); // amap.size()-by-lids.size()
-//    auto wb  = w( lids ); // nrhs-by-lids.size()
-//    xgemm
-//    (
-//      "N", "T",
-//      Kab.row(), wb.row(), wb.col(),
-//      1.0, Kab.data(),        Kab.row(),
-//           wb.data(),         wb.row(),
-//      1.0, potentials.data(), potentials.row()
-//    );
-//  }
-//  else
-//  {
-//    if ( !data.isskel || IsMyParent( target->morton, node->morton ) )
-//    {
-//#ifdef DEBUG_SPDASKIT
-//      printf( "level %lu is not prunable\n", node->l );
-//#endif
-//      Evaluate( lchild, target, potentials );      
-//      Evaluate( rchild, target, potentials );
-//    }
-//    else
-//    {
-//#ifdef DEBUG_SPDASKIT
-//      printf( "level %lu is prunable\n", node->l );
-//#endif
-//      auto Kab = K( amap, node->data.skels );
-//      auto &w_skel = node->data.w_skel;
-//      xgemm
-//      (
-//        "N", "N",
-//        Kab.row(), w_skel.col(), w_skel.row(),
-//        1.0, Kab.data(),        Kab.row(),
-//             w_skel.data(),     w_skel.row(),
-//        1.0, potentials.data(), potentials.row()
-//      );          
-//    }
-//  }
-//
-//}; // end void Evaluate()
-
-
-///**
-// *  @brief (FMM specific) find Far( target ) by traversing all treenodes 
-// *         top-down. 
-// *         If the visiting ``node'' does not contain any near node
-// *         of ``target'' (by MORTON helper function ContainAny() ),
-// *         then we add ``node'' to Far( target ).
-// *
-// *         Otherwise, recurse to two children.
-// */ 
-//template<bool SYMMETRIC, typename NODE>
-//void FindFarNodes( NODE *node, NODE *target )
-//{
-//  /** all assertions, ``target'' must be a leaf node */
-//  assert( target->isleaf );
-//
-//  /** get a list of near nodes from target */
-//  std::set<NODE*> *NearNodes;
-//  auto &data = node->data;
-//  auto *lchild = node->lchild;
-//  auto *rchild = node->rchild;
-//
-//  /**
-//   *  case: !NNPRUNE
-//   *
-//   *  Build NearNodes for pure hierarchical low-rank approximation.
-//   *  In this case, Near( target ) only contains target itself.
-//   *
-//   **/
-//  NearNodes = &target->NearNodes;
-//
-//  /** if this node contains any Near( target ) or isn't skeletonized */
-//  if ( !data.isskel || node->ContainAny( *NearNodes ) )
-//  {
-//    if ( !node->isleaf )
-//    {
-//      /** recurse to two children */
-//      FindFarNodes<SYMMETRIC>( lchild, target );
-//      FindFarNodes<SYMMETRIC>( rchild, target );
-//    }
-//  }
-//  else
-//  {
-//    /** insert ``node'' to Far( target ) */
-//    target->FarNodes.insert( node );
-//  }
-//
-//  /**
-//   *  case: NNPRUNE
-//   *
-//   *  Build NNNearNodes for the FMM approximation.
-//   *  Near( target ) contains other leaf nodes
-//   *  
-//   **/
-//  NearNodes = &target->NNNearNodes;
-//
-//  /** if this node contains any Near( target ) or isn't skeletonized */
-//  if ( !data.isskel || node->ContainAny( *NearNodes ) )
-//  {
-//    if ( !node->isleaf )
-//    {
-//      /** recurse to two children */
-//      FindFarNodes<SYMMETRIC>( lchild, target );
-//      FindFarNodes<SYMMETRIC>( rchild, target );
-//    }
-//  }
-//  else
-//  {
-//    if ( SYMMETRIC && ( node->morton < target->morton ) )
-//    {
-//      /** since target->morton is larger than the visiting node,
-//       * the interaction between the target and this node has
-//       * been computed. 
-//       */ 
-//    }
-//    else
-//    {
-//      target->NNFarNodes.insert( node );
-//    }
-//  }
-//
-//}; /** end FindFarNodes() */
 
 
 template<typename NODE>
@@ -3193,6 +3041,7 @@ void FindNearNodes( TREE &tree, double budget )
   {
     auto *node = *(level_beg + node_ind);
     auto &data = node->data;
+    auto &gids = node->gids;
 
     /** if no skeletons, then add every leaf nodes */
     /** TODO: this is not affected by the BUDGET */
@@ -3220,20 +3069,19 @@ void FindNearNodes( TREE &tree, double budget )
     //printf( "before Neighbor\n" ); fflush( stdout );
 
     /** traverse all points and their neighbors. NN is stored as k-by-N */
-    for ( size_t j = 0; j < node->lids.size(); j ++ )
+    for ( size_t j = 0; j < gids.size(); j ++ )
     {
-      size_t lid = node->lids[ j ];
+      size_t gid = gids[ j ];
       /** use the second half */
       for ( size_t i = NN.row() / 2; i < NN.row(); i ++ )
       {
-        size_t neighbor_gid = NN( i, lid ).second;
+        size_t neighbor_gid = NN( i, gid ).second;
 
         /** if this gid is valid, then compute its morton */
         if ( neighbor_gid >= 0 && neighbor_gid < NN.col() )
         {
           //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
-          size_t neighbor_lid = tree.Getlid( neighbor_gid );
-          size_t neighbor_morton = setup.morton[ neighbor_lid ];
+          size_t neighbor_morton = setup.morton[ neighbor_gid ];
           //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
           auto *target = tree.Morton2Node( neighbor_morton );
           ballot[ target->treelist_id - ( n_nodes - 1 ) ].first += 1;
@@ -3393,11 +3241,11 @@ class CacheNearNodesTask : public hmlp::Task
       if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
       auto &K = *node->setup->K;
 
-      size_t m = node->lids.size();
+      size_t m = node->gids.size();
       size_t n = 0;
       for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
       {
-        n += (*it)->lids.size();
+        n += (*it)->gids.size();
       }
 
       /** Kab */
@@ -3421,11 +3269,11 @@ class CacheNearNodesTask : public hmlp::Task
       if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
       auto &K = *node->setup->K;
       auto &data = node->data;
-      auto &amap = node->lids;
+      auto &amap = node->gids;
       std::vector<size_t> bmap;
       for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
       {
-        bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
+        bmap.insert( bmap.end(), (*it)->gids.begin(), (*it)->gids.end() );
       }
       data.NearKab = K( amap, bmap );
 
@@ -3703,8 +3551,8 @@ void CacheFarNodes( TREE &tree )
     auto *node = tree.treelist[ i ];
     if ( node->isleaf )
     {
-      node->data.w_leaf.reserve( node->lids.size(), MAX_NRHS );
-      node->data.u_leaf[ 0 ].reserve( MAX_NRHS, node->lids.size() );
+      node->data.w_leaf.reserve( node->gids.size(), MAX_NRHS );
+      node->data.u_leaf[ 0 ].reserve( MAX_NRHS, node->gids.size() );
     }
   }
 
@@ -3770,17 +3618,17 @@ double DrawInteraction( TREE &tree )
           //printf( "node->l %lu (*it)->l %lu depth %lu\n", node->l, (*it)->l, tree.depth );
           fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[1.0,%lf,%lf]);\n",
               node->offset,      (*it)->offset,
-              node->lids.size(), (*it)->lids.size(),
+              node->gids.size(), (*it)->gids.size(),
               gb, gb );
         }
         for ( auto it = pNearNodes.begin(); it != pNearNodes.end(); it ++ )
         {
           fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[0.2,0.4,1.0]);\n",
               node->offset,      (*it)->offset,
-              node->lids.size(), (*it)->lids.size() );
+              node->gids.size(), (*it)->gids.size() );
 
           /** accumulate exact evaluation */
-          exact_ratio += node->lids.size() * (*it)->lids.size();
+          exact_ratio += node->gids.size() * (*it)->gids.size();
         }  
       }
       else
@@ -3805,14 +3653,14 @@ template<bool SYMBOLIC, bool NNPRUNE, typename NODE, typename T>
 void Evaluate
 ( 
   NODE *node, 
-  size_t lid, 
+  size_t gid, 
   std::vector<size_t> &nnandi, // k + 1 non-prunable lists
   hmlp::Data<T> &potentials 
 )
 {
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
-  auto &lids = node->lids;
+  auto &gids = node->gids;
   auto &data = node->data;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
@@ -3820,7 +3668,7 @@ void Evaluate
   size_t nrhs = w.col();
 
   auto amap = std::vector<size_t>( 1 );
-  amap[ 0 ] = lid;
+  amap[ 0 ] = gid;
 
   if ( !SYMBOLIC ) // No potential evaluation.
   {
@@ -3833,11 +3681,11 @@ void Evaluate
     {
       if ( SYMBOLIC )
       {
-        /** add lid to notprune list. We use a lock */
+        /** add gid to notprune list. We use a lock */
         data.lock.Acquire();
         {
-          if ( NNPRUNE ) node->NNNearIDs.insert( lid );
-          else           node->NearIDs.insert( lid );
+          if ( NNPRUNE ) node->NNNearIDs.insert( gid );
+          else           node->NearIDs.insert(   gid );
         }
         data.lock.Release();
       }
@@ -3846,16 +3694,16 @@ void Evaluate
 #ifdef DEBUG_SPDASKIT
         printf( "level %lu direct evaluation\n", node->l );
 #endif
-        /** amap.size()-by-lids.size() */
-        auto Kab = K( amap, lids ); 
+        /** amap.size()-by-gids.size() */
+        auto Kab = K( amap, gids ); 
 
         /** all right hand sides */
         std::vector<size_t> bmap( nrhs );
         for ( size_t j = 0; j < bmap.size(); j ++ )
           bmap[ j ] = j;
 
-        /** lids.size()-by-nrhs */
-        auto wb  = w( lids, bmap ); 
+        /** gids.size()-by-nrhs */
+        auto wb  = w( gids, bmap ); 
 
         xgemm
         (
@@ -3869,20 +3717,20 @@ void Evaluate
     }
     else
     {
-      Evaluate<SYMBOLIC, NNPRUNE>( lchild, lid, nnandi, potentials );      
-      Evaluate<SYMBOLIC, NNPRUNE>( rchild, lid, nnandi, potentials );
+      Evaluate<SYMBOLIC, NNPRUNE>( lchild, gid, nnandi, potentials );      
+      Evaluate<SYMBOLIC, NNPRUNE>( rchild, gid, nnandi, potentials );
     }
   }
-  else // need lid's morton and neighbors' mortons
+  else // need gid's morton and neighbors' mortons
   {
     //printf( "level %lu is prunable\n", node->l );
     if ( SYMBOLIC )
     {
       data.lock.Acquire();
       {
-        // Add lid to prunable list.
-        if ( NNPRUNE ) node->FarIDs.insert( lid );
-        else           node->NNFarIDs.insert( lid );
+        // Add gid to prunable list.
+        if ( NNPRUNE ) node->FarIDs.insert(   gid );
+        else           node->NNFarIDs.insert( gid );
       }
       data.lock.Release();
     }
@@ -3923,7 +3771,6 @@ void Evaluate
 {
   std::vector<size_t> nnandi;
   auto &w = *tree.setup.w;
-  size_t lid = tree.Getlid( gid );
 
   potentials.clear();
   potentials.resize( 1, w.col(), 0.0 );
@@ -3932,10 +3779,10 @@ void Evaluate
   {
     auto &NN = *tree.setup.NN;
     nnandi.reserve( NN.row() + 1 );
-    nnandi.push_back( lid );
+    nnandi.push_back( gid );
     for ( size_t i = 0; i < NN.row(); i ++ )
     {
-      nnandi.push_back( tree.Getlid( NN[ lid * NN.row() + i ].second ) );
+      nnandi.push_back( NN( i, gid ).second );
     }
 #ifdef DEBUG_SPDASKIT
     printf( "nnandi.size() %lu\n", nnandi.size() );
@@ -3944,10 +3791,10 @@ void Evaluate
   else
   {
     nnandi.reserve( 1 );
-    nnandi.push_back( lid );
+    nnandi.push_back( gid );
   }
 
-  Evaluate<SYMBOLIC, NNPRUNE>( tree.treelist[ 0 ], lid, nnandi, potentials );
+  Evaluate<SYMBOLIC, NNPRUNE>( tree.treelist[ 0 ], gid, nnandi, potentials );
 
 }; /** end Evaluate() */
 
@@ -4006,7 +3853,6 @@ hmlp::Data<T> Evaluate
   {
     auto *node = *(level_beg + node_ind);
 
-    //weights.GatherColumns( true, node->lids, node->data.w_leaf );
 
     auto &gids = node->gids;
     auto &w_leaf = node->data.w_leaf;
@@ -4177,7 +4023,7 @@ hmlp::Data<T> Evaluate
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
     auto *node = *(level_beg + node_ind);
-    auto &amap = node->lids;
+    auto &amap = node->gids;
     auto &u_leaf = node->data.u_leaf[ 0 ];
 
 
@@ -4701,9 +4547,8 @@ void ComputeError( NODE *node, hmlp::Data<T> potentials )
 {
   auto &K = *node->setup->K;
   auto &w = node->setup->w;
-  auto &lids = node->lids;
 
-  auto &amap = node->lids;
+  auto &amap = node->gids;
   std::vector<size_t> bmap = std::vector<size_t>( K.col() );
 
   for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;

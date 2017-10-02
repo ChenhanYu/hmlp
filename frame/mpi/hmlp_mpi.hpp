@@ -348,6 +348,16 @@ int Sendrecv(
 
 }; /** end Sendrecv() */
 
+
+template<typename T>
+int Reduce( T *sendbuf, T *recvbuf, int count,
+    Op op, int root, Comm comm )
+{
+  Datatype datatype = GetMPIDatatype<T>();
+	return Reduce( sendbuf, recvbuf, count, datatype, op, root, comm );
+}; /** end Reduce() */
+
+
 template<typename T>
 int Allreduce( T* sendbuf, T* recvbuf, int count, Op op, Comm comm )
 {

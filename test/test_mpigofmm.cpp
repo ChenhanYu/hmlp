@@ -87,9 +87,9 @@ template<
   typename    SPDMATRIX>
 void test_gofmm
 ( 
-  hmlp::Data<T> *X,
+  hmlp::DistData<STAR, CBLK, T> *X,
   SPDMATRIX &K, 
-  hmlp::Data<std::pair<T, std::size_t>> &NN,
+  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN,
   DistanceMetric metric,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
@@ -322,9 +322,9 @@ void test_gofmm
 template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T, typename SPDMATRIX>
 void test_gofmm_setup
 ( 
-  hmlp::Data<T> *X,
+  hmlp::DistData<STAR, CBLK, T> *X,
   SPDMATRIX &K, 
-  hmlp::Data<std::pair<T, std::size_t>> &NN,
+  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN,
   DistanceMetric metric,
   size_t n, size_t m, size_t k, size_t s, 
   double stol, double budget, size_t nrhs
@@ -528,18 +528,18 @@ int main( int argc, char *argv[] )
       K.read( n, n, user_matrix_filename );
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
+      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
 
 			/** (optional) provide coordinates */
       if ( user_points_filename.size() )
       {
-        hmlp::Data<T> X( d, n, user_points_filename );
+        hmlp::DistData<STAR, CBLK, T> X( d, n, MPI_COMM_WORLD,  user_points_filename );
         test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
       else
       {
-        hmlp::Data<T> *X = NULL;
+        hmlp::DistData<STAR, CBLK, T> *X = NULL;
         test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
@@ -588,13 +588,13 @@ int main( int argc, char *argv[] )
 			
 
       /** spd kernel matrix format (implicitly create) */
-      //hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
+      hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
 
-			hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
+			//hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
 
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
+      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
 
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
@@ -639,7 +639,7 @@ int main( int argc, char *argv[] )
     using T = double;
     {
       /** no geometric coordinates provided */
-      hmlp::Data<T> *X = NULL;
+      hmlp::DistData<STAR, CBLK, T> *X = NULL;
       /** dense spd matrix format */
       hmlp::gofmm::SPDMatrix<T> K;
       K.resize( n, n );
@@ -650,7 +650,7 @@ int main( int argc, char *argv[] )
       hmlp::mpi::Bcast( K.data(), n * n, 0, MPI_COMM_WORLD );
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
+      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );

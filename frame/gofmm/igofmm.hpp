@@ -35,9 +35,9 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
-#include <containers/tree.hpp>
 #include <containers/view.hpp>
 
+#include <gofmm/tree.hpp>
 #include <gofmm/gofmm.hpp>
 
 //#define DEBUG_IGOFMM 1

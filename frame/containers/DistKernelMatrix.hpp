@@ -313,7 +313,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 					/** tag 128 for sources */
           int tag = omp_get_thread_num() + 128;
           int max_tag = MPI_TAG_UB;
-          //printf( " %d Sending tag %d (MAX %d) to %lu\n", rank, tag, max_tag, p ); fflush( stdout );
+          printf( " %d Sending tag %d (MAX %d) to %lu\n", rank, tag, max_tag, p ); fflush( stdout );
           /** issue a request to dest for source( j ) */
           mpi::Send( Jp.data(), Jp.size(), p, tag, 
 							this->GetRecvComm() );
@@ -324,8 +324,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           mpi::Status status;
           mpi::Recv( XJp.data(), XJp.size(), p, tag - 128, 
 							this->GetSendComm(), &status );
-          //printf( "%d Done receive %lu tag %d from %lu\n",
-          //    rank, XJp.size(), tag - 128, p ); fflush( stdout );
+          printf( "%d Done receive %lu tag %d from %lu\n",
+              rank, XJp.size(), tag - 128, p ); fflush( stdout );
 				}
 
         for ( size_t j = 0; j < jmapcids[ p ].size(); j ++ )
@@ -833,8 +833,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 						/** get I object count */
 						mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
 
-            //printf( "%d Matching message with tag %d count %d from %d\n", 
-            //    rank, recv_tag, recv_cnt, recv_src ); fflush( stdout );
+            printf( "%d Matching message with tag %d count %d from %d\n", 
+                rank, recv_tag, recv_cnt, recv_src ); fflush( stdout );
 
 
 						/** recv (typeless) I by matching SOURCE and TAG */
@@ -847,8 +847,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 						auto XI = (*sources)( all_dimensions, I );
 
-            //printf( "%d Send %lu to %d tag %d\n", 
-						//		rank, XI.size(), recv_src, recv_tag - 128 ); fflush( stdout );
+            printf( "%d Send %lu to %d tag %d\n", 
+								rank, XI.size(), recv_src, recv_tag - 128 ); fflush( stdout );
 
 						/** blocking send */
 						mpi::Send( XI.data(), XI.size(), recv_src, 

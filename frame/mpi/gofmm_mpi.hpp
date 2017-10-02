@@ -965,6 +965,8 @@ void DistSkeletonsToNodes( NODE *node )
   int size = node->GetCommSize();
   int rank = node->GetCommRank();
   hmlp::mpi::Comm comm = node->GetComm();
+	int global_rank;
+	mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
 
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
@@ -997,6 +999,9 @@ void DistSkeletonsToNodes( NODE *node )
     auto *child_sibling = (*childFarNodes->begin());
     hmlp::mpi::Status status;
 
+		
+    printf( "rank (%d,%d) level %lu DistS2N check1\n", 
+				rank, global_rank, node->l ); fflush( stdout );
     if ( rank == 0 )
     {
       auto &proj = data.proj;
@@ -1032,6 +1037,8 @@ void DistSkeletonsToNodes( NODE *node )
 
       hmlp::mpi::SendVector( u_rskel, size / 2, 0, comm );
     }
+    printf( "rank (%d,%d) level %lu DistS2N check2\n", 
+				rank, global_rank, node->l ); fflush( stdout );
 
     /**  */
     if ( rank == size / 2 )
@@ -1045,6 +1052,9 @@ void DistSkeletonsToNodes( NODE *node )
         for ( size_t i = 0; i < u_rskel.row(); i ++ )
           child->data.u_skel( i, j ) += u_rskel( i, j );
     }
+
+    printf( "rank (%d,%d) level %lu DistS2N check3\n", 
+				rank, global_rank, node->l ); fflush( stdout );
   }
 
 }; /** end DistSkeletonsToNodes() */
@@ -1105,7 +1115,11 @@ class DistSkeletonsToNodesTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+	    int global_rank;
+	    mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+      printf( "rank %d level %lu DistS2N begin\n", global_rank, arg->l ); fflush( stdout );
       DistSkeletonsToNodes<NNPRUNE, NODE, T>( arg );
+      printf( "rank %d level %lu DistS2N   end\n", global_rank, arg->l ); fflush( stdout );
     };
 
 }; /** end class DistSkeletonsToNodesTask */
@@ -1913,8 +1927,79 @@ class WaitLETTask : public hmlp::Task
 
 
 
+template<typename NODE>
+void DistRowSamples( NODE *node, size_t nsamples )
+{
+  /** MPI */
+  mpi::Comm comm = node->GetComm();
+  int size = node->GetCommSize();
+  int rank = node->GetCommRank();
 
+  /** gather shared data and create reference */
+  auto &K = *node->setup->K;
 
+  /** amap contains nsamples of row gids of K */
+  std::vector<size_t> &I = node->data.candidate_rows;
+
+  /** clean up candidates from previous iteration */
+	I.clear();
+	if ( rank == 0 ) I.reserve( nsamples );
+
+	/** buffer space */
+	std::vector<size_t> candidates( nsamples );
+
+	size_t n_required = nsamples - I.size();
+
+	/** bcast the termination criteria */
+	mpi::Bcast( &n_required, 1, 0, comm );
+
+	while ( n_required )
+	{
+		if ( rank == 0 )
+		{
+  	  for ( size_t i = 0; i < nsamples; i ++ ) 
+			  candidates[ i ] = rand() % K.col();
+		}
+
+		/** bcast candidates */
+		mpi::Bcast( candidates.data(), candidates.size(), 0, comm );
+
+		/** validation */
+		std::vector<size_t> vconsensus( nsamples, 0 );
+	  std::vector<size_t> validation 
+			= node->setup->ContainAny( candidates, node->morton );
+
+		/** reduce validation */
+		mpi::Reduce( validation.data(), vconsensus.data(), nsamples,
+				MPI_SUM, 0, comm );
+
+	  if ( rank == 0 )
+		{
+  	  for ( size_t i = 0; i < nsamples; i ++ ) 
+			{
+				/** exit is there is enough samples */
+				if ( I.size() >= nsamples )
+				{
+					I.resize( nsamples );
+					break;
+				}
+				/** push the candidate to I after validation */
+				if ( !vconsensus[ i ] )
+				{
+					if ( std::find( I.begin(), I.end(), candidates[ i ] ) == I.end() )
+						I.push_back( candidates[ i ] );
+				}
+			};
+
+			/** update n_required */
+	    n_required = nsamples - I.size();
+		}
+
+	  /** bcast the termination criteria */
+	  mpi::Bcast( &n_required, 1, 0, comm );
+	}
+
+}; /** end DistRowSamples() */
 
 
 
@@ -1953,12 +2038,15 @@ void RowSamples( NODE *node, size_t nsamples )
         /** create a single query */
         std::vector<size_t> sample_query( 1, sample );
 
+				std::vector<size_t> validation = 
+					node->setup->ContainAny( sample_query, node->morton );
+
         /**
          *  check duplication using std::find, but check whether the sample
          *  belongs to the diagonal block using Morton ID.
          */ 
         if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
-             !node->ContainAny( sample_query ) )
+             !validation[ 0 ] )
         {
           amap.push_back( sample );
         }
@@ -2104,6 +2192,9 @@ class GetSkeletonMatrixTask : public hmlp::Task
 template<typename NODE>
 void ParallelGetSkeletonMatrix( NODE *node )
 {
+	/** early return */
+	if ( !node->parent ) return;
+
   /** gather shared data and create reference */
   auto &K = *(node->setup->K);
 
@@ -2117,6 +2208,8 @@ void ParallelGetSkeletonMatrix( NODE *node )
   int size = node->GetCommSize();
   int rank = node->GetCommRank();
   hmlp::mpi::Comm comm = node->GetComm();
+	int global_rank;
+	mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
 
   if ( size < 2 )
   {
@@ -2136,6 +2229,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
      */
     NODE *child = node->child;
     hmlp::mpi::Status status;
+		size_t nsamples = 0;
 
 
     /**
@@ -2160,15 +2254,15 @@ void ParallelGetSkeletonMatrix( NODE *node )
       for ( size_t i = 0; i < recv_buff.size(); i ++ )
         candidate_cols.push_back( recv_buff[ i ] );
 
-
-      size_t nsamples = 2 * candidate_cols.size();
+			/** use two times of skeletons */
+      nsamples = 2 * candidate_cols.size();
 
       /** make sure we at least m samples */
       if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
 
 
       /** sample off-diagonal rows */
-      RowSamples( node, nsamples );
+      //RowSamples( node, nsamples );
     }
 
     if ( rank == size / 2 )
@@ -2179,6 +2273,21 @@ void ParallelGetSkeletonMatrix( NODE *node )
         send_buff[ i ] = child->data.skels[ i ];
       hmlp::mpi::SendVector( send_buff, 0, 10, comm );
     }
+
+		/** Bcast nsamples */
+		mpi::Bcast( &nsamples, 1, 0, comm );
+
+		printf( "rank %d level %lu nsamples %lu\n",
+				global_rank, node->l, nsamples ); fflush( stdout );
+
+
+		/** distributed row samples */
+		DistRowSamples( node, nsamples );
+
+
+		printf( "rank %d level %lu nsamples %lu after DistRowSample\n",
+				global_rank, node->l, nsamples ); fflush( stdout );
+
 
     /** only rank-0 has non-empty I and J sets */ 
     if ( rank != 0 ) 
@@ -2194,8 +2303,6 @@ void ParallelGetSkeletonMatrix( NODE *node )
      *  all MPI process must participate in operator () 
      */
     KIJ = K( candidate_rows, candidate_cols );
-
-
 
   }
 
@@ -2489,6 +2596,14 @@ class DistSkeletonizeTask : public hmlp::Task
         DistSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
         //printf( "%d Par-Skel end\n", global_rank );
       }
+
+			/** Bcast isskel to every MPI processes in the same comm */
+			int isskel = arg->data.isskel;
+			mpi::Bcast( &isskel, 1, 0, arg->GetComm() );
+
+			/** update data.isskel */
+			arg->data.isskel = isskel;
+
     };
 
 }; /** end class DistSkeletonTask */
@@ -2823,15 +2938,15 @@ template<
   typename    T, 
   typename    SPDMATRIX>
 hmlp::mpitree::Tree<
-  hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
+  hmlp::mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, 
   hmlp::gofmm::Data<T>,
   N_CHILDREN,
   T> 
 *Compress
 ( 
-  hmlp::Data<T> *X,
+  hmlp::DistData<STAR, CBLK, T> *X_cblk,
   SPDMATRIX &K, 
-  hmlp::Data<std::pair<T, std::size_t>> &NN,
+  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN_cblk,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
 	Configuration<T> &config
@@ -2860,7 +2975,7 @@ hmlp::mpitree::Tree<
   const bool CACHE     = true;
 
   /** instantiation for the GOFMM tree */
-  using SETUP              = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using SETUP              = hmlp::mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA               = hmlp::gofmm::Data<T>;
   using NODE               = hmlp::tree::Node<SETUP, N_CHILDREN, DATA, T>;
   using MPINODE            = hmlp::mpitree::Node<SETUP, N_CHILDREN, DATA, T>;
@@ -2890,7 +3005,7 @@ hmlp::mpitree::Tree<
 
 
   /** instantiation for the randomisze Spd-Askit tree */
-  using RKDTSETUP          = hmlp::gofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
+  using RKDTSETUP          = hmlp::mpigofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE           = hmlp::tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
   using KNNTASK            = hmlp::gofmm::KNNTask<3, RKDTNODE, T>;
 
@@ -2935,14 +3050,14 @@ hmlp::mpitree::Tree<
   const bool SORTED = false;
   /** do not change anything below this line */
   hmlp::mpitree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
-  rkdt.setup.X = X;
+  rkdt.setup.X_cblk = X_cblk;
   rkdt.setup.K = &K;
 	rkdt.setup.metric = metric; 
   rkdt.setup.splitter = rkdtsplitter;
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
   printf( "NeighborSearch ...\n" ); fflush( stdout );
   beg = omp_get_wtime();
-  if ( NN.size() != n * k )
+  if ( !NN_cblk )
   {
     //NN = rkdt.template AllNearestNeighbor<SORTED>
     //     ( n_iter, k, 10, gids, lids, initNN, knntask );
@@ -2954,18 +3069,18 @@ hmlp::mpitree::Tree<
   ann_time = omp_get_wtime() - beg;
 
   /** check illegle values in NN */
-  for ( size_t j = 0; j < NN.col(); j ++ )
-  {
-    for ( size_t i = 0; i < NN.row(); i ++ )
-    {
-      size_t neighbor_gid = NN( i, j ).second;
-      if ( neighbor_gid < 0 || neighbor_gid >= n )
-      {
-        printf( "NN( %lu, %lu ) has illegle values %lu\n", i, j, neighbor_gid );
-        break;
-      }
-    }
-  }
+  //for ( size_t j = 0; j < NN.col(); j ++ )
+  //{
+  //  for ( size_t i = 0; i < NN.row(); i ++ )
+  //  {
+  //    size_t neighbor_gid = NN( i, j ).second;
+  //    if ( neighbor_gid < 0 || neighbor_gid >= n )
+  //    {
+  //      printf( "NN( %lu, %lu ) has illegle values %lu\n", i, j, neighbor_gid );
+  //      break;
+  //    }
+  //  }
+  //}
 
 
 
@@ -2975,11 +3090,11 @@ hmlp::mpitree::Tree<
   /** initialize metric ball tree using approximate center split */
   auto *tree_ptr = new hmlp::mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
 	auto &tree = *tree_ptr;
-  tree.setup.X = X;
+  tree.setup.X_cblk = X_cblk;
   tree.setup.K = &K;
 	tree.setup.metric = metric; 
   tree.setup.splitter = splitter;
-  tree.setup.NN = &NN;
+  tree.setup.NN_cblk = NN_cblk;
   tree.setup.m = m;
   tree.setup.k = k;
   tree.setup.s = s;

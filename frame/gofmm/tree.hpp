@@ -227,19 +227,22 @@ struct centersplit
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
 
 
-    std::vector<T> centroid = hmlp::combinatorics::Mean( d, n, X, lids );
+    std::vector<T> centroid = hmlp::combinatorics::Mean( d, n, X, gids );
     std::vector<T> direction( d );
     std::vector<T> projection( n, 0.0 );
 
     //printf( "After Mean\n" );
 
     // Compute the farest x0 point from the centroid
-    for ( int i = 0; i < n; i ++ )
+    for ( size_t i = 0; i < n; i ++ )
     {
       T rcx = 0.0;
-      for ( int p = 0; p < d; p ++ )
+      for ( size_t p = 0; p < d; p ++ )
       {
-        T tmp = X[ lids[ i ] * d + p ] - centroid[ p ];
+        //T tmp = X[ lids[ i ] * d + p ] - centroid[ p ];
+        T tmp = X( p, gids[ i ] ) - centroid[ p ];
+
+
         rcx += tmp * tmp;
         //printf( "%5.2lf ", X[ lids[ i ] * d + p  ] );
       }
@@ -260,12 +263,13 @@ struct centersplit
     //printf( "\n" );
 
     // Compute the farest point x1 from x0
-    for ( int i = 0; i < n; i ++ )
+    for ( size_t i = 0; i < n; i ++ )
     {
       T rxx = 0.0;
-      for ( int p = 0; p < d; p ++ )
+      for ( size_t p = 0; p < d; p ++ )
       {
-        T tmp = X[ lids[ i ] * d + p ] - X[ lids[ x0 ] * d + p ];
+        //T tmp = X[ lids[ i ] * d + p ] - X[ lids[ x0 ] * d + p ];
+				T tmp = X( p, gids[ i ] ) - X( p, gids[ x0 ] );
         rxx += tmp * tmp;
       }
       if ( rxx > rx01 )
@@ -284,9 +288,10 @@ struct centersplit
 
 
     // Compute direction
-    for ( int p = 0; p < d; p ++ )
+    for ( size_t p = 0; p < d; p ++ )
     {
-      direction[ p ] = X[ lids[ x1 ] * d + p ] - X[ lids[ x0 ] * d + p ];
+      //direction[ p ] = X[ lids[ x1 ] * d + p ] - X[ lids[ x0 ] * d + p ];
+      direction[ p ] = X( p, gids[ x1 ] ) - X( p, gids[ x0 ] );
     }
 
     //printf( "After Direction\n" );
@@ -301,9 +306,10 @@ struct centersplit
 
     // Compute projection
     projection.resize( n, 0.0 );
-    for ( int i = 0; i < n; i ++ )
-      for ( int p = 0; p < d; p ++ )
-        projection[ i ] += X[ lids[ i ] * d + p ] * direction[ p ];
+    for ( size_t i = 0; i < n; i ++ )
+      for ( size_t p = 0; p < d; p ++ )
+        //projection[ i ] += X[ lids[ i ] * d + p ] * direction[ p ];
+        projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
 
     //printf( "After Projetion\n" );
     //for ( int p = 0; p < d; p ++ )
@@ -394,7 +400,7 @@ struct randomsplit
 
     hmlp::Data<T> &X = *Coordinate;
     size_t d = X.row();
-    size_t n = lids.size();
+    size_t n = gids.size();
 
     std::vector<std::vector<std::size_t> > split( N_SPLIT );
 
@@ -411,9 +417,10 @@ struct randomsplit
 
     // Compute projection
     projection.resize( n, 0.0 );
-    for ( int i = 0; i < n; i ++ )
-      for ( int p = 0; p < d; p ++ )
-        projection[ i ] += X[ lids[ i ] * d + p ] * direction[ p ];
+    for ( size_t i = 0; i < n; i ++ )
+      for ( size_t p = 0; p < d; p ++ )
+        //projection[ i ] += X[ lids[ i ] * d + p ] * direction[ p ];
+        projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
 
 
     // Parallel median search
@@ -599,22 +606,24 @@ class Node : public ReadWrite
 
     /**
      *  @brief Check if this node contain any query using morton.
+		 *         Notice that queries[] contains gids; thus, morton[]
+		 *         needs to be accessed using gids.
      *
      */ 
-    bool ContainAny( std::vector<size_t> &querys )
+    bool ContainAny( std::vector<size_t> &queries )
     {
       if ( !setup->morton.size() )
       {
         printf( "Morton id was not initialized.\n" );
         exit( 1 );
       }
-      for ( size_t i = 0; i < querys.size(); i ++ )
+      for ( size_t i = 0; i < queries.size(); i ++ )
       {
-        if ( IsMyParent( setup->morton[ querys[ i ] ], morton ) ) 
+        if ( IsMyParent( setup->morton[ queries[ i ] ], morton ) ) 
         {
 #ifdef DEBUG_TREE
           printf( "\n" );
-          hmlp_print_binary( setup->morton[ querys[ i ] ] );
+          hmlp_print_binary( setup->morton[ queries[ i ] ] );
           hmlp_print_binary( morton );
           printf( "\n" );
 #endif
@@ -622,6 +631,7 @@ class Node : public ReadWrite
         }
       }
       return false;
+
     }; /** end ContainAny() */
 
 
@@ -851,12 +861,12 @@ class Tree
           std::cout << IsMyParent( node->lchild->morton, node->morton         ) << std::endl;
 #endif
         }
-        else // Setup morton id for all points in the leaf node.
+        else /** Setup morton id for all points in the leaf node */
         {
-          auto &lids = node->lids;
-          for ( size_t i = 0; i < lids.size(); i ++ )
+          auto &gids = node->gids;
+          for ( size_t i = 0; i < gids.size(); i ++ )
           {
-            setup.morton[ lids[ i ] ] = node->morton;
+            setup.morton[ gids[ i ] ] = node->morton;
           }
         }
       }

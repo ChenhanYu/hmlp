@@ -26,9 +26,9 @@
 #include <cstdint>
 
 #include <mpi/hmlp_mpi.hpp>
-#include <containers/tree.hpp>
 #include <mpi/DistData.hpp>
 
+#include <gofmm/tree.hpp>
 
 using namespace hmlp;
 
@@ -270,9 +270,14 @@ class DistSplitTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+	    int global_rank;
+	    mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+      printf( "rank %d level %lu DistSplit begin\n", global_rank, arg->l ); fflush( stdout );
       arg->Split();
+      printf( "rank %d level %lu DistSplit   end\n", global_rank, arg->l ); fflush( stdout );
     };
-}; /** end class SplitTask */
+
+}; /** end class DistSplitTask */
 
 
 
@@ -289,6 +294,47 @@ class Setup
 
     ~Setup() {};
 
+
+
+
+    /**
+     *  @brief Check if this node contain any query using morton.
+		 *         Notice that queries[] contains gids; thus, morton[]
+		 *         needs to be accessed using gids.
+     *
+     */ 
+		std::vector<size_t> ContainAny( std::vector<size_t> &queries, size_t target )
+    {
+			std::vector<size_t> validation( queries.size(), 0 );
+
+      if ( !morton.size() )
+      {
+        printf( "Morton id was not initialized.\n" );
+        exit( 1 );
+      }
+
+      for ( size_t i = 0; i < queries.size(); i ++ )
+      {
+				/** notice that setup->morton only contains local morton ids */
+        //auto it = this->setup->morton.find( queries[ i ] );
+
+				//if ( it != this->setup->morton.end() )
+				//{
+        //  if ( tree::IsMyParent( *it, this->morton ) ) validation[ i ] = 1;
+				//}
+
+
+       if ( tree::IsMyParent( morton[ queries[ i ] ], target ) ) 
+				 validation[ i ] = 1;
+
+      }
+      return validation;
+
+    }; /** end ContainAny() */
+
+
+
+
     /** maximum leaf node size */
     size_t m;
     
@@ -300,7 +346,7 @@ class Setup
     DistData<STAR, CIDS, T> *X      = NULL;
 
     /** neighbors<distance, gid> (accessed with gids) */
-    DistData<STAR, CIDS, std::pair<T, std::size_t>> *NN_cblk = NULL;
+    DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN_cblk = NULL;
     DistData<STAR, CIDS, std::pair<T, std::size_t>> *NN      = NULL;
 
     /** morton ids */
@@ -504,6 +550,7 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
       hmlp::mpi::Barrier( comm );
 
     }; /** end Split() */
+
 
 
     hmlp::mpi::Comm GetComm() { return comm; };
