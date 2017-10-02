@@ -27,6 +27,9 @@
 #include <gofmm/gofmm.hpp>
 #include <primitives/combinatorics.hpp>
 
+
+using namespace hmlp;
+
 using namespace hmlp::gofmm;
 
 namespace hmlp
@@ -41,7 +44,7 @@ namespace mpigofmm
  *
  */ 
 template<typename T>
-class DistSPDMatrix : public hmlp::DistData<STAR, CBLK, T>
+class DistSPDMatrix : public DistData<STAR, CBLK, T>
 {
   public:
 
@@ -1579,7 +1582,15 @@ void ParallelMergeFarNodes( MPINODE *node )
 template<typename LETNODE, typename NODE>
 void SimpleFarNodes( NODE *node )
 {
-  if ( !node->isleaf )
+  if ( node->isleaf )
+	{
+    /** add myself to the list. */
+    node->NearNodes.insert( node );
+    node->NNNearNodes.insert( node );
+    node->NearNodeMortonIDs.insert( node->morton );
+    node->NNNearNodeMortonIDs.insert( node->morton );
+	}
+	else
   {
     auto *lchild = node->lchild;
     auto *rchild = node->rchild;
@@ -1649,7 +1660,7 @@ void ParallelSimpleFarNodes( MPINODE *node,
 
     if ( rank == 0 )
     {
-      hmlp::mpi::Sendrecv( 
+      mpi::Sendrecv( 
           &send_morton, 1, size / 2, 0, 
           &recv_morton, 1, size / 2, 0, comm, &status );
 
@@ -1664,7 +1675,7 @@ void ParallelSimpleFarNodes( MPINODE *node,
         /** exchange gids */
         auto &send_gids = child->gids;
         auto &recv_gids = letnode->gids;
-        hmlp::mpi::ExchangeVector(
+        mpi::ExchangeVector(
             send_gids, size / 2, 0, 
             recv_gids, size / 2, 0, comm, &status );
         //printf( "0 exchange gids\n" ); fflush( stdout );
@@ -1673,13 +1684,13 @@ void ParallelSimpleFarNodes( MPINODE *node,
       /** exchange skels */
       auto &send_skels = child->data.skels;
       auto &recv_skels = letnode->data.skels;
-      hmlp::mpi::ExchangeVector(
+      mpi::ExchangeVector(
           send_skels, size / 2, 0, 
           recv_skels, size / 2, 0, comm, &status );
       /** exchange interpolative coefficients */
       auto &send_proj = child->data.proj;
       auto &recv_proj = letnode->data.proj;
-      hmlp::mpi::ExchangeVector(
+      mpi::ExchangeVector(
           send_proj, size / 2, 0, 
           recv_proj, size / 2, 0, comm, &status );
       //printf( "0 exchange skels and proj\n" ); fflush( stdout );
@@ -1687,7 +1698,7 @@ void ParallelSimpleFarNodes( MPINODE *node,
 
     if ( rank == size / 2 )
     {
-      hmlp::mpi::Sendrecv( 
+      mpi::Sendrecv( 
           &send_morton, 1, 0, 0, 
           &recv_morton, 1, 0, 0, comm, &status );
 
@@ -1702,7 +1713,7 @@ void ParallelSimpleFarNodes( MPINODE *node,
         /** exchange gids */
         auto &send_gids = child->gids;
         auto &recv_gids = letnode->gids;
-        hmlp::mpi::ExchangeVector(
+        mpi::ExchangeVector(
             send_gids, 0, 0, 
             recv_gids, 0, 0, comm, &status );
         //printf( "size / 2 exchange gids\n" ); fflush( stdout );
@@ -1711,13 +1722,13 @@ void ParallelSimpleFarNodes( MPINODE *node,
       /** exchange skels */
       auto &send_skels = child->data.skels;
       auto &recv_skels = letnode->data.skels;
-      hmlp::mpi::ExchangeVector(
+      mpi::ExchangeVector(
           send_skels, 0, 0, 
           recv_skels, 0, 0, comm, &status );
       /** exchange interpolative coefficients */
       auto &send_proj = child->data.proj;
       auto &recv_proj = letnode->data.proj;
-      hmlp::mpi::ExchangeVector(
+      mpi::ExchangeVector(
           send_proj, 0, 0, 
           recv_proj, 0, 0, comm, &status );
       //printf( "size / 2 exchange skels and proj\n" ); fflush( stdout );
@@ -1728,6 +1739,225 @@ void ParallelSimpleFarNodes( MPINODE *node,
   }
 
 }; /** end ParallelSimpleFarNodes() */
+
+
+
+
+
+template<typename NODE>
+class SimpleNearFarNodesTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      /** this task contains MPI routines */
+      this->has_mpi_routines = true;
+
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "cachef" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+
+      /** we don't know the exact cost here */
+      cost = 5.0;
+
+      /** high priority */
+      priority = true;
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+			auto *node = arg;
+			if ( node->isleaf )
+			{
+				/** add myself to the list. */
+				node->NearNodes.insert( node );
+				node->NNNearNodes.insert( node );
+				node->NearNodeMortonIDs.insert( node->morton );
+				node->NNNearNodeMortonIDs.insert( node->morton );
+			}
+			else
+			{
+				auto *lchild = node->lchild;
+				auto *rchild = node->rchild;
+				lchild->FarNodes.insert( rchild );
+				lchild->NNFarNodes.insert( rchild );
+				rchild->FarNodes.insert( lchild );
+				rchild->NNFarNodes.insert( lchild );
+			}
+		};
+
+}; /** end class SimpleNearFarNodesTask */
+
+
+
+template<typename LETNODE, typename NODE>
+class DistSimpleNearFarNodesTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      /** this task contains MPI routines */
+      this->has_mpi_routines = true;
+
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "cachef" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+
+      /** we don't know the exact cost here */
+      cost = 5.0;
+
+      /** high priority */
+      priority = true;
+    };
+
+		/** read this node and write to children */
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      if ( !arg->isleaf )
+      {
+        if ( arg->GetCommSize() > 1 )
+        {
+          arg->child->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        }
+        else
+        {
+          arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+          arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        }
+      }
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+		{
+			auto *node = arg;
+			mpi::Status status;
+			mpi::Comm comm = node->GetComm();
+			int size = node->GetCommSize();
+			int rank = node->GetCommRank();
+
+			if ( size < 2 )
+			{
+			  if ( node->isleaf )
+			  {
+			  	/** add myself to the list. */
+			  	node->NearNodes.insert( node );
+			  	node->NNNearNodes.insert( node );
+			  	node->NearNodeMortonIDs.insert( node->morton );
+			  	node->NNNearNodeMortonIDs.insert( node->morton );
+			  }
+			  else
+			  {
+				  auto *lchild = node->lchild;
+				  auto *rchild = node->rchild;
+			  	lchild->FarNodes.insert( rchild );
+			  	lchild->NNFarNodes.insert( rchild );
+			  	rchild->FarNodes.insert( lchild );
+			  	rchild->NNFarNodes.insert( lchild );
+			  }
+			}
+			else
+			{
+				auto *child = node->child;
+				size_t send_morton = child->morton;
+				size_t recv_morton = 0;
+				LETNODE *letnode = NULL;
+
+				if ( rank == 0 )
+				{
+					mpi::Sendrecv( 
+							&send_morton, 1, size / 2, 0, 
+							&recv_morton, 1, size / 2, 0, comm, &status );
+
+					/** initialize a LetNode with sibling's MortonID */
+					letnode = new LETNODE( node->setup, recv_morton );
+					child->FarNodes.insert( letnode );
+					child->NNFarNodes.insert( letnode );
+
+					if ( child->isleaf )
+					{
+						/** exchange gids */
+						auto &send_gids = child->gids;
+						auto &recv_gids = letnode->gids;
+						mpi::ExchangeVector(
+								send_gids, size / 2, 0, 
+								recv_gids, size / 2, 0, comm, &status );
+						//printf( "0 exchange gids\n" ); fflush( stdout );
+					}
+
+					/** exchange skels */
+					auto &send_skels = child->data.skels;
+					auto &recv_skels = letnode->data.skels;
+					mpi::ExchangeVector(
+							send_skels, size / 2, 0, 
+							recv_skels, size / 2, 0, comm, &status );
+					/** exchange interpolative coefficients */
+					auto &send_proj = child->data.proj;
+					auto &recv_proj = letnode->data.proj;
+					mpi::ExchangeVector(
+							send_proj, size / 2, 0, 
+							recv_proj, size / 2, 0, comm, &status );
+				}
+
+				if ( rank == size / 2 )
+				{
+					mpi::Sendrecv( 
+							&send_morton, 1, 0, 0, 
+							&recv_morton, 1, 0, 0, comm, &status );
+
+					/** initialize a LetNode with sibling's MortonID */
+					letnode = new LETNODE( node->setup, recv_morton );
+					child->FarNodes.insert( letnode );
+					child->NNFarNodes.insert( letnode );
+
+					if ( child->isleaf )
+					{
+						/** exchange gids */
+						auto &send_gids = child->gids;
+						auto &recv_gids = letnode->gids;
+						mpi::ExchangeVector(
+								send_gids, 0, 0, 
+								recv_gids, 0, 0, comm, &status );
+					}
+
+					/** exchange skels */
+					auto &send_skels = child->data.skels;
+					auto &recv_skels = letnode->data.skels;
+					mpi::ExchangeVector(
+							send_skels, 0, 0, 
+							recv_skels, 0, 0, comm, &status );
+					/** exchange interpolative coefficients */
+					auto &send_proj = child->data.proj;
+					auto &recv_proj = letnode->data.proj;
+					mpi::ExchangeVector(
+							send_proj, 0, 0, 
+							recv_proj, 0, 0, comm, &status );
+				}
+			}
+		};
+
+}; /** end class DistSimpleNearFarNodesTask */
+
+
 
 
 
@@ -2304,6 +2534,8 @@ void ParallelGetSkeletonMatrix( NODE *node )
      */
     KIJ = K( candidate_rows, candidate_cols );
 
+		printf( "rank %d level %lu KIJ %lu, %lu\n",
+				global_rank, node->l, KIJ.row(), KIJ.col() ); fflush( stdout );
   }
 
 }; /** end ParallelGetSkeletonMatrix() */
@@ -2937,16 +3169,16 @@ template<
   typename    RKDTSPLITTER, 
   typename    T, 
   typename    SPDMATRIX>
-hmlp::mpitree::Tree<
-  hmlp::mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  hmlp::gofmm::Data<T>,
+mpitree::Tree<
+  mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, 
+  gofmm::Data<T>,
   N_CHILDREN,
   T> 
 *Compress
 ( 
-  hmlp::DistData<STAR, CBLK, T> *X_cblk,
+  DistData<STAR, CBLK, T> *X_cblk,
   SPDMATRIX &K, 
-  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN_cblk,
+  DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN_cblk,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
 	Configuration<T> &config
@@ -2975,12 +3207,12 @@ hmlp::mpitree::Tree<
   const bool CACHE     = true;
 
   /** instantiation for the GOFMM tree */
-  using SETUP              = hmlp::mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA               = hmlp::gofmm::Data<T>;
-  using NODE               = hmlp::tree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using MPINODE            = hmlp::mpitree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using LETNODE            = hmlp::mpitree::LetNode<SETUP, N_CHILDREN, DATA, T>;
-  using TREE               = hmlp::mpitree::Tree<SETUP, DATA, N_CHILDREN, T>;
+  using SETUP              = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using DATA               = gofmm::Data<T>;
+  using NODE               = tree::Node<SETUP, N_CHILDREN, DATA, T>;
+  using MPINODE            = mpitree::Node<SETUP, N_CHILDREN, DATA, T>;
+  using LETNODE            = mpitree::LetNode<SETUP, N_CHILDREN, DATA, T>;
+  using TREE               = mpitree::Tree<SETUP, DATA, N_CHILDREN, T>;
 
   /** instantiate tasks with NODE and MPINODE */
   using NULLTASK           = hmlp::NULLTask<NODE>;
@@ -2997,11 +3229,20 @@ hmlp::mpitree::Tree<
 
   using FINDNEARNODESTASK  = hmlp::mpigofmm::FindNearNodesTask<SYMMETRIC, TREE>;
 
-  using CACHENEARNODESTASK    = hmlp::mpigofmm::CacheNearNodesTask<NNPRUNE, NODE>;
-  using MPICACHENEARNODESTASK = hmlp::mpigofmm::CacheNearNodesTask<NNPRUNE, MPINODE>;
+
+
+	SimpleNearFarNodesTask<NODE> nearfartask;
+	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpinearfartask;
+
+
+  using CACHENEARNODESTASK    = mpigofmm::CacheNearNodesTask<NNPRUNE, NODE>;
 
   using CACHEFARNODESTASK  = hmlp::mpigofmm::CacheFarNodesTask<NNPRUNE, NODE>;
   using MPICACHEFARNODESTASK  = hmlp::mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE>;
+
+
+
+
 
 
   /** instantiation for the randomisze Spd-Askit tree */
@@ -3025,7 +3266,6 @@ hmlp::mpitree::Tree<
   KNNTASK            knntask;
 
   CACHENEARNODESTASK cachenearnodestask;
-  MPICACHENEARNODESTASK mpicachenearnodestask;
 
   CACHEFARNODESTASK  cachefarnodestask;
   MPICACHEFARNODESTASK mpicachefarnodestask;
@@ -3086,10 +3326,11 @@ hmlp::mpitree::Tree<
 
 
 
-
   /** initialize metric ball tree using approximate center split */
-  auto *tree_ptr = new hmlp::mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
+  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
 	auto &tree = *tree_ptr;
+
+	/** global configuration for the metric tree */
   tree.setup.X_cblk = X_cblk;
   tree.setup.K = &K;
 	tree.setup.metric = metric; 
@@ -3099,6 +3340,8 @@ hmlp::mpitree::Tree<
   tree.setup.k = k;
   tree.setup.s = s;
   tree.setup.stol = stol;
+
+	/** metric ball tree partitioning */
   printf( "TreePartitioning ...\n" ); fflush( stdout );
   mpi::Barrier( MPI_COMM_WORLD );
   beg = omp_get_wtime();
@@ -3106,46 +3349,39 @@ hmlp::mpitree::Tree<
   mpi::Barrier( MPI_COMM_WORLD );
   tree_time = omp_get_wtime() - beg;
   printf( "end TreePartitioning ...\n" ); fflush( stdout );
+  mpi::Barrier( MPI_COMM_WORLD );
  
-  /** Skeletonization */
+  /** skeletonization */
   printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
   mpi::Barrier( MPI_COMM_WORLD );
   beg = omp_get_wtime();
 
-
-
-
-  //tree.template ParallelTraverseUp<true>( 
-  //    getmatrixtask, mpigetmatrixtask, skeltask, mpiskeltask );
-
+  /** prepare for skeletonization */
   tree.DependencyCleanUp();
   tree.LocaTraverseUp(    getmatrixtask,    skeltask );
   tree.DistTraverseUp( mpigetmatrixtask, mpiskeltask );
+  tree.LocaTraverseUnOrdered(    projtask );
+  tree.DistTraverseUnOrdered( mpiprojtask );
 
+	/** create interaction lists */
+  tree.DistTraverseDown( mpinearfartask );
+	tree.LocaTraverseDown(    nearfartask );
 
-
-
-
-
-
-
+	/** cache KIJ */
+	tree.LocaTraverseLeafs( cachenearnodestask );
+  tree.LocaTraverseUnOrdered(    cachefarnodestask );
+  tree.DistTraverseUnOrdered( mpicachefarnodestask );
 
 
 
 
 
   /** FindNearNodes (executed with skeletonization) */
-  auto *findnearnodestask = new FINDNEARNODESTASK();
-  findnearnodestask->Set( &tree, budget );
-  findnearnodestask->Submit();
-  findnearnodestask->DependencyAnalysis();
+  //auto *findnearnodestask = new FINDNEARNODESTASK();
+  //findnearnodestask->Set( &tree, budget );
+  //findnearnodestask->Submit();
+  //findnearnodestask->DependencyAnalysis();
   
-  /** (Any order) compute the interpolative coefficients */
-  tree.template ParallelTraverseUp<true>( 
-      projtask, mpiprojtask, nulltask, mpinulltask );
-  //if ( CACHE )
-  //  tree.template TraverseLeafs  <AUTODEPENDENCY, true>( cachenearnodestask );
-  //printf( "before run\n" ); fflush( stdout );
   other_time += omp_get_wtime() - beg;
   hmlp_run();
   mpi::Barrier( MPI_COMM_WORLD );
@@ -3153,15 +3389,29 @@ hmlp::mpitree::Tree<
   //printf( "Done\n" ); fflush( stdout );
 
 
-  ParallelSimpleFarNodes<LETNODE>( 
-      tree.mpitreelists.front(),
-      tree.lettreelist ); 
-  tree_ptr->DependencyCleanUp();
-  tree.template ParallelTraverseUp<true>( 
-      cachenearnodestask, mpicachenearnodestask, nulltask, mpinulltask );
-  tree.template ParallelTraverseUp<true>( 
-      cachefarnodestask, mpicachefarnodestask, nulltask, mpinulltask );
-  hmlp_run();
+
+
+  //ParallelSimpleFarNodes<LETNODE>( 
+  //    tree.mpitreelists.front(),
+  //    tree.lettreelist ); 
+
+  
+  
+
+
+	/** cache KIJ for near and far interactions */
+  //tree.DependencyCleanUp();
+  //tree.DistTraverseDown( mpinearfartask );
+	//tree.LocaTraverseDown(    nearfartask );
+
+	//tree.LocaTraverseLeafs( cachenearnodestask );
+  //tree.LocaTraverseUnOrdered(    cachefarnodestask );
+  //tree.DistTraverseUnOrdered( mpicachefarnodestask );
+
+
+	
+  //hmlp_run();
+  //mpi::Barrier( MPI_COMM_WORLD );
 
 
 
@@ -3232,7 +3482,32 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials, mpi::Comm comm
 
   auto  I = std::vector<size_t>( 1, gid );
   auto &J = tree.treelist[ 0 ]->gids;
-  auto Kab = K( I, J );
+
+  //auto Kab = K( I, J );
+
+	hmlp::Data<T> Kab;
+
+	bool do_terminate = false;
+
+	/** use omp sections to create client-server */
+  #pragma omp parallel sections
+	{
+		/** client thread */
+    #pragma omp section
+		{
+			Kab = K( I, J );
+			do_terminate = true;
+		}
+		/** server thread */
+    #pragma omp section
+		{
+			K.BackGroundProcess( &do_terminate );
+		}
+
+	}; /** end omp parallel sections */
+
+
+
 
   auto loc_exact = potentials;
   auto glb_exact = potentials;
@@ -3264,13 +3539,6 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials, mpi::Comm comm
 
   return err / nrm2;
 }; /** end ComputeError() */
-
-
-
-
-
-
-
 
 
 

@@ -189,7 +189,9 @@ class SplitTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+			//printf( "Local Split %lu level %lu begin\n", arg->treelist_id, arg->l ); fflush( stdout );
       arg->template Split<true>( 0 );
+			//printf( "Local Split %lu level %lu end\n", arg->treelist_id, arg->l ); fflush( stdout );
     };
 }; /** end class SplitTask */
 

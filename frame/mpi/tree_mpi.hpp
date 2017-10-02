@@ -1109,8 +1109,8 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** contain at lesat one tree node */
       assert( this->treelist.size() );
 
-      int n_nodes = 1 << depth;
-      auto level_beg = treelist.begin() + n_nodes - 1;
+      int n_nodes = 1 << this->depth;
+      auto level_beg = this->treelist.begin() + n_nodes - 1;
 
       for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
       {

@@ -587,9 +587,10 @@ int main( int argc, char *argv[] )
 			mpi::Comm_dup( MPI_COMM_WORLD, &matrixcomm );
 			
 
-      /** spd kernel matrix format (implicitly create) */
+      /** distributed spd kernel matrix format (implicitly create) */
       hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
-
+			
+      /** shared spd kernel matrix format (implicitly create) */
 			//hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
 
 

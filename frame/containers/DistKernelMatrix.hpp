@@ -32,6 +32,9 @@
 
 #include <hmlp_blas_lapack.h>
 
+/** use software cache */
+#include <containers/Cache.hpp>
+
 /** kernel matrix uses VirtualMatrix<T> as base */
 #include <containers/DistVirtualMatrix.hpp>
 
@@ -61,6 +64,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     : sources_sqnorms( 1, m, comm ), 
       targets_sqnorms( 1, n, comm ),
       all_dimensions( d ),
+			cache( d ),
       DistVirtualMatrix<T>( m, n, comm )
     {
       assert( m == n );
@@ -86,6 +90,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     : sources_sqnorms( 1, m, comm ), 
       targets_sqnorms( 1, n, comm ),
       all_dimensions( d ),
+			cache( d ),
       DistVirtualMatrix<T>( m, n, comm )
     {
       this->is_symmetric = false;
@@ -242,13 +247,13 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 //    };
 
 
-    int GetCacheLine( size_t &request )
-    {
-      int lineid = -1;
-      if ( id2cacheline.count( request ) ) 
-				lineid = id2cacheline[ request ]; 
-      return lineid;
-    }; /** end GetCacheLine() */
+    //int GetCacheLine( size_t &request )
+    //{
+    //  int lineid = -1;
+    //  if ( id2cacheline.count( request ) ) 
+		//		lineid = id2cacheline[ request ]; 
+    //  return lineid;
+    //}; /** end GetCacheLine() */
 
 
 
@@ -268,6 +273,11 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 			/** return value */
       hmlp::Data<T> XJ( d, J.size() );
 
+      
+
+
+
+
 			/** check if source j are both owned by this MPI process */
 			std::vector<std::vector<size_t>> sendcids( size );
 
@@ -281,27 +291,36 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 			for ( size_t j = 0; j < J.size(); j ++ )
 			{
         size_t cid = J[ j ];
-				int lineid = GetCacheLine( cid );
-				if ( lineid < 0 )
+
+				/** try to read from cache (critical region) */
+				auto line = cache.Read( cid );
+
+        //printf( "%d fetching cache line cid %lu, return %lu\n", rank, cid, line.size() ); fflush( stdout );
+
+				if ( line.size() != d )
+				//if ( 1 )
 				{
-					/** source( cid ) is not cached */
           sendcids[ cid % size ].push_back( cid );    
           jmapcids[ cid % size ].push_back(   j );
 				}
 				else
 				{
 					/** source( cid ) is cached */
-					cacheids.push_back( lineid );
-					jmapline.push_back(      j );
+					for ( size_t i = 0; i < d; i ++ ) XJ( i, j ) = line[ i ];
 				}
 			}
 
 			/** started to request coordinates */
-			for ( size_t p = 0; p < size; p ++ )
+			for ( size_t pp = 0; pp < size; pp ++ )
 			{
-        hmlp::Data<T> XJp;
+				/** use Round-Robin order to interleave requests */
+        size_t p = ( pp + rank ) % size;
 
 				auto &Jp = sendcids[ p ];
+
+				if ( !Jp.size() ) continue;
+
+        hmlp::Data<T> XJp;
 
         if ( p == rank )
 				{
@@ -313,24 +332,42 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 					/** tag 128 for sources */
           int tag = omp_get_thread_num() + 128;
           int max_tag = MPI_TAG_UB;
-          printf( " %d Sending tag %d (MAX %d) to %lu\n", rank, tag, max_tag, p ); fflush( stdout );
-          /** issue a request to dest for source( j ) */
-          mpi::Send( Jp.data(), Jp.size(), p, tag, 
-							this->GetRecvComm() );
-          //printf( "%d Expect to receive %lu tag %d from %lu\n",
-          //    rank, XJp.size(), tag, p ); fflush( stdout );
+          //printf( " %d Sending tag %d (MAX %d) to %lu\n", rank, tag, max_tag, p ); fflush( stdout );
 
-          /** wait to recv the coorinates */
-          mpi::Status status;
-          mpi::Recv( XJp.data(), XJp.size(), p, tag - 128, 
-							this->GetSendComm(), &status );
-          printf( "%d Done receive %lu tag %d from %lu\n",
-              rank, XJp.size(), tag - 128, p ); fflush( stdout );
+          //#pragma omp critical
+					{
+						/** issue a request to dest for source( j ) */
+						mpi::Send( Jp.data(), Jp.size(), p, tag, 
+								this->GetRecvComm() );
+						//printf( "%d Expect to receive %lu tag %d from %lu\n",
+						//    rank, XJp.size(), tag, p ); fflush( stdout );
+
+						/** wait to recv the coorinates */
+						mpi::Status status;
+						mpi::Recv( XJp.data(), XJp.size(), p, tag - 128, 
+								this->GetSendComm(), &status );
+					}
+          //printf( "%d Done receive %lu tag %d from %lu\n",
+          //    rank, XJp.size(), tag - 128, p ); fflush( stdout );
 				}
 
+				/** fill-in XJ and write to cache */
         for ( size_t j = 0; j < jmapcids[ p ].size(); j ++ )
+				{
+					/** write to cache */
+          hmlp::Data<T> line( d, (size_t)1 );					
+					/** fill-in XJ */
           for ( size_t i = 0; i < d; i ++ )
+					{
+						line[ i ] = XJp( i, j );
             XJ( i, jmapcids[ p ][ j ] ) = XJp( i, j );
+					}
+
+
+
+					/** write to cache */
+          cache.Write( Jp[ j ], line ); 
+				}
 			}
 
 			return XJ;
@@ -441,116 +478,22 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
        */
       hmlp::Data<T> KIJ( I.size(), J.size() );
 
+			/** early return */
+			if ( !I.size() || !J.size() ) return KIJ;
 
-
-			
-//      /** check if target i and source j are both owned by this MPI process */
-//      std::vector<std::vector<size_t>> sendrids( size );
-//      std::vector<std::vector<size_t>> recvrids( size );
-//      std::vector<std::vector<size_t>> sendcids( size );
-//      std::vector<std::vector<size_t>> recvcids( size );
-//
-//      /** record the destination order */
-//      std::vector<std::vector<size_t>> imaprids( size );
-//      std::vector<std::vector<size_t>> jmapcids( size );
-//
-//      /** 
-//       *  request Xi from rank ( I[ i ] % size ) 
-//       *  request Xj from rank ( J[ j ] % size ) 
-//       */
-//      for ( size_t i = 0; i < I.size(); i ++ )
-//      {
-//        size_t rid = I[ i ];
-//        sendrids[ rid % size ].push_back( rid );    
-//        imaprids[ rid % size ].push_back(   i );
-//      }
-//      for ( size_t j = 0; j < J.size(); j ++ )
-//      {
-//        size_t cid = J[ j ];
-//        sendcids[ cid % size ].push_back( cid );    
-//        jmapcids[ cid % size ].push_back(   j );
-//      }
-//
-//      /** MPI: exchange ids */
-//      mpi::AlltoallVector( sendrids, recvrids, this->GetComm() );
-//      mpi::AlltoallVector( sendcids, recvcids, this->GetComm() );
-//
-//      /** allocate buffer for data */
-//      std::vector<hmlp::Data<T>> sendsrcs( size );
-//      std::vector<hmlp::Data<T>> recvsrcs( size );
-//      std::vector<hmlp::Data<T>> sendtars( size );
-//      std::vector<hmlp::Data<T>> recvtars( size );
-//
-//      std::vector<size_t> amap( d );
-//      for ( size_t k = 0; k < d; k ++ ) amap[ k ] = k;
-//
-//      for ( size_t p = 0; p < size; p ++ )
-//      {
-//        if ( recvcids[ p ].size() )
-//        {
-//          sendsrcs[ p ] = (*sources)( amap, recvcids[ p ] );
-//        }
-//        if ( recvrids[ p ].size() )
-//        {
-//          sendtars[ p ] = (*targets)( amap, recvrids[ p ] );
-//        }
-//      };
-//      
-//      //printf( "Before AlltoallVector\n" ); fflush( stdout );
-//
-//
-//      /** exchange coordinates */
-//      mpi::AlltoallData( d, sendsrcs, recvsrcs, this->GetComm() );
-//      mpi::AlltoallData( d, sendtars, recvtars, this->GetComm() );
-//
-//      //printf( "After AlltoallVector\n" ); fflush( stdout );
-//
-//
-//      /** allocate space for permuted coordinates*/
-//      hmlp::Data<T> itargets( d, I.size() );
-//      hmlp::Data<T> jsources( d, J.size() );
-//
-//      /** TODO: reorder */
-//      for ( size_t p = 0; p < size; p ++ )
-//      {
-//        if ( recvtars[ p ].size() )
-//        {
-//          assert( recvtars[ p ].row() == d );
-//          assert( recvtars[ p ].col() == imaprids[ p ].size() );
-//        }
-//
-//        if ( recvsrcs[ p ].size() )
-//        {
-//          assert( recvsrcs[ p ].row() == d );
-//          assert( recvsrcs[ p ].col() == jmapcids[ p ].size() );
-//        }
-//
-//
-//        /** use resize() to properly set [ m, n ] */
-//        //recvtars[ p ].resize( d, imaprids[ p ].size() );
-//        //recvsrcs[ p ].resize( d, jmapcids[ p ].size() );
-//
-//        /** permute recvtars to itargets */
-//        for ( size_t j = 0; j < imaprids[ p ].size(); j ++ )
-//          for ( size_t i = 0; i < d; i ++ )
-//            //itargets( i, imaprids[ p ][ j ] ) = recvtars[ p ][ j * d + i ];
-//            itargets( i, imaprids[ p ][ j ] ) = recvtars[ p ]( i, j );
-//
-//        /** permute recvsrcs to isources */
-//        for ( size_t j = 0; j < jmapcids[ p ].size(); j ++ )
-//          for ( size_t i = 0; i < d; i ++ )
-//            //jsources( i, jmapcids[ p ][ j ] ) = recvsrcs[ p ][ j * d + i ];
-//            jsources( i, jmapcids[ p ][ j ] ) = recvsrcs[ p ]( i, j );
-//      }
-
-      //printf( "Before xgemm\n" ); fflush( stdout );
-
-
-
+			/** request for coordinates */
       hmlp::Data<T> itargets = RequestSources( I );
       hmlp::Data<T> jsources = RequestSources( J );
 
-
+			assert( itargets.row() == d );
+			assert( itargets.col() == I.size() );
+			assert( itargets.size() == d * I.size() );
+			assert( jsources.row() == d );
+			assert( jsources.col() == J.size() );
+			assert( jsources.size() == d * J.size() );
+			assert( KIJ.row() == I.size() );
+			assert( KIJ.col() == J.size() );
+			assert( KIJ.size() == I.size() * J.size() );
 
       /** compute inner products */
       xgemm
@@ -626,63 +569,6 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
        *  all collaborative communication routines to avoid deadlock.
        */
       hmlp::Data<T> DII( I.size(), 1, 0.0 );
-
-//      /** check if target i and source j are both owned by this MPI process */
-//      std::vector<std::vector<size_t>> sendrids( size );
-//      std::vector<std::vector<size_t>> recvrids( size );
-//
-//      /** record the destination order */
-//      std::vector<std::vector<size_t>> imaprids( size );
-//
-//      /** 
-//       *  request Xi from rank ( I[ i ] % size ) 
-//       */
-//      for ( size_t i = 0; i < I.size(); i ++ )
-//      {
-//        size_t rid = I[ i ];
-//        sendrids[ rid % size ].push_back( rid );    
-//        imaprids[ rid % size ].push_back(   i );
-//      }
-//
-//      /** MPI: exchange ids */
-//      mpi::AlltoallVector( sendrids, recvrids, this->GetComm() );
-//
-//      /** allocate buffer for data */
-//      std::vector<hmlp::Data<T>> sendtars( size );
-//      std::vector<hmlp::Data<T>> recvtars( size );
-//
-//      std::vector<size_t> amap( d );
-//      for ( size_t k = 0; k < d; k ++ ) amap[ k ] = k;
-//
-//      for ( size_t p = 0; p < size; p ++ )
-//      {
-//        if ( recvrids[ p ].size() )
-//        {
-//          sendtars[ p ] = (*targets)( amap, recvrids[ p ] );
-//        }
-//      };
-//
-//      /** exchange coordinates */
-//      mpi::AlltoallData( d, sendtars, recvtars, this->GetComm() );
-//
-//      /** allocate space for permuted coordinates*/
-//      hmlp::Data<T> itargets( d, I.size() );
-//
-//      /** TODO: reorder */
-//      for ( size_t p = 0; p < size; p ++ )
-//      {
-//        if ( recvtars[ p ].size() )
-//        {
-//          assert( recvtars[ p ].row() == d );
-//          assert( recvtars[ p ].col() == imaprids[ p ].size() );
-//        }
-//
-//        /** permute recvtars to itargets */
-//        for ( size_t j = 0; j < imaprids[ p ].size(); j ++ )
-//          for ( size_t i = 0; i < d; i ++ )
-//            itargets( i, imaprids[ p ][ j ] ) = recvtars[ p ]( i, j );
-//      }
-
 
       /** at this moment we already have the corrdinates on this process */
       switch ( kernel.type )
@@ -792,7 +678,6 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 			/** Test flag */
 			int test_flag = 0;
 
-
       /** buffer for I and J */
       size_t buff_size = 8192;
       std::vector<size_t> I;
@@ -803,6 +688,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       printf( "Enter DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
 
 
+			size_t idle_counter = 0;
 
 			/** keep probing for messages */
 			while ( 1 ) 
@@ -828,13 +714,14 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 					if ( this->IsBackGroundMessage( recv_tag ) )
 					{
+						idle_counter = 0;
             //printf( "Matching message with tag %d\n", recv_tag ); fflush( stdout );
 
 						/** get I object count */
 						mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
 
-            printf( "%d Matching message with tag %d count %d from %d\n", 
-                rank, recv_tag, recv_cnt, recv_src ); fflush( stdout );
+            //printf( "%d Matching message with tag %d count %d from %d\n", 
+            //    rank, recv_tag, recv_cnt, recv_src ); fflush( stdout );
 
 
 						/** recv (typeless) I by matching SOURCE and TAG */
@@ -847,8 +734,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 						auto XI = (*sources)( all_dimensions, I );
 
-            printf( "%d Send %lu to %d tag %d\n", 
-								rank, XI.size(), recv_src, recv_tag - 128 ); fflush( stdout );
+            //printf( "%d Send %lu to %d tag %d\n", 
+						//		rank, XI.size(), recv_src, recv_tag - 128 ); fflush( stdout );
 
 						/** blocking send */
 						mpi::Send( XI.data(), XI.size(), recv_src, 
@@ -856,6 +743,13 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 					}
           else
           {
+						idle_counter ++;
+
+						if ( idle_counter > 100 )
+						{
+							if ( idle_counter % 100 == 0 )
+                printf( "%d idle %lu to\n", rank, idle_counter ); fflush( stdout );
+						};
             //printf( "no incoming message\n" ); fflush( stdout );
           }
 
@@ -865,9 +759,19 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 				if ( *do_terminate ) 
 				{
-					if ( !has_Ibarrier ) mpi::Ibarrier( this->GetComm(), &request );
-					if ( !test_flag ) mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
-					if ( test_flag ) break;
+					if ( !has_Ibarrier ) 
+					{
+						mpi::Ibarrier( this->GetComm(), &request );
+						has_Ibarrier = true;
+					}
+					if ( test_flag ) 
+					{
+						break;
+					}
+					else
+					{
+						mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+					}
 				}
       };
 
@@ -887,11 +791,18 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 
 
-    void Redistribute( 
-        std::vector<size_t> &rids, 
-        std::vector<size_t> &cids )
+    void Redistribute( std::vector<size_t> &cids )
     {
+			mpi::Comm comm = this->GetComm();
+			size_t m = this->row();
+			size_t n = this->col();
 
+			/** allocation */
+			sources_cids = new DistData<STAR, CBLK, T>( m, n, cids, comm );
+
+			/** redistribute */
+			*sources_cids = *sources;
+      
     };
 
   private:
@@ -923,6 +834,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     /** */
     std::vector<size_t> all_dimensions;
+
+
+		Cache1D<32, 256, T> cache;
+
 
     //Data<T> &sources;
 
