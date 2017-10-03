@@ -91,7 +91,8 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       for ( size_t j = 0; j < this->col(); j ++ )
       {
         source_sqnorms[ j ] = xdot(
-          d, sources.data() + j * d, 1, sources.data() + j * d, 1 );
+          d, sources.data() + j * d, 1, 
+					   sources.data() + j * d, 1 );
       }
 
       /** compute 2-norms for targets if unsymmetric */
@@ -104,7 +105,8 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
         for ( size_t i = 0; i < this->row(); i ++ )
         {
           target_sqnorms[ i ] = xdot(
-              d, targets.data() + i * d, 1, targets.data() + i * d, 1 );
+              d, targets.data() + i * d, 1, 
+							   targets.data() + i * d, 1 );
         }
       }
     };
@@ -125,7 +127,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
 						T src = sources[ j * d + k ];
             Kij += ( tar - src ) * ( tar - src );
           }
-          Kij = exp( kernel.scal * Kij );
+          Kij = std::exp( kernel.scal * Kij );
           break;
         }
         default:

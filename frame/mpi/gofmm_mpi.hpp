@@ -525,8 +525,17 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
       assert( nrhs_required >= 0 );
 
       /** now decide the portion */
-      int nlhs_required_owned = num_mid_owned * nlhs_required / nmid;
+			double lhs_ratio = ( (double)nlhs_required ) / nmid;
+      int nlhs_required_owned = num_mid_owned * lhs_ratio;
       int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
+
+
+      printf( "rank %d [ %d %d ] [ %d %d ]\n",
+        global_rank, 
+				nlhs_required_owned, nlhs_required,
+				nrhs_required_owned, nrhs_required ); fflush( stdout );
+
+
       assert( nlhs_required_owned >= 0 );
       assert( nrhs_required_owned >= 0 );
 
@@ -1003,8 +1012,8 @@ void DistSkeletonsToNodes( NODE *node )
     hmlp::mpi::Status status;
 
 		
-    printf( "rank (%d,%d) level %lu DistS2N check1\n", 
-				rank, global_rank, node->l ); fflush( stdout );
+    //printf( "rank (%d,%d) level %lu DistS2N check1\n", 
+		//		rank, global_rank, node->l ); fflush( stdout );
     if ( rank == 0 )
     {
       auto &proj = data.proj;
@@ -1040,8 +1049,8 @@ void DistSkeletonsToNodes( NODE *node )
 
       hmlp::mpi::SendVector( u_rskel, size / 2, 0, comm );
     }
-    printf( "rank (%d,%d) level %lu DistS2N check2\n", 
-				rank, global_rank, node->l ); fflush( stdout );
+    //printf( "rank (%d,%d) level %lu DistS2N check2\n", 
+		//		rank, global_rank, node->l ); fflush( stdout );
 
     /**  */
     if ( rank == size / 2 )
@@ -1056,8 +1065,8 @@ void DistSkeletonsToNodes( NODE *node )
           child->data.u_skel( i, j ) += u_rskel( i, j );
     }
 
-    printf( "rank (%d,%d) level %lu DistS2N check3\n", 
-				rank, global_rank, node->l ); fflush( stdout );
+    //printf( "rank (%d,%d) level %lu DistS2N check3\n", 
+		//		rank, global_rank, node->l ); fflush( stdout );
   }
 
 }; /** end DistSkeletonsToNodes() */
@@ -1120,9 +1129,9 @@ class DistSkeletonsToNodesTask : public hmlp::Task
     {
 	    int global_rank;
 	    mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
-      printf( "rank %d level %lu DistS2N begin\n", global_rank, arg->l ); fflush( stdout );
+      //printf( "rank %d level %lu DistS2N begin\n", global_rank, arg->l ); fflush( stdout );
       DistSkeletonsToNodes<NNPRUNE, NODE, T>( arg );
-      printf( "rank %d level %lu DistS2N   end\n", global_rank, arg->l ); fflush( stdout );
+      //printf( "rank %d level %lu DistS2N   end\n", global_rank, arg->l ); fflush( stdout );
     };
 
 }; /** end class DistSkeletonsToNodesTask */

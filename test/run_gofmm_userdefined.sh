@@ -4,7 +4,8 @@ declare -a filearray=(
 )
 
 ## data files stored in dense d-by-N format
-points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
+#points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
+points="/work/02794/ych/data/covtype.100k.trn.X.bin"
 ## data dimension
 d=54
 ## Gaussian kernel bandwidth

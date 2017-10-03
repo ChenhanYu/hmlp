@@ -317,6 +317,16 @@ int Send( TSEND *buf, int count,
 }; /** end Send() */
 
 
+template<typename TSEND>
+int Isend( TSEND *buf, int count,
+		int dest, int tag, Comm comm, Request *request )
+{
+  Datatype datatype = GetMPIDatatype<TSEND>();
+  return Isend( buf, count, datatype, dest, tag, comm, request );
+}; /** end Isend() */
+
+
+
 template<typename TRECV>
 int Recv( TRECV *buf, int count, 
     int source, int tag, Comm comm, Status *status )

@@ -1,6 +1,9 @@
 #ifndef CACHE_HPP
 #define CACHE_HPP
 
+
+#include <unordered_map>
+
 #include <hmlp_runtime.hpp>
 #include <containers/data.hpp>
 
@@ -130,7 +133,8 @@ class Cache1D
 
 		std::vector<hmlp::Lock> locks;
 
-		std::vector<std::map<size_t, size_t>> table;
+		//std::vector<std::map<size_t, size_t>> table;
+		std::vector<std::unordered_map<size_t, size_t>> table;
 
 		std::vector<size_t> freq;
 

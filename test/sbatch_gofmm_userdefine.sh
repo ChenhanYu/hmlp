@@ -4,13 +4,13 @@
 #SBATCH -o gofmm_output.out
 #SBATCH -p gpu
 #SBATCH -t 00:10:00
-#SBATCH -n 1
-#SBATCH -N 1
+#SBATCH -n 4
+#SBATCH -N 4
 
-export OMP_NUM_THREADS=10
+export OMP_NUM_THREADS=20
 export OMP_PROC_BIND=spread
-export KS_IC_NT=10
-export GSKNN_IC_NT=10
+export KS_IC_NT=20
+export GSKNN_IC_NT=20
 ulimit -Hc unlimited
 ulimit -Sc unlimited
 
@@ -20,7 +20,9 @@ declare -a filearray=(
 )
 
 ## data files stored in dense d-by-N format
-points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
+#points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
+#points="/work/02794/ych/data/covtype.100k.trn.X.bin"
+points="/work/02794/ych/data/covtype.n500000.d54.trn.X.bin"
 ## data dimension
 d=54
 ## Gaussian kernel bandwidth
@@ -28,11 +30,11 @@ h=1.0
 
 
 ## problem size
-n=100000
+n=500000
 ## maximum leaf node size
-m=64
+m=512
 ## maximum off-diagonal ranks
-s=64
+s=512
 ## number of neighbors
 k=0
 ## number of right hand sides

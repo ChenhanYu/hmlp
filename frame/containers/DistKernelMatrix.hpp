@@ -122,7 +122,9 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
          *  for the sources owned locally. In this case, we
          *  cannot use ( i, j ) operator. 
          */
-        sources_sqnorms[ j ] = xnrm2( d, sources->data() + j * d, 1 ); 
+        sources_sqnorms[ j ] = xdot( 
+						d, sources->data() + j * d, 1,
+						   sources->data() + j * d, 1 ); 
       } /** end omp parallel for */
 
 
@@ -145,7 +147,9 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         #pragma omp parallel for
         for ( size_t i = 0; i < targets->col_owned(); i ++ )
         {
-          targets_sqnorms[ i ] = xnrm2( d, targets->data() + i * d, 1 );
+          targets_sqnorms[ i ] = xdot( 
+							d, targets->data() + i * d, 1,
+							   targets->data() + i * d, 1 );
         } /** end omp paralllel for */
       }
     }; /** end ComputeSquare2Norm() */
@@ -310,6 +314,11 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 				}
 			}
 
+
+			/** double buffer for XJp */
+			hmlp::Data<T> buffer[ 2 ];
+
+
 			/** started to request coordinates */
 			for ( size_t pp = 0; pp < size; pp ++ )
 			{
@@ -320,7 +329,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 				if ( !Jp.size() ) continue;
 
-        hmlp::Data<T> XJp;
+				/** get the interleaving buffer for XJp */
+        hmlp::Data<T> &XJp = buffer[ pp % 2 ];
 
         if ( p == rank )
 				{
@@ -328,6 +338,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 				}
 				else
 				{
+					/** resize buffer for receving from p */
           XJp.resize( d, Jp.size() );
 					/** tag 128 for sources */
           int tag = omp_get_thread_num() + 128;
@@ -337,10 +348,43 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           //#pragma omp critical
 					{
 						/** issue a request to dest for source( j ) */
-						mpi::Send( Jp.data(), Jp.size(), p, tag, 
-								this->GetRecvComm() );
+						//mpi::Send( Jp.data(), Jp.size(), p, tag, this->GetRecvComm() );
 						//printf( "%d Expect to receive %lu tag %d from %lu\n",
 						//    rank, XJp.size(), tag, p ); fflush( stdout );
+
+
+
+						/** issue a request to dest for source( j ) */
+						int test_flag = false;
+		        mpi::Request request;
+						mpi::Isend( Jp.data(), Jp.size(), p, tag, this->GetRecvComm(), &request );
+						//printf( "%d Expect to receive %lu tag %d from %lu\n",
+						//    rank, XJp.size(), tag, p ); fflush( stdout );
+
+						/** wait and cache */
+						if ( pp )
+						{
+              int previous = ( pp - 1 + rank ) % size;
+
+              for ( size_t j = 0; j < sendcids[ previous ].size(); j ++ )
+							{
+						    mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+								if ( test_flag ) break;
+					      /** write to cache */
+                hmlp::Data<T> line( d, (size_t)1 );					
+                for ( size_t i = 0; i < d; i ++ ) 
+									line[ i ] = buffer[ ( pp - 1 ) % 2 ]( i, j );
+					      /** write to cache */
+                cache.Write( sendcids[ previous ][ j ], line ); 
+							}
+						}
+						else
+						{
+						  while ( !test_flag )
+						  {
+						    mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+							}
+						}
 
 						/** wait to recv the coorinates */
 						mpi::Status status;
@@ -355,18 +399,18 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         for ( size_t j = 0; j < jmapcids[ p ].size(); j ++ )
 				{
 					/** write to cache */
-          hmlp::Data<T> line( d, (size_t)1 );					
+          //hmlp::Data<T> line( d, (size_t)1 );					
 					/** fill-in XJ */
           for ( size_t i = 0; i < d; i ++ )
 					{
-						line[ i ] = XJp( i, j );
+						//line[ i ] = XJp( i, j );
             XJ( i, jmapcids[ p ][ j ] ) = XJp( i, j );
 					}
 
 
 
 					/** write to cache */
-          cache.Write( Jp[ j ], line ); 
+          //cache.Write( Jp[ j ], line ); 
 				}
 			}
 
@@ -514,14 +558,18 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       #pragma omp parallel for
       for ( size_t i = 0; i < I.size(); i ++ )
       {
-        itargets_sqnorms[ i ] = xnrm2( d, itargets.data() + i * d, 1 );
+        itargets_sqnorms[ i ] = xdot( 
+						d, itargets.data() + i * d, 1,
+						   itargets.data() + i * d, 1 );
       } /** end omp parallel for */
 
       #pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
       {
-        jsources_sqnorms[ j ] = xnrm2( d, jsources.data() + j * d, 1 );
-      }
+        jsources_sqnorms[ j ] = xdot( 
+						d, jsources.data() + j * d, 1, 
+					     jsources.data() + j * d, 1 );
+      } /** end omp parallel for */
 
       /** add square norms to inner products to get square distances */
       #pragma omp parallel for
@@ -685,7 +733,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       /** reserve space for I and J */
       I.reserve( buff_size );
 
-      printf( "Enter DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
+      //printf( "Enter DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
 
 
 			size_t idle_counter = 0;
@@ -757,6 +805,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           probe_flag = 0;
         }
 
+				/** nonblocking consensus for termination */
 				if ( *do_terminate ) 
 				{
 					if ( !has_Ibarrier ) 
@@ -776,7 +825,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       };
 
 
-      printf( "Exit DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
+      //printf( "Exit DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
 
     }; /** end BackGroundProcess() */
 
@@ -836,7 +885,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     std::vector<size_t> all_dimensions;
 
 
-		Cache1D<32, 256, T> cache;
+		Cache1D<512, 128, T> cache;
 
 
     //Data<T> &sources;

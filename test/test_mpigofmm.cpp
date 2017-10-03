@@ -54,7 +54,7 @@
 
 #include <mpi/DistData.hpp>
 #include <containers/DistKernelMatrix.hpp>
-
+#include <containers/DistSPDMatrix.hpp>
 
 
 
@@ -522,6 +522,9 @@ int main( int argc, char *argv[] )
   {
     using T = float;
     {
+			hmlp::DistSPDMatrix<T> A( n, n, MPI_COMM_WORLD );
+
+
       /** dense spd matrix format */
       hmlp::gofmm::SPDMatrix<T> K;
       K.resize( n, n );
@@ -588,10 +591,51 @@ int main( int argc, char *argv[] )
 			
 
       /** distributed spd kernel matrix format (implicitly create) */
-      hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
+      //hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
 			
       /** shared spd kernel matrix format (implicitly create) */
-			//hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
+			hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
+
+
+			//size_t nI = 5;
+			//size_t nJ = 5;
+
+			//std::vector<size_t> I( nI, 0 );
+			//std::vector<size_t> J( nJ, 0 );
+
+			//for ( size_t i = 0; i < nI; i ++ ) I[ i ] = i;
+			//for ( size_t j = 0; j < nJ; j ++ ) J[ j ] = j * 3;
+
+			//auto KIJg = Kg( I, J );
+      //hmlp::Data<T> KIJ;
+
+			//bool do_terminate = false;
+			///** use omp sections to create client-server */
+      //#pragma omp parallel sections
+			//{
+			//	/** client thread */
+      //  #pragma omp section
+			//	{
+			//		KIJ = K( I, J );
+			//		do_terminate = true;
+			//	}
+			//	/** server thread */
+      //  #pragma omp section
+			//	{
+			//		K.BackGroundProcess( &do_terminate );
+			//	}
+
+			//}; /** end omp parallel sections */
+
+			//for ( size_t j = 0; j < nJ; j ++ )
+		  //	for ( size_t i = 0; i < nI; i ++ )
+			//		if ( KIJ( i, j ) != KIJg( i, j ) )
+			//		{
+			//			printf( "i %lu j %lu KIJ %E, KIJg %E\n", I[ i ], J[ j ], KIJ( i, j ), KIJg( i, j ) );
+			//		}
+
+
+
 
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
@@ -600,6 +644,8 @@ int main( int argc, char *argv[] )
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+
+
     }
   }
 
