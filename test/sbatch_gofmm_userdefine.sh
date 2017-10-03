@@ -2,7 +2,7 @@
 #SBATCH -A PADAS
 #SBATCH -J GOFMM
 #SBATCH -o gofmm_output.out
-#SBATCH -p gpu
+#SBATCH -p rebels
 #SBATCH -t 00:10:00
 #SBATCH -n 4
 #SBATCH -N 4
@@ -20,9 +20,9 @@ declare -a filearray=(
 )
 
 ## data files stored in dense d-by-N format
-#points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
+points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
 #points="/work/02794/ych/data/covtype.100k.trn.X.bin"
-points="/work/02794/ych/data/covtype.n500000.d54.trn.X.bin"
+#points="/work/02794/ych/data/covtype.n500000.d54.trn.X.bin"
 ## data dimension
 d=54
 ## Gaussian kernel bandwidth
@@ -30,7 +30,7 @@ h=1.0
 
 
 ## problem size
-n=500000
+n=100000
 ## maximum leaf node size
 m=512
 ## maximum off-diagonal ranks
@@ -50,8 +50,9 @@ matrixtype="kernel"
 #matrixtype="testsuit"
 
 # ======= Do not change anything below this line ========
-mpiexec="ibrun tacc_affinity"
-executable="test_mpigofmm.x"
+#mpiexec="ibrun tacc_affinity"
+mpiexec="prun"
+executable="./test_mpigofmm.x"
 #executable="test_gofmm.x"
 
 

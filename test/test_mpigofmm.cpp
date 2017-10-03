@@ -130,7 +130,7 @@ void test_gofmm
 
   w_rblk.rand();
 
-  printf( "after w_rblk\n" ); fflush( stdout );
+  //printf( "after w_rblk\n" ); fflush( stdout );
 
 
 
@@ -142,7 +142,7 @@ void test_gofmm
 
 
 
-  printf( "after w_rids\n" ); fflush( stdout );
+  //printf( "after w_rids\n" ); fflush( stdout );
 
 
 
@@ -576,7 +576,7 @@ int main( int argc, char *argv[] )
       }
 
 
-      printf( "pass all assertion\n" ); fflush( stdout );
+      //printf( "pass all assertion\n" ); fflush( stdout );
       mpi::Barrier( MPI_COMM_WORLD );
 
       /** setup the kernel object as Gaussian */
@@ -591,10 +591,10 @@ int main( int argc, char *argv[] )
 			
 
       /** distributed spd kernel matrix format (implicitly create) */
-      //hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
+      hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
 			
       /** shared spd kernel matrix format (implicitly create) */
-			hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
+			//hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
 
 
 			//size_t nI = 5;

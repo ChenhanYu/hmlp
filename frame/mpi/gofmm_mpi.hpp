@@ -2516,16 +2516,16 @@ void ParallelGetSkeletonMatrix( NODE *node )
 		/** Bcast nsamples */
 		mpi::Bcast( &nsamples, 1, 0, comm );
 
-		printf( "rank %d level %lu nsamples %lu\n",
-				global_rank, node->l, nsamples ); fflush( stdout );
+		//printf( "rank %d level %lu nsamples %lu\n",
+		//		global_rank, node->l, nsamples ); fflush( stdout );
 
 
 		/** distributed row samples */
 		DistRowSamples( node, nsamples );
 
 
-		printf( "rank %d level %lu nsamples %lu after DistRowSample\n",
-				global_rank, node->l, nsamples ); fflush( stdout );
+		//printf( "rank %d level %lu nsamples %lu after DistRowSample\n",
+		//		global_rank, node->l, nsamples ); fflush( stdout );
 
 
     /** only rank-0 has non-empty I and J sets */ 
@@ -2543,8 +2543,8 @@ void ParallelGetSkeletonMatrix( NODE *node )
      */
     KIJ = K( candidate_rows, candidate_cols );
 
-		printf( "rank %d level %lu KIJ %lu, %lu\n",
-				global_rank, node->l, KIJ.row(), KIJ.col() ); fflush( stdout );
+		//printf( "rank %d level %lu KIJ %lu, %lu\n",
+		//		global_rank, node->l, KIJ.row(), KIJ.col() ); fflush( stdout );
   }
 
 }; /** end ParallelGetSkeletonMatrix() */
@@ -2967,10 +2967,6 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
   /** n-by-nrhs, initialize potentials */
   size_t n    = weights.row();
   size_t nrhs = weights.col();
-
-
-  printf( "before alocating potentials\n" ); fflush( stdout );
-
 
 
   /** potentials must be in [RIDS,STAR] distribution */
@@ -3442,9 +3438,6 @@ mpitree::Tree<
     printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
     printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
     printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
-    printf( "                (Level-by-Level ) ----- %5.2lfs\n", ref_time );
-    printf( "                (omp task       ) ----- %5.2lfs\n", omptask_time );
-    printf( "                (Omp task depend) ----- %5.2lfs\n", omptask45_time );
     printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
     printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
     printf( "========================================================\n");

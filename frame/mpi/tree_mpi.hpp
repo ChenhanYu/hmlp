@@ -272,9 +272,9 @@ class DistSplitTask : public hmlp::Task
     {
 	    int global_rank;
 	    mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
-      printf( "rank %d level %lu DistSplit begin\n", global_rank, arg->l ); fflush( stdout );
+      //printf( "rank %d level %lu DistSplit begin\n", global_rank, arg->l ); fflush( stdout );
       arg->Split();
-      printf( "rank %d level %lu DistSplit   end\n", global_rank, arg->l ); fflush( stdout );
+      //printf( "rank %d level %lu DistSplit   end\n", global_rank, arg->l ); fflush( stdout );
     };
 
 }; /** end class DistSplitTask */
@@ -459,7 +459,7 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
       if ( child )
       {
-				printf( "Split(): n %lu  \n", this->n ); fflush( stdout );
+				//printf( "Split(): n %lu  \n", this->n ); fflush( stdout );
 
         /** the local communicator of this node contains at least 2 processes */
         assert( size > 1 );
@@ -467,7 +467,7 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
         /** distributed split */
         auto split = this->setup->splitter( this->gids, comm );
 
-				printf( "Finish Split(): n %lu  \n", this->n ); fflush( stdout );
+				//printf( "Finish Split(): n %lu  \n", this->n ); fflush( stdout );
 
 
         /** get partner rank */
@@ -1027,7 +1027,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
        *
        */
 
-			printf( "depth %lu\n", this->depth ); fflush( stdout );
+			//printf( "depth %lu\n", this->depth ); fflush( stdout );
 
       for ( int l = this->depth; l >= 1; l -- )
       {

@@ -921,9 +921,9 @@ void* Scheduler::EntryPoint( void* arg )
 		auto *bgtask = scheduler->GetBackGroundTask();
 		if ( bgtask ) 
     {
-      printf( "Enter background task\n" ); fflush( stdout );
+      //printf( "Enter background task\n" ); fflush( stdout );
       me->Execute( bgtask );
-      printf( "Exit  background task\n" ); fflush( stdout );
+      //printf( "Exit  background task\n" ); fflush( stdout );
     }
 	}
 

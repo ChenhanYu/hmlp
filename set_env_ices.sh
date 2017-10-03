@@ -7,7 +7,7 @@ icesmachine=$(hostname)
 if [[ ${icesmachine} == *"pele"* ]]; then
   module lood prun
   module load intel
-  module load openmpi
+  module load mpich
   module load matlab
 fi
 
