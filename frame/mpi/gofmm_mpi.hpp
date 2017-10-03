@@ -826,12 +826,12 @@ class DistUpdateWeightsTask : public hmlp::Task
       {
         if ( arg->GetCommSize() < 2 )
         {
-          arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-          arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+          arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+          arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
         }
         else
         {
-          arg->child->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+          arg->child->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
         }
       }
 
@@ -912,20 +912,23 @@ class DistSkeletonsToSkeletonsTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      auto *FarNodes = &arg->FarNodes;
-      if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
+      //auto *FarNodes = &arg->FarNodes;
+      //if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
 
 
-      /** only write to this node while there is Far interaction */
-      if ( FarNodes->size() )
-        arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      ///** only write to this node while there is Far interaction */
+      //if ( FarNodes->size() )
+      //  arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
 
-      /** depends on all the far interactions, waiting for skeleton weight */
-      for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
-      {
-        (*it)->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      }
+      ///** depends on all the far interactions, waiting for skeleton weight */
+      //for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+      //{
+      //  (*it)->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      //}
 
+
+
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
       this->TryEnqueue();
     };
 
@@ -2140,11 +2143,11 @@ class WaitLETTask : public hmlp::Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-
       if ( arg->child )
       {
         auto *childFarNodes = &arg->child->NNFarNodes;
-        for ( auto it = childFarNodes->begin(); it != childFarNodes->end(); it ++ )
+        for ( auto it  = childFarNodes->begin(); 
+                   it != childFarNodes->end(); it ++ )
         {
           (*it)->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
         }
@@ -2933,11 +2936,11 @@ template<
   bool     CACHE = true, 
   typename TREE, 
   typename T>
-hmlp::DistData<RIDS, STAR, T> Evaluate
+DistData<RIDS, STAR, T> Evaluate
 ( 
   TREE &tree,
   /** weights need to be in [RIDS,STAR] distribution */
-  hmlp::DistData<RIDS, STAR, T> &weights,
+  DistData<RIDS, STAR, T> &weights,
   mpi::Comm comm
 )
 {
@@ -2948,17 +2951,13 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
 
 
   /** get type NODE = TREE::NODE */
-  using NODE = typename TREE::NODE;
+  using NODE    = typename TREE::NODE;
   using MPINODE = typename TREE::MPINODE;
-
-  /** */
-  using NULLTASK           = hmlp::NULLTask<NODE>;
-  using MPINULLTASK        = hmlp::NULLTask<MPINODE>;
-
+  using LETNODE = typename TREE::LETNODE;
 
   /** all timers */
   double beg, time_ratio, evaluation_time = 0.0;
-  double allocate_time, computeall_time;
+  double allocate_time = 0.0, computeall_time;
   double forward_permute_time, backward_permute_time;
 
   /** clean up all r/w dependencies left on tree nodes */
@@ -2971,7 +2970,7 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
 
   /** potentials must be in [RIDS,STAR] distribution */
   auto &gids_owned = tree.treelist[ 0 ]->gids;
-  hmlp::DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, comm );
+  DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, comm );
   potentials.setvalue( 0.0 );
 
   tree.setup.w = &weights;
@@ -3014,66 +3013,33 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
   }
   if ( SYMMETRIC_PRUNE )
   {
-    using LEAFTOLEAFTASK = hmlp::mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T>;
-    using MPILEAFTOLEAFTASK = hmlp::mpigofmm::DistLeavesToLeavesTask<NNPRUNE, MPINODE, T>;
+    /** global barrier and timer */
+    hmlp::mpi::Barrier( MPI_COMM_WORLD );
+    beg = omp_get_wtime();
 
-    //using NODETOSKELTASK    = hmlp::mpigofmm::UpdateWeightsTask<NODE>;
-    using NODETOSKELTASK    = hmlp::gofmm::UpdateWeightsTask<NODE>;
-    using MPINODETOSKELTASK = hmlp::mpigofmm::DistUpdateWeightsTask<MPINODE>;
-    
-    using SKELTOSKELTASK  = hmlp::gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE>;
-    using MPISKELTOSKELTASK  = hmlp::mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE>;
+    /** L2L */
+    mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
+    tree.LocaTraverseLeafs( seqL2Ltask );
 
-    using SKELTONODETASK  = hmlp::gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T>;
-    using MPISKELTONODETASK  = hmlp::mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T>;
+    /** N2S (Loca first, Dist follows) */
+    gofmm::UpdateWeightsTask<NODE> seqN2Stask;
+    mpigofmm::DistUpdateWeightsTask<MPINODE> mpiN2Stask;
+    tree.LocaTraverseUp( seqN2Stask );
+    tree.DistTraverseUp( mpiN2Stask );
 
-    //using WAITLETTASK    = hmlp::mpigofmm::WaitLETTask<NODE>;
-    using MPIWAITLETTASK = hmlp::mpigofmm::WaitLETTask<MPINODE>;
+    /** S2S */
+    gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE> seqS2Stask;
+    mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE> mpiS2Stask;
+    tree.LocaTraverseUnOrdered( seqS2Stask );
+    tree.DistTraverseUnOrdered( mpiS2Stask );
 
+    /** S2N (Dist first, Loca follows) */
+    gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T> seqS2Ntask;
+    mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
+    tree.DistTraverseDown( mpiS2Ntask );
+    tree.LocaTraverseDown( seqS2Ntask );
 
-    NULLTASK           nulltask;
-    MPINULLTASK        mpinulltask;
-
-    LEAFTOLEAFTASK     leaftoleaftask;
-    MPILEAFTOLEAFTASK  mpileaftoleaftask;
-
-    NODETOSKELTASK     nodetoskeltask;
-    MPINODETOSKELTASK  mpinodetoskeltask;
-
-    //WAITLETTASK        waitlettask;
-    MPIWAITLETTASK     mpiwaitlettask;
-
-    SKELTOSKELTASK     skeltoskeltask;
-    MPISKELTOSKELTASK  mpiskeltoskeltask;
-
-    SKELTONODETASK     skeltonodetask;
-    MPISKELTONODETASK  mpiskeltonodetask;
-
-    tree.template ParallelTraverseUp<true>( 
-        leaftoleaftask, mpileaftoleaftask, nulltask, mpinulltask ); 
-    //printf( "After L2L creation\n" ); fflush( stdout );
-    //hmlp::mpi::Barrier( MPI_COMM_WORLD );
-
-    tree.template ParallelTraverseUp<true>( 
-        nodetoskeltask, mpinodetoskeltask, nulltask, mpinulltask ); 
-    //printf( "After N2S creation\n" ); fflush( stdout );
-    //hmlp::mpi::Barrier( MPI_COMM_WORLD );
-
-    tree.template ParallelTraverseUp<true>( 
-        nulltask, mpiwaitlettask, nulltask, mpinulltask );
-    //printf( "After WaitLET creation\n" ); fflush( stdout );
-    //hmlp::mpi::Barrier( MPI_COMM_WORLD );
-
-    tree.template ParallelTraverseUp<true>( 
-       skeltoskeltask, mpiskeltoskeltask, nulltask, mpinulltask );
-    //printf( "After S2S creation\n" ); fflush( stdout );
-    //hmlp::mpi::Barrier( MPI_COMM_WORLD );
-
-    tree.template ParallelTraverseDown<true>( 
-       skeltonodetask, mpiskeltonodetask, nulltask, mpinulltask );
-
-    //printf( "Before hmlp_run()\n" ); fflush( stdout );
-    //hmlp::mpi::Barrier( MPI_COMM_WORLD );
+    /** epoch */
     hmlp_run();
 
     /** reduce direct iteractions from 4 copies */
@@ -3089,6 +3055,10 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
           u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
       }
     }
+
+    /** global barrier and timer */
+    hmlp::mpi::Barrier( MPI_COMM_WORLD );
+    computeall_time = omp_get_wtime() - beg;
   }
   else 
   {
@@ -3115,8 +3085,14 @@ hmlp::DistData<RIDS, STAR, T> Evaluate
         potentials( amap[ i ], j ) += u_leaf( i, j );
 
   }
+  backward_permute_time = omp_get_wtime() - beg;
 
-
+  /** compute the breakdown cost */
+  evaluation_time += allocate_time;
+  evaluation_time += forward_permute_time;
+  evaluation_time += computeall_time;
+  evaluation_time += backward_permute_time;
+  time_ratio = 100 / evaluation_time;
 
   if ( rank == 0 && REPORT_EVALUATE_STATUS )
   {
