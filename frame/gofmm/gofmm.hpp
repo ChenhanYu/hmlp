@@ -1371,6 +1371,10 @@ std::multimap<TB, TA> flip_map( const std::map<TA, TB> &src )
 template<typename NODE, typename T>
 void BuildNeighbors( NODE *node, size_t nsamples )
 {
+  /** early return if no neighbors were provided */
+  if ( !node->setup->NN ) return;
+
+
   auto &NN = *(node->setup->NN);
   std::vector<size_t> &gids = node->gids;
   auto &snids = node->data.snids;
@@ -1381,9 +1385,9 @@ void BuildNeighbors( NODE *node, size_t nsamples )
   {
     /** Pruning neighbor lists/sets: */
     pnids = std::unordered_set<size_t>();
-    for ( size_t ii = 0; ii < k / 2; ii ++ )
+    for ( size_t jj = 0; jj < n; jj ++ )
     {
-      for ( size_t jj = 0; jj < n; jj ++ )
+      for ( size_t ii = 0; ii < k / 2; ii ++ )
       {
         pnids.insert( NN( ii,  gids[ jj ] ).second );
       }
@@ -1398,17 +1402,17 @@ void BuildNeighbors( NODE *node, size_t nsamples )
 		 *  Sampling neighbors
      *  To think about: Make building sampling neighbor adaptive.  
      *  E.g. request 0-100 closest neighbors, 
-     * if additional 100 neighbors are requested, return sneighbors 100-200 
+     *  if additional 100 neighbors are requested, return sneighbors 100-200 
 		 */ 
     snids = std::map<size_t, T>(); 
-    std::vector<std::pair<T, size_t>> tmp ( k / 2 * n ); 
+    std::vector<std::pair<T, size_t>> tmp( k / 2 * n ); 
     std::set<size_t> nodeIdx( gids.begin() , gids.end() );    
     /** Allocate array for sorting */
     for ( size_t ii = ( k + 1 ) / 2; ii < k; ii ++ )
     {
       for ( size_t jj = 0; jj < n; jj ++ )
       {
-        tmp [ ( ii - ( k + 1 ) / 2 ) * n + jj ] = NN( ii, gids[ jj ] );
+        tmp[ ( ii - ( k + 1 ) / 2 ) * n + jj ] = NN( ii, gids[ jj ] );
       }
     }
     std::sort( tmp.begin() , tmp.end() );
@@ -1425,17 +1429,21 @@ void BuildNeighbors( NODE *node, size_t nsamples )
   }
   else
   {
-    // At interior node 
+    /** At interior node */
     auto &lsnids = node->lchild->data.snids;
     auto &rsnids = node->rchild->data.snids;
     auto &lpnids = node->lchild->data.pnids;
     auto &rpnids = node->rchild->data.pnids;
 
-    // Merge children's sampling neighbors...    
-    // Start with left sampling neighbor list 
+    /** 
+     *  merge children's sampling neighbors...    
+     *  start with left sampling neighbor list 
+     */
     snids = lsnids;
-    // Add right sampling neighbor list. If duplicate update distace if nec.
-    //std::pair<std::map<size_t, T>::iterator, bool> ret;
+
+    /**
+     *  Add right sampling neighbor list. If duplicate update distace if nec.
+     */
     for ( auto cur = rsnids.begin(); cur != rsnids.end(); cur ++ )
     {
       auto ret = snids.insert( *cur );
@@ -1776,7 +1784,11 @@ void Skeletonize( NODE *node )
     for ( auto cur = ordered_snids.begin(); cur != ordered_snids.end(); cur++ )
     {
       amap.push_back( cur->second );
+      if ( amap.size() >= nsamples ) break;
     }
+    //if ( amap.size() > nsamples ) printf( "amap.size() %lu\n", amap.size() );
+
+
     // Uniform samples.
     if ( amap.size() < nsamples )
     {
@@ -1877,13 +1889,10 @@ void Skeletonize( NODE *node )
 
   /** update pruning neighbor list */
   data.pnids.clear();
-  for ( int ii = 0 ; ii < skels.size() ; ii ++ )
-  {
-    for ( int jj = 0; jj < NN.row() / 2; jj ++ )
-    {
-      data.pnids.insert( NN.data()[ skels[ ii ] * NN.row() + jj ].second );
-    }
-  }
+  for ( size_t j = 0 ; j < skels.size() ; j ++ )
+    for ( size_t i = 0; i < NN.row() / 2; i ++ )
+      data.pnids.insert( NN( i, skels[ j ] ).second );
+
 }; /** end void Skeletonize() */
 
 

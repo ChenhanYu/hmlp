@@ -1766,7 +1766,7 @@ class SimpleNearFarNodesTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       /** this task contains MPI routines */
-      this->has_mpi_routines = true;
+      //this->has_mpi_routines = true;
 
       std::ostringstream ss;
       arg = user_arg;
@@ -1824,7 +1824,7 @@ class DistSimpleNearFarNodesTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       /** this task contains MPI routines */
-      this->has_mpi_routines = true;
+      //this->has_mpi_routines = true;
 
       std::ostringstream ss;
       arg = user_arg;
@@ -1990,7 +1990,7 @@ class CacheFarNodesTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       /** this task contains MPI routines */
-      this->has_mpi_routines = true;
+      //this->has_mpi_routines = true;
 
       std::ostringstream ss;
       arg = user_arg;
@@ -2054,7 +2054,7 @@ class CacheNearNodesTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       /** this task contains MPI routines */
-      this->has_mpi_routines = true;
+      //this->has_mpi_routines = true;
 
       std::ostringstream ss;
       arg = user_arg;
@@ -2123,9 +2123,6 @@ class WaitLETTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      /** this task contains MPI routines */
-      //this->has_mpi_routines = true;
-
       std::ostringstream ss;
       arg = user_arg;
       name = std::string( "waitlet" );
@@ -2169,7 +2166,7 @@ class WaitLETTask : public hmlp::Task
 
 
 
-template<typename NODE>
+template<typename NODE, typename T>
 void DistRowSamples( NODE *node, size_t nsamples )
 {
   /** MPI */
@@ -2185,7 +2182,24 @@ void DistRowSamples( NODE *node, size_t nsamples )
 
   /** clean up candidates from previous iteration */
 	I.clear();
-	if ( rank == 0 ) I.reserve( nsamples );
+
+  /** fill-on snids first */
+	if ( rank == 0 ) 
+  {
+    /** reserve space */
+    I.reserve( nsamples );
+
+    auto &snids = node->data.snids;
+    std::multimap<T, size_t> ordered_snids = gofmm::flip_map( snids );
+
+    for ( auto it  = ordered_snids.begin(); 
+               it != ordered_snids.end(); it++ )
+    {
+      /** (*it) has type pair<T, size_t> */
+      I.push_back( (*it).second );
+      if ( I.size() >= nsamples ) break;
+    }
+  }
 
 	/** buffer space */
 	std::vector<size_t> candidates( nsamples );
@@ -2249,7 +2263,7 @@ void DistRowSamples( NODE *node, size_t nsamples )
 
 
 
-template<typename NODE>
+template<typename NODE, typename T>
 void RowSamples( NODE *node, size_t nsamples )
 {
   /** gather shared data and create reference */
@@ -2261,14 +2275,88 @@ void RowSamples( NODE *node, size_t nsamples )
   /** clean up candidates from previous iteration */
   amap.clear();
 
+
+  /** construct snids from neighbors */
+  if ( node->setup->NN )
+  {
+    auto &NN = *(node->setup->NN);
+    auto &gids = node->gids;
+    auto &snids = node->data.snids;
+    size_t kbeg = 0;
+    size_t kend = NN.row();
+    size_t knum = kend - kbeg;
+
+    if ( node->isleaf )
+    {
+      snids.clear();
+      std::vector<std::pair<T, size_t>> tmp( knum * gids.size() );
+      for ( size_t j = 0; j < gids.size(); j ++ )
+        for ( size_t i = kbeg; i < kend; i ++ )
+          tmp[ j * knum + ( i - kbeg ) ] = NN( i, gids[ j ] );
+
+      /** create a sorted list */
+      std::sort( tmp.begin(), tmp.end() );
+    
+      for ( auto it = tmp.begin(); it != tmp.end(); it ++ )
+      {
+        /** create a single query */
+        std::vector<size_t> sample_query( 1, (*it).second );
+				std::vector<size_t> validation = 
+					node->setup->ContainAny( sample_query, node->morton );
+
+        if ( !validation[ 0 ] )
+        {
+          /** duplication is handled by std::map */
+          auto ret = snids.insert( std::pair<size_t, T>( (*it).second, (*it).first ) );
+        }
+
+        /** while we have enough samples, then exit */
+        if ( snids.size() >= nsamples ) break;
+      }
+    }
+    else
+    {
+      auto &lsnids = node->lchild->data.snids;
+      auto &rsnids = node->rchild->data.snids;
+
+      /** 
+       *  merge children's sampling neighbors...    
+       *  start with left sampling neighbor list 
+       */
+      snids = lsnids;
+
+      /**
+       *  Add right sampling neighbor list. If duplicate update distace if nec.
+       */
+      for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
+      {
+        auto ret = snids.insert( *it );
+        if ( !ret.second )
+        {
+          if ( ret.first->second > (*it).first )
+            ret.first->second = (*it).first;
+        }
+      }
+
+      /** remove "own" points */
+      for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
+    }
+  }
+
+  /** create an order snids by flipping the std::map */
+  std::multimap<T, size_t> ordered_snids = gofmm::flip_map( node->data.snids );
+  
   if ( nsamples < K.col() - node->n )
   {
     amap.reserve( nsamples );
 
-    //for ( auto cur = ordered_snids.begin(); cur != ordered_snids.end(); cur++ )
-    //{
-    //  amap.push_back( cur->second );
-    //}
+    for ( auto it  = ordered_snids.begin(); 
+               it != ordered_snids.end(); it++ )
+    {
+      /** (*it) has type pair<T, size_t> */
+      amap.push_back( (*it).second );
+      if ( amap.size() >= nsamples ) break;
+    }
 
     /** uniform samples */
     if ( amap.size() < nsamples )
@@ -2315,7 +2403,7 @@ void RowSamples( NODE *node, size_t nsamples )
  *  @brief Involve MPI routines. All MPI process must devote at least
  *         one thread to participate in this function to avoid deadlock.
  */ 
-template<typename NODE>
+template<typename NODE, typename T>
 void GetSkeletonMatrix( NODE *node )
 {
   /** gather shared data and create reference */
@@ -2351,8 +2439,12 @@ void GetSkeletonMatrix( NODE *node )
   /** make sure we at least m samples */
   if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
 
+  /** build  neighbor lists (snids and pnids) */
+  //gofmm::BuildNeighbors<NODE, T>( node, nsamples );
+
   /** sample off-diagonal rows */
-  RowSamples( node, nsamples );
+  RowSamples<NODE, T>( node, nsamples );
+
   /** 
    *  get KIJ for skeletonization 
    *
@@ -2367,7 +2459,7 @@ void GetSkeletonMatrix( NODE *node )
 /**
  *
  */ 
-template<typename NODE>
+template<typename NODE, typename T>
 class GetSkeletonMatrixTask : public hmlp::Task
 {
   public:
@@ -2376,9 +2468,6 @@ class GetSkeletonMatrixTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      /** this task contains MPI routines */
-      this->has_mpi_routines = true;
-
       std::ostringstream ss;
       arg = user_arg;
       name = std::string( "par-gskm" );
@@ -2414,7 +2503,7 @@ class GetSkeletonMatrixTask : public hmlp::Task
     void Execute( Worker* user_worker )
     {
       //printf( "%lu GetSkeletonMatrix beg\n", arg->treelist_id );
-      GetSkeletonMatrix<NODE>( arg );
+      GetSkeletonMatrix<NODE, T>( arg );
       //printf( "%lu GetSkeletonMatrix end\n", arg->treelist_id );
     };
 
@@ -2431,7 +2520,7 @@ class GetSkeletonMatrixTask : public hmlp::Task
 /**
  *  @brief Involve MPI routins
  */ 
-template<typename NODE>
+template<typename NODE, typename T>
 void ParallelGetSkeletonMatrix( NODE *node )
 {
 	/** early return */
@@ -2456,7 +2545,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
   if ( size < 2 )
   {
     /** this node is the root of the local tree */
-    GetSkeletonMatrix( node );
+    GetSkeletonMatrix<NODE, T>( node );
   }
   else
   {
@@ -2487,14 +2576,11 @@ void ParallelGetSkeletonMatrix( NODE *node )
      */ 
     if ( rank == 0 )
     {
-      std::vector<int> recv_buff;
-      hmlp::mpi::RecvVector( recv_buff, size / 2, 10, comm, &status );
-
       /** concatinate [ lskels, rskels ] */
-      candidate_cols= child->data.skels;
-      candidate_cols.reserve( candidate_cols.size() + recv_buff.size() );
-      for ( size_t i = 0; i < recv_buff.size(); i ++ )
-        candidate_cols.push_back( recv_buff[ i ] );
+      candidate_cols = child->data.skels;
+      std::vector<size_t> rskel;
+      hmlp::mpi::RecvVector( rskel, size / 2, 10, comm, &status );
+      candidate_cols.insert( candidate_cols.end(), rskel.begin(), rskel.end() );
 
 			/** use two times of skeletons */
       nsamples = 2 * candidate_cols.size();
@@ -2502,18 +2588,59 @@ void ParallelGetSkeletonMatrix( NODE *node )
       /** make sure we at least m samples */
       if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
 
+      /** gather rsnids */
+      auto &snids  = node->data.snids;
+      auto &lsnids = node->child->data.snids;
+      std::vector<T>      recv_rsdist;
+      std::vector<size_t> recv_rsnids;
 
-      /** sample off-diagonal rows */
-      //RowSamples( node, nsamples );
+      /** recv rsnids from size / 2 */
+      hmlp::mpi::RecvVector( recv_rsdist, size / 2, 20, comm, &status );
+      hmlp::mpi::RecvVector( recv_rsnids, size / 2, 30, comm, &status );
+
+      /** merge snids and update the smallest distance */
+      snids = lsnids;
+
+      for ( size_t i = 0; i < recv_rsdist.size(); i ++ )
+      {
+        std::pair<size_t, T> query( recv_rsnids[ i ], recv_rsdist[ i ] );
+        auto ret = snids.insert( query );
+        if ( !ret.second )
+        {
+          if ( ret.first->second > recv_rsdist[ i ] )
+            ret.first->second = recv_rsdist[ i ];
+        }
+      }
+
+      /** remove gids from snids */
+      auto &gids = node->gids;
+      for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
     }
 
     if ( rank == size / 2 )
     {
-      int send_size = child->data.skels.size();
-      std::vector<int> send_buff( send_size, 0 );
-      for ( size_t i = 0; i < send_size; i ++ )
-        send_buff[ i ] = child->data.skels[ i ];
-      hmlp::mpi::SendVector( send_buff, 0, 10, comm );
+      /** send rskel to rank-0 */
+      mpi::SendVector( child->data.skels, 0, 10, comm );
+
+      /** gather rsnids */
+      auto &rsnids = node->child->data.snids;
+      std::vector<T>      send_rsdist;
+      std::vector<size_t> send_rsnids;
+
+      /** reserve space and push in from map */
+      send_rsdist.reserve( rsnids.size() );
+      send_rsnids.reserve( rsnids.size() );
+
+      for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
+      {
+        /** (*it) has type std::pair<size_t, T>  */
+        send_rsnids.push_back( (*it).first  ); 
+        send_rsdist.push_back( (*it).second );
+      }
+
+      /** send rsnids to rank-0 */
+      mpi::SendVector( send_rsdist, 0, 20, comm );
+      mpi::SendVector( send_rsnids, 0, 30, comm );
     }
 
 		/** Bcast nsamples */
@@ -2524,7 +2651,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
 
 
 		/** distributed row samples */
-		DistRowSamples( node, nsamples );
+		DistRowSamples<NODE, T>( node, nsamples );
 
 
 		//printf( "rank %d level %lu nsamples %lu after DistRowSample\n",
@@ -2556,7 +2683,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
 /**
  *
  */ 
-template<typename NODE>
+template<typename NODE, typename T>
 class ParallelGetSkeletonMatrixTask : public hmlp::Task
 {
   public:
@@ -2565,9 +2692,6 @@ class ParallelGetSkeletonMatrixTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      /** this task contains MPI routines */
-      this->has_mpi_routines = true;
-
       std::ostringstream ss;
       arg = user_arg;
       name = std::string( "par-gskm" );
@@ -2613,7 +2737,7 @@ class ParallelGetSkeletonMatrixTask : public hmlp::Task
     void Execute( Worker* user_worker )
     {
       //printf( "%lu Par-GetSkeletonMatrix beg\n", arg->treelist_id );
-      ParallelGetSkeletonMatrix<NODE>( arg );
+      ParallelGetSkeletonMatrix<NODE, T>( arg );
       //printf( "%lu Par-GetSkeletonMatrix end\n", arg->treelist_id );
     };
 
@@ -2847,6 +2971,15 @@ class DistSkeletonizeTask : public hmlp::Task
 
 			/** update data.isskel */
 			arg->data.isskel = isskel;
+
+      /** Bcast skels to every MPI processes in the same comm */
+      //mpi::Bcast( arg->data.skels.data(), arg->data.skels.size(), 0, 
+      //    arg->GetComm() );
+
+
+
+
+
 
     };
 
@@ -3196,30 +3329,22 @@ mpitree::Tree<
   using TREE               = mpitree::Tree<SETUP, DATA, N_CHILDREN, T>;
 
   /** instantiate tasks with NODE and MPINODE */
-  using NULLTASK           = hmlp::NULLTask<NODE>;
-  using MPINULLTASK        = hmlp::NULLTask<MPINODE>;
+  //using NULLTASK           = hmlp::NULLTask<NODE>;
+  //using MPINULLTASK        = hmlp::NULLTask<MPINODE>;
 
-  using GETMATRIXTASK      = hmlp::mpigofmm::GetSkeletonMatrixTask<NODE>;
-  using MPIGETMATRIXTASK   = hmlp::mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE>;
 
-  using SKELTASK           = hmlp::mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
-  using MPISKELTASK        = hmlp::mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T>;
+  //using PROJTASK           = hmlp::gofmm::InterpolateTask<NODE, T>;
+  //using MPIPROJTASK        = hmlp::mpigofmm::InterpolateTask<MPINODE, T>;
 
-  using PROJTASK           = hmlp::gofmm::InterpolateTask<NODE, T>;
-  using MPIPROJTASK        = hmlp::mpigofmm::InterpolateTask<MPINODE, T>;
-
-  using FINDNEARNODESTASK  = hmlp::mpigofmm::FindNearNodesTask<SYMMETRIC, TREE>;
+  //using FINDNEARNODESTASK  = hmlp::mpigofmm::FindNearNodesTask<SYMMETRIC, TREE>;
 
 
 
-	SimpleNearFarNodesTask<NODE> nearfartask;
-	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpinearfartask;
 
+  //using CACHENEARNODESTASK    = mpigofmm::CacheNearNodesTask<NNPRUNE, NODE>;
 
-  using CACHENEARNODESTASK    = mpigofmm::CacheNearNodesTask<NNPRUNE, NODE>;
-
-  using CACHEFARNODESTASK  = hmlp::mpigofmm::CacheFarNodesTask<NNPRUNE, NODE>;
-  using MPICACHEFARNODESTASK  = hmlp::mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE>;
+  //using CACHEFARNODESTASK  = hmlp::mpigofmm::CacheFarNodesTask<NNPRUNE, NODE>;
+  //using MPICACHEFARNODESTASK  = hmlp::mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE>;
 
 
 
@@ -3238,20 +3363,20 @@ mpitree::Tree<
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
 
   /** dummy instances for each task */
-  GETMATRIXTASK      getmatrixtask;
-  MPIGETMATRIXTASK   mpigetmatrixtask;
-  SKELTASK           skeltask;
-  MPISKELTASK        mpiskeltask;
-  PROJTASK           projtask;
-  MPIPROJTASK        mpiprojtask;
+  //GETMATRIXTASK      getmatrixtask;
+  //MPIGETMATRIXTASK   mpigetmatrixtask;
+  //SKELTASK           skeltask;
+  //MPISKELTASK        mpiskeltask;
+  //PROJTASK           projtask;
+  //MPIPROJTASK        mpiprojtask;
   KNNTASK            knntask;
 
-  CACHENEARNODESTASK cachenearnodestask;
+  //CACHENEARNODESTASK cachenearnodestask;
 
-  CACHEFARNODESTASK  cachefarnodestask;
-  MPICACHEFARNODESTASK mpicachefarnodestask;
-  NULLTASK           nulltask;
-  MPINULLTASK        mpinulltask;
+  //CACHEFARNODESTASK  cachefarnodestask;
+  //MPICACHEFARNODESTASK mpicachefarnodestask;
+  //NULLTASK           nulltask;
+  //MPINULLTASK        mpinulltask;
 
 
   /** original order of the matrix */
@@ -3337,62 +3462,46 @@ mpitree::Tree<
   mpi::Barrier( MPI_COMM_WORLD );
   beg = omp_get_wtime();
 
-  /** prepare for skeletonization */
+  /** clean up all dependencies for skeletonization */
   tree.DependencyCleanUp();
-  tree.LocaTraverseUp(    getmatrixtask,    skeltask );
-  tree.DistTraverseUp( mpigetmatrixtask, mpiskeltask );
-  tree.LocaTraverseUnOrdered(    projtask );
-  tree.DistTraverseUnOrdered( mpiprojtask );
+
+  /** gather sample rows and skeleton columns, then ID */
+  mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
+  mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
+  mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
+  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
+  tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+
+  /** compute the coefficient matrix of ID */
+  gofmm::InterpolateTask<NODE, T> seqPROJtask;
+  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
+  tree.LocaTraverseUnOrdered( seqPROJtask );
+  tree.DistTraverseUnOrdered( mpiPROJtask );
 
 	/** create interaction lists */
-  tree.DistTraverseDown( mpinearfartask );
-	tree.LocaTraverseDown(    nearfartask );
+	SimpleNearFarNodesTask<NODE> seqNEARFARtask;
+	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
+  tree.DistTraverseDown( mpiNEARFARtask );
+	tree.LocaTraverseDown( seqNEARFARtask );
 
-	/** cache KIJ */
-	tree.LocaTraverseLeafs( cachenearnodestask );
-  tree.LocaTraverseUnOrdered(    cachefarnodestask );
-  tree.DistTraverseUnOrdered( mpicachefarnodestask );
+	/** cache near KIJ interactions */
+  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+	tree.LocaTraverseLeafs( seqNEARKIJtask );
 
+	/** cache  far KIJ interactions */
+  mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
+  mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
+  tree.LocaTraverseUnOrdered( seqFARKIJtask );
+  tree.DistTraverseUnOrdered( mpiFARKIJtask );
 
-
-
-
-  /** FindNearNodes (executed with skeletonization) */
-  //auto *findnearnodestask = new FINDNEARNODESTASK();
-  //findnearnodestask->Set( &tree, budget );
-  //findnearnodestask->Submit();
-  //findnearnodestask->DependencyAnalysis();
   
   other_time += omp_get_wtime() - beg;
   hmlp_run();
   mpi::Barrier( MPI_COMM_WORLD );
   skel_time = omp_get_wtime() - beg;
-  //printf( "Done\n" ); fflush( stdout );
 
 
-
-
-  //ParallelSimpleFarNodes<LETNODE>( 
-  //    tree.mpitreelists.front(),
-  //    tree.lettreelist ); 
-
-  
-  
-
-
-	/** cache KIJ for near and far interactions */
-  //tree.DependencyCleanUp();
-  //tree.DistTraverseDown( mpinearfartask );
-	//tree.LocaTraverseDown(    nearfartask );
-
-	//tree.LocaTraverseLeafs( cachenearnodestask );
-  //tree.LocaTraverseUnOrdered(    cachefarnodestask );
-  //tree.DistTraverseUnOrdered( mpicachefarnodestask );
-
-
-	
-  //hmlp_run();
-  //mpi::Barrier( MPI_COMM_WORLD );
 
 
 

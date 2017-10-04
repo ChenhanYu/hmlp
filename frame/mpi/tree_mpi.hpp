@@ -937,8 +937,12 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** TODO: allocate space for point Morton ID */
       (this->setup).morton.resize( n );
 
+ 
       /** compute Morton ID for both distributed and local trees */
+      double beg = omp_get_wtime();
       Morton( mpitreelists[ 0 ], 0 );
+      double morton_t = omp_get_wtime() - beg;
+      printf( "Morton takes %lfs\n", morton_t );
       hmlp::mpi::Barrier( comm );
 
       Offset( mpitreelists[ 0 ], 0 );
