@@ -340,7 +340,7 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     int num_points_owned = gids.size();
     std::vector<T> temp( gids.size(), 0.0 );
 
-    printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
+    //printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
 
 
     /** n = sum( num_points_owned ) over all MPI processes in comm */
@@ -348,7 +348,7 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
         MPI_INT, MPI_SUM, comm );
 
 
-    printf( "rank %d enter distributed centersplit n = %d\n", global_rank, n ); fflush( stdout );
+    //printf( "rank %d enter distributed centersplit n = %d\n", global_rank, n ); fflush( stdout );
 
 
 
@@ -501,9 +501,9 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     hmlp::mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
     hmlp::mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
 
-    printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
-        global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
-        nlhs, nmid, nrhs ); fflush( stdout );
+    //printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
+    //    global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
+    //    nlhs, nmid, nrhs ); fflush( stdout );
 
     /** assign points in the middle to left or right */
     if ( nmid )
@@ -530,10 +530,10 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
       int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
 
 
-      printf( "rank %d [ %d %d ] [ %d %d ]\n",
-        global_rank, 
-				nlhs_required_owned, nlhs_required,
-				nrhs_required_owned, nrhs_required ); fflush( stdout );
+      //printf( "rank %d [ %d %d ] [ %d %d ]\n",
+      //  global_rank, 
+      //	nlhs_required_owned, nlhs_required,
+      //	nrhs_required_owned, nrhs_required ); fflush( stdout );
 
 
       assert( nlhs_required_owned >= 0 );
@@ -596,13 +596,13 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     int num_points_owned = gids.size();
     std::vector<T> temp( gids.size(), 0.0 );
 
-    printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
+    //printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
 
     /** n = sum( num_points_owned ) over all MPI processes in comm */
     hmlp::mpi::Allreduce( &num_points_owned, &n, 1, 
         MPI_INT, MPI_SUM, comm );
 
-    printf( "rank %d enter distributed randomsplit n = %d\n", global_rank, n ); fflush( stdout );
+    //printf( "rank %d enter distributed randomsplit n = %d\n", global_rank, n ); fflush( stdout );
 
     /** early return */
     if ( n == 0 ) return split;
@@ -691,9 +691,9 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     hmlp::mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
     hmlp::mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
 
-    printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
-        global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
-        nlhs, nmid, nrhs ); fflush( stdout );
+    //printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
+    //    global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
+    //    nlhs, nmid, nrhs ); fflush( stdout );
 
     /** assign points in the middle to left or right */
     if ( nmid )
@@ -720,10 +720,10 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
       int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
 
 
-      printf( "rank %d [ %d %d ] [ %d %d ]\n",
-        global_rank, 
-				nlhs_required_owned, nlhs_required,
-				nrhs_required_owned, nrhs_required ); fflush( stdout );
+      //printf( "rank %d [ %d %d ] [ %d %d ]\n",
+      //  global_rank, 
+			//	nlhs_required_owned, nlhs_required,
+			//	nrhs_required_owned, nrhs_required ); fflush( stdout );
 
 
       assert( nlhs_required_owned >= 0 );
@@ -751,17 +751,21 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 
 
 
+
+
 /**
  *  @brief TODO: (Severin)
  *
  */ 
-template<typename NODE>
+template<typename NODE, typename T>
 void FindNeighbors( NODE *node, DistanceMetric metric )
 {
   /** in distributed environment, it has type DistData<STAR, CIDS, T> */
   auto &NN   = *(node->setup->NN);
   auto &gids = node->gids;
 
+  /** KII = K( gids, gids ) */
+  Data<T> KII;
 
   /** rho+k nearest neighbors */
   switch ( metric )
@@ -769,19 +773,37 @@ void FindNeighbors( NODE *node, DistanceMetric metric )
     case GEOMETRY_DISTANCE:
     {
       auto &X = *(node->setup->X);
+      printf( "GEMETRY DISTNACE not implemented yet\n" );
       break;
     }
     case KERNEL_DISTANCE:
     {
       auto &K = *(node->setup->K);
-      auto KIJ = K( gids, gids );
+      KII = K( gids, gids );
+      
+      /** get digaonal entries */
+      Data<T> DII( gids.size(), (size_t)1 );
+      for ( size_t i = 0; i < gids.size(); i ++ ) DII[ i ] = KII( i, i );
+
+      for ( size_t j = 0; j < KII.col(); j ++ )
+        for ( size_t i = 0; i < KII.row(); i ++ )
+          KII( i, j ) = DII[ i ] + DII[ j ] - 2.0 * KII( i, j );
+
 
       break;
     }
     case ANGLE_DISTANCE:
     {
       auto &K = *(node->setup->K);
-      auto KIJ = K( gids, gids );
+      KII = K( gids, gids );
+
+      /** get digaonal entries */
+      Data<T> DII( gids.size(), (size_t)1 );
+      for ( size_t i = 0; i < gids.size(); i ++ ) DII[ i ] = KII( i, i );
+
+      for ( size_t j = 0; j < KII.col(); j ++ )
+        for ( size_t i = 0; i < KII.row(); i ++ )
+          KII( i, j ) = 1.0 - ( KII( i, j ) * KII( i, j ) ) / ( DII[ i ] * DII[ j ] );
 
       break;
     }
@@ -792,9 +814,109 @@ void FindNeighbors( NODE *node, DistanceMetric metric )
   }
 
 
-  /** merge with the existing neighbor list and remove duplication */
+  for ( size_t j = 0; j < KII.col(); j ++ )
+  { 
+    /** create a query list for column KII( :, j ) */
+    std::vector<std::pair<T, size_t>> query( KII.row() );
+    for ( size_t i = 0; i < KII.row(); i ++ ) 
+    {
+      query[ i ].first  = KII( i, j );
+      query[ i ].second = gids[ i ];
+    }
+
+    /** sort the query according to distances */
+    sort( query.begin(), query.end() );
+
+    /** fill-in the neighbor list */
+    auto *NNj = NN.columndata( gids[ j ] );
+    for ( size_t i = 0; i < NN.row(); i ++ ) 
+    {
+      NNj[ i ] = query[ i ];
+    }
+  }
 
 }; /** end FindNeighbors() */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<class NODE, typename T>
+class NeighborsTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+   
+	  /** (default) using angle distance from the Gram vector space */
+	  DistanceMetric metric = ANGLE_DISTANCE;
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "Neighbors" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+      // TODO: Need an accurate cost model.
+      cost = 1.0;
+
+      /** use the same distance as the tree */
+      metric = arg->setup->metric;
+
+
+      //--------------------------------------
+      double flops, mops;
+      auto &gids = arg->gids;
+      auto &NN = *arg->setup->NN;
+      flops = gids.size();
+      flops *= 4.0 * gids.size();
+      // Heap select worst case
+      mops = (size_t)std::log( NN.row() ) * gids.size();
+      mops *= gids.size();
+      // Access K
+      mops += flops;
+      event.Set( name + label, flops, mops );
+      //--------------------------------------
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      this->TryEnqueue();
+    }
+
+    void Execute( Worker* user_worker )
+    {
+      FindNeighbors<NODE, T>( arg, metric );
+    };
+
+}; /** end class NeighborsTask */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2422,15 +2544,26 @@ void RowSamples( NODE *node, size_t nsamples )
   /** construct snids from neighbors */
   if ( node->setup->NN )
   {
+    //printf( "construct snids NN.row() %lu NN.col() %lu\n", 
+    //    node->setup->NN->row(), node->setup->NN->col() ); fflush( stdout );
     auto &NN = *(node->setup->NN);
     auto &gids = node->gids;
+    auto &pnids = node->data.pnids;
     auto &snids = node->data.snids;
-    size_t kbeg = 0;
+    size_t kbeg = ( NN.row() + 1 ) / 2;
     size_t kend = NN.row();
     size_t knum = kend - kbeg;
 
     if ( node->isleaf )
     {
+      pnids.clear();
+      for ( size_t j = 0; j < gids.size(); j ++ )
+        for ( size_t i = 0; i < NN.row() / 2; i ++ )
+          pnids.insert( NN( i, gids[ j ] ).second );
+
+      for ( size_t j = 0; j < gids.size(); j ++ )
+        pnids.erase( gids[ j ] );
+
       snids.clear();
       std::vector<std::pair<T, size_t>> tmp( knum * gids.size() );
       for ( size_t j = 0; j < gids.size(); j ++ )
@@ -2447,7 +2580,7 @@ void RowSamples( NODE *node, size_t nsamples )
 				std::vector<size_t> validation = 
 					node->setup->ContainAny( sample_query, node->morton );
 
-        if ( !validation[ 0 ] )
+        if ( !pnids.count( (*it).second ) && !validation[ 0 ] )
         {
           /** duplication is handled by std::map */
           auto ret = snids.insert( std::pair<size_t, T>( (*it).second, (*it).first ) );
@@ -2461,6 +2594,8 @@ void RowSamples( NODE *node, size_t nsamples )
     {
       auto &lsnids = node->lchild->data.snids;
       auto &rsnids = node->rchild->data.snids;
+      auto &lpnids = node->lchild->data.pnids;
+      auto &rpnids = node->rchild->data.pnids;
 
       /** 
        *  merge children's sampling neighbors...    
@@ -2483,6 +2618,11 @@ void RowSamples( NODE *node, size_t nsamples )
 
       /** remove "own" points */
       for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
+
+      for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ )
+        snids.erase( *it );
+      for ( auto it = rpnids.begin(); it != rpnids.end(); it ++ )
+        snids.erase( *it );
     }
   }
 
@@ -2731,17 +2871,20 @@ void ParallelGetSkeletonMatrix( NODE *node )
       /** make sure we at least m samples */
       if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
 
-      /** gather rsnids */
-      auto &snids  = node->data.snids;
+      /** gather rpnids and rsnids */
       auto &lsnids = node->child->data.snids;
+      auto &lpnids = node->child->data.pnids;
       std::vector<T>      recv_rsdist;
       std::vector<size_t> recv_rsnids;
+      std::vector<size_t> recv_rpnids;
 
       /** recv rsnids from size / 2 */
       hmlp::mpi::RecvVector( recv_rsdist, size / 2, 20, comm, &status );
       hmlp::mpi::RecvVector( recv_rsnids, size / 2, 30, comm, &status );
+      hmlp::mpi::RecvVector( recv_rpnids, size / 2, 40, comm, &status );
 
       /** merge snids and update the smallest distance */
+      auto &snids = node->data.snids;
       snids = lsnids;
 
       for ( size_t i = 0; i < recv_rsdist.size(); i ++ )
@@ -2758,6 +2901,12 @@ void ParallelGetSkeletonMatrix( NODE *node )
       /** remove gids from snids */
       auto &gids = node->gids;
       for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
+
+      /** remove lpnids and rpnids from snids  */
+      for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ )
+        snids.erase( *it );
+      for ( size_t i = 0; i < recv_rpnids.size(); i ++ )
+        snids.erase( recv_rpnids[ i ] );
     }
 
     if ( rank == size / 2 )
@@ -2767,12 +2916,15 @@ void ParallelGetSkeletonMatrix( NODE *node )
 
       /** gather rsnids */
       auto &rsnids = node->child->data.snids;
+      auto &rpnids = node->child->data.pnids;
       std::vector<T>      send_rsdist;
       std::vector<size_t> send_rsnids;
+      std::vector<size_t> send_rpnids;
 
       /** reserve space and push in from map */
       send_rsdist.reserve( rsnids.size() );
       send_rsnids.reserve( rsnids.size() );
+      send_rpnids.reserve( rpnids.size() );
 
       for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
       {
@@ -2781,9 +2933,16 @@ void ParallelGetSkeletonMatrix( NODE *node )
         send_rsdist.push_back( (*it).second );
       }
 
-      /** send rsnids to rank-0 */
+      for ( auto it = rpnids.begin(); it != rpnids.end(); it ++ )
+      {
+        /** (*it) has type std::size_t  */
+        send_rpnids.push_back( *it );
+      }
+
+      /** send rsnids and rpnids to rank-0 */
       mpi::SendVector( send_rsdist, 0, 20, comm );
       mpi::SendVector( send_rsnids, 0, 30, comm );
+      mpi::SendVector( send_rpnids, 0, 40, comm );
     }
 
 		/** Bcast nsamples */
@@ -2966,6 +3125,7 @@ void DistSkeletonize( NODE *node )
     skels[ i ] = candidate_cols[ skels[ i ] ];
   }
 
+
 }; /** end DistSkeletonize() */
 
 
@@ -3030,6 +3190,18 @@ class SkeletonizeTask : public hmlp::Task
       //printf( "%d Par-Skel beg\n", global_rank );
 
       DistSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+
+      if ( arg->setup->NN )
+      {
+        auto &skels = arg->data.skels;
+        auto &pnids = arg->data.pnids;
+        auto &NN = *(arg->setup->NN);
+        pnids.clear();
+        for ( size_t j = 0; j < skels.size(); j ++ )
+          for ( size_t i = 0; i < NN.row(); i ++ )
+            pnids.insert( NN( i, skels[ j ] ).second );
+      }
+
 
       //printf( "%d Par-Skel end\n", global_rank );
     };
@@ -3120,6 +3292,37 @@ class DistSkeletonizeTask : public hmlp::Task
       //    arg->GetComm() );
 
 
+      if ( arg->setup->NN )
+      {
+        auto &skels = arg->data.skels;
+        auto &pnids = arg->data.pnids;
+        auto &NN = *(arg->setup->NN);
+
+        size_t nskels = skels.size();
+
+        /** Bcast skels to every MPI processes in the same comm */
+        mpi::Bcast( &nskels, 1, 0, arg->GetComm() );
+        if ( skels.size() != nskels ) skels.resize( nskels );
+        mpi::Bcast( skels.data(), skels.size(), 0, arg->GetComm() );
+
+        /** create the column distribution using cids */
+        std::vector<size_t> cids;
+        for ( size_t j = 0; j < skels.size(); j ++ )
+          if ( NN.HasColumn( skels[ j ] ) ) cids.push_back( j );
+
+        /** create a k-by-nskels distributed matrix */
+        DistData<STAR, CIDS, size_t> X_cids( NN.row(), nskels, cids, arg->GetComm() );
+        DistData<CIRC, CIRC, size_t> X_circ( NN.row(), nskels,    0, arg->GetComm() );
+
+        /** redistribute from <STAR, CIDS> to <CIRC, CIRC> on rank-0 */
+        X_circ = X_cids;
+
+        if ( arg->GetCommRank() == 0 )
+        {
+          pnids.clear();
+          for ( size_t i = 0; i < X_circ.size(); i ++ ) pnids.insert( X_circ[ i ] );
+        }
+      }
 
 
 
@@ -3518,7 +3721,8 @@ mpitree::Tree<
   beg = omp_get_wtime();
   if ( NN_cblk.row() != k )
   {
-    gofmm::KNNTask<3, RKDTNODE, T> knntask;
+    //gofmm::KNNTask<3, RKDTNODE, T> knntask;
+    NeighborsTask<RKDTNODE, T> knntask;
     NN_cblk = rkdt.AllNearestNeighbor<SORTED>( n_iter, n, k, 15, initNN, knntask );
   }
   else
@@ -3554,7 +3758,7 @@ mpitree::Tree<
   tree.setup.K = &K;
 	tree.setup.metric = metric; 
   tree.setup.splitter = splitter;
-  tree.setup.NN_cblk = NULL;
+  tree.setup.NN_cblk = &NN_cblk;
   tree.setup.m = m;
   tree.setup.k = k;
   tree.setup.s = s;
@@ -3569,7 +3773,14 @@ mpitree::Tree<
   tree_time = omp_get_wtime() - beg;
   printf( "end TreePartitioning ...\n" ); fflush( stdout );
   mpi::Barrier( MPI_COMM_WORLD );
- 
+
+  /** now redistribute NN according to gids */
+  DistData<STAR, CIDS, std::pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
+  NN = NN_cblk;
+  tree.setup.NN = &NN;
+
+
+
   /** skeletonization */
   printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
   mpi::Barrier( MPI_COMM_WORLD );

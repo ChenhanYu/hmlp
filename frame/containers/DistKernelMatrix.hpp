@@ -111,7 +111,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       int size = this->Comm_size();
       int rank = this->Comm_rank();
 
-      printf( "before ComputeSquare\n" ); fflush( stdout );
+      //printf( "before ComputeSquare\n" ); fflush( stdout );
 
       /** compute 2-norm using xnrm2 */
       #pragma omp parallel for
@@ -128,7 +128,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       } /** end omp parallel for */
 
 
-      printf( "after ComputeSquare\n" ); fflush( stdout );
+      //printf( "after ComputeSquare\n" ); fflush( stdout );
 
 
       /** compute 2-norms for targets if unsymmetric */

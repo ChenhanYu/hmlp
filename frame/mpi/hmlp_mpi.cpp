@@ -142,6 +142,27 @@ int Comm_split( Comm comm, int color, int key, Comm *newcomm )
 
 
 
+int Type_contiguous( int count, Datatype oldtype, Datatype *newtype )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Type_contiguous( count, oldtype, newtype );
+#else
+  return 0;
+#endif
+};
+
+int Type_commit( Datatype *datatype )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Type_commit( datatype );
+#else
+  return 0;
+#endif
+};
+
+
+
+
 int Test( Request *request, int *flag, Status *status )
 {
 #ifdef HMLP_USE_MPI

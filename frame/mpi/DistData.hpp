@@ -234,7 +234,60 @@ class DistData<CIRC, CIRC, T> : public DistDataBase<T>
       DistDataBase<T>( m, n, comm )
     {
       this->owner = owner;
+      if ( this->GetRank() == owner ) this->resize( m, n );
     };
+
+
+    /** redistribute from CIDS to CBLK */
+    DistData<CIRC, CIRC, T> & operator = ( DistData<STAR, CIDS, T> &A )
+    {
+      /** MPI */
+      mpi::Comm comm = this->GetComm();
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      /** allocate buffer for ids */
+      std::vector<std::vector<size_t>> sendids = A.CIRCOwnership( owner );
+      std::vector<std::vector<size_t>> recvids( size );
+
+      /** exchange cids */
+      mpi::AlltoallVector( sendids, recvids, comm );
+      
+      /** allocate buffer for data */
+      std::vector<std::vector<T>> senddata( size );
+      std::vector<std::vector<T>> recvdata( size );
+
+      std::vector<size_t> amap( this->row() );
+      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
+
+      /** extract rows from A<STAR,CIDS> */
+      senddata[ owner ] = A( amap, sendids[ owner ] );
+
+      /** exchange data */
+      mpi::AlltoallVector( senddata, recvdata, comm );
+
+      if ( rank == owner )
+      {
+        for ( size_t p = 0; p < size; p ++ )
+        {
+          size_t ld = this->row();
+
+          for ( size_t j = 0; j < recvids[ p ].size(); j ++ )
+          {
+            size_t cid = recvids[ p ][ j ];
+
+            for ( size_t i = 0; i < this->row(); i ++ )
+            {
+              (*this)( i, cid ) = recvdata[ p ][ j * ld + i ];
+            }
+          };
+        };
+      }
+
+      return (*this);
+    };
+
+
 
   private:
 
@@ -657,6 +710,17 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
       return DistDataBase<T>::operator () ( I, J );
     };
 
+    bool HasColumn( size_t cid ) 
+    {
+      return cid2col.count( cid );
+    };
+
+    T *columndata( size_t cid )
+    {
+      assert( cid2col.count( cid ) == 1 );
+      return Data<T>::columndata( cid2col[ cid ] );
+    };
+
 
     /**
      *  @brief Return a vector of vector that indicates the RBLK ownership
@@ -684,6 +748,20 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
       return ownership;
 
     }; /** end CBLKOwnership() */
+
+
+    std::vector<std::vector<size_t>> CIRCOwnership( int owner )
+    {
+      /** MPI */
+      mpi::Comm comm = this->GetComm();
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      std::vector<std::vector<size_t>> ownership( size );
+      ownership[ owner ] = cids;
+      return ownership;
+    }; /** end CIRCOwnership() */
+
 
 
     /** redistribution from CBLK to CIDS */

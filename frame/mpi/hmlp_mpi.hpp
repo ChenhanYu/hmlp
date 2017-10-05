@@ -160,6 +160,14 @@ int Comm_dup( Comm comm, Comm *newcomm );
 int Comm_split( Comm comm, int color, int key, Comm *newcomm );
 
 
+
+int Type_contiguous( int count, Datatype oldtype, Datatype *newtype );
+int Type_commit( Datatype *datatype );
+
+
+
+
+
 int Test( Request *request, int *flag, Status *status );
 
 
@@ -299,8 +307,11 @@ Datatype GetMPIDatatype()
   }
   else
   {
-    printf( "request datatype is not supported in the simplified interface\n" );
-    exit( 1 );
+    Type_contiguous( sizeof( T ), MPI_BYTE, &datatype );
+    Type_commit( &datatype );
+
+    //printf( "request datatype is not supported in the simplified interface\n" );
+    //exit( 1 );
   }
   return datatype;
 

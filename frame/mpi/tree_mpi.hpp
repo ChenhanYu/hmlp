@@ -22,8 +22,11 @@
 #ifndef MPITREE_HPP
 #define MPITREE_HPP
 
+#include <algorithm>
+#include <functional>
 #include <type_traits>
 #include <cstdint>
+
 
 #include <mpi/hmlp_mpi.hpp>
 #include <mpi/DistData.hpp>
@@ -217,6 +220,95 @@ struct randomsplit
   };
 
 };
+
+
+
+template<typename T>
+bool less_first
+(
+  const std::pair<T, size_t> &a, 
+  const std::pair<T, size_t> &b
+)
+{
+  return ( a.first < b.first );
+};
+
+template<typename T>
+bool less_second
+( 
+  const std::pair<T, size_t> &a, 
+  const std::pair<T, size_t> &b 
+)
+{
+  return ( a.second < b.second );
+};
+
+
+template<typename T>
+bool equal_second 
+( 
+  const std::pair<T, size_t> &a, 
+  const std::pair<T, size_t> &b 
+)
+{
+  return ( a.second == b.second );
+};
+
+
+/**
+ *  @biref Merge a single neighbor list B into A using auxulary space.
+ */ 
+template<typename T>
+void MergeNeighbors
+( 
+  size_t k,
+  std::pair<T, size_t> *A, 
+  std::pair<T, size_t> *B,
+  std::vector<std::pair<T, size_t>> &aux
+)
+{
+  if ( aux.size() != 2 * k ) aux.resize( 2 * k );
+
+  for ( size_t i = 0; i < k; i++ ) aux[     i ] = A[ i ];
+  for ( size_t i = 0; i < k; i++ ) aux[ k + i ] = B[ i ];
+
+  std::sort( aux.begin(), aux.end(), less_second<T> );
+  auto it = std::unique( aux.begin(), aux.end(), equal_second<T> );
+  std::sort( aux.begin(), it, less_first<T> );
+
+  for ( size_t i = 0; i < k; i++ ) A[ i ] = aux[ i ];
+};
+
+
+/**
+ *  @biref Merge neighbor lists B into A.
+ */ 
+template<typename T>
+void MergeNeighbors
+( 
+  size_t k, size_t n,
+  std::vector<std::pair<T, size_t>> &A, 
+  std::vector<std::pair<T, size_t>> &B
+)
+{
+  assert( A.size() >= n * k && B.size() >= n * k );
+	#pragma omp parallel
+  {
+    std::vector<std::pair<T, size_t> > aux( 2 * k );
+    #pragma omp for
+    for( size_t i = 0; i < n; i++ ) 
+    {
+      MergeNeighbors( k, &(A[ i * k ]), &(B[ i * k ]), aux );
+    }
+  }
+}; /** */
+
+
+
+
+
+
+
 
 
 
@@ -885,18 +977,18 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
         gids.resize( num_points_owned );
       }
 
-      printf( "rank %d before AllocateNodes\n", rank ); fflush( stdout );
+      //printf( "rank %d before AllocateNodes\n", rank ); fflush( stdout );
 
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
-      printf( "Finish allocate rkdt nodes\n" ); fflush( stdout );
+      //printf( "Finish allocate rkdt nodes\n" ); fflush( stdout );
 
 
 			auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
       bgtask->SetAsBackGround();
 
-      printf( "Finish bgtask\n" ); fflush( stdout );
+      //printf( "Finish bgtask\n" ); fflush( stdout );
 
 
       for ( size_t t = 0; t < n_tree; t ++ )
@@ -911,13 +1003,9 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
         LocaTraverseDown( splittask );
         hmlp_run();
 
-
         /** queries computed in CIDS distribution  */
         DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
             this->treelist[ 0 ]->gids, initNN, comm );
-
-        /** queries computed in CBLK distribution */
-        DistData<STAR, CBLK, std::pair<T, size_t>> Q_cblk( k, this->n, initNN, comm );
 
         /** 
          *  notice that setup.NN has type Data<std::pair<T, size_t>>,
@@ -925,25 +1013,29 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
          */
         this->setup.NN = &Q_cids;
 
-        ///** (TASK) perform rho+k nearest neighbors */
-        //LocaTraverseLeafs( dummy );
+        DependencyCleanUp();
+        /** local neighbor search at leaf nodes */
+        LocaTraverseLeafs( dummy );
+        hmlp_run();
 
-        /** redistribute from CIDS to CBLK */
-        //Q_cblk = Q_cids; 
+        if ( t == 0 )
+        {
+          /** redistribute from CIDS to CBLK */
+          NN = Q_cids; 
+        }
+        else
+        {
+          /** queries computed in CBLK distribution */
+          DistData<STAR, CBLK, std::pair<T, size_t>> Q_cblk( k, this->n, comm );
 
-        ///** (LOCAL) write a function to merge Q_cblk with NN */
+          /** redistribute from CIDS to CBLK */
+          Q_cblk = Q_cids;
 
-        ///** overlap with merging */
-        //TreePartition( this->n );
-
-        //hmlp_run();
+          /** merge Q_cblk into NN (sort and remove duplication) */
+          assert( Q_cblk.col_owned() == NN.col_owned() );
+          MergeNeighbors( k, NN.col_owned(), NN, Q_cblk );
+        }
       }
-
-
-
-
-    
-
 
       return NN;
 
