@@ -186,6 +186,42 @@ struct centersplit
 
 
 
+
+
+template<int N_SPLIT, typename T>
+struct randomsplit
+{
+  // closure
+  hmlp::Data<T> *Coordinate;
+
+  inline std::vector<std::vector<std::size_t> > operator()
+  ( 
+    std::vector<std::size_t>& gids,
+    std::vector<std::size_t>& lids
+  ) const 
+  {
+    std::vector<std::vector<std::size_t> > split( N_SPLIT );
+
+    return split;
+  };
+
+  inline std::vector<std::vector<size_t> > operator()
+  ( 
+    std::vector<size_t>& gids,
+    hmlp::mpi::Comm comm
+  ) const 
+  {
+    std::vector<std::vector<size_t> > split( N_SPLIT );
+
+    return split;
+  };
+
+};
+
+
+
+
+
 template<typename BACKGROUND>
 class BackGroundTask : public hmlp::Task
 {
@@ -815,59 +851,92 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     template<bool SORTED, typename KNNTASK>
     hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> AllNearestNeighbor
     (
-      std::size_t n_tree,
-      std::size_t k, 
-      std::size_t max_depth,
-      //std::vector<std::size_t> &gids,
-      //std::vector<std::size_t> &lids,
+      size_t n_tree,
+      size_t n,
+      size_t k, 
+      size_t max_depth,
       std::pair<T, std::size_t> initNN,
       KNNTASK &dummy
     )
     {
+      /** get the problem size from setup->K->row() */
+      this->n = n;
+
       /** k-by-N */
-      hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> NN( k, this->n, initNN );
+      hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> NN( k, n, initNN, comm );
 
       /** use leaf size = 4 * k  */
-      setup.m = 4 * k;
-      if ( setup.m < 32 ) setup.m = 32;
+      this->setup.m = 4 * k;
+      if ( this->setup.m < 512 ) this->setup.m = 512;
+      this->m = this->setup.m;
 
-      /** Clean the treelist */
-      CleanUp();
+      /** local problem size (assuming Round-Robin) */
+      num_points_owned = ( n - 1 ) / size + 1;
 
-      /** */
-      TreePartition( this->n );
+      /** initial gids distribution (asssuming Round-Robin) */
+      std::vector<size_t> gids( num_points_owned, 0 );
+      for ( size_t i = 0; i < num_points_owned; i ++ )
+        gids[ i ] = rank * num_points_owned + i;
+
+      /** edge case (happens in the last MPI process) */
+      if ( rank == size - 1 )
+      {
+        num_points_owned = n - num_points_owned * ( size - 1 );
+        gids.resize( num_points_owned );
+      }
+
+      printf( "rank %d before AllocateNodes\n", rank ); fflush( stdout );
+
+      /** allocate distributed tree nodes in advance */
+      AllocateNodes( gids );
+
+      printf( "Finish allocate rkdt nodes\n" ); fflush( stdout );
+
+
+			auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
+      bgtask->SetAsBackGround();
+
+      printf( "Finish bgtask\n" ); fflush( stdout );
 
 
       for ( size_t t = 0; t < n_tree; t ++ )
       {
+        //** */
+        DependencyCleanUp();
+
+        //** tree partitioning */
+        DistSplitTask<MPINODE> mpisplittask;
+        DistTraverseDown( mpisplittask );
+        tree::SplitTask<NODE> splittask;
+        LocaTraverseDown( splittask );
+        hmlp_run();
+
+
         /** queries computed in CIDS distribution  */
-        hmlp::DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
-            this->treelist[ 0 ]->gids, initNN );
+        DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
+            this->treelist[ 0 ]->gids, initNN, comm );
 
         /** queries computed in CBLK distribution */
-        hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> Q_cblk( k, this->n, initNN );
+        DistData<STAR, CBLK, std::pair<T, size_t>> Q_cblk( k, this->n, initNN, comm );
 
         /** 
          *  notice that setup.NN has type Data<std::pair<T, size_t>>,
          *  but that is fine because DistData inherits Data
          */
-        setup.NN = &Q_cids;
+        this->setup.NN = &Q_cids;
 
-        /** (TASK) perform rho+k nearest neighbors */
-        //TraverseLeafs<false, false>( dummy );
+        ///** (TASK) perform rho+k nearest neighbors */
+        //LocaTraverseLeafs( dummy );
 
         /** redistribute from CIDS to CBLK */
-        Q_cblk = Q_cids; 
+        //Q_cblk = Q_cids; 
 
-        /** (LOCAL) write a function to merge Q_cblk with NN */
-        
-        /** Clean the treelist */
-        CleanUp();
+        ///** (LOCAL) write a function to merge Q_cblk with NN */
 
-        /** overlap with merging */
-        TreePartition( this->n );
+        ///** overlap with merging */
+        //TreePartition( this->n );
 
-        hmlp_run();
+        //hmlp_run();
       }
 
 

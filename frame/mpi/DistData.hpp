@@ -264,6 +264,24 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
     };
 
 
+    DistData( size_t m, size_t n, T initT, mpi::Comm comm )
+      : DistDataBase<T>( m, n, comm ) 
+    {
+      /** MPI */
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      size_t edge_n = n % size;
+      size_t local_n = ( n - edge_n ) / size;
+      if ( rank < edge_n ) local_n ++;
+
+      /** resize the local buffer */
+      this->resize( m, local_n, initT );
+    };
+
+
+
+
     /**
      *  constructor that reads a binary file
      */ 
@@ -592,6 +610,25 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
       for ( size_t j = 0; j < cids.size(); j ++ )
         cid2col[ cids[ j ] ] = j;      
     };
+
+    /** default constructor */
+    DistData( size_t m, size_t n, std::vector<size_t> &cids, T initT, mpi::Comm comm ) : 
+      DistDataBase<T>( m, n, comm ) 
+    {
+      /** now check if (sum cids.size() == n) */
+      size_t bcast_n = cids.size();
+      size_t reduc_n = 0;
+      mpi::Allreduce( &bcast_n, &reduc_n, 1, MPI_SUM, comm );
+      assert( reduc_n == n );
+      this->cids = cids;
+      this->resize( m, cids.size(), initT );
+
+      for ( size_t j = 0; j < cids.size(); j ++ )
+        cid2col[ cids[ j ] ] = j;      
+    };
+
+
+
 
 
     /**

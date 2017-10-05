@@ -89,7 +89,7 @@ void test_gofmm
 ( 
   hmlp::DistData<STAR, CBLK, T> *X,
   SPDMATRIX &K, 
-  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN,
+  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> &NN,
   DistanceMetric metric,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
@@ -324,7 +324,7 @@ void test_gofmm_setup
 ( 
   hmlp::DistData<STAR, CBLK, T> *X,
   SPDMATRIX &K, 
-  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN,
+  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> &NN,
   DistanceMetric metric,
   size_t n, size_t m, size_t k, size_t s, 
   double stol, double budget, size_t nrhs
@@ -337,7 +337,7 @@ void test_gofmm_setup
       assert( X );
 			/** using geometric splitters from hmlp::tree */
       using SPLITTER     = hmlp::mpitree::centersplit<N_CHILDREN, T>;
-      using RKDTSPLITTER = hmlp::tree::randomsplit<N_CHILDREN, T>;
+      using RKDTSPLITTER = hmlp::mpitree::randomsplit<N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
       splitter.Coordinate = X;
@@ -353,7 +353,7 @@ void test_gofmm_setup
     {
 			/** using geometric-oblivious splitters from hmlp::gofmm */
       using SPLITTER     = hmlp::mpigofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
-      using RKDTSPLITTER = hmlp::gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
+      using RKDTSPLITTER = hmlp::mpigofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
       splitter.Kptr = &K;
@@ -531,7 +531,7 @@ int main( int argc, char *argv[] )
       K.read( n, n, user_matrix_filename );
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
+      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
 
 			/** (optional) provide coordinates */
       if ( user_points_filename.size() )
@@ -639,7 +639,8 @@ int main( int argc, char *argv[] )
 
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
+      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
+      //hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
 
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
@@ -697,7 +698,8 @@ int main( int argc, char *argv[] )
       hmlp::mpi::Bcast( K.data(), n * n, 0, MPI_COMM_WORLD );
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
+      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
+      //hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );

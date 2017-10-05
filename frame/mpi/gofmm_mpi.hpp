@@ -557,17 +557,17 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
 
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
-struct randomsplit : public hmlp::gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
+struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 {
 
   /** shared-memory operator */
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
-    std::vector<std::size_t>& gids,
-    std::vector<std::size_t>& lids
+    std::vector<size_t>& gids,
+    std::vector<size_t>& lids
   ) const 
   {
-    return hmlp::gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator()
+    return gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator()
       ( gids, lids );
   };
 
@@ -575,7 +575,7 @@ struct randomsplit : public hmlp::gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
   inline std::vector<std::vector<size_t> > operator()
   (
     std::vector<size_t>& gids,
-    hmlp::mpi::Comm comm
+    mpi::Comm comm
   ) const 
   {
     /** all assertions */
@@ -583,15 +583,158 @@ struct randomsplit : public hmlp::gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     assert( this->Kptr );
 
     /** declaration */
-    int size, rank;
-    hmlp::mpi::Comm_size( comm, &size );
-    hmlp::mpi::Comm_rank( comm, &rank );
+    int size, rank, global_rank;
+    mpi::Comm_size( comm, &size );
+    mpi::Comm_rank( comm, &rank );
+    mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
     SPDMATRIX &K = *(this->Kptr);
     std::vector<std::vector<size_t>> split( N_SPLIT );
 
 
-    /** TODO: (Severin) */
+    /** reduce to get the total size of gids */
+    int n = 0;
+    int num_points_owned = gids.size();
+    std::vector<T> temp( gids.size(), 0.0 );
 
+    printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
+
+    /** n = sum( num_points_owned ) over all MPI processes in comm */
+    hmlp::mpi::Allreduce( &num_points_owned, &n, 1, 
+        MPI_INT, MPI_SUM, comm );
+
+    printf( "rank %d enter distributed randomsplit n = %d\n", global_rank, n ); fflush( stdout );
+
+    /** early return */
+    if ( n == 0 ) return split;
+
+
+    /** randomly select two points p and q */
+    size_t idf2c = std::rand() % gids.size();
+    size_t idf2f = std::rand() % gids.size();
+    while ( idf2c == idf2f ) idf2f = std::rand() % gids.size();
+
+    /** now get their gids */
+    auto gidf2c = gids[ idf2c ];
+    auto gidf2f = gids[ idf2f ];
+
+    /** Bcast gidf2c and gidf2f from rank-0 to all MPI processes */
+    mpi::Bcast( &gidf2c, 1, 0, comm );
+    mpi::Bcast( &gidf2f, 1, 0, comm );
+
+
+    /** collecting DII */
+    Data<T> DII = K.Diagonal( gids );
+
+    /** collecting KIP and KIQ */
+    std::vector<size_t> P( 1, gidf2c );
+    std::vector<size_t> Q( 1, gidf2f );
+    auto KIP = K( gids, P );
+    auto KIQ = K( gids, Q );
+
+    /** get diagonal entry kpp and kqq */
+    auto kpp = K.Diagonal( P );
+    auto kqq = K.Diagonal( Q );
+
+    /** compute all2leftright (projection i.e. dip - diq) */
+    temp = gofmm::AllToLeftRight( this->metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
+
+
+
+
+
+
+
+
+
+
+
+
+
+    /** parallel median select */
+    T  median = hmlp::combinatorics::Select( n / 2, temp, comm );
+
+    //printf( "rank %d median %E\n", rank, median ); fflush( stdout );
+
+    std::vector<size_t> middle;
+    middle.reserve( gids.size() );
+    split[ 0 ].reserve( gids.size() );
+    split[ 1 ].reserve( gids.size() );
+
+    /** TODO: Can be parallelized */
+    for ( size_t i = 0; i < gids.size(); i ++ )
+    {
+      auto val = temp[ i ];
+
+      if ( std::fabs( val - median ) < 1E-6 && !std::isinf( val ) && !std::isnan( val) )
+      {
+        middle.push_back( i );
+      }
+      else if ( val < median ) 
+      {
+        split[ 0 ].push_back( i );
+      }
+      else
+      {
+        split[ 1 ].push_back( i );
+      }
+    }
+
+    int nmid = 0;
+    int nlhs = 0;
+    int nrhs = 0;
+    int num_mid_owned = middle.size();
+    int num_lhs_owned = split[ 0 ].size();
+    int num_rhs_owned = split[ 1 ].size();
+
+    /** nmid = sum( num_mid_owned ) over all MPI processes in comm */
+    hmlp::mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
+    hmlp::mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
+    hmlp::mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
+
+    printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
+        global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
+        nlhs, nmid, nrhs ); fflush( stdout );
+
+    /** assign points in the middle to left or right */
+    if ( nmid )
+    {
+      int nlhs_required, nrhs_required;
+
+			if ( nlhs > nrhs )
+			{
+        nlhs_required = ( n - 1 ) / 2 + 1 - nlhs;
+        nrhs_required = nmid - nlhs_required;
+			}
+			else
+			{
+        nrhs_required = ( n - 1 ) / 2 + 1 - nrhs;
+        nlhs_required = nmid - nrhs_required;
+			}
+
+      assert( nlhs_required >= 0 );
+      assert( nrhs_required >= 0 );
+
+      /** now decide the portion */
+			double lhs_ratio = ( (double)nlhs_required ) / nmid;
+      int nlhs_required_owned = num_mid_owned * lhs_ratio;
+      int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
+
+
+      printf( "rank %d [ %d %d ] [ %d %d ]\n",
+        global_rank, 
+				nlhs_required_owned, nlhs_required,
+				nrhs_required_owned, nrhs_required ); fflush( stdout );
+
+
+      assert( nlhs_required_owned >= 0 );
+      assert( nrhs_required_owned >= 0 );
+
+      for ( size_t i = 0; i < middle.size(); i ++ )
+      {
+        if ( i < nlhs_required_owned ) split[ 0 ].push_back( middle[ i ] );
+        else                           split[ 1 ].push_back( middle[ i ] );
+      }
+    };
 
     return split;
   };
@@ -3292,7 +3435,7 @@ mpitree::Tree<
 ( 
   DistData<STAR, CBLK, T> *X_cblk,
   SPDMATRIX &K, 
-  DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN_cblk,
+  DistData<STAR, CBLK, std::pair<T, std::size_t>> &NN_cblk,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
 	Configuration<T> &config
@@ -3321,63 +3464,23 @@ mpitree::Tree<
   const bool CACHE     = true;
 
   /** instantiation for the GOFMM tree */
-  using SETUP              = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA               = gofmm::Data<T>;
-  using NODE               = tree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using MPINODE            = mpitree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using LETNODE            = mpitree::LetNode<SETUP, N_CHILDREN, DATA, T>;
-  using TREE               = mpitree::Tree<SETUP, DATA, N_CHILDREN, T>;
-
-  /** instantiate tasks with NODE and MPINODE */
-  //using NULLTASK           = hmlp::NULLTask<NODE>;
-  //using MPINULLTASK        = hmlp::NULLTask<MPINODE>;
-
-
-  //using PROJTASK           = hmlp::gofmm::InterpolateTask<NODE, T>;
-  //using MPIPROJTASK        = hmlp::mpigofmm::InterpolateTask<MPINODE, T>;
-
-  //using FINDNEARNODESTASK  = hmlp::mpigofmm::FindNearNodesTask<SYMMETRIC, TREE>;
-
-
-
-
-  //using CACHENEARNODESTASK    = mpigofmm::CacheNearNodesTask<NNPRUNE, NODE>;
-
-  //using CACHEFARNODESTASK  = hmlp::mpigofmm::CacheFarNodesTask<NNPRUNE, NODE>;
-  //using MPICACHEFARNODESTASK  = hmlp::mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE>;
-
-
-
-
-
+  using SETUP       = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using DATA        = gofmm::Data<T>;
+  using NODE        = tree::Node<SETUP, N_CHILDREN, DATA, T>;
+  using MPINODE     = mpitree::Node<SETUP, N_CHILDREN, DATA, T>;
+  using LETNODE     = mpitree::LetNode<SETUP, N_CHILDREN, DATA, T>;
+  using TREE        = mpitree::Tree<SETUP, DATA, N_CHILDREN, T>;
 
   /** instantiation for the randomisze Spd-Askit tree */
-  using RKDTSETUP          = hmlp::mpigofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
-  using RKDTNODE           = hmlp::tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK            = hmlp::gofmm::KNNTask<3, RKDTNODE, T>;
+  using RKDTSETUP   = mpigofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
+  using RKDTNODE    = tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
+  using MPIRKDTNODE = tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
 
   /** all timers */
   double beg, omptask45_time, omptask_time, ref_time;
   double time_ratio, compress_time = 0.0, other_time = 0.0;
   double ann_time, tree_time, skel_time, mergefarnodes_time, cachefarnodes_time;
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
-
-  /** dummy instances for each task */
-  //GETMATRIXTASK      getmatrixtask;
-  //MPIGETMATRIXTASK   mpigetmatrixtask;
-  //SKELTASK           skeltask;
-  //MPISKELTASK        mpiskeltask;
-  //PROJTASK           projtask;
-  //MPIPROJTASK        mpiprojtask;
-  KNNTASK            knntask;
-
-  //CACHENEARNODESTASK cachenearnodestask;
-
-  //CACHEFARNODESTASK  cachefarnodestask;
-  //MPICACHEFARNODESTASK mpicachefarnodestask;
-  //NULLTASK           nulltask;
-  //MPINULLTASK        mpinulltask;
-
 
   /** original order of the matrix */
   beg = omp_get_wtime();
@@ -3391,6 +3494,15 @@ mpitree::Tree<
   other_time += omp_get_wtime() - beg;
 
 
+
+
+
+
+
+
+
+
+
   /** iterative all nearnest-neighbor (ANN) */
   const size_t n_iter = 10;
   const bool SORTED = false;
@@ -3401,12 +3513,13 @@ mpitree::Tree<
 	rkdt.setup.metric = metric; 
   rkdt.setup.splitter = rkdtsplitter;
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
+
   printf( "NeighborSearch ...\n" ); fflush( stdout );
   beg = omp_get_wtime();
-  if ( !NN_cblk )
+  if ( NN_cblk.row() != k )
   {
-    //NN = rkdt.template AllNearestNeighbor<SORTED>
-    //     ( n_iter, k, 10, gids, lids, initNN, knntask );
+    gofmm::KNNTask<3, RKDTNODE, T> knntask;
+    NN_cblk = rkdt.AllNearestNeighbor<SORTED>( n_iter, n, k, 15, initNN, knntask );
   }
   else
   {
@@ -3441,7 +3554,7 @@ mpitree::Tree<
   tree.setup.K = &K;
 	tree.setup.metric = metric; 
   tree.setup.splitter = splitter;
-  tree.setup.NN_cblk = NN_cblk;
+  tree.setup.NN_cblk = NULL;
   tree.setup.m = m;
   tree.setup.k = k;
   tree.setup.s = s;

@@ -920,10 +920,11 @@ struct randomsplit
     hmlp::Data<T> DII( n, (size_t)1 );
 
     /** collecting DII */
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      DII[ i ] = K( gids[ i ], gids[ i ] );
-    }
+    DII = K.Diagonal( gids );
+    //for ( size_t i = 0; i < gids.size(); i ++ )
+    //{
+    //  DII[ i ] = K( gids[ i ], gids[ i ] );
+    //}
 
     /** collecting KIP and KIQ */
     std::vector<size_t> P( 1, gidf2c );
