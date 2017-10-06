@@ -47,13 +47,45 @@ template<typename T, class Allocator = std::allocator<T> >
  *         access and operations. Most of the public functions will
  *         be virtual. To inherit DistVirtualMatrix, you "must" implement
  *         the evaluation operator. Otherwise, the code won't compile.
+ *
+ *         Two virtual functions must be implemented:
+ *
+ *         T operator () ( size_t i, size_t j ), and
+ *         Data<T> operator () ( vector<size_t> &I, vector<size_t> &J ).
+ *
+ *         These two functions can involve nonblocking MPI routines, but
+ *         blocking collborative communication routines are not allowed.
+ *         
+ *         DistVirtualMatrix inherits mpi::MPIObject, which is initalized
+ *         with the provided comm. MPIObject duplicates comm into
+ *         sendcomm and recvcomm, which allows concurrent multi-threaded 
+ *         nonblocking send/recv. 
+ *
+ *         For example, RequestKIJ( I, J, p ) sends I and J to rank-p,
+ *         requesting the submatrix. MPI process rank-p has at least
+ *         one thread will execute BackGroundProcess( do_terminate ),
+ *         waiting for incoming requests.
+ *         Rank-p then invoke K( I, J ) locally, and send the submatrix
+ *         back to the clients. Overall the pattern usually looks like
+ *
+ *         Data<T> operator () ( vector<size_t> &I, vector<size_t> &J ).
+ *         {
+ *           for each submatrix KAB entirely owned by p
+ *             KAB = RequestKIJ( A, B )
+ *             pack KAB back to KIJ
+ *
+ *           return KIJ 
+ *         }
+ *         
  */ 
 class DistVirtualMatrix : public mpi::MPIObject
 {
   public:
 
+    /** empty constructor */
     DistVirtualMatrix() {};
 
+    /** default constructor  */
     DistVirtualMatrix( size_t m, size_t n, mpi::Comm comm )
       : mpi::MPIObject( comm )
     {
@@ -61,33 +93,66 @@ class DistVirtualMatrix : public mpi::MPIObject
       this->n = n;
     };
 
-    /** ESSENTIAL: return number of coumns */
+    /** return number of columns */
     virtual size_t row() 
     { 
       return m; 
     };
 
-    /** ESSENTIAL: return number of rows */
+    /** return number of rows */
     virtual size_t col() 
     { 
       return n; 
     };
 
-    /** ESSENTIAL: this is an abstract function  */
+
+
+    /** 
+     *  ESSENTIAL: this is an abstract function  
+     */
     virtual T operator()( size_t i, size_t j ) = 0; 
 
-    /** ESSENTIAL: return a submatrix */
+    /** 
+     *  ESSENTIAL: return a submatrix.
+     *
+     *  hmlp::Data<T> inherits std::vector<T>. Use constructor
+     *  hmlp::Data<T> KIJ( I.size(), J.size(), 0 ) to initialize
+     *  a zero output matrix. 
+     *
+     *  hmlp::Data<T>::operator [] is the same as std::vector<T> operator [].
+     *  The memory is stored in column-major contiguously.
+     *
+     *  T &hmlp::Data<T>::operator () ( size_t i, size_t j ) returns
+     *  the reference of K( i, j ).
+     *
+     */
     virtual hmlp::Data<T> operator()
     ( 
       std::vector<size_t> &I, std::vector<size_t> &J 
     ) = 0;
 
 
-		bool IsBackGroundMessage( int tag )
-		{
-			return ( tag >= background_tag_offset );
-		};
+    /**
+     *  ESSENTIAL: redistribute the physical memory distribution
+     *             to reduce the communication cost. gids provide
+     *             information on how row and column indices are
+     *             pysically distributed. Users may choose to 
+     *             follow the guidance of gids, but after invoking
+     *             Redistribute( gids ) the two virtual functions
+     *             above cannot involve any blocking communication.
+     */ 
+    virtual void Redistribute( std::vector<size_t> &gids )
+    {
 
+    }; /** end Redistribute() */
+
+
+
+
+
+    /** 
+     *  (Clients) request KIJ from rank-p 
+     */
 		virtual hmlp::Data<T> RequestKIJ
 		( 
 		  std::vector<size_t> &I, std::vector<size_t> &J, int p
@@ -114,8 +179,7 @@ class DistVirtualMatrix : public mpi::MPIObject
 
 
     /**
-     *  this routine is executed by the serving worker
-     *  wait and receive message from any source
+     *  (Servers) wait and receive message from any client
      */ 
     virtual void BackGroundProcess( bool *do_terminate )
     {
@@ -129,17 +193,8 @@ class DistVirtualMatrix : public mpi::MPIObject
       /** Iprobe and Recv status */
       mpi::Status status;
 
-			/** Ibarrier flag */
-			bool has_Ibarrier = false;
-
-			/** Ibarrier request */
-		  mpi::Request request;
-
-			/** Test flag */
-			int test_flag = 0;
-
       /** buffer for I and J */
-      size_t buff_size = 8192;
+      size_t buff_size = 1048576;
       std::vector<size_t> I;
       std::vector<size_t> J;
 
@@ -148,88 +203,95 @@ class DistVirtualMatrix : public mpi::MPIObject
       J.reserve( buff_size );
 
 
-
 			/** keep probing for messages */
 			while ( 1 ) 
 			{
-				int err = mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, 
-						this->GetRecvComm(), &probe_flag, &status );
+        /** info from mpi::Status */
+        int recv_src;
+        int recv_tag;
+        int recv_cnt;
 
-				if ( err != MPI_SUCCESS )
-				{
-					printf( "Iprobe error %d\n", err ); fflush( stdout );
-					continue;
-				}
+        /** only on thread will probe and recv message at a time */
+        #pragma omp critical
+        {
+          mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, 
+            this->GetRecvComm(), &probe_flag, &status );
 
-				/** if receive any message, then handle it */
-				if ( probe_flag )
-				{
-					/** extract info from status */
-					int recv_src = status.MPI_SOURCE;
-					int recv_tag = status.MPI_TAG;
-					int recv_cnt;
+          /** if receive any message, then handle it */
+          if ( probe_flag )
+          {
+            /** extract info from status */
+            recv_src = status.MPI_SOURCE;
+            recv_tag = status.MPI_TAG;
+
+            if ( this->IsBackGroundMessage( recv_tag ) )
+            {
+              /** get I object count */
+              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+
+              /** recv (typeless) I by matching SOURCE and TAG */
+              I.resize( recv_cnt );
+              mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
+                  this->GetRecvComm(), &status );
+
+						  /** blocking Probe the message that contains J */
+						  mpi::Probe( recv_src, recv_tag + 128, this->GetComm(), &status );
+
+			  			/** get J object count */
+						  mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+
+						  /** recv (typeless) J by matching SOURCE and TAG */
+						  J.resize( recv_cnt );
+						  mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag + 128, 
+							  	this->GetRecvComm(), &status );
+            }
+            else probe_flag = 0;
+          }
+        } /** end pragma omp critical */
 
 
-					if ( this->IsBackGroundMessage( recv_tag ) )
-					{
-						/** get I object count */
-						mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+        if ( probe_flag )
+        {
+          /** 
+           *  this invoke the operator () to get K( I, J )  
+           *
+           *  notice that operator () can invoke MPI routines,
+           *  but limited to one-sided routines without blocking.
+           */
+          auto KIJ = (*this)( I, J );
 
-						/** recv (typeless) I by matching SOURCE and TAG */
-						I.resize( recv_cnt );
-						mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
-								this->GetRecvComm(), &status );
-
-						/** blocking Probe the message that contains J */
-						mpi::Probe( recv_src, recv_tag + 128, this->GetComm(), &status );
-
-						/** get J object count */
-						mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
-
-						/** recv (typeless) J by matching SOURCE and TAG */
-						J.resize( recv_cnt );
-						mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag + 128, 
-								this->GetRecvComm(), &status );
-
-						/** 
-						 *  this invoke the operator () to get K( I, J )  
-						 *
-						 *  notice that operator () can invoke MPI routines,
-						 *  but limited to one-sided routines without blocking.
-						 */
-						auto KIJ = (*this)( I, J );
-
-						/** blocking send */
-						mpi::Send( KIJ.data(), KIJ.size(), recv_src, 
-								( recv_tag - 128 ), this->GetComm() );
-					}
+          /** blocking send */
+          mpi::Send( KIJ.data(), KIJ.size(), recv_src, 
+              ( recv_tag - 128 ), this->GetComm() );
 
           /** reset flag to zero */
           probe_flag = 0;
-				}
+        }
 
 
 				/** nonblocking consensus for termination */
 				if ( *do_terminate ) 
 				{
-					if ( !has_Ibarrier ) 
-					{
-						mpi::Ibarrier( this->GetComm(), &request );
-						has_Ibarrier = true;
-					}
-					if ( test_flag ) 
-					{
-						break;
-					}
-					else
-					{
-						mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
-					}
-				}
+          /** while reaching both global and local concensus, exit */
+          if ( this->IsTimeToTerminate() ) break;
+        }
 
-			} /** end while */
+			} /** end while ( 1 ) */
 
     }; /** end BackGroundProcess() */
+
+
+
+
+
+
+
+    /** check if this tag is for one-sided communication */
+		bool IsBackGroundMessage( int tag )
+		{
+			return ( tag >= background_tag_offset );
+
+    }; /** end IsBackGroundMessage() */
 
 
     /**
@@ -238,12 +300,12 @@ class DistVirtualMatrix : public mpi::MPIObject
      */ 
     void ResetTerminationFlag()
     {
-      {
-        test_flag = 0;
-        has_Ibarrier = false;
-        do_terminate = false;
-      }
+      test_flag = 0;
+      has_Ibarrier = false;
+      do_terminate = false;
+
     }; /** end ResetTerminationFlag () */
+
 
     bool IsTimeToTerminate()
     {
@@ -265,23 +327,25 @@ class DistVirtualMatrix : public mpi::MPIObject
 
       /** if this is not the mater thread, just return the flag */
       return do_terminate;
+
     }; /** end IsTimeToTerminate() */
 
 
   private:
 
+    /** this is an m-by-n virtual matrix */
     size_t m = 0;
-
     size_t n = 0;
 
+    /** we use tags >= 128 for */
 		const int background_tag_offset = 128;
 
+    /** for mpi::Ibarrier */
 		mpi::Request request;
-
     int test_flag = 0;
-
     bool has_Ibarrier = false;
 
+    /** whether to terminate the background process */
     bool do_terminate = false;
 
 }; /** end class DistVirtualMatrix */
