@@ -128,7 +128,7 @@ class DistVirtualMatrix : public mpi::MPIObject
      */
     virtual hmlp::Data<T> operator()
     ( 
-      std::vector<size_t> &I, std::vector<size_t> &J 
+     std::vector<size_t> &I, std::vector<size_t> &J 
     ) = 0;
 
 
@@ -157,25 +157,25 @@ class DistVirtualMatrix : public mpi::MPIObject
 		( 
 		  std::vector<size_t> &I, std::vector<size_t> &J, int p
 	  )
-		{
-			/** return values */
+    {
+      /** return values */
       Data<T> KIJ( I.size(), J.size() );
 
-			int Itag = omp_get_thread_num() + 1 * background_tag_offset;
-			int Jtag = omp_get_thread_num() + 2 * background_tag_offset;
-			int Ktag = omp_get_thread_num();
+      int Itag = omp_get_thread_num() + 1 * background_tag_offset;
+      int Jtag = omp_get_thread_num() + 2 * background_tag_offset;
+      int Ktag = omp_get_thread_num();
 
-			/** issue a request to dest for I */
-			mpi::Send(   I.data(),   I.size(), p, Jtag, this->GetRecvComm() );
-			/** issue a request to dest for J */
-			mpi::Send(   J.data(),   J.size(), p, Jtag, this->GetRecvComm() );
-			/** wait to recv KIJ */
-			mpi::Status status;
-			mpi::Recv( KIJ.data(), KIJ.size(), p, Ktag, this->GetSendComm(), &status );
+      /** issue a request to dest for I */
+      mpi::Send(   I.data(),   I.size(), p, Jtag, this->GetRecvComm() );
+      /** issue a request to dest for J */
+      mpi::Send(   J.data(),   J.size(), p, Jtag, this->GetRecvComm() );
+      /** wait to recv KIJ */
+      mpi::Status status;
+      mpi::Recv( KIJ.data(), KIJ.size(), p, Ktag, this->GetSendComm(), &status );
 
-			return KIJ;
+      return KIJ;
 
-		}; /** end RequestKIJ() */
+    }; /** end RequestKIJ() */
 
 
     /**
@@ -203,9 +203,9 @@ class DistVirtualMatrix : public mpi::MPIObject
       J.reserve( buff_size );
 
 
-			/** keep probing for messages */
-			while ( 1 ) 
-			{
+      /** keep probing for messages */
+      while ( 1 ) 
+      {
         /** info from mpi::Status */
         int recv_src;
         int recv_tag;
@@ -215,7 +215,7 @@ class DistVirtualMatrix : public mpi::MPIObject
         #pragma omp critical
         {
           mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, 
-            this->GetRecvComm(), &probe_flag, &status );
+              this->GetRecvComm(), &probe_flag, &status );
 
           /** if receive any message, then handle it */
           if ( probe_flag )
@@ -234,16 +234,16 @@ class DistVirtualMatrix : public mpi::MPIObject
               mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
                   this->GetRecvComm(), &status );
 
-						  /** blocking Probe the message that contains J */
-						  mpi::Probe( recv_src, recv_tag + 128, this->GetComm(), &status );
+              /** blocking Probe the message that contains J */
+              mpi::Probe( recv_src, recv_tag + 128, this->GetComm(), &status );
 
-			  			/** get J object count */
-						  mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+              /** get J object count */
+              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
 
-						  /** recv (typeless) J by matching SOURCE and TAG */
-						  J.resize( recv_cnt );
-						  mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag + 128, 
-							  	this->GetRecvComm(), &status );
+              /** recv (typeless) J by matching SOURCE and TAG */
+              J.resize( recv_cnt );
+              mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag + 128, 
+                  this->GetRecvComm(), &status );
             }
             else probe_flag = 0;
           }
@@ -269,14 +269,14 @@ class DistVirtualMatrix : public mpi::MPIObject
         }
 
 
-				/** nonblocking consensus for termination */
-				if ( *do_terminate ) 
-				{
+        /** nonblocking consensus for termination */
+        if ( *do_terminate ) 
+        {
           /** while reaching both global and local concensus, exit */
           if ( this->IsTimeToTerminate() ) break;
         }
 
-			} /** end while ( 1 ) */
+      } /** end while ( 1 ) */
 
     }; /** end BackGroundProcess() */
 
@@ -287,9 +287,9 @@ class DistVirtualMatrix : public mpi::MPIObject
 
 
     /** check if this tag is for one-sided communication */
-		bool IsBackGroundMessage( int tag )
-		{
-			return ( tag >= background_tag_offset );
+    bool IsBackGroundMessage( int tag )
+    {
+      return ( tag >= background_tag_offset );
 
     }; /** end IsBackGroundMessage() */
 
@@ -313,14 +313,14 @@ class DistVirtualMatrix : public mpi::MPIObject
       {
         if ( !has_Ibarrier )
         {
-			  	mpi::Ibarrier( this->GetComm(), &request );
-			    has_Ibarrier = true;
+          mpi::Ibarrier( this->GetComm(), &request );
+          has_Ibarrier = true;
         }
 
         if ( !test_flag )
         {
           /** while test_flag = 1, MPI request got reset */
-				  mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+          mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
           if ( test_flag ) do_terminate = true;
         }
       }
@@ -338,10 +338,10 @@ class DistVirtualMatrix : public mpi::MPIObject
     size_t n = 0;
 
     /** we use tags >= 128 for */
-		const int background_tag_offset = 128;
+    const int background_tag_offset = 128;
 
     /** for mpi::Ibarrier */
-		mpi::Request request;
+    mpi::Request request;
     int test_flag = 0;
     bool has_Ibarrier = false;
 
