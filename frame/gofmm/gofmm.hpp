@@ -329,6 +329,10 @@ class SPDMatrix : public hmlp::Data<T>
 		{
 		};
 
+    virtual void Redistribute( std::vector<size_t> &cids )
+    {
+    };
+
   private:
 
 }; /** end class SPDMatrix */

@@ -146,8 +146,8 @@ void test_gofmm
 
 
 
-  hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
-    w_goal( n, nrhs, MPI_COMM_WORLD );
+  //hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
+  //  w_goal( n, nrhs, MPI_COMM_WORLD );
 
 
   /** redistribute from RBLK to RIDS */
@@ -155,46 +155,46 @@ void test_gofmm
   //printf( "finish redistribute\n" ); fflush( stdout );
 
   /** redistribute from RIDS to RBLK */
-  w_goal = w_rids;
+  //w_goal = w_rids;
   //printf( "finish redistribute\n" ); fflush( stdout );
 
 
-  assert( w_rblk.size() == w_goal.size() );
+  //assert( w_rblk.size() == w_goal.size() );
 
-  for ( size_t i = 0; i < w_rblk.size(); i ++ )
-  {
-    assert( w_rblk[ i ] == w_goal[ i ] );
-    if ( w_rblk[ i ] != w_goal[ i ] )
-    {
-      printf( "%ld, %E, %E\n", i, w_rblk[ i ], w_goal[ i ] );
-      break;
-    }
-  }
+  //for ( size_t i = 0; i < w_rblk.size(); i ++ )
+  //{
+  //  assert( w_rblk[ i ] == w_goal[ i ] );
+  //  if ( w_rblk[ i ] != w_goal[ i ] )
+  //  {
+  //    printf( "%ld, %E, %E\n", i, w_rblk[ i ], w_goal[ i ] );
+  //    break;
+  //  }
+  //}
 
 
-  hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CBLK, T> 
-    NN_cblk( nrhs, n, MPI_COMM_WORLD );
-  NN_cblk.rand();
-  hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CIDS, T> 
-    NN_cids( nrhs, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
-  hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CBLK, T> 
-    NN_goal( nrhs, n, MPI_COMM_WORLD );
+  //hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CBLK, T> 
+  //  NN_cblk( nrhs, n, MPI_COMM_WORLD );
+  //NN_cblk.rand();
+  //hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CIDS, T> 
+  //  NN_cids( nrhs, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
+  //hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CBLK, T> 
+  //  NN_goal( nrhs, n, MPI_COMM_WORLD );
 
-  /** redistribute from RBLK to RIDS */
-  NN_cids = NN_cblk;
+  ///** redistribute from RBLK to RIDS */
+  //NN_cids = NN_cblk;
 
-  /** redistribute from RIDS to RBLK */
-  NN_goal = NN_cids;
-  
-  for ( size_t i = 0; i < NN_cblk.size(); i ++ )
-  {
-    assert( NN_cblk[ i ] == NN_goal[ i ] );
-    if ( NN_cblk[ i ] != NN_goal[ i ] )
-    {
-      printf( "%ld, %E, %E\n", i, NN_cblk[ i ], NN_goal[ i ] );
-      break;
-    }
-  }
+  ///** redistribute from RIDS to RBLK */
+  //NN_goal = NN_cids;
+  //
+  //for ( size_t i = 0; i < NN_cblk.size(); i ++ )
+  //{
+  //  assert( NN_cblk[ i ] == NN_goal[ i ] );
+  //  if ( NN_cblk[ i ] != NN_goal[ i ] )
+  //  {
+  //    printf( "%ld, %E, %E\n", i, NN_cblk[ i ], NN_goal[ i ] );
+  //    break;
+  //  }
+  //}
 
 
 

@@ -3697,10 +3697,33 @@ mpitree::Tree<
   other_time += omp_get_wtime() - beg;
 
 
+  /** initialize metric ball tree using approximate center split */
+  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
+	auto &tree = *tree_ptr;
 
+	/** global configuration for the metric tree */
+  tree.setup.X_cblk = X_cblk;
+  tree.setup.K = &K;
+	tree.setup.metric = metric; 
+  tree.setup.splitter = splitter;
+  tree.setup.NN_cblk = &NN_cblk;
+  tree.setup.m = m;
+  tree.setup.k = k;
+  tree.setup.s = s;
+  tree.setup.stol = stol;
 
+	/** metric ball tree partitioning */
+  printf( "TreePartitioning ...\n" ); fflush( stdout );
+  mpi::Barrier( MPI_COMM_WORLD );
+  beg = omp_get_wtime();
+  tree.TreePartition( n );
+  mpi::Barrier( MPI_COMM_WORLD );
+  tree_time = omp_get_wtime() - beg;
+  printf( "end TreePartitioning ...\n" ); fflush( stdout );
+  mpi::Barrier( MPI_COMM_WORLD );
 
-
+  /** now redistribute K */
+  K.Redistribute( tree.treelist[ 0 ]->gids );
 
 
 
@@ -3749,30 +3772,33 @@ mpitree::Tree<
 
 
 
-  /** initialize metric ball tree using approximate center split */
-  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
-	auto &tree = *tree_ptr;
+//  /** initialize metric ball tree using approximate center split */
+//  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
+//	auto &tree = *tree_ptr;
+//
+//	/** global configuration for the metric tree */
+//  tree.setup.X_cblk = X_cblk;
+//  tree.setup.K = &K;
+//	tree.setup.metric = metric; 
+//  tree.setup.splitter = splitter;
+//  tree.setup.NN_cblk = &NN_cblk;
+//  tree.setup.m = m;
+//  tree.setup.k = k;
+//  tree.setup.s = s;
+//  tree.setup.stol = stol;
+//
+//	/** metric ball tree partitioning */
+//  printf( "TreePartitioning ...\n" ); fflush( stdout );
+//  mpi::Barrier( MPI_COMM_WORLD );
+//  beg = omp_get_wtime();
+//  tree.TreePartition( n );
+//  mpi::Barrier( MPI_COMM_WORLD );
+//  tree_time = omp_get_wtime() - beg;
+//  printf( "end TreePartitioning ...\n" ); fflush( stdout );
+//  mpi::Barrier( MPI_COMM_WORLD );
 
-	/** global configuration for the metric tree */
-  tree.setup.X_cblk = X_cblk;
-  tree.setup.K = &K;
-	tree.setup.metric = metric; 
-  tree.setup.splitter = splitter;
-  tree.setup.NN_cblk = &NN_cblk;
-  tree.setup.m = m;
-  tree.setup.k = k;
-  tree.setup.s = s;
-  tree.setup.stol = stol;
-
-	/** metric ball tree partitioning */
-  printf( "TreePartitioning ...\n" ); fflush( stdout );
-  mpi::Barrier( MPI_COMM_WORLD );
-  beg = omp_get_wtime();
-  tree.TreePartition( n );
-  mpi::Barrier( MPI_COMM_WORLD );
-  tree_time = omp_get_wtime() - beg;
-  printf( "end TreePartitioning ...\n" ); fflush( stdout );
-  mpi::Barrier( MPI_COMM_WORLD );
+//  /** now redistribute K */
+//  K.Redistribute( tree.treelist[ 0 ]->gids );
 
   /** now redistribute NN according to gids */
   DistData<STAR, CIDS, std::pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );

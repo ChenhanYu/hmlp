@@ -916,7 +916,7 @@ void* Scheduler::EntryPoint( void* arg )
 #endif
 
 	/** if there is a background task, tid = 1 is assigned to it */
-  if ( me->tid == 1 )
+  if ( me->tid >= 1  && me->tid <= 6 )
 	{
 		auto *bgtask = scheduler->GetBackGroundTask();
 		if ( bgtask ) 

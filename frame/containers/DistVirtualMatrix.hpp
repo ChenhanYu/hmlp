@@ -231,7 +231,42 @@ class DistVirtualMatrix : public mpi::MPIObject
 
     }; /** end BackGroundProcess() */
 
-		
+
+    /**
+     *  @brief The termination flag is reset by the first omp thread
+     *         who execute the function.
+     */ 
+    void ResetTerminationFlag()
+    {
+      {
+        test_flag = 0;
+        has_Ibarrier = false;
+        do_terminate = false;
+      }
+    }; /** end ResetTerminationFlag () */
+
+    bool IsTimeToTerminate()
+    {
+      #pragma omp critical
+      {
+        if ( !has_Ibarrier )
+        {
+			  	mpi::Ibarrier( this->GetComm(), &request );
+			    has_Ibarrier = true;
+        }
+
+        if ( !test_flag )
+        {
+          /** while test_flag = 1, MPI request got reset */
+				  mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+          if ( test_flag ) do_terminate = true;
+        }
+      }
+
+      /** if this is not the mater thread, just return the flag */
+      return do_terminate;
+    }; /** end IsTimeToTerminate() */
+
 
   private:
 
@@ -240,6 +275,14 @@ class DistVirtualMatrix : public mpi::MPIObject
     size_t n = 0;
 
 		const int background_tag_offset = 128;
+
+		mpi::Request request;
+
+    int test_flag = 0;
+
+    bool has_Ibarrier = false;
+
+    bool do_terminate = false;
 
 }; /** end class DistVirtualMatrix */
 
