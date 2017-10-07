@@ -166,6 +166,7 @@ class IndexPermuteTask : public hmlp::Task
         gids.insert( gids.end(), rgids.begin(), rgids.end() );
       }
     };
+
 }; /** end class IndexPermuteTask */
 
 

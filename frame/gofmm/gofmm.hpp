@@ -309,6 +309,113 @@ class Data : public hmlp::hfamily::Factor<T>
 }; /** end class Data */
 
 
+
+
+/** 
+ *  @brief This task creates an hierarchical tree view for
+ *         weights<RIDS> and potentials<RIDS>.
+ */
+template<typename NODE>
+class TreeViewTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      name = std::string( "TreeView" );
+      arg = user_arg;
+      cost = 1.0;
+      ss << arg->treelist_id;
+      label = ss.str();
+    };
+
+    void GetEventRecord()
+    {
+      double flops = 0.0, mops = 0.0;
+      event.Set( label + name, flops, mops );
+    };
+
+    /** preorder dependencies (with a single source node) */
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      if ( !arg->isleaf )
+      {
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      }
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      //printf( "TreeView %lu\n", node->treelist_id );
+      auto *node   = arg;
+      auto &data   = node->data;
+      auto *setup  = node->setup;
+
+      /** w and u can be Data<T> or DistData<RIDS,STAR,T> */
+      auto &w = *(setup->u);
+      auto &u = *(setup->w);
+
+      /** get the matrix view of this tree node */
+      auto &U  = data.u_view;
+      auto &W  = data.w_view;
+
+      /** create contigious view for u and w at the root level */
+      if ( !node->parent ) 
+      {
+        /** both w and u are column-majored, thus nontranspose */
+        U.Set( u );
+        W.Set( w );
+      }
+
+      /** partition u and w using the hierarchical tree view */
+      if ( !node->isleaf )
+      {
+        auto &UL = node->lchild->data.u_view;
+        auto &UR = node->rchild->data.u_view;
+        auto &WL = node->lchild->data.w_view;
+        auto &WR = node->rchild->data.w_view;
+        /** 
+         *  U = [ UL;    W = [ WL;
+         *        UR; ]        WR; ] 
+         */
+        U.Partition2x1( UL, 
+                        UR, node->lchild->n, TOP );
+        W.Partition2x1( WL, 
+                        WR, node->lchild->n, TOP );
+
+        assert( UL.row() == node->lchild->n );
+        assert( UR.row() == node->rchild->n );
+        assert( WL.row() == node->lchild->n );
+        assert( WR.row() == node->rchild->n );
+      }
+
+    };
+
+}; /** end class TreeViewTask */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /**
  *  @brief This class does not need to inherit hmlp::Data<T>, 
  *         but it should
@@ -2058,11 +2165,15 @@ void UpdateWeights( NODE *node )
     else
     {
       /** w_leaf is not allocated, use w_view instead */
-
-      View<T> A( false, proj );
-      View<T> B = data.w_view;
-      View<T> C( false, w_skel );
-      gemm::xgemm( (T)1.0, A, B, (T)0.0, C );
+      View<T> W = data.w_view;
+      xgemm
+      (
+        "N", "N",
+        w_skel.row(), w_skel.col(), W.row(),
+        1.0, proj.data(),   proj.row(),
+                W.data(),       W.ld(),
+        0.0, w_skel.data(), w_skel.row()
+      );
     }
 
     //double update_leaf_time = omp_get_wtime() - beg;
@@ -2491,24 +2602,38 @@ void SkeletonsToNodes( NODE *node )
 
   if ( node->isleaf )
   {
-    auto &amap = node->gids;
-    auto &u_leaf = node->data.u_leaf[ 0 ];
-
-    /** zero-out u_leaf */
-    u_leaf.resize( 0, 0 );
-    u_leaf.resize( gids.size(), nrhs, 0.0 );
-
-    /** accumulate far interactions */
-    if ( data.isskel )
+    if ( data.w_leaf.size() )
     {
-      /** u_leaf += P' * u_skel */
+      auto &u_leaf = node->data.u_leaf[ 0 ];
+
+      /** zero-out u_leaf */
+      u_leaf.resize( 0, 0 );
+      u_leaf.resize( gids.size(), nrhs, 0.0 );
+
+      /** accumulate far interactions */
+      if ( data.isskel )
+      {
+        /** u_leaf += P' * u_skel */
+        xgemm
+        (
+          "T", "N",
+          u_leaf.row(), u_leaf.col(), u_skel.row(),
+          1.0,   proj.data(),   proj.row(),
+               u_skel.data(), u_skel.row(),
+          1.0, u_leaf.data(), u_leaf.row()
+        );
+      }
+    }
+    else
+    {
+      View<T> U = data.u_view;
       xgemm
       (
-        "T", "N",
-        u_leaf.row(), u_leaf.col(), u_skel.row(),
+        "Transpose", "Non-transpose",
+        U.row(), U.col(), u_skel.row(),
         1.0,   proj.data(),   proj.row(),
              u_skel.data(), u_skel.row(),
-        1.0, u_leaf.data(), u_leaf.row()
+        1.0,      U.data(),       U.ld()
       );
     }
 
@@ -2698,6 +2823,10 @@ class SkeletonsToNodesTask : public hmlp::Task
         arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
         arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
       }
+      else
+      {
+        arg->DependencyAnalysis( hmlp::ReadWriteType::W, this );
+      }
       this->TryEnqueue();
 
 
@@ -2772,15 +2901,30 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
         //auto wb = w( bmap );
         auto wb = (*it)->data.w_leaf;
 
-        /** Kab * wb */
-        xgemm
-        (
-          "N", "N",
-          u_leaf.row(), u_leaf.col(), wb.row(),
-          1.0, NearKab.data() + offset * NearKab.row(), NearKab.row(),
-                    wb.data(),                               wb.row(),
-          1.0,  u_leaf.data(),                           u_leaf.row()
-        );
+        if ( wb.size() )
+        {
+          /** Kab * wb */
+          xgemm
+          (
+            "N", "N",
+            u_leaf.row(), u_leaf.col(), wb.row(),
+            1.0, NearKab.data() + offset * NearKab.row(), NearKab.row(),
+                      wb.data(),                               wb.row(),
+            1.0,  u_leaf.data(),                           u_leaf.row()
+          );
+        }
+        else
+        {
+          View<T> W = (*it)->data.w_view;
+          xgemm
+          (
+            "N", "N",
+            u_leaf.row(), u_leaf.col(), W.row(),
+            1.0, NearKab.data() + offset * NearKab.row(), NearKab.row(),
+                       W.data(),                                 W.ld(),
+            1.0,  u_leaf.data(),                           u_leaf.row()
+          );
+        }
       }
       offset += (*it)->gids.size();
       itptr ++;
@@ -2805,15 +2949,30 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
         data.kij_s2n.first  += kij_s2n_time;
         data.kij_s2n.second += amap.size() * bmap.size();
 
-        /** ( Kab * wb )' = wb' * Kab' */
-        xgemm
-        (
-          "N", "N",
-          u_leaf.row(), u_leaf.col(), wb.row(),
-          1.0,    Kab.data(),    Kab.row(),
-                   wb.data(),     wb.row(),
-          1.0, u_leaf.data(), u_leaf.row()
-        );
+        if ( wb.size() )
+        {
+          /** ( Kab * wb )' = wb' * Kab' */
+          xgemm
+          (
+            "N", "N",
+            u_leaf.row(), u_leaf.col(), wb.row(),
+            1.0,    Kab.data(),    Kab.row(),
+                     wb.data(),     wb.row(),
+            1.0, u_leaf.data(), u_leaf.row()
+          );
+        }
+        else
+        {
+          View<T> W = (*it)->data.w_view;
+          xgemm
+          (
+            "N", "N",
+            u_leaf.row(), u_leaf.col(), W.row(),
+            1.0,    Kab.data(),    Kab.row(),
+                      W.data(),       W.ld(),
+            1.0, u_leaf.data(), u_leaf.row()
+          );
+        }
       }
       itptr ++;
     }

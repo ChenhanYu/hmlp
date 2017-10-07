@@ -342,12 +342,90 @@ class NodeData : public hmlp::hfamily::Factor<T>
 
 
 
+/** 
+ *  @brief This task creates an hierarchical tree view for
+ *         weights<RIDS> and potentials<RIDS>.
+ */
+template<typename NODE>
+class DistTreeViewTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      name = std::string( "TreeView" );
+      arg = user_arg;
+      cost = 1.0;
+      ss << arg->treelist_id;
+      label = ss.str();
+    };
+
+    void GetEventRecord()
+    {
+      double flops = 0.0, mops = 0.0;
+      event.Set( label + name, flops, mops );
+    };
+
+    /** preorder dependencies (with a single source node) */
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      if ( !arg->isleaf && !arg->child )
+      {
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      }
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      //printf( "TreeView %lu\n", node->treelist_id );
+      auto *node   = arg;
+      auto &data   = node->data;
+      auto *setup  = node->setup;
+
+      /** w and u can be Data<T> or DistData<RIDS,STAR,T> */
+      auto &w = *(setup->w);
+      auto &u = *(setup->u);
+
+      /** get the matrix view of this tree node */
+      auto &U  = data.u_view;
+      auto &W  = data.w_view;
+
+      /** both w and u are column-majored, thus nontranspose */
+      U.Set( u );
+      W.Set( w );
 
 
+      if ( !node->isleaf && !node->child )
+      {
+        assert( node->lchild && node->rchild );
+        auto &UL = node->lchild->data.u_view;
+        auto &UR = node->rchild->data.u_view;
+        auto &WL = node->lchild->data.w_view;
+        auto &WR = node->rchild->data.w_view;
+        /** 
+         *  U = [ UL;    W = [ WL;
+         *        UR; ]        WR; ] 
+         */
+        U.Partition2x1( UL, 
+                        UR, node->lchild->n, TOP );
+        W.Partition2x1( WL, 
+                        WR, node->lchild->n, TOP );
 
+        assert( node->lchild->n == node->lchild->gids.size() );
+        assert( UL.row() == node->lchild->n );
+        assert( UR.row() == node->rchild->n );
+        assert( WL.row() == node->lchild->n );
+        assert( WR.row() == node->rchild->n );
+      }
+    };
 
-
-
+}; /** end class DistTreeViewTask */
 
 
 
@@ -1554,15 +1632,37 @@ void DistLeavesToLeaves( NODE *node )
     for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
     {
       auto wb = (*it)->data.w_leaf;
-      /** Kab * wb */
-      xgemm
-      (
-        "N", "N",
-        u_leaf.row(), u_leaf.col(), wb.row(),
-        1.0, NearKab.data() + offset * NearKab.row(), NearKab.row(),
-                  wb.data(),                               wb.row(),
-        1.0,  u_leaf.data(),                           u_leaf.row()
-      );
+
+      if ( wb.size() )
+      {
+        /** Kab * wb */
+        xgemm
+        (
+          "N", "N",
+          u_leaf.row(), u_leaf.col(), wb.row(),
+          1.0, NearKab.data() + offset * NearKab.row(), NearKab.row(),
+                    wb.data(),                               wb.row(),
+          1.0,  u_leaf.data(),                           u_leaf.row()
+        );
+        //View<T> W = (*it)->data.w_view;
+        //for ( size_t j = 0; j < wb.col(); j ++ )
+        //  for ( size_t i = 0; i < wb.row(); i ++ )
+        //    assert( W( i, j ) == wb( i, j ) );
+
+      }
+      else
+      {
+        View<T> U = (*it)->data.u_view;
+        View<T> W = (*it)->data.w_view;
+        xgemm
+        (
+          "N", "N",
+          U.row(), U.col(), W.row(),
+          1.0, NearKab.data() + offset * NearKab.row(), NearKab.row(),
+                     W.data(),                                 W.ld(),
+          1.0,       U.data(),                                 U.ld()
+        );
+      }
       offset += (*it)->gids.size();
     }
   }
@@ -1611,6 +1711,7 @@ class DistLeavesToLeavesTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
       this->TryEnqueue();
     };
 
@@ -3577,26 +3678,26 @@ DistData<RIDS, STAR, T> Evaluate
     printf( "Forward permute ...\n" ); fflush( stdout );
   }
   beg = omp_get_wtime();
-  int n_nodes = ( 1 << tree.depth );
-  auto level_beg = tree.treelist.begin() + n_nodes - 1;
-  #pragma omp parallel for
-  for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-  {
-    auto *node = *(level_beg + node_ind);
-    auto &gids = node->gids;
-    auto &w_leaf = node->data.w_leaf;
-    if ( w_leaf.row() != gids.size() || w_leaf.col() != weights.col() )
-    {
-      w_leaf.resize( gids.size(), weights.col() );
-    }
-    for ( size_t j = 0; j < w_leaf.col(); j ++ )
-    {
-      for ( size_t i = 0; i < w_leaf.row(); i ++ )
-      {
-        w_leaf( i, j ) = weights( gids[ i ], j ); 
-      }
-    }
-  }
+  //int n_nodes = ( 1 << tree.depth );
+  //auto level_beg = tree.treelist.begin() + n_nodes - 1;
+  //#pragma omp parallel for
+  //for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+  //{
+  //  auto *node = *(level_beg + node_ind);
+  //  auto &gids = node->gids;
+  //  auto &w_leaf = node->data.w_leaf;
+  //  if ( w_leaf.row() != gids.size() || w_leaf.col() != weights.col() )
+  //  {
+  //    w_leaf.resize( gids.size(), weights.col() );
+  //  }
+  //  for ( size_t j = 0; j < w_leaf.col(); j ++ )
+  //  {
+  //    for ( size_t i = 0; i < w_leaf.row(); i ++ )
+  //    {
+  //      w_leaf( i, j ) = weights( gids[ i ], j ); 
+  //    }
+  //  }
+  //}
   forward_permute_time = omp_get_wtime() - beg;
 
 
@@ -3612,15 +3713,22 @@ DistData<RIDS, STAR, T> Evaluate
     hmlp::mpi::Barrier( MPI_COMM_WORLD );
     beg = omp_get_wtime();
 
-    /** L2L */
-    mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
-    tree.LocaTraverseLeafs( seqL2Ltask );
+    /** TreeView */
+    gofmm::TreeViewTask<NODE> seqVIEWtask;
+    mpigofmm::DistTreeViewTask<MPINODE> mpiVIEWtask;
+    tree.DistTraverseDown( mpiVIEWtask );
+    tree.LocaTraverseDown( seqVIEWtask );
 
     /** N2S (Loca first, Dist follows) */
     gofmm::UpdateWeightsTask<NODE, T> seqN2Stask;
     mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
     tree.LocaTraverseUp( seqN2Stask );
     tree.DistTraverseUp( mpiN2Stask );
+
+    /** L2L */
+    mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
+    tree.LocaTraverseLeafs( seqL2Ltask );
+
 
     /** S2S */
     gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE> seqS2Stask;
@@ -3638,18 +3746,18 @@ DistData<RIDS, STAR, T> Evaluate
     hmlp_run();
 
     /** reduce direct iteractions from 4 copies */
-    #pragma omp parallel for
-    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-    {
-      auto *node = *(level_beg + node_ind);
-      auto &u_leaf = node->data.u_leaf[ 0 ];
-      /** reduce all u_leaf[0:4] */
-      for ( size_t p = 1; p < 20; p ++ )
-      {
-        for ( size_t i = 0; i < node->data.u_leaf[ p ].size(); i ++ )
-          u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
-      }
-    }
+    //#pragma omp parallel for
+    //for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    //{
+    //  auto *node = *(level_beg + node_ind);
+    //  auto &u_leaf = node->data.u_leaf[ 0 ];
+    //  /** reduce all u_leaf[0:4] */
+    //  for ( size_t p = 1; p < 20; p ++ )
+    //  {
+    //    for ( size_t i = 0; i < node->data.u_leaf[ p ].size(); i ++ )
+    //      u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
+    //  }
+    //}
 
     /** global barrier and timer */
     hmlp::mpi::Barrier( MPI_COMM_WORLD );
@@ -3663,23 +3771,22 @@ DistData<RIDS, STAR, T> Evaluate
   }
 
   /** permute back */
-  if ( REPORT_EVALUATE_STATUS )
-  {
-    printf( "Backward permute ...\n" ); fflush( stdout );
-  }
+  //if ( REPORT_EVALUATE_STATUS )
+  //{
+  //  printf( "Backward permute ...\n" ); fflush( stdout );
+  //}
   beg = omp_get_wtime();
-  #pragma omp parallel for
-  for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-  {
-    auto *node = *(level_beg + node_ind);
-    auto &amap = node->lids;
-    auto &u_leaf = node->data.u_leaf[ 0 ];
+  //#pragma omp parallel for
+  //for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+  //{
+  //  auto *node = *(level_beg + node_ind);
+  //  auto &amap = node->lids;
+  //  auto &u_leaf = node->data.u_leaf[ 0 ];
 
-    for ( size_t j = 0; j < potentials.col(); j ++ )
-      for ( size_t i = 0; i < amap.size(); i ++ )
-        potentials( amap[ i ], j ) += u_leaf( i, j );
-
-  }
+  //  for ( size_t j = 0; j < potentials.col(); j ++ )
+  //    for ( size_t i = 0; i < amap.size(); i ++ )
+  //      potentials( amap[ i ], j ) += u_leaf( i, j );
+  //}
   backward_permute_time = omp_get_wtime() - beg;
 
   /** compute the breakdown cost */
@@ -3802,15 +3909,15 @@ mpitree::Tree<
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
 
   /** original order of the matrix */
-  beg = omp_get_wtime();
-  std::vector<std::size_t> gids( n ), lids( n );
-  #pragma omp parallel for
-  for ( auto i = 0; i < n; i ++ ) 
-  {
-    gids[ i ] = i;
-    lids[ i ] = i;
-  }
-  other_time += omp_get_wtime() - beg;
+  //beg = omp_get_wtime();
+  //std::vector<std::size_t> gids( n ), lids( n );
+  //#pragma omp parallel for
+  //for ( auto i = 0; i < n; i ++ ) 
+  //{
+  //  gids[ i ] = i;
+  //  lids[ i ] = i;
+  //}
+  //other_time += omp_get_wtime() - beg;
 
 
   /** initialize metric ball tree using approximate center split */

@@ -337,6 +337,12 @@ class View : public ReadWrite
       }    
     };
 
+    void DependencyCleanUp()
+    {
+      if ( base == this ) rwblocks.DependencyCleanUp();
+      else base->DependencyCleanUp();
+    };
+
     /** return the row size of the current view */
     size_t row() { return m; };
 

@@ -486,6 +486,46 @@ class Setup
 
 
 
+template<typename NODE>
+class DistIndexPermuteTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      name = std::string( "Permutation" );
+      arg = user_arg;
+      // Need an accurate cost model.
+      cost = 1.0;
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      if ( !arg->isleaf && !arg->child )
+      {
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+      this->TryEnqueue();
+    };
+
+
+    void Execute( Worker* user_worker )
+    {
+      if ( !arg->isleaf && !arg->child )
+      {
+        auto &gids = arg->gids; 
+        auto &lgids = arg->lchild->gids;
+        auto &rgids = arg->rchild->gids;
+        gids = lgids;
+        gids.insert( gids.end(), rgids.begin(), rgids.end() );
+      }
+    };
+
+}; /** end class IndexPermuteTask */
 
 
 
@@ -1102,6 +1142,8 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 			LocaTraverseDown( seqSPLITtask );
       tree::IndexPermuteTask<NODE> seqINDXtask;
 			LocaTraverseUp( seqINDXtask );
+      DistIndexPermuteTask<MPINODE> mpiINDXtask;
+			DistTraverseUp( mpiINDXtask );
 			hmlp_run();
 
       printf( "rank %d finish split\n", rank ); fflush( stdout );

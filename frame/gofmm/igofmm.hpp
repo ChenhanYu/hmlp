@@ -1177,19 +1177,8 @@ class SetupFactorTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      /** remove all previous read/write records */
-      arg->DependencyCleanUp();
       arg->DependencyAnalysis( hmlp::ReadWriteType::W, this );
-
-      //if ( !arg->isleaf )
-      //{
-      //  arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      //  arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      //}
-      //else
-      //{
-        this->Enqueue();
-      //}
+      this->TryEnqueue();
     };
 
     void Execute( Worker* user_worker )
@@ -1230,12 +1219,10 @@ class TreeViewTask : public hmlp::Task
     /** preorder dependencies (with a single source node) */
     void DependencyAnalysis()
     {
-      if ( !arg->parent ) this->Enqueue();
-      /** clean up dependencies */
-      arg->DependencyCleanUp();
       arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
       if ( arg->parent )
         arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      this->TryEnqueue();
     };
 
     void Execute( Worker* user_worker )
@@ -1650,20 +1637,29 @@ void Solve( TREE &tree, hmlp::Data<T> &input )
 
   if ( tree.setup.do_ulv_factorization )
   {
+    /** clean up all dependencies on tree nodes */
+    tree.DependencyCleanUp();
     tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( treeviewtask );
     tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( forwardpermutetask );
     tree.template TraverseUp   <AUTO_DEPENDENCY, USE_RUNTIME>( ulvforwardsolvetask );
     tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( ulvbackwardsolvetask );
     if ( USE_RUNTIME ) hmlp_run();
+
+    /** clean up all dependencies on tree nodes */
+    tree.DependencyCleanUp();
     tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( inversepermutetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
   else
   {
+    /** clean up all dependencies on tree nodes */
+    tree.DependencyCleanUp();
     tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( treeviewtask );
     tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( forwardpermutetask );
     tree.template TraverseUp   <AUTO_DEPENDENCY, USE_RUNTIME>( solvetask1 );
     if ( USE_RUNTIME ) hmlp_run();
+    /** clean up all dependencies on tree nodes */
+    tree.DependencyCleanUp();
     tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( inversepermutetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
@@ -1910,17 +1906,13 @@ class FactorizeTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      arg->DependencyCleanUp();
       arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
       if ( !arg->isleaf )
       {
         arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
         arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
       }
-      else
-      {
-        this->Enqueue();
-      }
+      this->TryEnqueue();
     };
 
     void Execute( Worker* user_worker )
@@ -1945,6 +1937,9 @@ void Factorize( bool do_ulv_factorization, TREE &tree, T lambda )
   const bool AUTO_DEPENDENCY = true;
   const bool USE_RUNTIME = true;
 
+  /** clean up all dependencies on tree nodes */
+  tree.DependencyCleanUp();
+
   /** all task instances */
   SetupFactorTask<NODE, T> setupfactortask; 
   FactorizeTask<NODE, T> factorizetask; 
@@ -1962,6 +1957,9 @@ void Factorize( bool do_ulv_factorization, TREE &tree, T lambda )
   tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( setupfactortask );
   if ( USE_RUNTIME ) hmlp_run();
   //printf( "Execute setupfactortask\n" ); fflush( stdout );
+
+  /** clean up all dependencies on tree nodes */
+  tree.DependencyCleanUp();
 
   /** factorization */
   tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( factorizetask );
