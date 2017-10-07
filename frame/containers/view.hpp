@@ -46,6 +46,12 @@ class View : public ReadWrite
     /** constructor for the buffer */
     View( hmlp::Data<T> &buff ) { Set( buff ); };
 
+    View( bool TRANS, hmlp::Data<T> &buff )
+    { 
+      Set( TRANS, buff );
+    };
+
+
     /** destructor */
     //~View() { printf( "~View()\n" ); fflush( stdout ); };
 
@@ -263,19 +269,23 @@ class View : public ReadWrite
     void CreateLeafMatrixBlocks( size_t mb, size_t nb )
     {
       /** only the base view can have leaf r/w blocks */
-      assert( base == this );
-
-      if ( !rwblocks.HasBeenSetup() )
+      if ( base == this )
       {
-        this->mb = mb;
-        this->nb = nb;
-        rwblocks.Setup(
-          (size_t)std::ceil( (double)m / mb ),
-          (size_t)std::ceil( (double)n / nb ) );
+        if ( !rwblocks.HasBeenSetup() )
+        {
+          this->mb = mb;
+          this->nb = nb;
+          rwblocks.Setup(
+              (size_t)std::ceil( (double)m / mb ),
+              (size_t)std::ceil( (double)n / nb ) );
+        }
+        assert( this->mb == mb );
+        assert( this->nb == nb );
       }
-
-      assert( this->mb == mb );
-      assert( this->nb == nb );
+      else
+      {
+        base->CreateLeafMatrixBlocks( mb, nb );
+      }
     };
 
     size_t GetRowBlockSize()

@@ -114,108 +114,31 @@ void test_gofmm
 	Configuration<T> config( metric, n, m, k, s, stol, budget );
 
   /** compress K */
-  auto *tree_ptr = hmlp::mpigofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+  auto *tree_ptr = mpigofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
   ( 
    X, K, NN, //metric, 
    splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
    config );
   auto &tree = *tree_ptr;
 
-
-  //hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
-  //  global_w( n, nrhs, MPI_COMM_WORLD );
-
-  hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
-    w_rblk( n, nrhs, MPI_COMM_WORLD );
-
-  w_rblk.rand();
-
-  //printf( "after w_rblk\n" ); fflush( stdout );
-
-
-
-
-
   /** */
-  hmlp::DistData<hmlp::Distribution_t::RIDS, hmlp::Distribution_t::STAR, T> 
-    w_rids( n, nrhs, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
-
-
-
-  //printf( "after w_rids\n" ); fflush( stdout );
-
-
-
-  //hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
-  //  w_goal( n, nrhs, MPI_COMM_WORLD );
-
+  DistData<RBLK, STAR, T> w_rblk( n, nrhs, MPI_COMM_WORLD );
+  DistData<RBLK, STAR, T> u_rblk( n, nrhs, MPI_COMM_WORLD );
+  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
 
   /** redistribute from RBLK to RIDS */
+  w_rblk.rand();
   w_rids = w_rblk;
-  //printf( "finish redistribute\n" ); fflush( stdout );
-
-  /** redistribute from RIDS to RBLK */
-  //w_goal = w_rids;
-  //printf( "finish redistribute\n" ); fflush( stdout );
-
-
-  //assert( w_rblk.size() == w_goal.size() );
-
-  //for ( size_t i = 0; i < w_rblk.size(); i ++ )
-  //{
-  //  assert( w_rblk[ i ] == w_goal[ i ] );
-  //  if ( w_rblk[ i ] != w_goal[ i ] )
-  //  {
-  //    printf( "%ld, %E, %E\n", i, w_rblk[ i ], w_goal[ i ] );
-  //    break;
-  //  }
-  //}
-
-
-  //hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CBLK, T> 
-  //  NN_cblk( nrhs, n, MPI_COMM_WORLD );
-  //NN_cblk.rand();
-  //hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CIDS, T> 
-  //  NN_cids( nrhs, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
-  //hmlp::DistData<hmlp::Distribution_t::STAR, hmlp::Distribution_t::CBLK, T> 
-  //  NN_goal( nrhs, n, MPI_COMM_WORLD );
-
-  ///** redistribute from RBLK to RIDS */
-  //NN_cids = NN_cblk;
-
-  ///** redistribute from RIDS to RBLK */
-  //NN_goal = NN_cids;
-  //
-  //for ( size_t i = 0; i < NN_cblk.size(); i ++ )
-  //{
-  //  assert( NN_cblk[ i ] == NN_goal[ i ] );
-  //  if ( NN_cblk[ i ] != NN_goal[ i ] )
-  //  {
-  //    printf( "%ld, %E, %E\n", i, NN_cblk[ i ], NN_goal[ i ] );
-  //    break;
-  //  }
-  //}
-
-
-
-
 
 
   /** MPI */
   int comm_size, comm_rank;
-  hmlp::mpi::Comm comm = MPI_COMM_WORLD;
-  hmlp::mpi::Comm_size( comm, &comm_size );
-  hmlp::mpi::Comm_rank( comm, &comm_rank );
+  mpi::Comm comm = MPI_COMM_WORLD;
+  mpi::Comm_size( comm, &comm_size );
+  mpi::Comm_rank( comm, &comm_rank );
 
   /** Evaluate u ~ K * w */
-  hmlp::Data<T> w( n, nrhs ); w.rand();
-  //auto u = hmlp::mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w );
-  auto u_rids = hmlp::mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, comm );
-
-
-
-  hmlp::DistData<hmlp::Distribution_t::RBLK, hmlp::Distribution_t::STAR, T> 
-    u_rblk( n, nrhs, MPI_COMM_WORLD );
+  auto u_rids = mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, comm );
 
   /** redistribution */
   u_rblk = u_rids;
@@ -249,7 +172,6 @@ void test_gofmm
 
     /** bcast potentials to all MPI processes */
     hmlp::mpi::Bcast( potentials.data(), nrhs, i % comm_size, comm );
-
 
 
 

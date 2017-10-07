@@ -26,6 +26,7 @@
 #include <mpi/DistData.hpp>
 #include <gofmm/gofmm.hpp>
 #include <primitives/combinatorics.hpp>
+#include <primitives/gemm.hpp>
 
 
 using namespace hmlp;
@@ -252,10 +253,92 @@ class Setup : public hmlp::mpitree::Setup<SPLITTER, T>
 
 
 
+template<typename T>
+class NodeData : public hmlp::hfamily::Factor<T>
+{
+  public:
+
+    NodeData() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
+
+    /** the omp (or pthread) lock */
+    Lock lock;
+
+    /** whether the node can be compressed */
+    bool isskel = false;
+
+    /** whether the coefficient mathx has been computed */
+    bool hasproj = false;
+
+    /** my skeletons */
+    std::vector<size_t> skels;
+
+    /** (buffer) nsamples row gids */
+    std::vector<size_t> candidate_rows;
+
+    /** (buffer) sl+sr column gids of children */
+    std::vector<size_t> candidate_cols;
+
+    /** (buffer) nsamples-by-(sl+sr) submatrix of K */
+    hmlp::Data<T> KIJ; 
+
+    /** 2s, pivoting order of GEQP3 */
+    std::vector<int> jpvt;
+
+    /** s-by-2s */
+    hmlp::Data<T> proj;
+
+    /** sampling neighbors ids */
+    std::map<std::size_t, T> snids; 
+
+    /* pruning neighbors ids */
+    std::unordered_set<std::size_t> pnids; 
+
+    /** skeleton weights and potentials */
+    hmlp::Data<T> w_skel;
+    hmlp::Data<T> u_skel;
+
+    /** permuted weights and potentials (buffer) */
+    hmlp::Data<T> w_leaf;
+    hmlp::Data<T> u_leaf[ 20 ];
+
+    /** hierarchical tree view of w<RIDS> and u<RIDS> */
+    View<T> w_view;
+    View<T> u_view;
+
+    /** cached Kab */
+    hmlp::Data<std::size_t> Nearbmap;
+    hmlp::Data<T> NearKab;
+    hmlp::Data<T> FarKab;
 
 
 
 
+
+
+
+    /** Kij evaluation counter counters */
+    std::pair<double, std::size_t> kij_skel;
+    std::pair<double, std::size_t> kij_s2s;
+    std::pair<double, std::size_t> kij_s2n;
+
+    /** many timers */
+    double merge_neighbors_time = 0.0;
+    double id_time = 0.0;
+
+    /** recorded events (for HMLP Runtime) */
+    hmlp::Event skeletonize;
+    hmlp::Event updateweight;
+    hmlp::Event skeltoskel;
+    hmlp::Event skeltonode;
+
+    hmlp::Event s2s;
+    hmlp::Event s2n;
+
+    /** knn accuracy */
+    double knn_acc = 0.0;
+    size_t num_acc = 0;
+
+}; /** end class NodeData */
 
 
 
@@ -939,7 +1022,7 @@ void MergeNeighbors( NODE *node )
 /**
  *  @brief Compute skeleton weights.
  */
-template<typename MPINODE>
+template<typename MPINODE, typename T>
 void DistUpdateWeights( MPINODE *node )
 {
   /** MPI */
@@ -953,7 +1036,7 @@ void DistUpdateWeights( MPINODE *node )
   if ( size < 2 )
   {
     /** this is the root of the local tree */
-    hmlp::gofmm::UpdateWeights( node );
+    gofmm::UpdateWeights<MPINODE, T>( node );
   }
   else
   {
@@ -1001,25 +1084,41 @@ void DistUpdateWeights( MPINODE *node )
       /** w_skel is s-by-nrhs, initial values are not important */
       w_skel.resize( skels.size(), nrhs );
 
-      /** w_skel = proj( l ) * w_lskel */
-      xgemm
-      (
-        "No-transpose", "No-transpose",
-        w_skel.row(), nrhs, sl,
-        1.0,    proj.data(),    proj.row(),
-             w_lskel.data(),            sl,
-        0.0,  w_skel.data(),  w_skel.row()
-      );
-
-      /** w_skel += proj( r ) * w_rskel */
-      xgemm
-      (
-        "No-transpose", "No-transpose",
-        w_skel.row(), nrhs, sr,
-        1.0,    proj.data() + proj.row() * sl, proj.row(),
-             w_rskel.data(), sr,
-        1.0,  w_skel.data(), w_skel.row()
-      );
+      if ( 0 )
+      {
+        /** w_skel = proj( l ) * w_lskel */
+        xgemm
+        (
+          "No-transpose", "No-transpose",
+          w_skel.row(), nrhs, sl,
+          1.0,    proj.data(),    proj.row(),
+               w_lskel.data(),            sl,
+          0.0,  w_skel.data(),  w_skel.row()
+        );
+        /** w_skel += proj( r ) * w_rskel */
+        xgemm
+        (
+          "No-transpose", "No-transpose",
+          w_skel.row(), nrhs, sr,
+          1.0,    proj.data() + proj.row() * sl, proj.row(),
+               w_rskel.data(), sr,
+          1.0,  w_skel.data(), w_skel.row()
+        );
+      }
+      else
+      {
+        /** create a transpose view proj_v */
+        View<T> P( false,   proj ), PL,
+                                    PR;
+        View<T> W( false, w_skel ), WL( false, w_lskel ),
+                                    WR( false, w_rskel );
+        /** P = [ PL, PR ] */
+        P.Partition1x2( PL, PR, sl, LEFT );
+        /** W  = PL * WL */
+        gemm::xgemm( (T)1.0, PL, WL, (T)0.0, W );
+        /** W += PR * WR */
+        gemm::xgemm( (T)1.0, PR, WR, (T)1.0, W );
+      }
     }
 
     /** the rank that holds the skeleton weight of the right child */
@@ -1049,7 +1148,7 @@ void DistUpdateWeights( MPINODE *node )
 /**
  *  @brief Notice that NODE here is MPITree::Node.
  */ 
-template<typename NODE>
+template<typename NODE, typename T>
 class DistUpdateWeightsTask : public hmlp::Task
 {
   public:
@@ -1077,7 +1176,7 @@ class DistUpdateWeightsTask : public hmlp::Task
       /** assume computation bound */
       cost = flops / 1E+9;
 
-      /** high priority */
+      /** "HIGH" priority */
       priority = true;
     };
 
@@ -1113,7 +1212,7 @@ class DistUpdateWeightsTask : public hmlp::Task
       //printf( "rank %d level %lu DistUpdateWeights\n", 
       //    global_rank, arg->l ); fflush( stdout );
 
-      hmlp::mpigofmm::DistUpdateWeights( arg );
+      mpigofmm::DistUpdateWeights<NODE, T>( arg );
 
       //printf( "rank %d level %lu DistUpdateWeights end\n", 
       //    global_rank, arg->l ); fflush( stdout );
@@ -1169,8 +1268,8 @@ class DistSkeletonsToSkeletonsTask : public hmlp::Task
       /** assume computation bound */
       cost = flops / 1E+9;
 
-      /** high priority */
-      priority = true;
+      /** "LOW" priority */
+      priority = false;
     };
 
 
@@ -1266,7 +1365,7 @@ void DistSkeletonsToNodes( NODE *node )
   if ( size < 2 )
   {
     /** call the shared-memory implementation */
-    hmlp::gofmm::SkeletonsToNodes<NNPRUNE, NODE, T>( node );
+    gofmm::SkeletonsToNodes<NNPRUNE, NODE, T>( node );
   }
   else
   {
@@ -1284,10 +1383,8 @@ void DistSkeletonsToNodes( NODE *node )
 		//		rank, global_rank, node->l ); fflush( stdout );
     if ( rank == 0 )
     {
-      auto &proj = data.proj;
-      auto &skels = data.skels;
-      auto &u_skel = data.u_skel;
-
+      auto    &proj = data.proj;
+      auto  &u_skel = data.u_skel;
       auto &u_lskel = child->data.u_skel;
       auto &u_rskel = child_sibling->data.u_skel;
    
@@ -1295,25 +1392,45 @@ void DistSkeletonsToNodes( NODE *node )
       size_t sr = proj.col() - sl;
 
       /** resize */
-      u_rskel.resize( sr, nrhs );
+      u_rskel.resize( sr, nrhs, 0.0 );
 
-      xgemm
-      (
-        "T", "N",
-        u_lskel.row(), u_lskel.col(), proj.row(),
-        1.0, proj.data(),    proj.row(),
-             u_skel.data(),  u_skel.row(),
-        1.0, u_lskel.data(), u_lskel.row()
-      );
+      if ( 0 )
+      {
+        xgemm
+        (
+          "T", "N",
+          u_lskel.row(), u_lskel.col(), proj.row(),
+          1.0, proj.data(),    proj.row(),
+               u_skel.data(),  u_skel.row(),
+          1.0, u_lskel.data(), u_lskel.row()
+        );
 
-      xgemm
-      (
-        "T", "N",
-        u_rskel.row(), u_rskel.col(), proj.row(),
-        1.0, proj.data() + proj.row() * sl, proj.row(),
-             u_skel.data(), u_skel.row(),
-        1.0, u_rskel.data(), u_rskel.row()
-      );
+        xgemm
+        (
+          "T", "N",
+          u_rskel.row(), u_rskel.col(), proj.row(),
+          1.0, proj.data() + proj.row() * sl, proj.row(),
+               u_skel.data(), u_skel.row(),
+          1.0, u_rskel.data(), u_rskel.row()
+        );
+      }
+      else
+      {
+        /** create a transpose view proj_v */
+        View<T> P(  true,   proj ), PL,
+                                    PR;
+        View<T> U( false, u_skel ), UL( false, u_lskel ),
+                                    UR( false, u_rskel );
+        /** P' = [ PL, PR ]' */
+        P.Partition2x1( PL,
+                        PR, sl, TOP );
+        T alpha = 1.0;
+        T beta  = 1.0;
+        /** UL += PL' * U */
+        gemm::xgemm( alpha, PL, U, beta, UL );
+        /** UR += PR' * U */
+        gemm::xgemm( alpha, PR, U, beta, UR );
+      }
 
       hmlp::mpi::SendVector( u_rskel, size / 2, 0, comm );
     }
@@ -1370,7 +1487,7 @@ class DistSkeletonsToNodesTask : public hmlp::Task
       /** asuume computation bound */
       cost = flops / 1E+9;
 
-      /** low priority */
+      /** "HIGH" priority */
       priority = true;
     };
 
@@ -1487,8 +1604,8 @@ class DistLeavesToLeavesTask : public hmlp::Task
       /** asuume computation bound */
       cost = flops / 1E+9;
 
-      /** low priority */
-      priority = true;
+      /** "LOW" priority */
+      priority = false;
     };
 
 
@@ -3446,7 +3563,6 @@ DistData<RIDS, STAR, T> Evaluate
   size_t n    = weights.row();
   size_t nrhs = weights.col();
 
-
   /** potentials must be in [RIDS,STAR] distribution */
   auto &gids_owned = tree.treelist[ 0 ]->gids;
   DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, comm );
@@ -3501,8 +3617,8 @@ DistData<RIDS, STAR, T> Evaluate
     tree.LocaTraverseLeafs( seqL2Ltask );
 
     /** N2S (Loca first, Dist follows) */
-    gofmm::UpdateWeightsTask<NODE> seqN2Stask;
-    mpigofmm::DistUpdateWeightsTask<MPINODE> mpiN2Stask;
+    gofmm::UpdateWeightsTask<NODE, T> seqN2Stask;
+    mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
     tree.LocaTraverseUp( seqN2Stask );
     tree.DistTraverseUp( mpiN2Stask );
 
@@ -3631,7 +3747,7 @@ template<
   typename    SPDMATRIX>
 mpitree::Tree<
   mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  gofmm::Data<T>,
+  mpigofmm::NodeData<T>,
   N_CHILDREN,
   T> 
 *Compress
@@ -3668,7 +3784,7 @@ mpitree::Tree<
 
   /** instantiation for the GOFMM tree */
   using SETUP       = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA        = gofmm::Data<T>;
+  using DATA        = mpigofmm::NodeData<T>;
   using NODE        = tree::Node<SETUP, N_CHILDREN, DATA, T>;
   using MPINODE     = mpitree::Node<SETUP, N_CHILDREN, DATA, T>;
   using LETNODE     = mpitree::LetNode<SETUP, N_CHILDREN, DATA, T>;

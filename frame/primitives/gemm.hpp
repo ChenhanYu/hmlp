@@ -202,7 +202,7 @@ void xgemm_var1(
              hmlp::View<T> &B, 
     T beta,  hmlp::View<T> &C )
 {
-  printf( "var1\n" ); fflush( stdout );
+  //printf( "var1\n" ); fflush( stdout );
 
   /** all subviews */
   hmlp::View<T> AL, AR, 
@@ -216,7 +216,7 @@ void xgemm_var1(
   B.Partition2x1( BT,
                   BB,     0, TOP  ); 
 
-  printf( "AL.col() %lu AR.col() %lu A.col() %lu\n", AL.col(), AR.col(), A.col() );
+  //printf( "AL.col() %lu AR.col() %lu A.col() %lu\n", AL.col(), AR.col(), A.col() );
 
   while ( AL.col() < A.col() )
   {
@@ -248,7 +248,7 @@ void xgemm_var1(
 
   } /** end while */
 
-  printf( "end var1\n" ); fflush( stdout );
+  //printf( "end var1\n" ); fflush( stdout );
 }; /** end xgemm_var1() */
 
 
@@ -261,7 +261,7 @@ void xgemm_var2(
              hmlp::View<T> &B, 
     T beta,  hmlp::View<T> &C )
 {
-  printf( "var2\n" ); fflush( stdout );
+  //printf( "var2\n" ); fflush( stdout );
 
   /** all subviews */
   hmlp::View<T> CL, CR, 
@@ -300,7 +300,7 @@ void xgemm_var2(
 
   } /** end while */
 
-  printf( "end var2\n" ); fflush( stdout );
+  //printf( "end var2\n" ); fflush( stdout );
 }; /** end xgemm_var2() */
 
 
@@ -313,7 +313,7 @@ void xgemm_var3(
              hmlp::View<T> &B, 
     T beta,  hmlp::View<T> &C )
 {
-  printf( "var3\n" ); fflush( stdout );
+  //printf( "var3\n" ); fflush( stdout );
 
   /** all subviews */
   hmlp::View<T> AT, A0, CT, C0, 
@@ -352,7 +352,7 @@ void xgemm_var3(
                           CB, /**/ C2,  TOP );
   }; /** end while */
 
-  printf( "end var3\n" ); fflush( stdout );
+  //printf( "end var3\n" ); fflush( stdout );
 }; /** end xgemm_var3() */
 
 

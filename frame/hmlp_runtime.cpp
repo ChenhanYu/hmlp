@@ -916,11 +916,18 @@ void* Scheduler::EntryPoint( void* arg )
 #endif
 
 	/** if there is a background task, tid = 1 is assigned to it */
-  if ( me->tid >= 1  && me->tid <= 6 )
+  if ( me->tid >= 0  && me->tid <= 3 )
 	{
 		auto *bgtask = scheduler->GetBackGroundTask();
 		if ( bgtask ) 
     {
+      /** update my termination time to infinite */
+      scheduler->ready_queue_lock[ me->tid ].Acquire();
+      {
+        scheduler->time_remaining[ me->tid ] = 999999.9;
+      }
+      scheduler->ready_queue_lock[ me->tid ].Release();
+
       //printf( "Enter background task\n" ); fflush( stdout );
       me->Execute( bgtask );
       //printf( "Exit  background task\n" ); fflush( stdout );

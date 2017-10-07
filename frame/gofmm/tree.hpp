@@ -135,6 +135,18 @@ class IndexPermuteTask : public hmlp::Task
       cost = 1.0;
     };
 
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      if ( !arg->isleaf )
+      {
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+      this->TryEnqueue();
+    };
+
+
     void Execute( Worker* user_worker )
     {
       auto &lids = arg->lids; 

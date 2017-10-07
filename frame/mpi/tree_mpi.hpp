@@ -366,9 +366,8 @@ class DistSplitTask : public hmlp::Task
       /** asuume computation bound */
       cost = 1.0;
 
-      /** low priority */
+      /** "HIGH" priority */
       priority = true;
-
 
 			//printf( "finish Set level %lu\n", arg->l );
     };
@@ -991,17 +990,26 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       //printf( "Finish bgtask\n" ); fflush( stdout );
 
 
+      /** */
+      DependencyCleanUp();
+
+      /** tree partitioning */
+      DistSplitTask<MPINODE> mpisplittask;
+      DistTraverseDown( mpisplittask );
+      tree::SplitTask<NODE> splittask;
+      LocaTraverseDown( splittask );
+      hmlp_run();
+
       for ( size_t t = 0; t < n_tree; t ++ )
       {
-        //** */
         DependencyCleanUp();
 
-        //** tree partitioning */
-        DistSplitTask<MPINODE> mpisplittask;
-        DistTraverseDown( mpisplittask );
-        tree::SplitTask<NODE> splittask;
-        LocaTraverseDown( splittask );
-        hmlp_run();
+        ////** tree partitioning */
+        //DistSplitTask<MPINODE> mpisplittask;
+        //DistTraverseDown( mpisplittask );
+        //tree::SplitTask<NODE> splittask;
+        //LocaTraverseDown( splittask );
+        //hmlp_run();
 
         /** queries computed in CIDS distribution  */
         DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
@@ -1013,9 +1021,13 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
          */
         this->setup.NN = &Q_cids;
 
-        DependencyCleanUp();
-        /** local neighbor search at leaf nodes */
+        /** neighbor search */
         LocaTraverseLeafs( dummy );
+        if ( t + 1 < n_tree )
+        {
+          DistTraverseDown( mpisplittask );
+          LocaTraverseDown( splittask );
+        }
         hmlp_run();
 
         if ( t == 0 )
@@ -1084,10 +1096,12 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 			auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
       bgtask->SetAsBackGround();
 
-			DistSplitTask<MPINODE> mpisplittask;
-      DistTraverseDown( mpisplittask );
-			tree::SplitTask<NODE> splittask;
-			LocaTraverseDown( splittask );
+			DistSplitTask<MPINODE> mpiSPLITtask;
+      DistTraverseDown( mpiSPLITtask );
+			tree::SplitTask<NODE> seqSPLITtask;
+			LocaTraverseDown( seqSPLITtask );
+      tree::IndexPermuteTask<NODE> seqINDXtask;
+			LocaTraverseUp( seqINDXtask );
 			hmlp_run();
 
       printf( "rank %d finish split\n", rank ); fflush( stdout );

@@ -50,6 +50,7 @@
 #include <hmlp_runtime.hpp>
 #include <primitives/lowrank.hpp>
 #include <primitives/combinatorics.hpp>
+#include <primitives/gemm.hpp>
 
 #include <containers/data.hpp>
 #include <gofmm/tree.hpp>
@@ -273,6 +274,10 @@ class Data : public hmlp::hfamily::Factor<T>
     /** permuted weights and potentials (buffer) */
     hmlp::Data<T> w_leaf;
     hmlp::Data<T> u_leaf[ 20 ];
+
+    /** hierarchical tree view of w<RIDS> and u<RIDS> */
+    View<T> w_view;
+    View<T> u_view;
 
     /** cached Kab */
     hmlp::Data<std::size_t> Nearbmap;
@@ -1961,7 +1966,6 @@ class SkeletonizeTask : public hmlp::Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-
       if ( !arg->isleaf )
       {
         arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
@@ -1974,10 +1978,7 @@ class SkeletonizeTask : public hmlp::Task
         //  arg->sibling->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
         //}
       }
-      else
-      {
-        this->Enqueue();
-      }
+      this->TryEnqueue();
     };
 
     void Execute( Worker* user_worker )
@@ -1997,7 +1998,7 @@ class SkeletonizeTask : public hmlp::Task
 /**
  *  @brief 
  */
-template<typename NODE>
+template<typename NODE, typename T>
 void UpdateWeights( NODE *node )
 {
 #ifdef DEBUG_SPDASKIT
@@ -2042,14 +2043,27 @@ void UpdateWeights( NODE *node )
         proj.row(), w_leaf.row(), w_skel.row() );
 #endif
 
-    xgemm
-    (
-      "N", "N",
-      w_skel.row(), w_skel.col(), w_leaf.row(),
-      1.0, proj.data(),   proj.row(),
-           w_leaf.data(), w_leaf.row(),
-      0.0, w_skel.data(), w_skel.row()
-    );
+    if ( w_leaf.size() )
+    {
+      /** w_leaf is allocated */
+      xgemm
+      (
+        "N", "N",
+        w_skel.row(), w_skel.col(), w_leaf.row(),
+        1.0, proj.data(),   proj.row(),
+             w_leaf.data(), w_leaf.row(),
+        0.0, w_skel.data(), w_skel.row()
+      );
+    }
+    else
+    {
+      /** w_leaf is not allocated, use w_view instead */
+
+      View<T> A( false, proj );
+      View<T> B = data.w_view;
+      View<T> C( false, w_skel );
+      gemm::xgemm( (T)1.0, A, B, (T)0.0, C );
+    }
 
     //double update_leaf_time = omp_get_wtime() - beg;
     //printf( "%lu, m %lu n %lu k %lu, total %.3E\n", 
@@ -2094,7 +2108,7 @@ void UpdateWeights( NODE *node )
 /**
  *
  */ 
-template<typename NODE>
+template<typename NODE, typename T>
 class UpdateWeightsTask : public hmlp::Task
 {
   public:
@@ -2242,7 +2256,7 @@ class UpdateWeightsTask : public hmlp::Task
       if ( device ) gpu::UpdateWeights( device, arg );
       else               UpdateWeights( arg );
 #else
-      UpdateWeights( arg );
+      UpdateWeights<NODE, T>( arg );
 #endif
     };
 
@@ -3909,7 +3923,7 @@ hmlp::Data<T> Evaluate
     using LEAFTOLEAFTASK3 = LeavesToLeavesTask<3, NNPRUNE, NODE, T>;
     using LEAFTOLEAFTASK4 = LeavesToLeavesTask<4, NNPRUNE, NODE, T>;
 
-    using NODETOSKELTASK  = UpdateWeightsTask<NODE>;
+    using NODETOSKELTASK  = UpdateWeightsTask<NODE, T>;
     using SKELTOSKELTASK  = SkeletonsToSkeletonsTask<NNPRUNE, NODE>;
     using SKELTONODETASK  = SkeletonsToNodesTask<NNPRUNE, NODE, T>;
 
@@ -4014,7 +4028,7 @@ hmlp::Data<T> Evaluate
   }
   else // TODO: implement unsymmetric prunning
   {
-    using NODETOSKELTASK = UpdateWeightsTask<NODE>;
+    using NODETOSKELTASK = UpdateWeightsTask<NODE, T>;
 
     NODETOSKELTASK nodetoskeltask;
 
