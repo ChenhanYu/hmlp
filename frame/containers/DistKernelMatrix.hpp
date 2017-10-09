@@ -279,11 +279,11 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 						    mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
 								if ( test_flag ) break;
 					      /** write to cache */
-                hmlp::Data<T> line( d, (size_t)1 );					
-                for ( size_t i = 0; i < d; i ++ ) 
-									line[ i ] = buffer[ ( pp - 1 ) % 2 ]( i, j );
-					      /** write to cache */
-                cache.Write( sendcids[ previous ][ j ], line ); 
+                //hmlp::Data<T> line( d, (size_t)1 );					
+                //for ( size_t i = 0; i < d; i ++ ) 
+								//	line[ i ] = buffer[ ( pp - 1 ) % 2 ]( i, j );
+					      ///** write to cache */
+                //cache.Write( sendcids[ previous ][ j ], line ); 
 							}
 						}
 						else
@@ -380,17 +380,17 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         }
 
 				/** try to read from cache (critical region) */
-				auto line = cache.Read( cid );
+				//auto line = cache.Read( cid );
 
-				if ( line.size() != d )
-				{
+				//if ( line.size() != d )
+				//{
           sendcids[ cid % size ].push_back( cid );    
           jmapcids[ cid % size ].push_back(   i );
-				}
-				else
-				{
-          KIJ[ i ] = (*this)( line, XJ );
-				}
+				//}
+				//else
+				//{
+        //  KIJ[ i ] = (*this)( line, XJ );
+				//}
 			}
 
 
@@ -549,9 +549,21 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         return RequestColumns( I, XJ );
       }
 
+			Data<T> itargets, jsources;
+			if ( &I == &J )
+			{
+        itargets = RequestSources( I );
+			  jsources = itargets;
+			}
+			else
+			{
+        itargets = RequestSources( I );
+        jsources = RequestSources( J );
+			}
+
 			/** request for coordinates */
-      hmlp::Data<T> itargets = RequestSources( I );
-      hmlp::Data<T> jsources = RequestSources( J );
+      //hmlp::Data<T> itargets = RequestSources( I );
+      //hmlp::Data<T> jsources = RequestSources( J );
 
       /** compute inner products */
       xgemm
@@ -840,6 +852,9 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     {
 			mpi::Comm comm = this->GetComm();
 			size_t n = this->col();
+
+			/** delete the previous redistribution */
+			if ( sources_cids ) delete sources_cids;
 
 			/** allocation */
 			sources_cids = new DistData<STAR, CIDS, T>( d, n, cids, comm );

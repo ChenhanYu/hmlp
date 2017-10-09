@@ -1038,7 +1038,12 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       DistTraverseDown( mpisplittask );
       tree::SplitTask<NODE> splittask;
       LocaTraverseDown( splittask );
+      //tree::IndexPermuteTask<NODE> seqINDXtask;
+			//LocaTraverseUp( seqINDXtask );
+      //DistIndexPermuteTask<MPINODE> mpiINDXtask;
+			//DistTraverseUp( mpiINDXtask );
       hmlp_run();
+	  	MPI_Barrier( comm );
 
       for ( size_t t = 0; t < n_tree; t ++ )
       {
@@ -1061,14 +1066,22 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
          */
         this->setup.NN = &Q_cids;
 
+				/**
+				 *  redistribute K to reduce communication
+				 */
+				this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+
         /** neighbor search */
         LocaTraverseLeafs( dummy );
         if ( t + 1 < n_tree )
         {
           DistTraverseDown( mpisplittask );
           LocaTraverseDown( splittask );
+			    //LocaTraverseUp( seqINDXtask );
+			    //DistTraverseUp( mpiINDXtask );
         }
         hmlp_run();
+				MPI_Barrier( comm );
 
         if ( t == 0 )
         {

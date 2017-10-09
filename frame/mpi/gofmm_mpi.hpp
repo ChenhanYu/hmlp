@@ -3921,45 +3921,45 @@ mpitree::Tree<
   //other_time += omp_get_wtime() - beg;
 
 
-  /** initialize metric ball tree using approximate center split */
-  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
-	auto &tree = *tree_ptr;
-
-	/** global configuration for the metric tree */
-  tree.setup.X_cblk = X_cblk;
-  tree.setup.K = &K;
-	tree.setup.metric = metric; 
-  tree.setup.splitter = splitter;
-  tree.setup.NN_cblk = &NN_cblk;
-  tree.setup.m = m;
-  tree.setup.k = k;
-  tree.setup.s = s;
-  tree.setup.stol = stol;
-
-
-  /** the following tasks require background tasks */
-  int num_background_worker = omp_get_max_threads() / 4 + 1;
-  if ( omp_get_max_threads() < 2 )
-  {
-    printf( "(ERROR!) Distributed GOFMM requires at least 'TWO' threads per MPI process\n" );
-    exit( 1 );
-  }
-  hmlp_set_num_background_worker( num_background_worker );
-  printf( "Use %d/%d threads as background workers\n", num_background_worker, omp_get_max_threads() );
-  fflush( stdout );
-
-	/** metric ball tree partitioning */
-  printf( "TreePartitioning ...\n" ); fflush( stdout );
-  mpi::Barrier( MPI_COMM_WORLD );
-  beg = omp_get_wtime();
-  tree.TreePartition( n );
-  mpi::Barrier( MPI_COMM_WORLD );
-  tree_time = omp_get_wtime() - beg;
-  printf( "end TreePartitioning ...\n" ); fflush( stdout );
-  mpi::Barrier( MPI_COMM_WORLD );
-
-  /** now redistribute K */
-  K.Redistribute( tree.treelist[ 0 ]->gids );
+//  /** initialize metric ball tree using approximate center split */
+//  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
+//	auto &tree = *tree_ptr;
+//
+//	/** global configuration for the metric tree */
+//  tree.setup.X_cblk = X_cblk;
+//  tree.setup.K = &K;
+//	tree.setup.metric = metric; 
+//  tree.setup.splitter = splitter;
+//  tree.setup.NN_cblk = &NN_cblk;
+//  tree.setup.m = m;
+//  tree.setup.k = k;
+//  tree.setup.s = s;
+//  tree.setup.stol = stol;
+//
+//
+//  /** the following tasks require background tasks */
+//  int num_background_worker = omp_get_max_threads() / 4 + 1;
+//  if ( omp_get_max_threads() < 2 )
+//  {
+//    printf( "(ERROR!) Distributed GOFMM requires at least 'TWO' threads per MPI process\n" );
+//    exit( 1 );
+//  }
+//  hmlp_set_num_background_worker( num_background_worker );
+//  printf( "Use %d/%d threads as background workers\n", num_background_worker, omp_get_max_threads() );
+//  fflush( stdout );
+//
+//	/** metric ball tree partitioning */
+//  printf( "TreePartitioning ...\n" ); fflush( stdout );
+//  mpi::Barrier( MPI_COMM_WORLD );
+//  beg = omp_get_wtime();
+//  tree.TreePartition( n );
+//  mpi::Barrier( MPI_COMM_WORLD );
+//  tree_time = omp_get_wtime() - beg;
+//  printf( "end TreePartitioning ...\n" ); fflush( stdout );
+//  mpi::Barrier( MPI_COMM_WORLD );
+//
+//  /** now redistribute K */
+//  K.Redistribute( tree.treelist[ 0 ]->gids );
 
 
 
@@ -4008,33 +4008,43 @@ mpitree::Tree<
 
 
 
-//  /** initialize metric ball tree using approximate center split */
-//  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
-//	auto &tree = *tree_ptr;
-//
-//	/** global configuration for the metric tree */
-//  tree.setup.X_cblk = X_cblk;
-//  tree.setup.K = &K;
-//	tree.setup.metric = metric; 
-//  tree.setup.splitter = splitter;
-//  tree.setup.NN_cblk = &NN_cblk;
-//  tree.setup.m = m;
-//  tree.setup.k = k;
-//  tree.setup.s = s;
-//  tree.setup.stol = stol;
-//
-//	/** metric ball tree partitioning */
-//  printf( "TreePartitioning ...\n" ); fflush( stdout );
-//  mpi::Barrier( MPI_COMM_WORLD );
-//  beg = omp_get_wtime();
-//  tree.TreePartition( n );
-//  mpi::Barrier( MPI_COMM_WORLD );
-//  tree_time = omp_get_wtime() - beg;
-//  printf( "end TreePartitioning ...\n" ); fflush( stdout );
-//  mpi::Barrier( MPI_COMM_WORLD );
+  /** initialize metric ball tree using approximate center split */
+  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
+	auto &tree = *tree_ptr;
 
-//  /** now redistribute K */
-//  K.Redistribute( tree.treelist[ 0 ]->gids );
+	/** global configuration for the metric tree */
+  tree.setup.X_cblk = X_cblk;
+  tree.setup.K = &K;
+	tree.setup.metric = metric; 
+  tree.setup.splitter = splitter;
+  tree.setup.NN_cblk = &NN_cblk;
+  tree.setup.m = m;
+  tree.setup.k = k;
+  tree.setup.s = s;
+  tree.setup.stol = stol;
+
+	/** metric ball tree partitioning */
+  printf( "TreePartitioning ...\n" ); fflush( stdout );
+  mpi::Barrier( MPI_COMM_WORLD );
+  beg = omp_get_wtime();
+  tree.TreePartition( n );
+  mpi::Barrier( MPI_COMM_WORLD );
+  tree_time = omp_get_wtime() - beg;
+  printf( "end TreePartitioning ...\n" ); fflush( stdout );
+  mpi::Barrier( MPI_COMM_WORLD );
+
+  /** now redistribute K */
+  K.Redistribute( tree.treelist[ 0 ]->gids );
+
+
+
+
+
+
+
+
+
+
 
   /** now redistribute NN according to gids */
   DistData<STAR, CIDS, std::pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
