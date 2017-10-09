@@ -86,6 +86,15 @@ typedef int MPI_Op;
 #error "what is happening here?"
 #endif
 
+
+/** -lmemkind */
+#ifdef HMLP_MIC_AVX512
+#include <hbwmalloc.h>
+#include <hbw_allocator.h>
+#endif // ifdef HMLP}_MIC_AVX512
+
+
+
 //#include <hmlp_runtime.hpp>
 
 
@@ -417,9 +426,18 @@ int Alltoallv(
  *  @brief This is a short hand for sending a vector, which
  *         involves two MPI_Send() calls.
  */
-template<typename T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
 int SendVector( 
-    std::vector<T> &bufvector, int dest, int tag, Comm comm )
+    std::vector<T, Allocator> &bufvector, int dest, int tag, Comm comm )
 {
   Datatype datatype = GetMPIDatatype<T>();
   size_t count = bufvector.size();
@@ -440,9 +458,18 @@ int SendVector(
  *  @brief This is a short hand for receving a vector, which
  *         involves two MPI_Recv() calls.
  */
-template<typename T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
 int RecvVector(
-    std::vector<T> &bufvector, int source, int tag, Comm comm, Status *status )
+    std::vector<T, Allocator> &bufvector, int source, int tag, Comm comm, Status *status )
 {
   Datatype datatype = GetMPIDatatype<T>();
   size_t count = 0;
@@ -462,10 +489,19 @@ int RecvVector(
 
 
 
-template<typename T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
 int ExchangeVector(
-    std::vector<T> &sendvector,   int dest, int sendtag,
-    std::vector<T> &recvvector, int source, int recvtag,
+    std::vector<T, Allocator> &sendvector,   int dest, int sendtag,
+    std::vector<T, Allocator> &recvvector, int source, int recvtag,
     Comm comm, Status *status )
 {
   Datatype datatype = GetMPIDatatype<T>();
@@ -488,10 +524,20 @@ int ExchangeVector(
 }; /** end ExchangeVector() */
 
 
-template<typename T>
+
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
 int AlltoallVector(
-    std::vector<std::vector<T>> &sendvector, 
-    std::vector<std::vector<T>> &recvvector, Comm comm )
+    std::vector<std::vector<T, Allocator>> &sendvector, 
+    std::vector<std::vector<T, Allocator>> &recvvector, Comm comm )
 {
   int size = 0;
   int rank = 0;

@@ -258,13 +258,22 @@ bool equal_second
 /**
  *  @biref Merge a single neighbor list B into A using auxulary space.
  */ 
-template<typename T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
 void MergeNeighbors
 ( 
   size_t k,
   std::pair<T, size_t> *A, 
   std::pair<T, size_t> *B,
-  std::vector<std::pair<T, size_t>> &aux
+  std::vector<std::pair<T, size_t>, Allocator> &aux
 )
 {
   if ( aux.size() != 2 * k ) aux.resize( 2 * k );
@@ -283,12 +292,21 @@ void MergeNeighbors
 /**
  *  @biref Merge neighbor lists B into A.
  */ 
-template<typename T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
 void MergeNeighbors
 ( 
   size_t k, size_t n,
-  std::vector<std::pair<T, size_t>> &A, 
-  std::vector<std::pair<T, size_t>> &B
+  std::vector<std::pair<T, size_t>, Allocator> &A, 
+  std::vector<std::pair<T, size_t>, Allocator> &B
 )
 {
   assert( A.size() >= n * k && B.size() >= n * k );

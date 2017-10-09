@@ -597,7 +597,8 @@ std::vector<T> AllToCentroid
   {
     case KERNEL_DISTANCE:
     {
-      I2C = DII;
+      for ( size_t i = 0; i < DII.size(); i ++ )
+        I2C[ i ] = DII[ i ];
 
       if ( KIC.row() == DII.size() && KIC.col() == DCC.size() )
       {

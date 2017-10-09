@@ -5,7 +5,6 @@
 #include <mpi/hmlp_mpi.hpp>
 
 
-
 namespace hmlp
 {
 
@@ -51,8 +50,8 @@ int AlltoallData(
 
 
 
-  std::vector<T> sendbuf;
-  std::vector<T> recvbuf;
+  std::vector<T, ALLOCATOR> sendbuf;
+  std::vector<T, ALLOCATOR> recvbuf;
   std::vector<int> sendcounts( size, 0 );
   std::vector<int> recvcounts( size, 0 );
   std::vector<int> sdispls( size + 1, 0 );
@@ -141,8 +140,17 @@ typedef enum
 } Distribution_t;
 
 
-template<typename T>
-class DistDataBase : public Data<T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
+class DistDataBase : public Data<T, Allocator>
 {
 
   public:
@@ -215,8 +223,17 @@ class DistDataBase : public Data<T>
 
 
 /** */
-template<Distribution_t ROWDIST, Distribution_t COLDIST, typename T>
-class DistData : public DistDataBase<T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<Distribution_t ROWDIST, Distribution_t COLDIST, class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<Distribution_t ROWDIST, Distribution_t COLDIST, class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<Distribution_t ROWDIST, Distribution_t COLDIST, class T, class Allocator = std::allocator<T> >
+#endif
+class DistData : public DistDataBase<T, Allocator>
 {
   public:
 
@@ -225,10 +242,25 @@ class DistData : public DistDataBase<T>
 };
 
 
+
+
 template<typename T>
 class DistData<CIRC, CIRC, T> : public DistDataBase<T>
 {
   public:
+
+
+    #ifdef HMLP_MIC_AVX512
+    /** use hbw::allocator for Intel Xeon Phi */
+    using ALLOCATOR = hbw::allocator<T>;
+    #elif  HMLP_USE_CUDA
+    /** use pinned (page-lock) memory for NVIDIA GPUs */
+    using ALLOCATOR = thrust::system::cuda::experimental::pinned_allocator<T>;
+    #else
+    /** use default stl allocator */
+    using ALLOCATOR = std::allocator<T>;
+    #endif
+
 
     DistData( size_t m, size_t n, int owner, mpi::Comm comm ) :
       DistDataBase<T>( m, n, comm )
@@ -254,8 +286,8 @@ class DistData<CIRC, CIRC, T> : public DistDataBase<T>
       mpi::AlltoallVector( sendids, recvids, comm );
       
       /** allocate buffer for data */
-      std::vector<std::vector<T>> senddata( size );
-      std::vector<std::vector<T>> recvdata( size );
+      std::vector<std::vector<T, ALLOCATOR>> senddata( size );
+      std::vector<std::vector<T, ALLOCATOR>> recvdata( size );
 
       std::vector<size_t> amap( this->row() );
       for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
@@ -300,6 +332,18 @@ template<typename T>
 class DistData<STAR, CBLK, T> : public DistDataBase<T>
 {
   public:
+
+    #ifdef HMLP_MIC_AVX512
+    /** use hbw::allocator for Intel Xeon Phi */
+    using ALLOCATOR = hbw::allocator<T>;
+    #elif  HMLP_USE_CUDA
+    /** use pinned (page-lock) memory for NVIDIA GPUs */
+    using ALLOCATOR = thrust::system::cuda::experimental::pinned_allocator<T>;
+    #else
+    /** use default stl allocator */
+    using ALLOCATOR = std::allocator<T>;
+    #endif
+
 
     DistData( size_t m, size_t n, mpi::Comm comm ) 
       : DistDataBase<T>( m, n, comm ) 
@@ -462,8 +506,8 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       mpi::AlltoallVector( sendids, recvids, comm );
       
       /** allocate buffer for data */
-      std::vector<std::vector<T>> senddata( size );
-      std::vector<std::vector<T>> recvdata( size );
+      std::vector<std::vector<T, ALLOCATOR>> senddata( size );
+      std::vector<std::vector<T, ALLOCATOR>> recvdata( size );
 
       std::vector<size_t> amap( this->row() );
       for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
@@ -523,6 +567,19 @@ template<typename T>
 class DistData<RBLK, STAR, T> : public DistDataBase<T>
 {
   public:
+
+    #ifdef HMLP_MIC_AVX512
+    /** use hbw::allocator for Intel Xeon Phi */
+    using ALLOCATOR = hbw::allocator<T>;
+    #elif  HMLP_USE_CUDA
+    /** use pinned (page-lock) memory for NVIDIA GPUs */
+    using ALLOCATOR = thrust::system::cuda::experimental::pinned_allocator<T>;
+    #else
+    /** use default stl allocator */
+    using ALLOCATOR = std::allocator<T>;
+    #endif
+
+
 
     DistData( size_t m, size_t n, mpi::Comm comm ) : 
       DistDataBase<T>( m, n, comm ) 
@@ -593,8 +650,8 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
       mpi::AlltoallVector( sendids, recvids, comm );
       
       /** allocate buffer for data */
-      std::vector<std::vector<T>> senddata( size );
-      std::vector<std::vector<T>> recvdata( size );
+      std::vector<std::vector<T, ALLOCATOR>> senddata( size );
+      std::vector<std::vector<T, ALLOCATOR>> recvdata( size );
 
       std::vector<size_t> bmap( this->col() );
       for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
@@ -647,6 +704,16 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
 {
   public:
 
+    #ifdef HMLP_MIC_AVX512
+    /** use hbw::allocator for Intel Xeon Phi */
+    using ALLOCATOR = hbw::allocator<T>;
+    #elif  HMLP_USE_CUDA
+    /** use pinned (page-lock) memory for NVIDIA GPUs */
+    using ALLOCATOR = thrust::system::cuda::experimental::pinned_allocator<T>;
+    #else
+    /** use default stl allocator */
+    using ALLOCATOR = std::allocator<T>;
+    #endif
 
     /** default constructor */
     DistData( size_t m, size_t n, std::vector<size_t> &cids, mpi::Comm comm ) : 
@@ -790,8 +857,8 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
 
 
       /** allocate buffer for data */
-      std::vector<std::vector<T>> senddata( size );
-      std::vector<std::vector<T>> recvdata( size );
+      std::vector<std::vector<T, ALLOCATOR>> senddata( size );
+      std::vector<std::vector<T, ALLOCATOR>> recvdata( size );
 
       std::vector<size_t> amap( this->row() );
       for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
@@ -850,6 +917,18 @@ template<typename T>
 class DistData<RIDS, STAR, T> : public DistDataBase<T>
 {
   public:
+
+    #ifdef HMLP_MIC_AVX512
+    /** use hbw::allocator for Intel Xeon Phi */
+    using ALLOCATOR = hbw::allocator<T>;
+    #elif  HMLP_USE_CUDA
+    /** use pinned (page-lock) memory for NVIDIA GPUs */
+    using ALLOCATOR = thrust::system::cuda::experimental::pinned_allocator<T>;
+    #else
+    /** use default stl allocator */
+    using ALLOCATOR = std::allocator<T>;
+    #endif
+
 
     /** default constructor */
     DistData( size_t m, size_t n, std::vector<size_t> &rids, mpi::Comm comm ) : 
@@ -977,8 +1056,8 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
       //mpi::Barrier( comm );
 
 
-      std::vector<std::vector<T>> senddata( size );
-      std::vector<std::vector<T>> recvdata( size );
+      std::vector<std::vector<T, ALLOCATOR>> senddata( size );
+      std::vector<std::vector<T, ALLOCATOR>> recvdata( size );
 
       std::vector<size_t> bmap( this->col() );
       for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
@@ -1037,7 +1116,6 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
 
 
 
-
 template<typename T>
 class DistData<STAR, STAR, T> : public DistDataBase<T>
 {
@@ -1045,7 +1123,7 @@ class DistData<STAR, STAR, T> : public DistDataBase<T>
 
   private:
 
-};
+}; /** end class DistData<STAR, STAR, T> */
 
 
 

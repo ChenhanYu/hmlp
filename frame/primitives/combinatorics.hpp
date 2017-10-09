@@ -12,8 +12,17 @@ namespace hmlp
 namespace combinatorics
 {
 
-template<typename T>
-std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X, std::vector<size_t> &gids )
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
+std::vector<T> Sum( size_t d, size_t n, std::vector<T, Allocator> &X, std::vector<size_t> &gids )
 {
   bool do_general_stride = ( gids.size() == n );
 
@@ -46,8 +55,17 @@ std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X, std::vector<size_t> &
 
 
 /** TODO */
-template<typename T>
-std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X,
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
+std::vector<T> Sum( size_t d, size_t n, std::vector<T, Allocator> &X,
     hmlp::mpi::Comm comm )
 {
   size_t num_points_owned = X.size() / d;
@@ -72,8 +90,17 @@ std::vector<T> Sum( size_t d, size_t n, std::vector<T> &X,
 
 
 
-template<typename T>
-std::vector<T> Mean( size_t d, size_t n, std::vector<T> &X, std::vector<size_t> &gids )
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
+std::vector<T> Mean( size_t d, size_t n, std::vector<T, Allocator> &X, std::vector<size_t> &gids )
 {
   /** sum over n points in d dimensions */
   auto mean = Sum( d, n, X, gids );

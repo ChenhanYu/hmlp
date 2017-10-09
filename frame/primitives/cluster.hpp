@@ -90,7 +90,16 @@ class VirtualNormalizedGraph
 
 
 
-template<typename T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
 class Cluster
 {
   public:
@@ -138,8 +147,8 @@ class Cluster
     /** compute the centroids of X( :, amap ) based on the assignment */
     std::vector<size_t> Centroids( 
         std::vector<int> &amap, 
-        std::vector<T> &centroids, 
-        std::vector<T> &centroid_sqnorms )
+        std::vector<T, Allocator> &centroids, 
+        std::vector<T, Allocator> &centroid_sqnorms )
     {
       std::vector<size_t> cluster_sizes( ncluster, 0 );
     
