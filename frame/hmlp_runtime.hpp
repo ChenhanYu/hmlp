@@ -469,6 +469,8 @@ class RunTime
 
     int n_nested_worker = 1;
 
+    int n_background_worker = 1;
+
     thread_communicator *mycomm;
 
     Worker workers[ MAX_WORKER ];
@@ -495,5 +497,6 @@ hmlp::Device *hmlp_get_device( int i );
 
 bool hmlp_is_in_epoch_session();
 
+void hmlp_set_num_background_worker( int n_background_worker );
 
 #endif // define HMLP_RUNTIME_HPP

@@ -81,7 +81,7 @@ class xgemmTask : public hmlp::Task
       A.DependencyAnalysis( hmlp::ReadWriteType::R,  this );
       B.DependencyAnalysis( hmlp::ReadWriteType::R,  this );
       C.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-      TryEnqueue();
+      this->TryEnqueue();
     };
 
     void Execute( Worker* user_worker )
@@ -96,14 +96,27 @@ class xgemmTask : public hmlp::Task
       size_t n = C.col();
       size_t k = A.col();
 
+      assert( A.row() == m );
+      assert( B.row() == k );
+      assert( B.col() == n );
+
+      //int rand_id = rand();
+
+      //printf( "%d GEMM task %s %s %lu %lu %lu, %E, %E\n", 
+      //    rand_id, transA.data(), transB.data(), m, n, k, alpha, beta ); fflush( stdout );
+      //printf( "%d lda %lu ldb %lu ldc %lu\n", rand_id, A.ld(), B.ld(), C.ld() ); fflush( stdout );
+
       xgemm
       ( 
         transA.data(), transB.data(),
         m, n, k,
         alpha, A.data(), A.ld(),
-        B.data(), B.ld(),
+               B.data(), B.ld(),
         beta,  C.data(), C.ld()
       );
+
+      //printf( "%d end GEMM task %s %s %lu %lu %lu, %E, %E\n", 
+      //    rand_id, transA.data(), transB.data(), m, n, k, alpha, beta ); fflush( stdout );
     };
 
 }; /** end class xgemmTask */
@@ -369,15 +382,52 @@ void xgemm(
   A.CreateLeafMatrixBlocks( NB, NB );
   B.CreateLeafMatrixBlocks( NB, NB );
   C.CreateLeafMatrixBlocks( NB, NB );
-  xgemm_var3( alpha, A, B, beta, C );
+
   /** call back */
   if ( hmlp_is_in_epoch_session() )
   {
-    auto *xgemmBarriertask = new xgemmBarrierTask<T>();
-    xgemmBarriertask->Set( alpha, A, B, beta, C );
-    xgemmBarriertask->Submit();
-    xgemmBarriertask->DependencyAnalysis();
-    xgemmBarriertask->CallBackWhileWaiting();
+    auto *begXGEMMtask = new xgemmBarrierTask<T>();
+    auto *endXGEMMtask = new xgemmBarrierTask<T>();
+    /** 
+     *  The reason why we need the begin barrier
+     *  task is to ensure the whole DAG will be
+     *  inserted at once. Otherwise, the dependent
+     *  task may not be created while the traversal
+     *  has already reached by other workers.
+     *
+     *  The solution is to create a beginning barrier
+     *  such that all the following tasks depend on it.
+     *  Only enqueue the beginning barrier while all
+     *  dependent tasks have been created.
+     */
+    begXGEMMtask->Set( alpha, A, B, beta, C );
+    begXGEMMtask->Submit();
+    begXGEMMtask->DependencyAnalysis();
+
+    /**
+     *  Now we create all dependent tasks. Since they
+     *  all dependent on begXGEMMtask. They all have
+     *  STATUS=NOTREADY. Thus, no one will be enqueued.
+     */ 
+    xgemm_var3( alpha, A, B, beta, C );
+
+    /**
+     *  Create a termination barrier such that it depends
+     *  on all tasks.
+     */ 
+    endXGEMMtask->Set( alpha, A, B, beta, C );
+    endXGEMMtask->Submit();
+    endXGEMMtask->DependencyAnalysis();
+
+    /**
+     *  Now enqueue begXGEMMtask and callback with endXGEMMtask
+     */
+    begXGEMMtask->TryEnqueue();
+    endXGEMMtask->CallBackWhileWaiting();
+  }
+  else
+  {
+    xgemm_var3( alpha, A, B, beta, C );
   }
 
 }; /** xgemm() */

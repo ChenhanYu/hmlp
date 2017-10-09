@@ -2188,22 +2188,45 @@ void UpdateWeights( NODE *node )
     auto &w_rskel = rchild->data.w_skel;
     auto &lskel = lchild->data.skels;
     auto &rskel = rchild->data.skels;
-    xgemm
-    (
-      "N", "N",
-      w_skel.row(), w_skel.col(), lskel.size(),
-      1.0,    proj.data(),    proj.row(),
-           w_lskel.data(), w_lskel.row(),
-      0.0,  w_skel.data(),  w_skel.row()
-    );
-    xgemm
-    (
-      "N", "N",
-      w_skel.row(), w_skel.col(), rskel.size(),
-      1.0,    proj.data() + proj.row() * lskel.size(), proj.row(),
-           w_rskel.data(), w_rskel.row(),
-      1.0,  w_skel.data(),  w_skel.row()
-    );
+
+    if ( node->treelist_id > 6 )
+    {
+      xgemm
+      (
+        "N", "N",
+        w_skel.row(), w_skel.col(), lskel.size(),
+        1.0,    proj.data(),    proj.row(),
+             w_lskel.data(), w_lskel.row(),
+        0.0,  w_skel.data(),  w_skel.row()
+      );
+      xgemm
+      (
+        "N", "N",
+        w_skel.row(), w_skel.col(), rskel.size(),
+        1.0,    proj.data() + proj.row() * lskel.size(), proj.row(),
+             w_rskel.data(), w_rskel.row(),
+        1.0,  w_skel.data(),  w_skel.row()
+      );
+    }
+    else
+    {
+      /** create a view proj_v */
+      View<T> P( false,   proj ), PL,
+                                  PR;
+      View<T> W( false, w_skel ), WL( false, w_lskel ),
+                                  WR( false, w_rskel );
+      /** P = [ PL, PR ] */
+      P.Partition1x2( PL, PR, lskel.size(), LEFT );
+
+      /** W  = PL * WL */
+      gemm::xgemm<256>( (T)1.0, PL, WL, (T)0.0, W );
+      W.DependencyCleanUp();
+
+      /** W += PR * WR */
+      gemm::xgemm<256>( (T)1.0, PR, WR, (T)1.0, W );
+      //W.DependencyCleanUp();
+    }
+
     //double update_leaf_time = omp_get_wtime() - beg;
     //printf( "%lu, total %.3E\n", 
     //  node->treelist_id, update_leaf_time );
@@ -2381,7 +2404,7 @@ class UpdateWeightsTask : public hmlp::Task
  *         there is a SkeletonstoAll function to be called.
  *
  */ 
-template<bool NNPRUNE, typename NODE>
+template<bool NNPRUNE, typename NODE, typename T>
 void SkeletonsToSkeletons( NODE *node )
 {
 #ifdef DEBUG_SPDASKIT
@@ -2411,6 +2434,10 @@ void SkeletonsToSkeletons( NODE *node )
 
   size_t offset = 0;
 
+
+  /** create a base view for FarKab */
+  View<T> FarKab_v( FarKab );
+
   /** reduce all u_skel */
   for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
   {
@@ -2420,16 +2447,30 @@ void SkeletonsToSkeletons( NODE *node )
 
     if ( FarKab.size() ) /** Kab is cached */
     {
-      xgemm
-      (
-        "N", "N",
-        u_skel.row(), u_skel.col(), w_skel.row(),
-        1.0, FarKab.data() + offset, FarKab.row(),
-             w_skel.data(),          w_skel.row(),
-        1.0, u_skel.data(),          u_skel.row()
-      );
+      if ( node->treelist_id > 6 )
+      {
+        xgemm
+        (
+          "N", "N",
+          u_skel.row(), u_skel.col(), w_skel.row(),
+          1.0, FarKab.data() + u_skel.row() * offset, FarKab.row(),
+               w_skel.data(),          w_skel.row(),
+          1.0, u_skel.data(),          u_skel.row()
+        );
+      }
+      else
+      {
+        /** create views */
+        View<T> U( false, u_skel );
+        View<T> W( false, w_skel );
+        View<T> Kab;
+        assert( FarKab.col() >= W.row() + offset );
+        Kab.Set( FarKab.row(), W.row(), 0, offset, &FarKab_v );
+        gemm::xgemm<256>( (T)1.0, Kab, W, (T)1.0, U );
+      }
+
       /** move to the next submatrix Kab */
-      offset += u_skel.row() * w_skel.row();
+      offset += w_skel.row();
     }
     else
     {
@@ -2472,7 +2513,7 @@ void SkeletonsToSkeletons( NODE *node )
  *  @TODO  The flops and mops of constructing Kab.
  *
  */ 
-template<bool NNPRUNE, typename NODE>
+template<bool NNPRUNE, typename NODE, typename T>
 class SkeletonsToSkeletonsTask : public hmlp::Task
 {
   public:
@@ -2566,7 +2607,7 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      SkeletonsToSkeletons<NNPRUNE, NODE>( arg );
+      SkeletonsToSkeletons<NNPRUNE, NODE, T>( arg );
     };
 }; // end class SkeletonsToSkeletonsTask
 
@@ -2650,22 +2691,41 @@ void SkeletonsToNodes( NODE *node )
     auto &u_rskel = rchild->data.u_skel;
     auto &lskel = lchild->data.skels;
     auto &rskel = rchild->data.skels;
-    xgemm
-    (
-      "T", "N",
-      u_lskel.row(), u_lskel.col(), proj.row(),
-      1.0, proj.data(),    proj.row(),
-           u_skel.data(),  u_skel.row(),
-      1.0, u_lskel.data(), u_lskel.row()
-    );
-    xgemm
-    (
-      "T", "N",
-      u_rskel.row(), u_rskel.col(), proj.row(),
-      1.0, proj.data() + proj.row() * lskel.size(), proj.row(),
-           u_skel.data(), u_skel.row(),
-      1.0, u_rskel.data(), u_rskel.row()
-    );
+
+    if ( node->treelist_id > 6 )
+    {
+      xgemm
+      (
+        "Transpose", "No transpose",
+        u_lskel.row(), u_lskel.col(), proj.row(),
+        1.0, proj.data(),    proj.row(),
+             u_skel.data(),  u_skel.row(),
+        1.0, u_lskel.data(), u_lskel.row()
+      );
+      xgemm
+      (
+        "Transpose", "No transpose",
+        u_rskel.row(), u_rskel.col(), proj.row(),
+        1.0, proj.data() + proj.row() * lskel.size(), proj.row(),
+             u_skel.data(), u_skel.row(),
+        1.0, u_rskel.data(), u_rskel.row()
+      );
+    }
+    else
+    {
+      /** create a transpose view proj_v */
+      View<T> P(  true,   proj ), PL,
+                                  PR;
+      View<T> U( false, u_skel ), UL( false, u_lskel ),
+                                  UR( false, u_rskel );
+      /** P' = [ PL, PR ]' */
+      P.Partition2x1( PL,
+                      PR, lskel.size(), TOP );
+      /** UL += PL' * U */
+      gemm::xgemm<256>( (T)1.0, PL, U, (T)1.0, UL );
+      /** UR += PR' * U */
+      gemm::xgemm<256>( (T)1.0, PR, U, (T)1.0, UR );
+    }
   }
   //printf( "\n" );
 
@@ -4083,7 +4143,7 @@ hmlp::Data<T> Evaluate
     using LEAFTOLEAFTASK4 = LeavesToLeavesTask<4, NNPRUNE, NODE, T>;
 
     using NODETOSKELTASK  = UpdateWeightsTask<NODE, T>;
-    using SKELTOSKELTASK  = SkeletonsToSkeletonsTask<NNPRUNE, NODE>;
+    using SKELTOSKELTASK  = SkeletonsToSkeletonsTask<NNPRUNE, NODE, T>;
     using SKELTONODETASK  = SkeletonsToNodesTask<NNPRUNE, NODE, T>;
 
     LEAFTOLEAFTASK1 leaftoleaftask1;

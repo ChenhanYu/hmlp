@@ -18,7 +18,7 @@
  *
  **/  
 
-
+#include <assert.h>
 #include <hmlp_runtime.hpp>
 
 #ifdef HMLP_USE_CUDA
@@ -397,7 +397,9 @@ void Task::DependenciesUpdate()
 
       if ( !child->n_dependencies_remaining && child->status == NOTREADY )
       {
-        child->Enqueue( worker->tid );
+        /** nested tasks may not carry the worker pointer */
+        if ( worker ) child->Enqueue( worker->tid );
+        else          child->Enqueue();
       }
     }
     child->task_lock.Release();
@@ -762,6 +764,13 @@ void Scheduler::Finalize()
   }
   tasklist.clear();
 
+  /** reset nested_tasklist */
+  for ( auto it = nested_tasklist.begin(); it != nested_tasklist.end(); it ++ )
+  {
+    delete *it; 
+  }
+  nested_tasklist.clear();
+
 }; /** end Scheduler::Finalize() */
 
 void Scheduler::ReportRemainingTime()
@@ -916,7 +925,7 @@ void* Scheduler::EntryPoint( void* arg )
 #endif
 
 	/** if there is a background task, tid = 1 is assigned to it */
-  if ( me->tid >= 0  && me->tid <= 3 )
+  if ( me->tid < rt.n_background_worker )
 	{
 		auto *bgtask = scheduler->GetBackGroundTask();
 		if ( bgtask ) 
@@ -1141,6 +1150,12 @@ void* Scheduler::EntryPoint( void* arg )
     {
 			/** set the termination flag to true */
 		  scheduler->do_terminate = true;
+
+      if ( scheduler->nested_queue.size() != 0 )
+      {
+        printf( "bug nested_queue.size() %lu\n", scheduler->nested_queue.size() ); fflush( stdout );
+      }
+
       /** sanity check: no task should left */
       if ( scheduler->ready_queue[ me->tid ].size() == 0 )
       {
@@ -1326,6 +1341,19 @@ void RunTime::ExecuteNestedTasksWhileWaiting( Task *waiting_task )
   {
     while ( waiting_task->GetStatus() != DONE )
     {
+      /** first try to consume tasks in the nested queue */
+      if ( this->scheduler->nested_queue.size() )
+      {
+        /** try to get a nested task; (can be a NULL pointer) */
+        Task *nested_task = this->scheduler->TryDispatchFromNestedQueue();
+
+        if ( nested_task )
+        {
+          nested_task->SetStatus( RUNNING );
+          nested_task->Execute( NULL );
+          nested_task->DependenciesUpdate();
+        }
+      }
     }
   }
 };
@@ -1391,4 +1419,14 @@ hmlp::Device *hmlp_get_device( int i )
 bool hmlp_is_in_epoch_session()
 {
   return hmlp::rt.IsInEpochSession();
+};
+
+void hmlp_set_num_background_worker( int n_background_worker )
+{
+  if ( n_background_worker <= 0 )
+  {
+    printf( "(WARNING!) no background worker left\n" ); fflush( stdout );
+    n_background_worker = 0;
+  }
+  hmlp::rt.n_background_worker = n_background_worker;
 };

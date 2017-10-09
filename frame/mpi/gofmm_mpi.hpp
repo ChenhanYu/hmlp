@@ -1193,9 +1193,11 @@ void DistUpdateWeights( MPINODE *node )
         /** P = [ PL, PR ] */
         P.Partition1x2( PL, PR, sl, LEFT );
         /** W  = PL * WL */
-        gemm::xgemm( (T)1.0, PL, WL, (T)0.0, W );
+        gemm::xgemm<256>( (T)1.0, PL, WL, (T)0.0, W );
+        W.DependencyCleanUp();
         /** W += PR * WR */
-        gemm::xgemm( (T)1.0, PR, WR, (T)1.0, W );
+        gemm::xgemm<256>( (T)1.0, PR, WR, (T)1.0, W );
+        //W.DependencyCleanUp();
       }
     }
 
@@ -1206,7 +1208,7 @@ void DistUpdateWeights( MPINODE *node )
       auto &w_rskel = child->data.w_skel;
       /** send child->w_skel to 0 */
       //hmlp::mpi::SendVector( w_rskel, 0, 0, comm );    
-      hmlp::mpi::ExchangeVector(
+      mpi::ExchangeVector(
             w_rskel, 0, 0, 
             w_lskel, 0, 0, comm, &status );
       /** resize l_rskel to properly set m and n */
@@ -1305,7 +1307,7 @@ class DistUpdateWeightsTask : public hmlp::Task
 /**
  *
  */ 
-template<bool NNPRUNE, typename NODE>
+template<bool NNPRUNE, typename NODE, typename T>
 class DistSkeletonsToSkeletonsTask : public hmlp::Task
 {
   public:
@@ -1396,14 +1398,14 @@ class DistSkeletonsToSkeletonsTask : public hmlp::Task
 
       if ( size < 2 )
       {
-        hmlp::gofmm::SkeletonsToSkeletons<NNPRUNE>( node );
+        hmlp::gofmm::SkeletonsToSkeletons<NNPRUNE, NODE, T>( node );
       }
       else
       {
         /** only 0th rank (owner) will execute this task */
         if ( rank == 0 )
         {
-          hmlp::gofmm::SkeletonsToSkeletons<NNPRUNE>( node );
+          hmlp::gofmm::SkeletonsToSkeletons<NNPRUNE, NODE, T>( node );
         }
       }
     };
@@ -1502,12 +1504,10 @@ void DistSkeletonsToNodes( NODE *node )
         /** P' = [ PL, PR ]' */
         P.Partition2x1( PL,
                         PR, sl, TOP );
-        T alpha = 1.0;
-        T beta  = 1.0;
         /** UL += PL' * U */
-        gemm::xgemm( alpha, PL, U, beta, UL );
+        gemm::xgemm<256>( (T)1.0, PL, U, (T)1.0, UL );
         /** UR += PR' * U */
-        gemm::xgemm( alpha, PR, U, beta, UR );
+        gemm::xgemm<256>( (T)1.0, PR, U, (T)1.0, UR );
       }
 
       hmlp::mpi::SendVector( u_rskel, size / 2, 0, comm );
@@ -3731,8 +3731,8 @@ DistData<RIDS, STAR, T> Evaluate
 
 
     /** S2S */
-    gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE> seqS2Stask;
-    mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE> mpiS2Stask;
+    gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T> seqS2Stask;
+    mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
     tree.LocaTraverseUnOrdered( seqS2Stask );
     tree.DistTraverseUnOrdered( mpiS2Stask );
 
@@ -3743,6 +3743,7 @@ DistData<RIDS, STAR, T> Evaluate
     tree.LocaTraverseDown( seqS2Ntask );
 
     /** epoch */
+    hmlp_set_num_background_worker( 0 );
     hmlp_run();
 
     /** reduce direct iteractions from 4 copies */
@@ -3934,6 +3935,18 @@ mpitree::Tree<
   tree.setup.k = k;
   tree.setup.s = s;
   tree.setup.stol = stol;
+
+
+  /** the following tasks require background tasks */
+  int num_background_worker = omp_get_max_threads() / 4 + 1;
+  if ( omp_get_max_threads() < 2 )
+  {
+    printf( "(ERROR!) Distributed GOFMM requires at least 'TWO' threads per MPI process\n" );
+    exit( 1 );
+  }
+  hmlp_set_num_background_worker( num_background_worker );
+  printf( "Use %d/%d threads as background workers\n", num_background_worker, omp_get_max_threads() );
+  fflush( stdout );
 
 	/** metric ball tree partitioning */
   printf( "TreePartitioning ...\n" ); fflush( stdout );
