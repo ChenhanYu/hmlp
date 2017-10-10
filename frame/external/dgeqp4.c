@@ -42,6 +42,8 @@ WITHOUT ANY WARRANTY EXPRESSED OR IMPLIED.
 
 */
 
+#include <omp.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -356,6 +358,11 @@ int dgeqp4_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
   double  d_zero = 0.0;
   double  d_one  = 1.0;
 
+
+  double down_t = 0.0, unb_t = 0.0, lhfc_t = 0.0;
+
+
+
   // Executable Statements.
   //// printf( "%% dgeqp4_HQRRP_WY_blk_var4.\n" );
 
@@ -405,14 +412,24 @@ int dgeqp4_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
   buff_G  = ( double * ) malloc( m_G * n_G * sizeof( double ) );
   ldim_G  = m_G;
 
+  double beg = omp_get_wtime();
   // Initialize matrices G and Y.
   dgeqp4_Normal_random_matrix( nb_alg + pp, m_A, buff_G, ldim_G );
+  double rand_t = omp_get_wtime() - beg;
   //// FLA_Gemm( FLA_NO_TRANSPOSE, FLA_NO_TRANSPOSE, 
   ////           FLA_ONE, G, A, FLA_ZERO, Y );
+
+
+  beg = omp_get_wtime();
   dgemm_( "No tranpose", "No transpose", & m_Y, & n_Y, & m_A, 
           & d_one, buff_G, & ldim_G, buff_A, & ldim_A, 
           & d_zero, buff_Y, & ldim_Y );
+  double gemm_proj_t = omp_get_wtime() - beg;
 
+  //printf( "rand_t %lf gemm_proj_t %lf\n", rand_t, gemm_proj_t ); fflush( stdout );
+
+  
+  
   // Main Loop.
   for( j = 0; j < mn_A; j += nb_alg ) {
     b = min( nb_alg, min( n_A - j, m_A - j ) );
@@ -522,11 +539,13 @@ int dgeqp4_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
     //// FLA_QRPmod_WY_unb_var4( panel_pivoting, -1, AB1, p1, s1, 
     ////                         1, A01, 1, Y1, 1, T1_T );
 
+    beg = omp_get_wtime();
     dgeqp4_QRPmod_WY_unb_var4( panel_pivoting, -1,
         m_AB1, n_AB1, buff_AB1, ldim_A, buff_p1, buff_s1,
         1, j, buff_A01, ldim_A,
         1, m_Y, buff_Y1, ldim_Y,
         1, buff_T1_T, ldim_W );
+    unb_t += omp_get_wtime() - beg;
 
     //
     // Update the rest of the matrix.
@@ -539,10 +558,12 @@ int dgeqp4_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
       // where QB1 is formed from AB1 and T1_T.
       //// MyFLA_Apply_Q_WY_lhfc_blk_var4( A11, A21, T1_T, A12, A22 );
 
+      beg = omp_get_wtime();
       dgeqp4_Apply_Q_WY_lhfc_blk_var4( 
           m_A11 + m_A21, n_A11, buff_A11, ldim_A,
           b, b, buff_T1_T, ldim_W,
           m_A12 + m_A22, n_A12, buff_A12, ldim_A );
+      lhfc_t += omp_get_wtime() - beg;
     }
 
     //
@@ -550,6 +571,9 @@ int dgeqp4_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
     //
     if ( ! last_iter ) {
       //// MyFLA_Downdate_Y( A11, A21, A12, T1_T, Y2, G1, G2 );
+
+
+      beg = omp_get_wtime();
 
       dgeqp4_Downdate_Y(
           m_A11, n_A11, buff_A11, ldim_A,
@@ -559,8 +583,15 @@ int dgeqp4_HQRRP_WY_blk_var4( int m_A, int n_A, double * buff_A, int ldim_A,
           m_Y, max( 0, n_Y - j - b ), buff_Y2, ldim_Y,
           m_G, b, buff_G1, ldim_G,
           m_G, max( 0, n_G - j - b ), buff_G2, ldim_G );
+
+      down_t += omp_get_wtime() - beg;
+
     }
   }
+
+
+  //printf( "down_t %lf, unb_t %lf, lhfc %lf\n", down_t, unb_t, lhfc_t ); fflush( stdout );
+
 
   // Remove auxiliary objects.
   //// FLA_Obj_free( & G );

@@ -2300,6 +2300,7 @@ class SimpleNearFarNodesTask : public hmlp::Task
     void Execute( Worker* user_worker )
     {
 			auto *node = arg;
+
 			if ( node->isleaf )
 			{
 				/** add myself to the list. */
@@ -2308,14 +2309,20 @@ class SimpleNearFarNodesTask : public hmlp::Task
 				node->NearNodeMortonIDs.insert( node->morton );
 				node->NNNearNodeMortonIDs.insert( node->morton );
 			}
-			else
+
+      if ( node->parent )
 			{
-				auto *lchild = node->lchild;
-				auto *rchild = node->rchild;
-				lchild->FarNodes.insert( rchild );
-				lchild->NNFarNodes.insert( rchild );
-				rchild->FarNodes.insert( lchild );
-				rchild->NNFarNodes.insert( lchild );
+        if ( node->parent->lchild == arg ) 
+        {
+          arg->FarNodes.insert( node->parent->rchild );
+          arg->NNFarNodes.insert( node->parent->rchild );
+        }
+        else
+        {
+          assert( node->parent->rchild == arg );
+          arg->FarNodes.insert( node->parent->lchild );
+          arg->NNFarNodes.insert( node->parent->lchild );
+        }
 			}
 		};
 
@@ -2386,15 +2393,15 @@ class DistSimpleNearFarNodesTask : public hmlp::Task
 			  	node->NearNodeMortonIDs.insert( node->morton );
 			  	node->NNNearNodeMortonIDs.insert( node->morton );
 			  }
-			  else
-			  {
-				  auto *lchild = node->lchild;
-				  auto *rchild = node->rchild;
-			  	lchild->FarNodes.insert( rchild );
-			  	lchild->NNFarNodes.insert( rchild );
-			  	rchild->FarNodes.insert( lchild );
-			  	rchild->NNFarNodes.insert( lchild );
-			  }
+			  //else
+			  //{
+				//  auto *lchild = node->lchild;
+				//  auto *rchild = node->rchild;
+			  //	lchild->FarNodes.insert( rchild );
+			  //	lchild->NNFarNodes.insert( rchild );
+			  //	rchild->FarNodes.insert( lchild );
+			  //	rchild->NNFarNodes.insert( lchild );
+			  //}
 			}
 			else
 			{
@@ -3329,7 +3336,6 @@ void DistSkeletonize( NODE *node )
   size_t n = KIJ.col();
   size_t q = node->n;
 
-
   if ( LEVELRESTRICTION )
   {
     /** TODO: need to check of both children's isskel to preceed */
@@ -3517,12 +3523,16 @@ class DistSkeletonizeTask : public hmlp::Task
       int global_rank = 0;
       hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
 
+      double beg = omp_get_wtime();
       if ( arg->GetCommRank() == 0 )
       {
         //printf( "%d Par-Skel beg\n", global_rank );
         DistSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
         //printf( "%d Par-Skel end\n", global_rank );
       }
+      double skel_t = omp_get_wtime() - beg;
+      printf( "rank %d, skeletonize (%4lu, %4lu) %lfs\n", 
+          global_rank, arg->data.KIJ.row(), arg->data.KIJ.col(), skel_t );
 
 			/** Bcast isskel to every MPI processes in the same comm */
 			int isskel = arg->data.isskel;
@@ -3567,9 +3577,6 @@ class DistSkeletonizeTask : public hmlp::Task
           for ( size_t i = 0; i < X_circ.size(); i ++ ) pnids.insert( X_circ[ i ] );
         }
       }
-
-
-
 
     };
 
@@ -3824,15 +3831,15 @@ DistData<RIDS, STAR, T> Evaluate
     printf( "========================================================\n");
     printf( "GOFMM evaluation phase\n" );
     printf( "========================================================\n");
-    printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
-        allocate_time, allocate_time * time_ratio );
-    printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
-        forward_permute_time, forward_permute_time * time_ratio );
-    printf( "N2S, S2S, S2N, L2L -------------------- %5.2lfs (%5.1lf%%)\n", 
-        computeall_time, computeall_time * time_ratio );
-    printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
-        backward_permute_time, backward_permute_time * time_ratio );
-    printf( "========================================================\n");
+    //printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+    //    allocate_time, allocate_time * time_ratio );
+    //printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
+    //    forward_permute_time, forward_permute_time * time_ratio );
+    //printf( "N2S, S2S, S2N, L2L -------------------- %5.2lfs (%5.1lf%%)\n", 
+    //    computeall_time, computeall_time * time_ratio );
+    //printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
+    //    backward_permute_time, backward_permute_time * time_ratio );
+    //printf( "========================================================\n");
     printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
         evaluation_time, evaluation_time * time_ratio );
     printf( "========================================================\n\n");
@@ -3933,7 +3940,7 @@ mpitree::Tree<
 
 
   /** the following tasks require background tasks */
-  int num_background_worker = omp_get_max_threads() / 5 + 1;
+  int num_background_worker = omp_get_max_threads() / 4 + 1;
   if ( omp_get_max_threads() < 2 )
   {
     printf( "(ERROR!) Distributed GOFMM requires at least 'TWO' threads per MPI process\n" );
@@ -4052,6 +4059,9 @@ mpitree::Tree<
   /** clean up all dependencies for skeletonization */
   tree.DependencyCleanUp();
 
+  //hmlp_set_num_workers( 10 );
+
+
   /** gather sample rows and skeleton columns, then ID */
   mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
   mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
@@ -4089,6 +4099,63 @@ mpitree::Tree<
   skel_time = omp_get_wtime() - beg;
 
 
+  //hmlp_set_num_workers( 20 );
+
+
+
+//  mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
+//  mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
+//  tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+//
+//  gofmm::InterpolateTask<NODE, T> seqPROJtask;
+//  tree.LocaTraverseUnOrdered( seqPROJtask );
+//
+//	/** create interaction lists */
+//	SimpleNearFarNodesTask<NODE> seqNEARFARtask;
+//	tree.LocaTraverseDown( seqNEARFARtask );
+//
+//	/** cache near KIJ interactions */
+//  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+//	tree.LocaTraverseLeafs( seqNEARKIJtask );
+//
+//	/** cache  far KIJ interactions */
+//  mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
+//  tree.LocaTraverseUnOrdered( seqFARKIJtask );
+//
+//  /** */
+//  hmlp_run();
+//  mpi::Barrier( MPI_COMM_WORLD );
+//
+//  /** clean up dep */
+//  tree.DependencyCleanUp();
+//  hmlp_set_num_background_worker( 1 );
+//  hmlp_set_num_workers( 2 );
+//
+//  mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
+//  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
+//  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+//
+//  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
+//  tree.DistTraverseUnOrdered( mpiPROJtask );
+//
+//	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
+//  tree.DistTraverseDown( mpiNEARFARtask );
+//
+//  mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
+//  tree.DistTraverseUnOrdered( mpiFARKIJtask );
+//
+//  other_time += omp_get_wtime() - beg;
+//  hmlp_run();
+//  mpi::Barrier( MPI_COMM_WORLD );
+//  hmlp_set_num_workers( omp_get_max_threads() );
+//  skel_time = omp_get_wtime() - beg;
+
+
+
+
+
+
+
 
 
 
@@ -4110,8 +4177,8 @@ mpitree::Tree<
     printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
     printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
     printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
-    printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
-    printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
+    //printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
+    //printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
     printf( "========================================================\n");
     printf( "Compress (%4.2lf not compressed) -------- %5.2lfs (%5.1lf%%)\n", 
         exact_ratio, compress_time, compress_time * time_ratio );

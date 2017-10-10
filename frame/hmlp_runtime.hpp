@@ -35,6 +35,10 @@
 #include <cstddef>
 #include <omp.h>
 
+#ifdef USE_INTEL
+#include <mkl.h>
+#endif
+
 #ifdef USE_PTHREAD_RUNTIME
 #include <pthread.h>
 #endif

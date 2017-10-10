@@ -70,7 +70,7 @@
 #define MAX_NRHS 1024
 
 /** the block size we use for partitioning GEMM tasks */
-#define GEMM_NB 128
+#define GEMM_NB 256
 
 
 //#define DEBUG_SPDASKIT 1

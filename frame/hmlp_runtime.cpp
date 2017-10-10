@@ -22,6 +22,10 @@
 #include <hmlp_runtime.hpp>
 #include <hmlp_mpi.hpp>
 
+//#ifdef USE_INTEL
+//#include <mkl.h>
+//#endif
+
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>
 #endif
@@ -695,6 +699,11 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
     omp_set_dynamic( 0 );
     omp_set_nested( 1 );
     omp_set_max_active_levels( 2 );
+#ifdef USE_INTEL
+    mkl_set_dynamic( 0 );
+    //mkl_set_num_threads( omp_get_max_threads() - n_worker );
+    mkl_set_num_threads( user_n_nested_worker );
+#endif
   }
 
   //printf( "mkl_get_max_threads %d\n", mkl_get_max_threads() );
@@ -717,6 +726,10 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
     omp_set_nested( 0 );
     omp_set_max_active_levels( 1 );
     omp_set_num_threads( omp_get_max_threads() );
+#ifdef USE_INTEL
+    mkl_set_dynamic( 1 );
+    mkl_set_num_threads( omp_get_max_threads() );
+#endif
   }
 #endif
 };
@@ -1407,6 +1420,8 @@ void hmlp_set_num_workers( int n_worker )
     hmlp::rt.n_nested_worker = hmlp::rt.n_max_worker / n_worker;
     hmlp::rt.n_worker = n_worker;
   }
+  printf( "%2d/%2d (n_worker/n_nested_worker)\n",
+      hmlp::rt.n_worker, hmlp::rt.n_nested_worker ); fflush( stdout );
 };
 
 void hmlp_run()
