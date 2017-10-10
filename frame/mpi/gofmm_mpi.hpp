@@ -29,6 +29,7 @@
 #include <primitives/gemm.hpp>
 
 
+
 using namespace hmlp;
 
 using namespace hmlp::gofmm;
@@ -782,6 +783,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     mpi::Bcast( &gidf2c, 1, 0, comm );
     mpi::Bcast( &gidf2f, 1, 0, comm );
 
+	  double beg = omp_get_wtime();
 
     /** collecting DII */
     Data<T> DII = K.Diagonal( gids );
@@ -789,15 +791,35 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     /** collecting KIP and KIQ */
     std::vector<size_t> P( 1, gidf2c );
     std::vector<size_t> Q( 1, gidf2f );
-    auto KIP = K( gids, P );
-    auto KIQ = K( gids, Q );
+		std::vector<size_t> PQ( 2 ); PQ[ 0 ] = gidf2c; PQ[ 1 ] = gidf2f;
+		auto KIPQ = K( gids, PQ );
+    //auto KIP = K( gids, P );
+    //auto KIQ = K( gids, Q );
+		
+		Data<T> KIP( gids.size(), (size_t) 1 );
+		Data<T> KIQ( gids.size(), (size_t) 1 );
+
+    for ( size_t i = 0; i < gids.size(); i ++ )
+		{
+			KIP[ i ] = KIPQ( i, (size_t)0 );
+			KIQ[ i ] = KIPQ( i, (size_t)1 );
+		}
 
     /** get diagonal entry kpp and kqq */
     auto kpp = K.Diagonal( P );
     auto kqq = K.Diagonal( Q );
 
+
+		double kij_t = omp_get_wtime() - beg;
+		//printf( "Dist evaluate %lfs\bn", kij_t );
+
+
+
+	  beg = omp_get_wtime();
     /** compute all2leftright (projection i.e. dip - diq) */
     temp = gofmm::AllToLeftRight( this->metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
+		double a2lr_t = omp_get_wtime() - beg;
+		//printf( "Dist all2leftright %lfs\bn", a2lr_t );
 
 
 
@@ -812,7 +834,11 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 
 
     /** parallel median select */
+	  beg = omp_get_wtime();
+    /** compute all2leftright (projection i.e. dip - diq) */
     T  median = hmlp::combinatorics::Select( n / 2, temp, comm );
+		double select_t = omp_get_wtime() - beg;
+		//printf( "Dist selec %lfs\bn", select_t );
 
     //printf( "rank %d median %E\n", rank, median ); fflush( stdout );
 
@@ -1193,10 +1219,10 @@ void DistUpdateWeights( MPINODE *node )
         /** P = [ PL, PR ] */
         P.Partition1x2( PL, PR, sl, LEFT );
         /** W  = PL * WL */
-        gemm::xgemm<256>( (T)1.0, PL, WL, (T)0.0, W );
+        gemm::xgemm<GEMM_NB>( (T)1.0, PL, WL, (T)0.0, W );
         W.DependencyCleanUp();
         /** W += PR * WR */
-        gemm::xgemm<256>( (T)1.0, PR, WR, (T)1.0, W );
+        gemm::xgemm<GEMM_NB>( (T)1.0, PR, WR, (T)1.0, W );
         //W.DependencyCleanUp();
       }
     }
@@ -1505,9 +1531,9 @@ void DistSkeletonsToNodes( NODE *node )
         P.Partition2x1( PL,
                         PR, sl, TOP );
         /** UL += PL' * U */
-        gemm::xgemm<256>( (T)1.0, PL, U, (T)1.0, UL );
+        gemm::xgemm<GEMM_NB>( (T)1.0, PL, U, (T)1.0, UL );
         /** UR += PR' * U */
-        gemm::xgemm<256>( (T)1.0, PR, U, (T)1.0, UR );
+        gemm::xgemm<GEMM_NB>( (T)1.0, PR, U, (T)1.0, UR );
       }
 
       hmlp::mpi::SendVector( u_rskel, size / 2, 0, comm );
@@ -3673,10 +3699,6 @@ DistData<RIDS, STAR, T> Evaluate
   tree.setup.u = &potentials;
 
   /** permute weights into w_leaf */
-  if ( REPORT_EVALUATE_STATUS )
-  {
-    printf( "Forward permute ...\n" ); fflush( stdout );
-  }
   beg = omp_get_wtime();
   //int n_nodes = ( 1 << tree.depth );
   //auto level_beg = tree.treelist.begin() + n_nodes - 1;
@@ -3702,7 +3724,7 @@ DistData<RIDS, STAR, T> Evaluate
 
 
   /** Compute all N2S, S2S, S2N, L2L */
-  if ( REPORT_EVALUATE_STATUS )
+  if ( rank == 0 && REPORT_EVALUATE_STATUS )
   {
     //hmlp::mpi::Barrier( MPI_COMM_WORLD );
     printf( "N2S, S2S, S2N, L2L (HMLP Runtime) ...\n" ); fflush( stdout );
@@ -3909,57 +3931,21 @@ mpitree::Tree<
   double ann_time, tree_time, skel_time, mergefarnodes_time, cachefarnodes_time;
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
 
-  /** original order of the matrix */
-  //beg = omp_get_wtime();
-  //std::vector<std::size_t> gids( n ), lids( n );
-  //#pragma omp parallel for
-  //for ( auto i = 0; i < n; i ++ ) 
-  //{
-  //  gids[ i ] = i;
-  //  lids[ i ] = i;
-  //}
-  //other_time += omp_get_wtime() - beg;
 
+  /** the following tasks require background tasks */
+  int num_background_worker = omp_get_max_threads() / 5 + 1;
+  if ( omp_get_max_threads() < 2 )
+  {
+    printf( "(ERROR!) Distributed GOFMM requires at least 'TWO' threads per MPI process\n" );
+    exit( 1 );
+  }
+  hmlp_set_num_background_worker( num_background_worker );
 
-//  /** initialize metric ball tree using approximate center split */
-//  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
-//	auto &tree = *tree_ptr;
-//
-//	/** global configuration for the metric tree */
-//  tree.setup.X_cblk = X_cblk;
-//  tree.setup.K = &K;
-//	tree.setup.metric = metric; 
-//  tree.setup.splitter = splitter;
-//  tree.setup.NN_cblk = &NN_cblk;
-//  tree.setup.m = m;
-//  tree.setup.k = k;
-//  tree.setup.s = s;
-//  tree.setup.stol = stol;
-//
-//
-//  /** the following tasks require background tasks */
-//  int num_background_worker = omp_get_max_threads() / 4 + 1;
-//  if ( omp_get_max_threads() < 2 )
-//  {
-//    printf( "(ERROR!) Distributed GOFMM requires at least 'TWO' threads per MPI process\n" );
-//    exit( 1 );
-//  }
-//  hmlp_set_num_background_worker( num_background_worker );
-//  printf( "Use %d/%d threads as background workers\n", num_background_worker, omp_get_max_threads() );
-//  fflush( stdout );
-//
-//	/** metric ball tree partitioning */
-//  printf( "TreePartitioning ...\n" ); fflush( stdout );
-//  mpi::Barrier( MPI_COMM_WORLD );
-//  beg = omp_get_wtime();
-//  tree.TreePartition( n );
-//  mpi::Barrier( MPI_COMM_WORLD );
-//  tree_time = omp_get_wtime() - beg;
-//  printf( "end TreePartitioning ...\n" ); fflush( stdout );
-//  mpi::Barrier( MPI_COMM_WORLD );
-//
-//  /** now redistribute K */
-//  K.Redistribute( tree.treelist[ 0 ]->gids );
+	if ( rank == 0 )
+	{
+    printf( "Use %d/%d threads as background workers ...\n", 
+				num_background_worker, omp_get_max_threads() ); fflush( stdout );
+	}
 
 
 
@@ -3976,17 +3962,22 @@ mpitree::Tree<
   rkdt.setup.splitter = rkdtsplitter;
   std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
 
-  printf( "NeighborSearch ...\n" ); fflush( stdout );
+  if ( rank == 0 ) 
+	{
+		printf( "NeighborSearch ...\n" ); fflush( stdout );
+	}
   beg = omp_get_wtime();
   if ( NN_cblk.row() != k )
   {
-    //gofmm::KNNTask<3, RKDTNODE, T> knntask;
     NeighborsTask<RKDTNODE, T> knntask;
     NN_cblk = rkdt.AllNearestNeighbor<SORTED>( n_iter, n, k, 15, initNN, knntask );
   }
   else
   {
-    printf( "not performed (precomputed or k=0) ...\n" ); fflush( stdout );
+		if ( rank == 0 )
+		{
+      printf( "not performed (precomputed or k=0) ...\n" ); fflush( stdout );
+		}
   }
   ann_time = omp_get_wtime() - beg;
 
@@ -4024,25 +4015,23 @@ mpitree::Tree<
   tree.setup.stol = stol;
 
 	/** metric ball tree partitioning */
-  printf( "TreePartitioning ...\n" ); fflush( stdout );
+	if ( rank == 0  )
+	{
+    printf( "TreePartitioning ...\n" ); fflush( stdout );
+	}
   mpi::Barrier( MPI_COMM_WORLD );
   beg = omp_get_wtime();
   tree.TreePartition( n );
   mpi::Barrier( MPI_COMM_WORLD );
   tree_time = omp_get_wtime() - beg;
-  printf( "end TreePartitioning ...\n" ); fflush( stdout );
+	if ( rank == 0 )
+	{
+    printf( "end TreePartitioning ...\n" ); fflush( stdout );
+	}
   mpi::Barrier( MPI_COMM_WORLD );
 
   /** now redistribute K */
   K.Redistribute( tree.treelist[ 0 ]->gids );
-
-
-
-
-
-
-
-
 
 
 
@@ -4052,9 +4041,11 @@ mpitree::Tree<
   tree.setup.NN = &NN;
 
 
-
   /** skeletonization */
-  printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
+	if ( rank == 0 )
+	{
+    printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
+	}
   mpi::Barrier( MPI_COMM_WORLD );
   beg = omp_get_wtime();
 

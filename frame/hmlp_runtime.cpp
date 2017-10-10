@@ -20,6 +20,7 @@
 
 #include <assert.h>
 #include <hmlp_runtime.hpp>
+#include <hmlp_mpi.hpp>
 
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>
@@ -1206,7 +1207,19 @@ void Scheduler::Summary()
     total_flops += tasklist[ i ]->event.GetFlops();
     total_mops  += tasklist[ i ]->event.GetMops();
   }
+
+
+#ifdef HMLP_USE_MPI
+	/** in the MPI environment, reduce all flops and mops */
+	int rank = 0;
+	double global_flops = 0.0, global_mops = 0.0;
+	mpi::Comm_rank( MPI_COMM_WORLD, &rank );
+	mpi::Reduce( &total_flops, &global_flops, 1, MPI_SUM, 0, MPI_COMM_WORLD );
+	mpi::Reduce( &total_mops,  &global_mops,  1, MPI_SUM, 0, MPI_COMM_WORLD );
+	if ( rank == 0 ) printf( "Epoch summary: flops %E mops %E\n", global_flops, global_mops );
+#else
   printf( "Epoch summary: flops %E mops %E\n", total_flops, total_mops );
+#endif
 
 
 #ifdef DUMP_ANALYSIS_DATA

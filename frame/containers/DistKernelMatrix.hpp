@@ -279,11 +279,11 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 						    mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
 								if ( test_flag ) break;
 					      /** write to cache */
-                //hmlp::Data<T> line( d, (size_t)1 );					
-                //for ( size_t i = 0; i < d; i ++ ) 
-								//	line[ i ] = buffer[ ( pp - 1 ) % 2 ]( i, j );
-					      ///** write to cache */
-                //cache.Write( sendcids[ previous ][ j ], line ); 
+                hmlp::Data<T> line( d, (size_t)1 );					
+                for ( size_t i = 0; i < d; i ++ ) 
+									line[ i ] = buffer[ ( pp - 1 ) % 2 ]( i, j );
+					      /** write to cache */
+                cache.Write( sendcids[ previous ][ j ], line ); 
 							}
 						}
 						else
@@ -339,7 +339,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 			int rank = this->Comm_rank();
 
       /** assertion */
-      assert( XJ.row() == d && XJ.col() == 1 );
+      assert( XJ.row() == d );
 
 			/** return value */
       hmlp::Data<T> KIJ( I.size(), XJ.col() );
@@ -364,7 +364,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         if ( cid % size == rank )
         {
 					auto XI = (*sources)( all_dimensions, cid_query );
-          KIJ[ i ] = (*this)( XI, XJ );
+					for ( size_t j = 0; j < KIJ.col(); j ++ )
+            KIJ( i, j ) = (*this)( XI.data(), XJ.columndata( j ) );
           continue;
         }
 
@@ -374,7 +375,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           if ( sources_cids->HasColumn( cid ) )
           {
 					  auto XI = (*sources_cids)( all_dimensions, cid_query );
-            KIJ[ i ] = (*this)( XI, XJ );
+					  for ( size_t j = 0; j < KIJ.col(); j ++ )
+              KIJ( i, j ) = (*this)( XI.data(), XJ.columndata( j ) );
             continue;
           }
         }
@@ -389,7 +391,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 				//}
 				//else
 				//{
-        //  KIJ[ i ] = (*this)( line, XJ );
+				//	for ( size_t j = 0; j < KIJ.col(); j ++ )
+        //    KIJ( i, j ) = (*this)( line.data(), XJ.columndata( j ) );
 				//}
 			}
 
@@ -410,15 +413,20 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 			  /** issue a request to notify rank p */
 				mpi::Send(   Jp.data(),   Jp.size(), p, tag, this->GetRecvComm() );
         /** send rank p XJ for K( XI, XJ ) */
-				mpi::Send(   XJ.data(),   XJ.size(), p, tag, this->GetRecvComm() );
+				//mpi::Send(   XJ.data(),   XJ.size(), p, tag, this->GetRecvComm() );
+			  mpi::SendVector( XJ, p, tag, this->GetRecvComm() );
+
+
+
         /** wait to recv K( XI, XJ ) */
 				mpi::Status status;
-        Data<T> KIJp( Jp.size(), (size_t)1 );
+        Data<T> KIJp( Jp.size(), XJ.col() );
 				mpi::Recv( KIJp.data(), KIJp.size(), p, tag, this->GetSendComm(), &status );
 
         for ( size_t i = 0; i < jmapcids[ p ].size(); i ++ )
         {
-          KIJ[ jmapcids[ p ][ i ] ] = KIJp[ i ];
+					for ( size_t j = 0; j < KIJ.col(); j ++ )
+            KIJ( jmapcids[ p ][ i ], j ) = KIJp( i, j );
         }
       }
 
@@ -430,11 +438,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 
 
-    T operator () ( hmlp::Data<T> &itargets, hmlp::Data<T> &jsources )
+    T operator () ( T *itargets, T *jsources )
     {
-      assert( itargets.row() == d && itargets.col() == 1 );
-      assert( jsources.row() == d && jsources.col() == 1 );
-
       /** return value */
       T Kij = 0.0;
 
@@ -508,7 +513,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 //      }
 //      return Kij;
 
-      return (*this)( itargets, jsources );
+      return (*this)( itargets.data(), jsources.data() );
 
     }; /** end operator () */
 
@@ -543,7 +548,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 			if ( !I.size() || !J.size() ) return KIJ;
 
       /** request form column values directly */
-      if ( J.size() == 1 )
+      if ( J.size() <= 3 )
       {
         auto XJ = RequestSources( J );
         return RequestColumns( I, XJ );
@@ -753,8 +758,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       /** reserve space for I and J */
       I.reserve( buff_size );
 
+      /** recving XJ for evaluating KIJ */
+      hmlp::Data<T> XJ;
+			XJ.reserve( d, (size_t)8192 );
 
-      hmlp::Data<T> XJ( d, (size_t)1 );
 
 
       //printf( "Enter DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
@@ -795,8 +802,11 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
               if ( recv_tag >= 1024 )
               {
-                mpi::Recv( XJ.data(), d, recv_src, recv_tag, 
-                  this->GetRecvComm(), &status );
+                /** recv XJ that contains multiple coordinates */
+							  mpi::RecvVector( XJ, recv_src, recv_tag, this->GetRecvComm(), &status );
+                XJ.resize( d, XJ.size() / d );
+                //mpi::Recv( XJ.data(), d, recv_src, recv_tag, this->GetRecvComm(), &status );
+
               }
             }
             else probe_flag = 0;
@@ -807,13 +817,14 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         {
           if ( recv_tag >= 1024 )
           {
-            Data<T> KIJ( I.size(), (size_t)1 );
+            Data<T> KIJ( I.size(), XJ.col() );
               
             for ( size_t i = 0; i < I.size(); i ++ )
             {
               std::vector<size_t> query( 1, I[ i ] );
               auto XI = (*sources)( all_dimensions, query );
-              KIJ[ i ] = (*this)( XI, XJ );
+							for ( size_t j = 0; j < KIJ.col(); j ++ )
+                KIJ( i, j ) = (*this)( XI.data(), XJ.columndata( j ) );
             }
 
             /** blocking send */

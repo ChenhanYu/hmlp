@@ -1054,6 +1054,9 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** tree partitioning */
       DistSplitTask<MPINODE> mpisplittask;
       DistTraverseDown( mpisplittask );
+			hmlp_run();
+			this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+      DependencyCleanUp();
       tree::SplitTask<NODE> splittask;
       LocaTraverseDown( splittask );
       //tree::IndexPermuteTask<NODE> seqINDXtask;
@@ -1087,19 +1090,29 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 				/**
 				 *  redistribute K to reduce communication
 				 */
-				this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+				double beg = omp_get_wtime();
+				//this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+				//double redist_t = omp_get_wtime() - beg;
+				//printf( "Redistribution time %lfs\n", redist_t ); fflush( stdout );
 
+				beg = omp_get_wtime();
         /** neighbor search */
         LocaTraverseLeafs( dummy );
         if ( t + 1 < n_tree )
         {
           DistTraverseDown( mpisplittask );
+					hmlp_run();
+				  MPI_Barrier( comm );
+				  this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+          DependencyCleanUp();
           LocaTraverseDown( splittask );
 			    //LocaTraverseUp( seqINDXtask );
 			    //DistTraverseUp( mpiINDXtask );
         }
         hmlp_run();
 				MPI_Barrier( comm );
+				double nn_t = omp_get_wtime() - beg;
+				//printf( "NN+tree time %lfs\n", nn_t ); fflush( stdout );
 
         if ( t == 0 )
         {
@@ -1169,6 +1182,14 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 			DistSplitTask<MPINODE> mpiSPLITtask;
       DistTraverseDown( mpiSPLITtask );
+
+			/** need to redistribute  */
+		  hmlp_run();
+		  MPI_Barrier( comm );
+		  this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+      DependencyCleanUp();
+
+
 			tree::SplitTask<NODE> seqSPLITtask;
 			LocaTraverseDown( seqSPLITtask );
       tree::IndexPermuteTask<NODE> seqINDXtask;
@@ -1177,7 +1198,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 			DistTraverseUp( mpiINDXtask );
 			hmlp_run();
 
-      printf( "rank %d finish split\n", rank ); fflush( stdout );
+      //printf( "rank %d finish split\n", rank ); fflush( stdout );
 
 
 
@@ -1190,7 +1211,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       double beg = omp_get_wtime();
       Morton( mpitreelists[ 0 ], 0 );
       double morton_t = omp_get_wtime() - beg;
-      printf( "Morton takes %lfs\n", morton_t );
+      //printf( "Morton takes %lfs\n", morton_t );
       hmlp::mpi::Barrier( comm );
 
       Offset( mpitreelists[ 0 ], 0 );

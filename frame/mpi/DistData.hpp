@@ -512,7 +512,8 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       std::vector<size_t> amap( this->row() );
       for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
 
-      /** extract rows from A<RBLK,STAR> */
+      /** extract rows from A<STAR,CIDS> */
+      #pragma omp parallel for
       for ( size_t p = 0; p < size; p ++ )
       {
         /** recvids should be gids (not local posiiton) */
@@ -522,7 +523,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       /** exchange data */
       mpi::AlltoallVector( senddata, recvdata, comm );
 
-
+      #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
       {
         size_t ld = this->row();
@@ -657,6 +658,7 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
       for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
 
       /** extract rows from A<RBLK,STAR> */
+      #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
       {
         /** recvids should be gids (not local posiiton) */
@@ -666,7 +668,7 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
       /** exchange data */
       mpi::AlltoallVector( senddata, recvdata, comm );
 
-
+      #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
       {
         size_t ld = recvdata[ p ].size() / this->col();
@@ -865,6 +867,7 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
 
 
       /** extract columns from A<STAR,CBLK> */
+      #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
       {
         /** recvids should be gids (not local posiiton) */
@@ -875,7 +878,7 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
       /** exchange data */
       mpi::AlltoallVector( senddata, recvdata, comm );
 
-
+      #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
       {
         assert( recvdata[ p ].size() == sendids[ p ].size() * this->row() );
@@ -1063,6 +1066,7 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
       for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
 
       /** extract rows from A<RBLK,STAR> */
+      #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
       {
         /** recvids should be gids (not local posiiton) */
@@ -1075,6 +1079,7 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
       mpi::AlltoallVector( senddata, recvdata, comm );
 
 
+      #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
       {
         assert( recvdata[ p ].size() == sendids[ p ].size() * this->col() );

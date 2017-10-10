@@ -69,6 +69,10 @@
 /** this parameter is used to reserve space for std::vector */
 #define MAX_NRHS 1024
 
+/** the block size we use for partitioning GEMM tasks */
+#define GEMM_NB 128
+
+
 //#define DEBUG_SPDASKIT 1
 #define REPORT_ANN_ACCURACY 1
 
@@ -909,10 +913,11 @@ struct centersplit
     auto KIP = K( gids, P );
 
     /** get diagonal entry kpp */
-    T kpp = K( gidf2c, gidf2c );
+    //T kpp = K( gidf2c, gidf2c );
+    auto kpp = K.Diagonal( P );
 
     /** compute the all2f (distance to farthest point) */
-    temp = AllToFarthest( metric, DII, KIP, kpp );
+    temp = AllToFarthest( metric, DII, KIP, kpp[ 0 ] );
 
     //temp = AllToFarthest( gids, gidf2c );
     //
@@ -934,10 +939,10 @@ struct centersplit
     auto KIQ = K( gids, Q );
 
     /** get diagonal entry kpp */
-    T kqq = K( gidf2f, gidf2f );
+    auto kqq = K.Diagonal( Q );
 
     /** compute all2leftright (projection i.e. dip - diq) */
-    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp, kqq );
+    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
 
     projection_time = omp_get_wtime() - beg;
 
@@ -1011,10 +1016,10 @@ struct randomsplit
   DistanceMetric metric = ANGLE_DISTANCE;
 
 	/** overload with the operator */
-  inline std::vector<std::vector<std::size_t> > operator()
+  inline std::vector<std::vector<size_t> > operator()
   ( 
-    std::vector<std::size_t>& gids,
-    std::vector<std::size_t>& lids
+    std::vector<size_t>& gids,
+    std::vector<size_t>& lids
   ) const 
   {
     assert( Kptr && ( N_SPLIT == 2 ) );
@@ -1043,18 +1048,30 @@ struct randomsplit
     //  DII[ i ] = K( gids[ i ], gids[ i ] );
     //}
 
+
     /** collecting KIP and KIQ */
     std::vector<size_t> P( 1, gidf2c );
     std::vector<size_t> Q( 1, gidf2f );
-    auto KIP = K( gids, P );
-    auto KIQ = K( gids, Q );
+		std::vector<size_t> PQ( 2 ); PQ[ 0 ] = gidf2c; PQ[ 1 ] = gidf2f;
+		auto KIPQ = K( gids, PQ );
+    //auto KIP = K( gids, P );
+    //auto KIQ = K( gids, Q );
+		
+		hmlp::Data<T> KIP( n, (size_t)1 );
+		hmlp::Data<T> KIQ( n, (size_t)1 );
+
+    for ( size_t i = 0; i < gids.size(); i ++ )
+		{
+			KIP[ i ] = KIPQ( i, (size_t)0 );
+			KIQ[ i ] = KIPQ( i, (size_t)1 );
+		}
 
     /** get diagonal entry kpp and kqq */
-    T kpp = K( gidf2c, gidf2c );
-    T kqq = K( gidf2f, gidf2f );
+    auto kpp = K.Diagonal( P );
+    auto kqq = K.Diagonal( Q );
 
     /** compute all2leftright (projection i.e. dip - diq) */
-    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp, kqq );
+    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
 
 
 
@@ -1116,6 +1133,7 @@ struct randomsplit
 
     /** TODO: Can be parallelized */
     std::vector<std::size_t> middle;
+		middle.reserve( n );
     for ( size_t i = 0; i < n; i ++ )
     {
       if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
@@ -2220,11 +2238,11 @@ void UpdateWeights( NODE *node )
       P.Partition1x2( PL, PR, lskel.size(), LEFT );
 
       /** W  = PL * WL */
-      gemm::xgemm<256>( (T)1.0, PL, WL, (T)0.0, W );
+      gemm::xgemm<GEMM_NB>( (T)1.0, PL, WL, (T)0.0, W );
       W.DependencyCleanUp();
 
       /** W += PR * WR */
-      gemm::xgemm<256>( (T)1.0, PR, WR, (T)1.0, W );
+      gemm::xgemm<GEMM_NB>( (T)1.0, PR, WR, (T)1.0, W );
       //W.DependencyCleanUp();
     }
 
@@ -2467,7 +2485,7 @@ void SkeletonsToSkeletons( NODE *node )
         View<T> Kab;
         assert( FarKab.col() >= W.row() + offset );
         Kab.Set( FarKab.row(), W.row(), 0, offset, &FarKab_v );
-        gemm::xgemm<256>( (T)1.0, Kab, W, (T)1.0, U );
+        gemm::xgemm<GEMM_NB>( (T)1.0, Kab, W, (T)1.0, U );
       }
 
       /** move to the next submatrix Kab */
@@ -2723,9 +2741,9 @@ void SkeletonsToNodes( NODE *node )
       P.Partition2x1( PL,
                       PR, lskel.size(), TOP );
       /** UL += PL' * U */
-      gemm::xgemm<256>( (T)1.0, PL, U, (T)1.0, UL );
+      gemm::xgemm<GEMM_NB>( (T)1.0, PL, U, (T)1.0, UL );
       /** UR += PR' * U */
-      gemm::xgemm<256>( (T)1.0, PR, U, (T)1.0, UR );
+      gemm::xgemm<GEMM_NB>( (T)1.0, PR, U, (T)1.0, UR );
     }
   }
   //printf( "\n" );
