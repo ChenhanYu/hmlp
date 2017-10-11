@@ -1056,19 +1056,16 @@ class NeighborsTask : public hmlp::Task
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
-      // TODO: Need an accurate cost model.
-      cost = 1.0;
 
       /** use the same distance as the tree */
       metric = arg->setup->metric;
-
 
       //--------------------------------------
       double flops, mops;
       auto &gids = arg->gids;
       auto &NN = *arg->setup->NN;
       flops = gids.size();
-      flops *= 4.0 * gids.size();
+      flops *= ( 4.0 * gids.size() );
       // Heap select worst case
       mops = (size_t)std::log( NN.row() ) * gids.size();
       mops *= gids.size();
@@ -1076,6 +1073,10 @@ class NeighborsTask : public hmlp::Task
       mops += flops;
       event.Set( name + label, flops, mops );
       //--------------------------------------
+			
+      // TODO: Need an accurate cost model.
+      cost = mops / 1E+9;
+
     };
 
     void DependencyAnalysis()
@@ -1350,6 +1351,56 @@ class DistUpdateWeightsTask : public hmlp::Task
       /** compute flops and mops */
       double flops = 0.0;
       double mops = 0.0;
+
+
+      auto &gids = arg->gids;
+      auto &skels = arg->data.skels;
+      auto &w = *arg->setup->w;
+
+
+			if ( !arg->child )
+			{
+        if ( arg->isleaf )
+        {
+          auto m = skels.size();
+          auto n = w.col();
+          auto k = gids.size();
+          flops = 2.0 * m * n * k;
+          mops = 2.0 * ( m * n + m * k + k * n );
+        }
+        else
+        {
+          auto &lskels = arg->lchild->data.skels;
+          auto &rskels = arg->rchild->data.skels;
+          auto m = skels.size();
+          auto n = w.col();
+          auto k = lskels.size() + rskels.size();
+          flops = 2.0 * m * n * k;
+          mops  = 2.0 * ( m * n + m * k + k * n );
+        }
+			}
+			else
+			{
+				if ( arg->GetCommRank() == 0 )
+				{
+          auto &lskels = arg->child->data.skels;
+          auto m = skels.size();
+          auto n = w.col();
+          auto k = lskels.size();
+          flops = 2.0 * m * n * k;
+          mops = 2.0 * ( m * n + m * k + k * n );
+				}
+				if ( arg->GetCommRank() == arg->GetCommSize() / 2 )
+				{
+          auto &rskels = arg->child->data.skels;
+          auto m = skels.size();
+          auto n = w.col();
+          auto k = rskels.size();
+          flops = 2.0 * m * n * k;
+          mops = 2.0 * ( m * n + m * k + k * n );
+				}
+			}
+
 
       /** setup the event */
       event.Set( label + name, flops, mops );
@@ -1712,6 +1763,59 @@ class DistSkeletonsToNodesTask : public hmlp::Task
       double flops = 0.0;
       double mops = 0.0;
 
+      auto &gids = arg->gids;
+      auto &skels = arg->data.skels;
+      auto &w = *arg->setup->w;
+
+			if ( !arg->child )
+			{
+        if ( arg->isleaf )
+        {
+          auto m = skels.size();
+          auto n = w.col();
+          auto k = gids.size();
+          flops = 2.0 * m * n * k;
+          mops = 2.0 * ( m * n + m * k + k * n );
+        }
+        else
+        {
+          auto &lskels = arg->lchild->data.skels;
+          auto &rskels = arg->rchild->data.skels;
+          auto m = skels.size();
+          auto n = w.col();
+          auto k = lskels.size() + rskels.size();
+          flops = 2.0 * m * n * k;
+          mops  = 2.0 * ( m * n + m * k + k * n );
+        }
+			}
+			else
+			{
+				if ( arg->GetCommRank() == 0 )
+				{
+          auto &lskels = arg->child->data.skels;
+          auto m = skels.size();
+          auto n = w.col();
+          auto k = lskels.size();
+          flops = 2.0 * m * n * k;
+          mops = 2.0 * ( m * n + m * k + k * n );
+				}
+				if ( arg->GetCommRank() == arg->GetCommSize() / 2 )
+				{
+          auto &rskels = arg->child->data.skels;
+          auto m = skels.size();
+          auto n = w.col();
+          auto k = rskels.size();
+          flops = 2.0 * m * n * k;
+          mops = 2.0 * ( m * n + m * k + k * n );
+				}
+			}
+
+
+
+
+
+
+
       /** setup the event */
       event.Set( label + name, flops, mops );
 
@@ -1850,6 +1954,27 @@ class DistLeavesToLeavesTask : public hmlp::Task
 
       double flops = 0.0;
       double mops = 0.0;
+
+
+      auto &gids = arg->gids;
+      auto &skels = arg->data.skels;
+      auto &w = *arg->setup->w;
+
+      size_t m = gids.size();
+      size_t n = w.col();
+
+      std::set<NODE*> *NearNodes;
+      if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
+      else           NearNodes = &arg->NearNodes;
+
+      for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+      {
+        size_t k = (*it)->gids.size();
+        flops += 2.0 * m * n * k;
+        mops += m * k;
+        mops += 2.0 * ( m * n + n * k + m * k );
+      }
+
 
       /** setup the event */
       event.Set( label + name, flops, mops );
@@ -3555,7 +3680,7 @@ class SkeletonizeTask : public hmlp::Task
       flops += K.flops( m, n );
 
       /** GEQP3 */
-      flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+      flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
       mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
 
       /* TRSM */
@@ -3634,16 +3759,19 @@ class DistSkeletonizeTask : public hmlp::Task
       size_t m = 2 * n;
       size_t k = arg->data.proj.row();
 
+			if ( arg->GetCommRank() == 0 )
+			{
       /** Kab */
       flops += K.flops( m, n );
 
       /** GEQP3 */
-      flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+      flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
       mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
 
       /* TRSM */
       flops += k * ( k - 1 ) * ( n + 1 );
       mops  += 2.0 * ( k * k + k * n );
+			}
 
       event.Set( label + name, flops, mops );
       arg->data.skeletonize = event;
@@ -3669,8 +3797,8 @@ class DistSkeletonizeTask : public hmlp::Task
         //printf( "%d Par-Skel end\n", global_rank );
       }
       double skel_t = omp_get_wtime() - beg;
-      printf( "rank %d, skeletonize (%4lu, %4lu) %lfs\n", 
-          global_rank, arg->data.KIJ.row(), arg->data.KIJ.col(), skel_t );
+      //printf( "rank %d, skeletonize (%4lu, %4lu) %lfs\n", 
+      //    global_rank, arg->data.KIJ.row(), arg->data.KIJ.col(), skel_t );
 
 			/** Bcast isskel to every MPI processes in the same comm */
 			int isskel = arg->data.isskel;

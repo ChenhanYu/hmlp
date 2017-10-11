@@ -375,19 +375,17 @@ class DistSplitTask : public hmlp::Task
         label = ss.str();
       }
 
-      double flops = 0.0;
-      double mops = 0.0;
+      double flops = 6.0 * arg->n;
+      double mops = 6.0 * arg->n;
 
       /** setup the event */
       event.Set( label + name, flops, mops );
 
       /** asuume computation bound */
-      cost = 1.0;
+      cost = mops / 1E+9;
 
       /** "HIGH" priority */
       priority = true;
-
-			//printf( "finish Set level %lu\n", arg->l );
     };
 
 

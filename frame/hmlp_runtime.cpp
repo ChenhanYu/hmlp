@@ -1435,6 +1435,12 @@ void hmlp_redistribute_workers(
 	hmlp::rt.n_worker = n_worker;
 	hmlp::rt.n_background_worker = n_background_worker;
 	hmlp::rt.n_nested_worker = n_nested_worker;
+
+
+
+	int rank = 0;
+	hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
+	if ( rank == 0 )
   printf( "%2d/%2d/%2d/%2d (n_worker/n_background_worker/n_nested_worker/max_worker)\n",
       hmlp::rt.n_worker, 
 			hmlp::rt.n_background_worker, 
@@ -1469,9 +1475,11 @@ bool hmlp_is_in_epoch_session()
 
 void hmlp_set_num_background_worker( int n_background_worker )
 {
+	int rank = 0;
+	hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
   if ( n_background_worker <= 0 )
   {
-    printf( "(WARNING!) no background worker left\n" ); fflush( stdout );
+    if ( rank == 0 ) printf( "(WARNING!) no background worker left\n" ); fflush( stdout );
     n_background_worker = 0;
   }
   hmlp::rt.n_background_worker = n_background_worker;
