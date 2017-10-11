@@ -503,4 +503,11 @@ bool hmlp_is_in_epoch_session();
 
 void hmlp_set_num_background_worker( int n_background_worker );
 
+
+void hmlp_redistribute_workers( 
+		int n_worker, 
+		int n_background_worker,
+		int n_nested_worker );
+
+
 #endif // define HMLP_RUNTIME_HPP

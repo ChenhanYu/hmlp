@@ -944,6 +944,9 @@ void* Scheduler::EntryPoint( void* arg )
 		auto *bgtask = scheduler->GetBackGroundTask();
 		if ( bgtask ) 
     {
+			/** only use 1 thread */
+      omp_set_num_threads( 1 );
+
       /** update my termination time to infinite */
       scheduler->ready_queue_lock[ me->tid ].Acquire();
       {
@@ -1422,6 +1425,21 @@ void hmlp_set_num_workers( int n_worker )
   }
   printf( "%2d/%2d (n_worker/n_nested_worker)\n",
       hmlp::rt.n_worker, hmlp::rt.n_nested_worker ); fflush( stdout );
+};
+
+void hmlp_redistribute_workers( 
+		int n_worker, 
+		int n_background_worker,
+		int n_nested_worker )
+{
+	hmlp::rt.n_worker = n_worker;
+	hmlp::rt.n_background_worker = n_background_worker;
+	hmlp::rt.n_nested_worker = n_nested_worker;
+  printf( "%2d/%2d/%2d/%2d (n_worker/n_background_worker/n_nested_worker/max_worker)\n",
+      hmlp::rt.n_worker, 
+			hmlp::rt.n_background_worker, 
+			hmlp::rt.n_nested_worker, 
+			omp_get_max_threads() ); fflush( stdout );
 };
 
 void hmlp_run()

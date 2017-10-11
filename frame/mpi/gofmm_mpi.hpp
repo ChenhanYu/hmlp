@@ -22,6 +22,7 @@
 #ifndef GOFMM_MPI_HPP
 #define GOFMM_MPI_HPP
 
+#include <hmlp_util.hpp>
 #include <mpi/tree_mpi.hpp>
 #include <mpi/DistData.hpp>
 #include <gofmm/gofmm.hpp>
@@ -1156,6 +1157,11 @@ void DistUpdateWeights( MPINODE *node )
     /** gather per node data and create reference */
     auto &data = node->data;
 
+      /** early return */
+      //if ( !node->parent || !node->data.isskel ) return;
+
+
+
     /** this is the corresponding MPI rank */
     if ( rank == 0 )
     {
@@ -1165,13 +1171,16 @@ void DistUpdateWeights( MPINODE *node )
       auto &w_lskel = child->data.w_skel;
       auto &w_rskel = child_sibling->data.w_skel;
      
-      /** recv child->w_skel from rank / 2 */
-      hmlp::mpi::ExchangeVector(
-            w_lskel, size / 2, 0, 
-            w_rskel, size / 2, 0, comm, &status );
+			/** recv child->w_skel from rank / 2 */
+			mpi::ExchangeVector(
+					w_lskel, size / 2, 0, 
+					w_rskel, size / 2, 0, comm, &status );
 
-      size_t sl = w_lskel.size() / nrhs;
-      size_t sr = w_rskel.size() / nrhs;
+			size_t sl = skels.size();
+			size_t sr = child_sibling->data.skels.size();
+      //size_t sl = w_lskel.size() / nrhs;
+      //size_t sr = w_rskel.size() / nrhs;
+			//mpi::Send( &sl, 1, size / 2, 0, comm );
 
       /** resize w_rskel to properly set m and n */
       w_rskel.resize( sr, nrhs );
@@ -1183,10 +1192,10 @@ void DistUpdateWeights( MPINODE *node )
 
       /** early return */
       if ( !node->parent || !node->data.isskel ) return;
-     
 
       /** w_skel is s-by-nrhs, initial values are not important */
       w_skel.resize( skels.size(), nrhs );
+
 
       if ( 0 )
       {
@@ -1199,32 +1208,43 @@ void DistUpdateWeights( MPINODE *node )
                w_lskel.data(),            sl,
           0.0,  w_skel.data(),  w_skel.row()
         );
-        /** w_skel += proj( r ) * w_rskel */
-        xgemm
-        (
-          "No-transpose", "No-transpose",
-          w_skel.row(), nrhs, sr,
-          1.0,    proj.data() + proj.row() * sl, proj.row(),
-               w_rskel.data(), sr,
-          1.0,  w_skel.data(), w_skel.row()
-        );
+        ///** w_skel += proj( r ) * w_rskel */
+        //xgemm
+        //(
+        //  "No-transpose", "No-transpose",
+        //  w_skel.row(), nrhs, sr,
+        //  1.0,    proj.data() + proj.row() * sl, proj.row(),
+        //       w_rskel.data(), sr,
+        //  1.0,  w_skel.data(), w_skel.row()
+        //);
       }
       else
       {
         /** create a transpose view proj_v */
         View<T> P( false,   proj ), PL,
                                     PR;
-        View<T> W( false, w_skel ), WL( false, w_lskel ),
-                                    WR( false, w_rskel );
+        View<T> W( false, w_skel ), WL( false, w_lskel );
+                                    //WR( false, w_rskel );
         /** P = [ PL, PR ] */
         P.Partition1x2( PL, PR, sl, LEFT );
         /** W  = PL * WL */
         gemm::xgemm<GEMM_NB>( (T)1.0, PL, WL, (T)0.0, W );
-        W.DependencyCleanUp();
-        /** W += PR * WR */
-        gemm::xgemm<GEMM_NB>( (T)1.0, PR, WR, (T)1.0, W );
         //W.DependencyCleanUp();
+        ///** W += PR * WR */
+        //gemm::xgemm<GEMM_NB>( (T)1.0, PR, WR, (T)1.0, W );
+        ////W.DependencyCleanUp();
       }
+
+
+      Data<T> w_skel_sib;
+      mpi::ExchangeVector(
+            w_skel,     size / 2, 0, 
+            w_skel_sib, size / 2, 0, comm, &status );
+
+			/** reduce */
+      #pragma omp parallel for
+			for ( size_t i = 0; i < w_skel.size(); i ++ )
+				w_skel[ i ] += w_skel_sib[ i ];
     }
 
     /** the rank that holds the skeleton weight of the right child */
@@ -1238,11 +1258,66 @@ void DistUpdateWeights( MPINODE *node )
             w_rskel, 0, 0, 
             w_lskel, 0, 0, comm, &status );
       /** resize l_rskel to properly set m and n */
-      w_lskel.resize( w_lskel.size() / nrhs, nrhs );
+      //w_lskel.resize( w_lskel.size() / nrhs, nrhs );
       //printf( "global rank %d child_sibling morton %lu w_lskel.size() %lu, m %lu n %lu\n", 
       //    global_rank,
       //    child_sibling->morton,
       //    w_lskel.size(), w_lskel.row(), w_lskel.col() );
+			
+			
+      auto &proj = data.proj;
+      auto &skels = data.skels;
+      auto &w_skel = data.w_skel;
+			
+
+			//mpi::Status status;
+			size_t sl = child_sibling->data.skels.size();
+			size_t sr = skels.size();
+			//mpi::Recv( &sl, 1, 0, 0, comm, &status );
+
+      /** resize l_rskel to properly set m and n */
+      w_lskel.resize( w_lskel.size() / nrhs, nrhs );
+
+      /** early return */
+      if ( !node->parent || !node->data.isskel ) return;
+
+      /** w_skel is s-by-nrhs, initial values are not important */
+      w_skel.resize( skels.size(), nrhs );
+
+
+
+      if ( 0 )
+      {
+        /** w_skel += proj( r ) * w_rskel */
+        xgemm
+        (
+          "No-transpose", "No-transpose",
+          w_skel.row(), nrhs, sr,
+          1.0,    proj.data() + proj.row() * sl, proj.row(),
+               w_rskel.data(), sr,
+          0.0,  w_skel.data(), w_skel.row()
+        );
+      }
+      else
+      {
+        /** create a transpose view proj_v */
+        View<T> P( false,   proj ), PL,
+                                    PR;
+        View<T> W( false, w_skel ), //WL( false, w_lskel ),
+                                    WR( false, w_rskel );
+        /** P = [ PL, PR ] */
+        P.Partition1x2( PL, PR, sl, LEFT );
+        /** W += PR * WR */
+        gemm::xgemm<GEMM_NB>( (T)1.0, PR, WR, (T)0.0, W );
+        //W.DependencyCleanUp();
+      }
+
+			Data<T> w_skel_sib;
+			mpi::ExchangeVector(
+					w_skel,     0, 0, 
+					w_skel_sib, 0, 0, comm, &status );
+			/** clean_up */
+			//w_skel.resize( 0, 0 );
     }
   }
 
@@ -1492,13 +1567,20 @@ void DistSkeletonsToNodes( NODE *node )
       auto    &proj = data.proj;
       auto  &u_skel = data.u_skel;
       auto &u_lskel = child->data.u_skel;
-      auto &u_rskel = child_sibling->data.u_skel;
+      //auto &u_rskel = child_sibling->data.u_skel;
    
-      size_t sl = u_lskel.row();
-      size_t sr = proj.col() - sl;
+      //size_t sl = u_lskel.row();
+      //size_t sr = proj.col() - sl;
+			size_t sl = skels.size();
+			size_t sr = child_sibling->data.skels.size();
+
+
+
+      mpi::SendVector( u_skel, size / 2, 0, comm );
+
 
       /** resize */
-      u_rskel.resize( sr, nrhs, 0.0 );
+      //u_rskel.resize( sr, nrhs, 0.0 );
 
       if ( 0 )
       {
@@ -1511,6 +1593,70 @@ void DistSkeletonsToNodes( NODE *node )
           1.0, u_lskel.data(), u_lskel.row()
         );
 
+        //xgemm
+        //(
+        //  "T", "N",
+        //  u_rskel.row(), u_rskel.col(), proj.row(),
+        //  1.0, proj.data() + proj.row() * sl, proj.row(),
+        //       u_skel.data(), u_skel.row(),
+        //  1.0, u_rskel.data(), u_rskel.row()
+        //);
+      }
+      else
+      {
+        /** create a transpose view proj_v */
+        View<T> P(  true,   proj ), PL,
+                                    PR;
+        View<T> U( false, u_skel ), UL( false, u_lskel );
+                                    //UR( false, u_rskel );
+        /** P' = [ PL, PR ]' */
+        P.Partition2x1( PL,
+                        PR, sl, TOP );
+        /** UL += PL' * U */
+        gemm::xgemm<GEMM_NB>( (T)1.0, PL, U, (T)1.0, UL );
+        /** UR += PR' * U */
+        //gemm::xgemm<GEMM_NB>( (T)1.0, PR, U, (T)1.0, UR );
+      }
+
+      //mpi::SendVector( u_rskel, size / 2, 0, comm );
+
+
+    }
+    //printf( "rank (%d,%d) level %lu DistS2N check2\n", 
+		//		rank, global_rank, node->l ); fflush( stdout );
+
+    /**  */
+    if ( rank == size / 2 )
+    {
+      auto    &proj = data.proj;
+      auto  &u_skel = data.u_skel;
+      auto &u_rskel = child->data.u_skel;
+
+			size_t sl = child_sibling->data.skels.size();
+			size_t sr = skels.size();
+
+
+      /** */
+			//Data<T> u_skel_sib;
+      mpi::RecvVector( u_skel, 0, 0, comm, &status );			
+			u_skel.resize( u_skel.size() / nrhs, nrhs );
+
+
+      // hmlp::Data<T> u_rskel;
+      //mpi::RecvVector( u_rskel, 0, 0, comm, &status );
+      /** resize to properly set m and n */
+      //u_rskel.resize( u_rskel.size() / nrhs, nrhs );
+
+      //auto &u_rskel = child->data.u_skel;
+
+
+      //for ( size_t j = 0; j < u_rskel.col(); j ++ )
+      //  for ( size_t i = 0; i < u_rskel.row(); i ++ )
+      //    child->data.u_skel( i, j ) += u_rskel( i, j );
+
+
+      if ( 0 )
+      {
         xgemm
         (
           "T", "N",
@@ -1525,33 +1671,14 @@ void DistSkeletonsToNodes( NODE *node )
         /** create a transpose view proj_v */
         View<T> P(  true,   proj ), PL,
                                     PR;
-        View<T> U( false, u_skel ), UL( false, u_lskel ),
+        View<T> U( false, u_skel ), //UL( false, u_lskel ),
                                     UR( false, u_rskel );
         /** P' = [ PL, PR ]' */
         P.Partition2x1( PL,
                         PR, sl, TOP );
-        /** UL += PL' * U */
-        gemm::xgemm<GEMM_NB>( (T)1.0, PL, U, (T)1.0, UL );
         /** UR += PR' * U */
         gemm::xgemm<GEMM_NB>( (T)1.0, PR, U, (T)1.0, UR );
       }
-
-      hmlp::mpi::SendVector( u_rskel, size / 2, 0, comm );
-    }
-    //printf( "rank (%d,%d) level %lu DistS2N check2\n", 
-		//		rank, global_rank, node->l ); fflush( stdout );
-
-    /**  */
-    if ( rank == size / 2 )
-    {
-      hmlp::Data<T> u_rskel;
-      hmlp::mpi::RecvVector( u_rskel, 0, 0, comm, &status );
-      /** resize to properly set m and n */
-      u_rskel.resize( u_rskel.size() / nrhs, nrhs );
-
-      for ( size_t j = 0; j < u_rskel.col(); j ++ )
-        for ( size_t i = 0; i < u_rskel.row(); i ++ )
-          child->data.u_skel( i, j ) += u_rskel( i, j );
     }
 
     //printf( "rank (%d,%d) level %lu DistS2N check3\n", 
@@ -2409,6 +2536,17 @@ class DistSimpleNearFarNodesTask : public hmlp::Task
 				size_t send_morton = child->morton;
 				size_t recv_morton = 0;
 				LETNODE *letnode = NULL;
+
+				if ( node->parent )
+				{
+					size_t proj_m = node->data.proj.row();
+					size_t proj_n = node->data.proj.col();
+					mpi::Bcast( &proj_m, 1, 0, comm );
+					mpi::Bcast( &proj_n, 1, 0, comm );
+					if ( node->data.proj.size() != proj_m * proj_n )
+					  node->data.proj.resize( proj_m, proj_n );
+					mpi::Bcast( node->data.proj.data(), proj_m * proj_n, 0, comm );
+				}
 
 				if ( rank == 0 )
 				{
@@ -4062,56 +4200,24 @@ mpitree::Tree<
   //hmlp_set_num_workers( 10 );
 
 
-  /** gather sample rows and skeleton columns, then ID */
-  mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
-  mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
-  mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
-  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
-  tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
-  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-
-  /** compute the coefficient matrix of ID */
-  gofmm::InterpolateTask<NODE, T> seqPROJtask;
-  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
-  tree.LocaTraverseUnOrdered( seqPROJtask );
-  tree.DistTraverseUnOrdered( mpiPROJtask );
-
-	/** create interaction lists */
-	SimpleNearFarNodesTask<NODE> seqNEARFARtask;
-	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
-  tree.DistTraverseDown( mpiNEARFARtask );
-	tree.LocaTraverseDown( seqNEARFARtask );
-
-	/** cache near KIJ interactions */
-  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-	tree.LocaTraverseLeafs( seqNEARKIJtask );
-
-	/** cache  far KIJ interactions */
-  mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
-  mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-  tree.LocaTraverseUnOrdered( seqFARKIJtask );
-  tree.DistTraverseUnOrdered( mpiFARKIJtask );
-
-  
-  other_time += omp_get_wtime() - beg;
-  hmlp_run();
-  mpi::Barrier( MPI_COMM_WORLD );
-  skel_time = omp_get_wtime() - beg;
-
-
-  //hmlp_set_num_workers( 20 );
-
-
-
+//  /** gather sample rows and skeleton columns, then ID */
 //  mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
+//  mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
 //  mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
+//  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
 //  tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+//  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
 //
+//  /** compute the coefficient matrix of ID */
 //  gofmm::InterpolateTask<NODE, T> seqPROJtask;
+//  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
 //  tree.LocaTraverseUnOrdered( seqPROJtask );
+//  tree.DistTraverseUnOrdered( mpiPROJtask );
 //
 //	/** create interaction lists */
 //	SimpleNearFarNodesTask<NODE> seqNEARFARtask;
+//	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
+//  tree.DistTraverseDown( mpiNEARFARtask );
 //	tree.LocaTraverseDown( seqNEARFARtask );
 //
 //	/** cache near KIJ interactions */
@@ -4120,35 +4226,72 @@ mpitree::Tree<
 //
 //	/** cache  far KIJ interactions */
 //  mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
-//  tree.LocaTraverseUnOrdered( seqFARKIJtask );
-//
-//  /** */
-//  hmlp_run();
-//  mpi::Barrier( MPI_COMM_WORLD );
-//
-//  /** clean up dep */
-//  tree.DependencyCleanUp();
-//  hmlp_set_num_background_worker( 1 );
-//  hmlp_set_num_workers( 2 );
-//
-//  mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
-//  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
-//  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-//
-//  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
-//  tree.DistTraverseUnOrdered( mpiPROJtask );
-//
-//	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
-//  tree.DistTraverseDown( mpiNEARFARtask );
-//
 //  mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
+//  tree.LocaTraverseUnOrdered( seqFARKIJtask );
 //  tree.DistTraverseUnOrdered( mpiFARKIJtask );
 //
+//  
 //  other_time += omp_get_wtime() - beg;
 //  hmlp_run();
 //  mpi::Barrier( MPI_COMM_WORLD );
-//  hmlp_set_num_workers( omp_get_max_threads() );
 //  skel_time = omp_get_wtime() - beg;
+
+
+  //hmlp_set_num_workers( 20 );
+
+
+
+  mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
+  mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
+  tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+
+  gofmm::InterpolateTask<NODE, T> seqPROJtask;
+  tree.LocaTraverseUnOrdered( seqPROJtask );
+
+	/** create interaction lists */
+	SimpleNearFarNodesTask<NODE> seqNEARFARtask;
+	tree.LocaTraverseDown( seqNEARFARtask );
+
+	/** cache near KIJ interactions */
+  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+	tree.LocaTraverseLeafs( seqNEARKIJtask );
+
+	/** cache  far KIJ interactions */
+  mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
+  tree.LocaTraverseUnOrdered( seqFARKIJtask );
+
+  /** */
+  hmlp_run();
+  mpi::Barrier( MPI_COMM_WORLD );
+
+  /** clean up dep */
+  tree.DependencyCleanUp();
+  //hmlp_redistribute_workers( 3, 2, 20 );
+  hmlp_redistribute_workers( 
+    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+
+  //hmlp_set_num_workers( 2 );
+
+  mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
+  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
+  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+
+  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
+  tree.DistTraverseUnOrdered( mpiPROJtask );
+
+	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
+  tree.DistTraverseDown( mpiNEARFARtask );
+
+  mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
+  tree.DistTraverseUnOrdered( mpiFARKIJtask );
+
+  other_time += omp_get_wtime() - beg;
+  hmlp_run();
+  mpi::Barrier( MPI_COMM_WORLD );
+  hmlp_redistribute_workers( omp_get_max_threads(), 0, 1 );
+  skel_time = omp_get_wtime() - beg;
 
 
 

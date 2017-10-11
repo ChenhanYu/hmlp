@@ -586,7 +586,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
       //printf( "After xgemm\n" ); fflush( stdout );
 
-      #pragma omp parallel for
+      //#pragma omp parallel for
       for ( size_t i = 0; i < I.size(); i ++ )
       {
         itargets_sqnorms[ i ] = xdot( 
@@ -594,7 +594,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 						   itargets.data() + i * d, 1 );
       } /** end omp parallel for */
 
-      #pragma omp parallel for
+      //#pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
       {
         jsources_sqnorms[ j ] = xdot( 
@@ -603,7 +603,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       } /** end omp parallel for */
 
       /** add square norms to inner products to get square distances */
-      #pragma omp parallel for
+      //#pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
         for ( size_t i = 0; i < I.size(); i ++ )
           KIJ( i, j ) += itargets_sqnorms[ i ] + jsources_sqnorms[ j ];
@@ -613,7 +613,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         case KS_GAUSSIAN:
         {
           /** apply the scaling factor and exponentiate */
-          #pragma omp parallel for
+          //#pragma omp parallel for
           for ( size_t i = 0; i < KIJ.size(); i ++ )
           {
             KIJ[ i ] = std::exp( kernel.scal * KIJ[ i ] );
