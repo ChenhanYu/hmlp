@@ -1,3 +1,6 @@
+#ifndef BLAS_LAPACK_PROTOTYPES_HPP
+#define BLAS_LAPACK_PROTOTYPES_HPP
+
 /** BLAS level-1 */
 double ddot_( int *n, double *dx, int *incx, double *dy, int *incy );
 float  sdot_( int *n,  float *dx, int *incx,  float *dy, int *incy );
@@ -271,3 +274,5 @@ void slarfb_(
     float *work, int *ldwork );
 void dlarfg_( int *n, double *alpha, double *x, int *incx, double *tau );
 void slarfg_( int *n, float  *alpha, float  *x, int *incx, float  *tau );
+
+#endif /** define BLAS_LAPACK_PROTOTYPES_HPP */

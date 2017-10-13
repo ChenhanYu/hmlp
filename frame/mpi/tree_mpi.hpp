@@ -1048,13 +1048,23 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
       /** */
       DependencyCleanUp();
+		//	hmlp_redistribute_workers(  
+		//			hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+		//			hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+		//			hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
       /** tree partitioning */
       DistSplitTask<MPINODE> mpisplittask;
       DistTraverseDown( mpisplittask );
 			hmlp_run();
 			this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+
+			/** */
       DependencyCleanUp();
+		//	hmlp_redistribute_workers( 
+		//			omp_get_max_threads(), 
+		//			omp_get_max_threads() / 4 + 1, 1 );
+
       tree::SplitTask<NODE> splittask;
       LocaTraverseDown( splittask );
       //tree::IndexPermuteTask<NODE> seqINDXtask;
@@ -1173,10 +1183,14 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
-      DependencyCleanUp();
-
 			auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
       bgtask->SetAsBackGround();
+
+      DependencyCleanUp();
+		//	hmlp_redistribute_workers( 
+		//			hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+		//			hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+		//			hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
 			DistSplitTask<MPINODE> mpiSPLITtask;
       DistTraverseDown( mpiSPLITtask );
@@ -1185,8 +1199,12 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 		  hmlp_run();
 		  MPI_Barrier( comm );
 		  this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
-      DependencyCleanUp();
 
+
+      DependencyCleanUp();
+			//hmlp_redistribute_workers( 
+			//		omp_get_max_threads(), 
+			//		omp_get_max_threads() / 4 + 1, 1 );
 
 			tree::SplitTask<NODE> seqSPLITtask;
 			LocaTraverseDown( seqSPLITtask );

@@ -129,6 +129,7 @@ class Cache1D
 
 	private:
 
+
 		std::vector<size_t> all_units;
 
 		std::vector<hmlp::Lock> locks;
@@ -141,6 +142,115 @@ class Cache1D
 		hmlp::Data<T> buffer;
 
 };
+
+
+template<size_t NSET, size_t NWAY, typename T>
+class Cache2D
+{
+	public:
+
+		Cache2D( size_t n )
+		{
+			this->n = n;
+			this->ldway = ( n / NSET ) + 1;
+			locks.resize( NSET );
+      table.resize( NSET );
+			for ( size_t i = 0; i < NSET; i ++ ) 
+			{
+				locks[ i ].resize( NSET );
+        table[ i ].resize( NSET );
+			}
+		};
+
+		hmlp::Data<T> Read( size_t i, size_t j )
+		{
+			size_t iset  = i % NSET;
+			size_t jset  = j % NSET;
+			size_t iway  = i / NSET;
+			size_t jway  = j / NSET;
+			size_t idway = jway * ldway + iway;
+
+			auto &set  = table[ iset ][ jset ];
+			auto &lock = locks[ iset ][ jset ];
+
+			/** return values */
+			Data<T> KIJ;
+
+			lock.Acquire();
+			{
+			  auto it = set.find( idway );
+
+			  /** cache hit */
+			  if ( it != set.end() )
+				{
+					KIJ.resize( 1, 1 );
+					KIJ[ 0 ] = (*it).second.first;
+				}
+			}
+			lock.Release();
+
+			return KIJ;
+			
+		}; /** end Read() */
+
+
+		void Write( size_t i, size_t j, std::pair<T, double> v )
+		{
+			size_t iset  = i % NSET;
+			size_t jset  = j % NSET;
+			size_t iway  = i / NSET;
+			size_t jway  = j / NSET;
+			size_t idway = jway * ldway + iway;
+
+			auto &set  = table[ iset ][ jset ];
+			auto &lock = locks[ iset ][ jset ];
+
+			lock.Acquire();
+			{
+			  /** cache miss */
+			  if ( !set.count( idway ) )
+				{
+					if ( set.size() < NWAY ) 
+					{
+						set[ idway ] = v;
+					}
+					else
+					{
+						auto target = set.begin();
+						for ( auto it = set.begin(); it != set.end(); it ++ )
+						{
+							/** if this candidate has lower reuse frequency */
+              if ( (*it).second.second < (*target).second.second ) target = it;
+						}
+						if ( target != set.end() )
+						{
+							if ( (*target).second.second < v.second )
+							{
+							  set.erase( target );
+							  set[ idway ] = v;
+							}
+						}
+					}
+				}
+			}
+			lock.Release();
+
+		}; /** end Write() */
+
+	private:
+
+		size_t n = 0;
+
+		size_t ldway = 0;
+
+		std::vector<std::vector<hmlp::Lock>> locks;
+
+		std::vector<std::vector<std::map<size_t, std::pair<T, double>>>> table;
+
+}; /** end class Cache2D */
+
+
+
 
 
 

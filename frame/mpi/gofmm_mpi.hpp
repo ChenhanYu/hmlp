@@ -1156,32 +1156,25 @@ void DistUpdateWeights( MPINODE *node )
     size_t nrhs = w.col();
 
     /** gather per node data and create reference */
-    auto &data = node->data;
-
-      /** early return */
-      //if ( !node->parent || !node->data.isskel ) return;
-
+    auto &data   = node->data;
+    auto &proj   = data.proj;
+    auto &skels  = data.skels;
+    auto &w_skel = data.w_skel;
 
 
     /** this is the corresponding MPI rank */
     if ( rank == 0 )
     {
-      auto &proj = data.proj;
-      auto &skels = data.skels;
-      auto &w_skel = data.w_skel;
+			size_t sl = child->data.skels.size();
+			size_t sr = child_sibling->data.skels.size();
+
       auto &w_lskel = child->data.w_skel;
       auto &w_rskel = child_sibling->data.w_skel;
-     
+    
 			/** recv child->w_skel from rank / 2 */
 			mpi::ExchangeVector(
 					w_lskel, size / 2, 0, 
 					w_rskel, size / 2, 0, comm, &status );
-
-			size_t sl = skels.size();
-			size_t sr = child_sibling->data.skels.size();
-      //size_t sl = w_lskel.size() / nrhs;
-      //size_t sr = w_rskel.size() / nrhs;
-			//mpi::Send( &sl, 1, size / 2, 0, comm );
 
       /** resize w_rskel to properly set m and n */
       w_rskel.resize( sr, nrhs );
@@ -1251,6 +1244,10 @@ void DistUpdateWeights( MPINODE *node )
     /** the rank that holds the skeleton weight of the right child */
     if ( rank == size / 2 )
     {
+
+			size_t sl = child_sibling->data.skels.size();
+			size_t sr = child->data.skels.size();
+
       auto &w_lskel = child_sibling->data.w_skel;
       auto &w_rskel = child->data.w_skel;
       /** send child->w_skel to 0 */
@@ -1258,6 +1255,10 @@ void DistUpdateWeights( MPINODE *node )
       mpi::ExchangeVector(
             w_rskel, 0, 0, 
             w_lskel, 0, 0, comm, &status );
+
+      /** resize l_rskel to properly set m and n */
+      w_lskel.resize( sl, nrhs );
+
       /** resize l_rskel to properly set m and n */
       //w_lskel.resize( w_lskel.size() / nrhs, nrhs );
       //printf( "global rank %d child_sibling morton %lu w_lskel.size() %lu, m %lu n %lu\n", 
@@ -1265,27 +1266,11 @@ void DistUpdateWeights( MPINODE *node )
       //    child_sibling->morton,
       //    w_lskel.size(), w_lskel.row(), w_lskel.col() );
 			
-			
-      auto &proj = data.proj;
-      auto &skels = data.skels;
-      auto &w_skel = data.w_skel;
-			
-
-			//mpi::Status status;
-			size_t sl = child_sibling->data.skels.size();
-			size_t sr = skels.size();
-			//mpi::Recv( &sl, 1, 0, 0, comm, &status );
-
-      /** resize l_rskel to properly set m and n */
-      w_lskel.resize( w_lskel.size() / nrhs, nrhs );
-
       /** early return */
       if ( !node->parent || !node->data.isskel ) return;
 
       /** w_skel is s-by-nrhs, initial values are not important */
       w_skel.resize( skels.size(), nrhs );
-
-
 
       if ( 0 )
       {
@@ -1622,7 +1607,7 @@ void DistSkeletonsToNodes( NODE *node )
    
       //size_t sl = u_lskel.row();
       //size_t sr = proj.col() - sl;
-			size_t sl = skels.size();
+			size_t sl = child->data.skels.size();
 			size_t sr = child_sibling->data.skels.size();
 
 
@@ -1684,7 +1669,7 @@ void DistSkeletonsToNodes( NODE *node )
       auto &u_rskel = child->data.u_skel;
 
 			size_t sl = child_sibling->data.skels.size();
-			size_t sr = skels.size();
+			size_t sr = child->data.skels.size();
 
 
       /** */
@@ -3676,9 +3661,6 @@ class SkeletonizeTask : public hmlp::Task
       size_t m = 2 * n;
       size_t k = arg->data.proj.row();
 
-      /** Kab */
-      flops += K.flops( m, n );
-
       /** GEQP3 */
       flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
       mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
@@ -3761,16 +3743,13 @@ class DistSkeletonizeTask : public hmlp::Task
 
 			if ( arg->GetCommRank() == 0 )
 			{
-      /** Kab */
-      flops += K.flops( m, n );
+        /** GEQP3 */
+        flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
+        mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
 
-      /** GEQP3 */
-      flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
-      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
-
-      /* TRSM */
-      flops += k * ( k - 1 ) * ( n + 1 );
-      mops  += 2.0 * ( k * k + k * n );
+        /* TRSM */
+        flops += k * ( k - 1 ) * ( n + 1 );
+        mops  += 2.0 * ( k * k + k * n );
 			}
 
       event.Set( label + name, flops, mops );
@@ -3958,6 +3937,7 @@ DistData<RIDS, STAR, T> Evaluate
 
   /** clean up all r/w dependencies left on tree nodes */
   tree.DependencyCleanUp();
+  hmlp_redistribute_workers( omp_get_max_threads(), 0, 1 ); 
 
   /** n-by-nrhs, initialize potentials */
   size_t n    = weights.row();
@@ -4038,7 +4018,6 @@ DistData<RIDS, STAR, T> Evaluate
     tree.LocaTraverseDown( seqS2Ntask );
 
     /** epoch */
-    hmlp_set_num_background_worker( 0 );
     hmlp_run();
 
     /** reduce direct iteractions from 4 copies */
@@ -4323,7 +4302,10 @@ mpitree::Tree<
   beg = omp_get_wtime();
 
   /** clean up all dependencies for skeletonization */
-  tree.DependencyCleanUp();
+	tree.DependencyCleanUp();
+	hmlp_redistribute_workers( 
+			omp_get_max_threads(), 
+			omp_get_max_threads() / 4 + 1, 1 );
 
   //hmlp_set_num_workers( 10 );
 
@@ -4394,7 +4376,6 @@ mpitree::Tree<
 
   /** clean up dep */
   tree.DependencyCleanUp();
-  //hmlp_redistribute_workers( 3, 2, 20 );
   hmlp_redistribute_workers( 
     hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
     hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
@@ -4418,7 +4399,6 @@ mpitree::Tree<
   other_time += omp_get_wtime() - beg;
   hmlp_run();
   mpi::Barrier( MPI_COMM_WORLD );
-  hmlp_redistribute_workers( omp_get_max_threads(), 0, 1 );
   skel_time = omp_get_wtime() - beg;
 
 

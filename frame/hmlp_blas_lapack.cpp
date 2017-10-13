@@ -210,6 +210,9 @@ void xgemm
   float *C, int ldc
 )
 {
+  double beg, xgemm_time = 0.0;
+  double gflops = (double)( m ) * n * ( 2 * k ) / 1E+9;
+  beg = omp_get_wtime();
 #ifdef USE_BLAS
   sgemm_
   (
@@ -243,6 +246,11 @@ void xgemm
       }
     }
   }
+#endif
+  xgemm_time = omp_get_wtime() - beg;
+#ifdef DEBUG_XGEMM
+  printf( "sgemm %s%s m %d n %d k %d, %5.2lf GFLOPS %5.2lf s\n", 
+      transA, transB, m, n, k, gflops / xgemm_time, xgemm_time );
 #endif
 #ifdef DEBUG_XGEMM
   printf( "hmlp::xgemm debug\n" );

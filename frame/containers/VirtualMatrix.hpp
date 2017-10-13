@@ -70,7 +70,7 @@ class VirtualMatrix
     virtual T operator()( std::size_t i, std::size_t j ) = 0; 
 
     /** ESSENTIAL: return a submatrix */
-    virtual hmlp::Data<T> operator()
+    virtual Data<T> operator()
 		  ( std::vector<size_t> &imap, std::vector<size_t> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
@@ -82,7 +82,7 @@ class VirtualMatrix
       return submatrix;
     };
 
-    virtual hmlp::Data<T> operator()
+    virtual Data<T> operator()
 		  ( std::vector<int> &imap, std::vector<int> &jmap )
     {
       hmlp::Data<T> submatrix( imap.size(), jmap.size() );
@@ -93,6 +93,16 @@ class VirtualMatrix
             (*this)( imap[ i ], jmap[ j ] );
       return submatrix;
     };
+
+
+		virtual Data<T> Diagonal( std::vector<size_t> &I )
+		{
+			Data<T> DII( I.size(), 1, 0.0 );
+			for ( size_t i = 0; i < I.size(); i ++ ) 
+				DII[ i ] = (*this)( I[ i ], I[ i ] );
+			return DII;
+		};
+
 
     virtual std::pair<T, size_t> ImportantSample( size_t j )
     {
@@ -108,6 +118,10 @@ class VirtualMatrix
       return sample; 
     }; /** end ImportantSample() */
 
+
+    virtual void Redistribute( std::vector<size_t> &gids )
+    {
+    }; /** end Redistribute() */
 
     virtual void BackGroundProcess( bool *do_terminate )
 		{

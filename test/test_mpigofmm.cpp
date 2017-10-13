@@ -44,12 +44,15 @@
 #include <mkl.h>
 #endif
 
+
 /** GOFMM templates */
 #include <mpi/gofmm_mpi.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
 #include <containers/KernelMatrix.hpp>
 /** use an implicit matrix */
 #include <containers/VirtualMatrix.hpp>
+/** use an implicit PVFMM kernel matrix */
+#include <containers/PVFMMKernelMatrix.hpp>
 
 
 #include <mpi/DistData.hpp>
@@ -145,7 +148,7 @@ void test_gofmm
 
 
   /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
-  std::size_t ntest = 5;
+  std::size_t ntest = 100;
   T nnerr_avg = 0.0;
   T nonnerr_avg = 0.0;
   T fmmerr_avg = 0.0;
@@ -389,6 +392,10 @@ int main( int argc, char *argv[] )
   {
     /** do nothing */
   }
+  else if ( !spdmatrix_type.compare( "pvfmm" ) )
+  {
+    /** do nothing */
+  }
   else if ( !spdmatrix_type.compare( "dense" ) )
   {
     /** (optional) provide the path to the matrix file */
@@ -606,26 +613,26 @@ int main( int argc, char *argv[] )
   /** create a random spd matrix, which is diagonal-dominant */
   if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
   {
-    using T = double;
-    {
-      /** no geometric coordinates provided */
-      hmlp::DistData<STAR, CBLK, T> *X = NULL;
-      /** dense spd matrix format */
-      hmlp::gofmm::SPDMatrix<T> K;
-      K.resize( n, n );
-      /** random spd initialization */
-      K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-
+		using T = float;
+		{
+			/** no geometric coordinates provided */
+			hmlp::DistData<STAR, CBLK, T> *X = NULL;
+			/** dense spd matrix format */
+			hmlp::gofmm::SPDMatrix<T> K;
+			K.resize( n, n );
+			/** random spd initialization */
+			K.randspd<USE_LOWRANK>( 0.0, 1.0 );
 			/** broadcast K to all other rank */
-      hmlp::mpi::Bcast( K.data(), n * n, 0, MPI_COMM_WORLD );
-
+			hmlp::mpi::Bcast( K.data(), n * n, 0, MPI_COMM_WORLD );
       /** (optional) provide neighbors, leave uninitialized otherwise */
       hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
       //hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-    }
+		}
+
+
     //{
     //  d = 4;
     //	/** generate coordinates from normal(0,1) distribution */
@@ -643,6 +650,31 @@ int main( int argc, char *argv[] )
     //  ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
 		//}
   }
+
+
+
+  /** create a random spd matrix, which is diagonal-dominant */
+  if ( !spdmatrix_type.compare( "pvfmm" ) )
+  {
+    using T = double;
+    {
+      /** no geometric coordinates provided */
+      hmlp::DistData<STAR, CBLK, T> *X = NULL;
+      /** dense spd matrix format */
+			printf( "preparing PVFMM matrix\n" ); fflush( stdout );
+      hmlp::PVFMMKernelMatrix<T> K( n, n );
+			printf( "preparing PVFMM matrix done\n" ); fflush( stdout );
+
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
+      //hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
+      /** routine */
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+    }
+	}
+
+
 
 
 
