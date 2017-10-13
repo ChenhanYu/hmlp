@@ -543,14 +543,18 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     //printf( "rank %d enter DCC n = %d\n", rank, n ); fflush( stdout );
 
 
+		double beg = omp_get_wtime();
     /** collecting KIC */
     auto KIC = K( gids, column_samples );
+		double kic_t = omp_get_wtime() - beg;
 
 
     //printf( "rank %d after KIC n = %d\n", rank, n ); fflush( stdout );
 
     /** compute d2c (distance to the approx centroid) for each owned point */
+		beg = omp_get_wtime();
     temp = hmlp::gofmm::AllToCentroid( this->metric, DII, KIC, DCC );
+		double a2c_t = omp_get_wtime() - beg;
 
     /** find the f2c (far most to center) from points owned */
     auto itf2c = std::max_element( temp.begin(), temp.end() );
@@ -573,20 +577,15 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     //    max_pair.val, max_pair.key ); fflush( stdout );
     //printf( "rank %d gidf2c %d\n", rank, gidf2c  ); fflush( stdout );
 
-    /** collecting KIP */
+		beg = omp_get_wtime();
+    /** collecting KIP and kpp */
     std::vector<size_t> P( 1, gidf2c );
     auto KIP = K( gids, P );
-
-
-    //printf( "rank %d after KIP n = %d\n", rank, n ); fflush( stdout );
-
-
-
-    /** get diagonal entry kpp */
-    T kpp = K( gidf2c, gidf2c );
+    auto kpp = K.Diagonal( P );
+		double kip_t = omp_get_wtime() - beg;
 
     /** compute the all2f (distance to farthest point) */
-    temp = hmlp::gofmm::AllToFarthest( this->metric, DII, KIP, kpp );
+    temp = hmlp::gofmm::AllToFarthest( this->metric, DII, KIP, kpp[ 0 ] );
 
 
     /** find f2f (far most to far most) from owned points */
@@ -613,18 +612,20 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     std::vector<size_t> Q( 1, gidf2f );
     auto KIQ = K( gids, Q );
 
-
     //printf( "rank %d after KIQ n = %d\n", rank, n ); fflush( stdout );
 
-
     /** get diagonal entry kpp */
-    T kqq = K( gidf2f, gidf2f );
+    auto kqq = K.Diagonal( Q );
 
     /** compute all2leftright (projection i.e. dip - diq) */
-    temp = hmlp::gofmm::AllToLeftRight( this->metric, DII, KIP, KIQ, kpp, kqq );
+    temp = hmlp::gofmm::AllToLeftRight( this->metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
 
     /** parallel median select */
+		beg = omp_get_wtime();
     T  median = hmlp::combinatorics::Select( n / 2, temp, comm );
+		double select_t = omp_get_wtime() - beg;
+    //printf( "kic_t %lfs, a2c_t %lfs, kip_t %lfs, select_t %lfs\n", 
+		//		kic_t, a2c_t, kip_t, select_t ); fflush( stdout );
 
     //printf( "rank %d median %E\n", rank, median ); fflush( stdout );
 

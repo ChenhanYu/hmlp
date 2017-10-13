@@ -571,7 +571,7 @@ class Node : public ReadWrite
           //  split[ 0 ].size(), split[ 1 ].size() );
           split[ 0 ].resize( gids.size() / 2 );
           split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
-          #pragma omp parallel for
+          //#pragma omp parallel for
           for ( size_t i = 0; i < gids.size(); i ++ )
           {
             if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;

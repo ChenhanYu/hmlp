@@ -94,7 +94,7 @@ template <class Real> class KernelMatrix {
      StaticArray<Long, DIM + 2> idx_arr;
      for (Integer i = 0; i < DIM; i++) idx_arr[i] = (tcoord[i] - scoord[i]) * GridDim_;
      //if (std::abs(idx_arr[0]) < 3 && std::abs(idx_arr[1]) < 3 && std::abs(idx_arr[2]) < 3) 
-     if (std::abs(idx_arr[0]) < 31 && std::abs(idx_arr[1]) < 31 && std::abs(idx_arr[2]) < 31 ) 
+     if (std::abs(idx_arr[0]) < 101 && std::abs(idx_arr[1]) < 101 && std::abs(idx_arr[2]) < 101 ) 
 		 { // Store near-interaction matrices
        idx_arr[DIM + 0] = src_elem;
        idx_arr[DIM + 1] = trg_elem;

@@ -24,6 +24,10 @@
 #ifndef DISTKERNELMATRIX_HPP
 #define DISTKERNELMATRIX_HPP
 
+#ifdef USE_INTEL
+#include <mkl.h>
+#endif
+
 /** -lmemkind */
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>
@@ -738,6 +742,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     virtual void BackGroundProcess( bool *do_terminate )
     {
+#ifdef USE_INTEL
+			mkl_set_num_threads_local( 1 );
+#endif
+
       /** reset the termination flag */
       this->ResetTerminationFlag();
 
