@@ -3603,6 +3603,8 @@ void DistSkeletonize( NODE *node )
     KIJ, skels, proj, jpvt
   );
 
+  /** free KIJ for spaces */
+  KIJ.resize( 0, 0 );
 
   /** depending on the flag, decide isskel or not */
   if ( LEVELRESTRICTION )

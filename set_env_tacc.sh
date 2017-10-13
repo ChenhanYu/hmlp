@@ -89,7 +89,7 @@ export HMLP_ARCH_MINOR=sandybridge
 
 if [[ ${taccmachine} == *"ls5"* ]]; then
   export HMLP_ARCH_MAJOR=x86_64
-  export HMLP_ARCH_MINOR=haswell
+  export HMLP_ARCH_MINOR=sandybridge
 fi
 if [[ ${taccmachine} == *"stampede2"* ]]; then
   export HMLP_ARCH_MAJOR=mic
