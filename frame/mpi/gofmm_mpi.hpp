@@ -4331,14 +4331,14 @@ mpitree::Tree<
   beg = omp_get_wtime();
 
   /** clean up all dependencies for skeletonization */
-	tree.DependencyCleanUp();
-	//hmlp_redistribute_workers( 
-	//		omp_get_max_threads(), 
-	//		omp_get_max_threads() / 4 + 1, 1 );
+  tree.DependencyCleanUp();
   hmlp_redistribute_workers( 
-    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+  		omp_get_max_threads(), 
+  		omp_get_max_threads() / 4 + 1, 1 );
+  //hmlp_redistribute_workers( 
+  //    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+  //    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+  //    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
   //hmlp_set_num_workers( 10 );
 

@@ -1056,30 +1056,30 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       //printf( "Finish allocate rkdt nodes\n" ); fflush( stdout );
 
 
-			auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
+      auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
       bgtask->SetAsBackGround();
 
       //printf( "Finish bgtask\n" ); fflush( stdout );
 
 
-			/** */
-			DependencyCleanUp();
-			hmlp_redistribute_workers(  
-					hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-					hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-					hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+      /** */
+      DependencyCleanUp();
+      //hmlp_redistribute_workers(  
+      //    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+      //    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+      //    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
-			/** tree partitioning */
-			DistSplitTask<MPINODE> mpisplittask;
-			DistTraverseDown( mpisplittask );
-			hmlp_run();
-			this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
+      /** tree partitioning */
+      DistSplitTask<MPINODE> mpisplittask;
+      DistTraverseDown( mpisplittask );
+      hmlp_run();
+      this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
 
-			/** */
-			DependencyCleanUp();
-			//hmlp_redistribute_workers( 
-			//		omp_get_max_threads(), 
-			//		omp_get_max_threads() / 4 + 1, 1 );
+      /** */
+      DependencyCleanUp();
+      //hmlp_redistribute_workers( 
+      //		omp_get_max_threads(), 
+      //		omp_get_max_threads() / 4 + 1, 1 );
 
       tree::SplitTask<NODE> splittask;
       LocaTraverseDown( splittask );
@@ -1135,32 +1135,32 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
          */
         this->setup.NN = &Q_cids;
 
-				/**
-				 *  redistribute K to reduce communication
-				 */
-				double beg = omp_get_wtime();
-				//this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
-				//double redist_t = omp_get_wtime() - beg;
-				//printf( "Redistribution time %lfs\n", redist_t ); fflush( stdout );
+        /**
+         *  redistribute K to reduce communication
+         */
+        double beg = omp_get_wtime();
+        //this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+        //double redist_t = omp_get_wtime() - beg;
+        //printf( "Redistribution time %lfs\n", redist_t ); fflush( stdout );
 
-				beg = omp_get_wtime();
+        beg = omp_get_wtime();
         /** neighbor search */
         LocaTraverseLeafs( dummy );
         if ( t + 1 < n_tree )
         {
           DistTraverseDown( mpisplittask );
-					hmlp_run();
-				  MPI_Barrier( comm );
-				  this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
+          hmlp_run();
+          MPI_Barrier( comm );
+          this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
           DependencyCleanUp();
           LocaTraverseDown( splittask );
-			    //LocaTraverseUp( seqINDXtask );
-			    //DistTraverseUp( mpiINDXtask );
+          //LocaTraverseUp( seqINDXtask );
+          //DistTraverseUp( mpiINDXtask );
         }
         hmlp_run();
-				MPI_Barrier( comm );
-				double nn_t = omp_get_wtime() - beg;
-				//printf( "NN+tree time %lfs\n", nn_t ); fflush( stdout );
+        MPI_Barrier( comm );
+        double nn_t = omp_get_wtime() - beg;
+        //printf( "NN+tree time %lfs\n", nn_t ); fflush( stdout );
 
         if ( t == 0 )
         {
@@ -1236,36 +1236,36 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
-			auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
+      auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
       bgtask->SetAsBackGround();
 
       DependencyCleanUp();
-			hmlp_redistribute_workers( 
-					hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-					hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-					hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+      //hmlp_redistribute_workers( 
+      //    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+      //    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+      //    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
-			DistSplitTask<MPINODE> mpiSPLITtask;
+      DistSplitTask<MPINODE> mpiSPLITtask;
       DistTraverseDown( mpiSPLITtask );
 
-			/** need to redistribute  */
-		  hmlp_run();
-		  MPI_Barrier( comm );
-		  this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
+      /** need to redistribute  */
+      hmlp_run();
+      MPI_Barrier( comm );
+      this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
 
 
       DependencyCleanUp();
-			//hmlp_redistribute_workers( 
-			//		omp_get_max_threads(), 
-			//		omp_get_max_threads() / 4 + 1, 1 );
+      //hmlp_redistribute_workers( 
+      //		omp_get_max_threads(), 
+      //		omp_get_max_threads() / 4 + 1, 1 );
 
-			tree::SplitTask<NODE> seqSPLITtask;
-			LocaTraverseDown( seqSPLITtask );
+      tree::SplitTask<NODE> seqSPLITtask;
+      LocaTraverseDown( seqSPLITtask );
       tree::IndexPermuteTask<NODE> seqINDXtask;
-			LocaTraverseUp( seqINDXtask );
+      LocaTraverseUp( seqINDXtask );
       DistIndexPermuteTask<MPINODE> mpiINDXtask;
-			DistTraverseUp( mpiINDXtask );
-			hmlp_run();
+      DistTraverseUp( mpiINDXtask );
+      hmlp_run();
 
       //printf( "rank %d finish split\n", rank ); fflush( stdout );
 
