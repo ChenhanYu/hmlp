@@ -445,7 +445,14 @@ class SPDMatrix : public hmlp::Data<T>
 		{
 		};
 
-    virtual void Redistribute( std::vector<size_t> &cids )
+    virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
+    {
+    };
+
+    virtual void RedistributeWithPartner( 
+        std::vector<size_t> &gids,
+        std::vector<size_t> &lhs, 
+        std::vector<size_t> &rhs, mpi::Comm comm )
     {
     };
 

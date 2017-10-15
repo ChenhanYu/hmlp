@@ -749,7 +749,29 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
         cid2col[ cids[ j ] ] = j;      
     };
 
+    DistData( size_t m, size_t n, std::vector<size_t> &cids, Data<T> &A, mpi::Comm comm ) : 
+      DistDataBase<T>( m, n, comm ) 
+    {
+      assert( A.row() == m );
+      assert( A.col() == cids.size() );
 
+      /** now check if (sum cids.size() == n) */
+      size_t bcast_n = cids.size();
+      size_t reduc_n = 0;
+      mpi::Allreduce( &bcast_n, &reduc_n, 1, MPI_SUM, comm );
+      assert( reduc_n == n );
+      this->cids = cids;
+
+      this->insert( this->end(), A.begin(), A.end() );
+      this->resize( A.row(), A.col() );
+
+      for ( size_t j = 0; j < cids.size(); j ++ ) cid2col[ cids[ j ] ] = j;      
+    };
+
+
+
+    /** */
+    //void Set( size_t m, size_t n )
 
 
 

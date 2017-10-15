@@ -471,6 +471,10 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     //printf( "rank %d enter shared centersplit n = %lu\n", 
     //    global_rank, gids.size() ); fflush( stdout );
 
+
+
+
+
     return hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>::operator()
       ( gids, lids );
   };
@@ -479,8 +483,10 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
   /** distributed operator */
   inline std::vector<std::vector<size_t> > operator()
   ( 
+    /** owned gids */
     std::vector<size_t>& gids,
-    hmlp::mpi::Comm comm
+    /** communicator: */
+    mpi::Comm comm
   ) const 
   {
     /** all assertions */
@@ -710,6 +716,10 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
       }
     };
 
+
+    /** perform P2P redistribution */
+    K.RedistributeWithPartner( gids, split[ 0 ], split[ 1 ], comm );
+
     return split;
   };
 
@@ -747,12 +757,21 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     assert( this->Kptr );
 
     /** declaration */
-    int size, rank, global_rank;
+    int size, rank, global_rank, global_size;
     mpi::Comm_size( comm, &size );
     mpi::Comm_rank( comm, &rank );
     mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+    mpi::Comm_size( MPI_COMM_WORLD, &global_size );
     SPDMATRIX &K = *(this->Kptr);
     std::vector<std::vector<size_t>> split( N_SPLIT );
+
+    if ( size == global_size )
+    {
+      for ( size_t i = 0; i < gids.size(); i ++ )
+        assert( gids[ i ] == i * size + rank );
+    }
+
+
 
 
     /** reduce to get the total size of gids */
@@ -924,6 +943,9 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
         else                           split[ 1 ].push_back( middle[ i ] );
       }
     };
+
+    /** perform P2P redistribution */
+    K.RedistributeWithPartner( gids, split[ 0 ], split[ 1 ], comm );
 
     return split;
   };
@@ -3941,6 +3963,10 @@ DistData<RIDS, STAR, T> Evaluate
   /** clean up all r/w dependencies left on tree nodes */
   tree.DependencyCleanUp();
   hmlp_redistribute_workers( omp_get_max_threads(), 0, 1 ); 
+  //hmlp_redistribute_workers( 
+  //  hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+  //  hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+  //  hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
   /** n-by-nrhs, initialize potentials */
   size_t n    = weights.row();
@@ -4286,7 +4312,7 @@ mpitree::Tree<
   mpi::Barrier( MPI_COMM_WORLD );
 
   /** now redistribute K */
-  K.Redistribute( tree.treelist[ 0 ]->gids );
+  K.Redistribute( true, tree.treelist[ 0 ]->gids );
 
 
 
@@ -4306,9 +4332,13 @@ mpitree::Tree<
 
   /** clean up all dependencies for skeletonization */
 	tree.DependencyCleanUp();
-	hmlp_redistribute_workers( 
-			omp_get_max_threads(), 
-			omp_get_max_threads() / 4 + 1, 1 );
+	//hmlp_redistribute_workers( 
+	//		omp_get_max_threads(), 
+	//		omp_get_max_threads() / 4 + 1, 1 );
+  hmlp_redistribute_workers( 
+    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
   //hmlp_set_num_workers( 10 );
 

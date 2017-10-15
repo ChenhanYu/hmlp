@@ -591,9 +591,10 @@ class Node : public ReadWrite
           else
           {
             kids[ i ] = new Node( setup, nchild, l + 1, this );
+            printf( "bug here\n" );
           }
 
-          #pragma omp parallel for
+          //#pragma omp parallel for
           for ( int j = 0; j < nchild; j ++ )
           {
             kids[ i ]->gids[ j ] = gids[ split[ i ][ j ] ];

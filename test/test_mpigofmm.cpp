@@ -125,13 +125,14 @@ void test_gofmm
   auto &tree = *tree_ptr;
 
   /** */
-  DistData<RBLK, STAR, T> w_rblk( n, nrhs, MPI_COMM_WORLD );
-  DistData<RBLK, STAR, T> u_rblk( n, nrhs, MPI_COMM_WORLD );
+  //DistData<RBLK, STAR, T> w_rblk( n, nrhs, MPI_COMM_WORLD );
   DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
 
   /** redistribute from RBLK to RIDS */
-  w_rblk.rand();
-  w_rids = w_rblk;
+  //w_rblk.rand();
+  //w_rids = w_rblk;
+  w_rids.rand();
+  
 
 
   /** MPI */
@@ -144,6 +145,7 @@ void test_gofmm
   auto u_rids = mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, comm );
 
   /** redistribution */
+  DistData<RBLK, STAR, T> u_rblk( n, nrhs, MPI_COMM_WORLD );
   u_rblk = u_rids;
 
 

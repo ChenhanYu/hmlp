@@ -119,9 +119,16 @@ class VirtualMatrix
     }; /** end ImportantSample() */
 
 
-    virtual void Redistribute( std::vector<size_t> &gids )
+    virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
     {
     }; /** end Redistribute() */
+
+    virtual void RedistributeWithPartner( 
+        std::vector<size_t> &gids,
+        std::vector<size_t> &lhs, 
+        std::vector<size_t> &rhs, mpi::Comm comm )
+    {
+    };
 
     virtual void BackGroundProcess( bool *do_terminate )
 		{

@@ -1023,17 +1023,30 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       /** local problem size (assuming Round-Robin) */
       num_points_owned = ( n - 1 ) / size + 1;
 
+      /** edge case */
+      if ( n % size )
+      {
+        if ( rank >= ( n % size ) ) num_points_owned -= 1;
+      }
+
+
+
       /** initial gids distribution (asssuming Round-Robin) */
       std::vector<size_t> gids( num_points_owned, 0 );
       for ( size_t i = 0; i < num_points_owned; i ++ )
-        gids[ i ] = rank * num_points_owned + i;
+        //gids[ i ] = rank * num_points_owned + i;
+        gids[ i ] = i * size + rank;
 
       /** edge case (happens in the last MPI process) */
-      if ( rank == size - 1 )
-      {
-        num_points_owned = n - num_points_owned * ( size - 1 );
-        gids.resize( num_points_owned );
-      }
+      //if ( rank == size - 1 )
+      //{
+      //  num_points_owned = n - num_points_owned * ( size - 1 );
+      //  gids.resize( num_points_owned );
+      //}
+
+
+
+
 
       //printf( "rank %d before AllocateNodes\n", rank ); fflush( stdout );
 
@@ -1051,22 +1064,22 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
 			/** */
 			DependencyCleanUp();
-			//hmlp_redistribute_workers(  
-			//		hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-			//		hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-			//		hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+			hmlp_redistribute_workers(  
+					hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+					hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+					hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
 			/** tree partitioning */
 			DistSplitTask<MPINODE> mpisplittask;
 			DistTraverseDown( mpisplittask );
 			hmlp_run();
-			this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+			this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
 
 			/** */
 			DependencyCleanUp();
-			hmlp_redistribute_workers( 
-					omp_get_max_threads(), 
-					omp_get_max_threads() / 4 + 1, 1 );
+			//hmlp_redistribute_workers( 
+			//		omp_get_max_threads(), 
+			//		omp_get_max_threads() / 4 + 1, 1 );
 
       tree::SplitTask<NODE> splittask;
       LocaTraverseDown( splittask );
@@ -1079,14 +1092,38 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
       for ( size_t t = 0; t < n_tree; t ++ )
       {
+        //printf( "t = %lu\n", t ); fflush( stdout );
         DependencyCleanUp();
 
-        ////** tree partitioning */
+        //** tree partitioning */
         //DistSplitTask<MPINODE> mpisplittask;
         //DistTraverseDown( mpisplittask );
+        //hmlp_run();
+	  	  //MPI_Barrier( comm );
+
+			  //this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
+
+        /** queries computed in CIDS distribution  */
+        //DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
+        //    this->treelist[ 0 ]->gids, initNN, comm );
+
+        /** 
+         *  notice that setup.NN has type Data<std::pair<T, size_t>>,
+         *  but that is fine because DistData inherits Data
+         */
+        //this->setup.NN = &Q_cids;
+
+			  //DependencyCleanUp();
         //tree::SplitTask<NODE> splittask;
         //LocaTraverseDown( splittask );
+        //LocaTraverseLeafs( dummy );
         //hmlp_run();
+	  	  //MPI_Barrier( comm );
+
+
+
+
+
 
         /** queries computed in CIDS distribution  */
         DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
@@ -1114,7 +1151,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
           DistTraverseDown( mpisplittask );
 					hmlp_run();
 				  MPI_Barrier( comm );
-				  this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+				  this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
           DependencyCleanUp();
           LocaTraverseDown( splittask );
 			    //LocaTraverseUp( seqINDXtask );
@@ -1165,19 +1202,32 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       this->m = this->setup.m;
 
       /** local problem size (assuming Round-Robin) */
+      //num_points_owned = ( n - 1 ) / size + 1;
+
+      /** local problem size (assuming Round-Robin) */
       num_points_owned = ( n - 1 ) / size + 1;
+
+      /** edge case */
+      if ( n % size )
+      {
+        if ( rank >= ( n % size ) ) num_points_owned -= 1;
+      }
+
+
+
 
       /** initial gids distribution (asssuming Round-Robin) */
       std::vector<size_t> gids( num_points_owned, 0 );
       for ( size_t i = 0; i < num_points_owned; i ++ )
-        gids[ i ] = rank * num_points_owned + i;
+        //gids[ i ] = rank * num_points_owned + i;
+        gids[ i ] = i * size + rank;
 
       /** edge case (happens in the last MPI process) */
-      if ( rank == size - 1 )
-      {
-        num_points_owned = n - num_points_owned * ( size - 1 );
-        gids.resize( num_points_owned );
-      }
+      //if ( rank == size - 1 )
+      //{
+      //  num_points_owned = n - num_points_owned * ( size - 1 );
+      //  gids.resize( num_points_owned );
+      //}
     
       /** check initial gids */
       printf( "rank %d gids[ 0 ] %lu gids[ -1 ] %lu\n",
@@ -1190,10 +1240,10 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       bgtask->SetAsBackGround();
 
       DependencyCleanUp();
-//			hmlp_redistribute_workers( 
-//					hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-//					hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-//					hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+			hmlp_redistribute_workers( 
+					hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+					hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+					hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
 			DistSplitTask<MPINODE> mpiSPLITtask;
       DistTraverseDown( mpiSPLITtask );
@@ -1201,13 +1251,13 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 			/** need to redistribute  */
 		  hmlp_run();
 		  MPI_Barrier( comm );
-		  this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
+		  this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
 
 
       DependencyCleanUp();
-			hmlp_redistribute_workers( 
-					omp_get_max_threads(), 
-					omp_get_max_threads() / 4 + 1, 1 );
+			//hmlp_redistribute_workers( 
+			//		omp_get_max_threads(), 
+			//		omp_get_max_threads() / 4 + 1, 1 );
 
 			tree::SplitTask<NODE> seqSPLITtask;
 			LocaTraverseDown( seqSPLITtask );
@@ -1236,8 +1286,8 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       Offset( mpitreelists[ 0 ], 0 );
       hmlp::mpi::Barrier( comm );
 
-
-
+      /** now redistribute K */
+      //this->setup.K->Redistribute( true, this->treelist[ 0 ]->gids );
 
     }; /** end TreePartition() */
 

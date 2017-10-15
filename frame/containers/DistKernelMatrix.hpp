@@ -319,8 +319,6 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
             XJ( i, jmapcids[ p ][ j ] ) = XJp( i, j );
 					}
 
-
-
 					/** write to cache */
           //cache.Write( Jp[ j ], line ); 
 				}
@@ -328,13 +326,18 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 			return XJ;
 
-
-
     }; /** end RequestSources() */
 
 
+
+
+
+
+
+
+
 		/**
-		 *  @brief This function collects 
+		 *  @brief This function collects KIJ from myself
 		 */ 
     hmlp::Data<T> RequestColumns( std::vector<size_t>& I, hmlp::Data<T> &XJ )
     {
@@ -383,21 +386,25 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
               KIJ( i, j ) = (*this)( XI.data(), XJ.columndata( j ) );
             continue;
           }
+          else
+          {
+            //printf( "RequestColumn: cid not found\n" ); fflush( stdout );
+          }
         }
 
 				/** try to read from cache (critical region) */
-				//auto line = cache.Read( cid );
+				auto line = cache.Read( cid );
 
-				//if ( line.size() != d )
-				//{
+				if ( line.size() != d )
+				{
           sendcids[ cid % size ].push_back( cid );    
           jmapcids[ cid % size ].push_back(   i );
-				//}
-				//else
-				//{
-				//	for ( size_t j = 0; j < KIJ.col(); j ++ )
-        //    KIJ( i, j ) = (*this)( line.data(), XJ.columndata( j ) );
-				//}
+				}
+				else
+				{
+					for ( size_t j = 0; j < KIJ.col(); j ++ )
+            KIJ( i, j ) = (*this)( line.data(), XJ.columndata( j ) );
+				}
 			}
 
 
@@ -547,28 +554,42 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
        *  all collaborative communication routines to avoid deadlock.
        */
       hmlp::Data<T> KIJ( I.size(), J.size() );
+			Data<T> itargets, jsources;
 
 			/** early return */
 			if ( !I.size() || !J.size() ) return KIJ;
 
-      /** request form column values directly */
-      if ( J.size() <= 3 )
+      /** 
+       *  Request form column values directly, this access pattern happends only
+       *  during the tree partitioning. We need to provide the parter rank.
+       *
+       */
+      if ( J.size() < 3 )
       {
-        auto XJ = RequestSources( J );
-        return RequestColumns( I, XJ );
+        if ( I.size() == dynamic_sources.col() ) 
+        {
+          itargets = dynamic_sources;
+          jsources = RequestSources( J );
+        }
+        else
+        {
+          auto XJ = RequestSources( J );
+          return RequestColumns( I, XJ );
+        }
       }
-
-			Data<T> itargets, jsources;
-			if ( &I == &J )
-			{
-        itargets = RequestSources( I );
-			  jsources = itargets;
-			}
-			else
-			{
-        itargets = RequestSources( I );
-        jsources = RequestSources( J );
-			}
+      else
+      {
+			  if ( &I == &J )
+			  {
+          itargets = RequestSources( I );
+			    jsources = itargets;
+			  }
+			  else
+			  {
+          itargets = RequestSources( I );
+          jsources = RequestSources( J );
+			  }
+      }
 
 			/** request for coordinates */
       //hmlp::Data<T> itargets = RequestSources( I );
@@ -590,7 +611,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
       //printf( "After xgemm\n" ); fflush( stdout );
 
-      //#pragma omp parallel for
+      #pragma omp parallel for
       for ( size_t i = 0; i < I.size(); i ++ )
       {
         itargets_sqnorms[ i ] = xdot( 
@@ -598,7 +619,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 						   itargets.data() + i * d, 1 );
       } /** end omp parallel for */
 
-      //#pragma omp parallel for
+      #pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
       {
         jsources_sqnorms[ j ] = xdot( 
@@ -607,7 +628,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       } /** end omp parallel for */
 
       /** add square norms to inner products to get square distances */
-      //#pragma omp parallel for
+      #pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
         for ( size_t i = 0; i < I.size(); i ++ )
           KIJ( i, j ) += itargets_sqnorms[ i ] + jsources_sqnorms[ j ];
@@ -617,7 +638,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         case KS_GAUSSIAN:
         {
           /** apply the scaling factor and exponentiate */
-          //#pragma omp parallel for
+          #pragma omp parallel for
           for ( size_t i = 0; i < KIJ.size(); i ++ )
           {
             KIJ[ i ] = std::exp( kernel.scal * KIJ[ i ] );
@@ -867,21 +888,98 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     }; /** end BackGroundProcess() */
 
 
-    void Redistribute( std::vector<size_t> &cids )
+    virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
     {
 			mpi::Comm comm = this->GetComm();
 			size_t n = this->col();
 
 			/** delete the previous redistribution */
-			if ( sources_cids ) delete sources_cids;
+			if ( sources_cids ) 
+      {
+        //printf( "delete sources_cids\n" ); fflush( stdout );
+        delete sources_cids;
+      }
 
 			/** allocation */
-			sources_cids = new DistData<STAR, CIDS, T>( d, n, cids, comm );
+      if ( enforce_ordered )
+      {
+			  sources_cids = new DistData<STAR, CIDS, T>( d, n, cids, comm );
+			  *sources_cids = *sources;
+      }
+      else
+      {
+			  sources_cids = new DistData<STAR, CIDS, T>( d, n, cids, dynamic_sources, comm );
 
-			/** redistribute */
-			*sources_cids = *sources;
-      
+        for ( size_t i = 0; i < cids.size(); i ++ )
+        {
+          assert( sources_cids->HasColumn( cids[ i ] ) );
+        }
+      }
+
     }; /** end Redistribute() */
+
+   
+
+    virtual void RedistributeWithPartner(
+        std::vector<size_t> &gids,
+        std::vector<size_t> &lhs, 
+        std::vector<size_t> &rhs, mpi::Comm comm )
+    {
+      mpi::Status status;
+      int loc_size, loc_rank;
+      mpi::Comm_size( comm, &loc_size );
+      mpi::Comm_rank( comm, &loc_rank );
+
+      /** at the root level, starts from CBLK */
+      if ( loc_size == this->Comm_size() )
+      {
+        dynamic_sources = *sources;
+        //printf( "dynamic_sources %lu %lu, sources %lu %lu %lu\n",
+        //    dynamic_sources.row(), dynamic_sources.col(), 
+        //    sources->row(), sources->col(), sources->col_owned() ); fflush( stdout );
+      }
+
+      //if ( loc_size == 1 )
+      //{
+			//  /** delete the previous redistribution */
+			//  if ( sources_cids ) delete sources_cids;
+
+			//  /** allocation */
+			//  sources_cids = new DistData<STAR, CIDS, T>( d, this->cids, gids, this->GetComm() );
+
+      //  *sources_cids = dynamic_sources;
+
+      //  return;
+      //}
+
+      auto Xlhs = dynamic_sources( all_dimensions, lhs );
+      auto Xrhs = dynamic_sources( all_dimensions, rhs );
+      Data<T> Xpar;
+
+      if ( loc_rank < loc_size / 2 )
+      {
+        int par_rank = loc_rank + loc_size / 2;
+        mpi::ExchangeVector( 
+            Xrhs, par_rank, 0, 
+            Xpar, par_rank, 0, comm, &status );
+        Xlhs.insert( Xlhs.end(), Xpar.begin(), Xpar.end() );
+        Xlhs.resize( d, Xlhs.size() / d );
+        dynamic_sources = Xlhs;
+      }
+      else
+      {
+        int par_rank = loc_rank - loc_size / 2;
+        mpi::ExchangeVector( 
+            Xlhs, par_rank, 0, 
+            Xpar, par_rank, 0, comm, &status );
+        Xrhs.insert( Xrhs.end(), Xpar.begin(), Xpar.end() );
+        Xrhs.resize( d, Xrhs.size() / d );
+        dynamic_sources = Xrhs;
+      }
+
+    }; /** end RedistributeWithPartner() */
+
+
 
 
   private:
@@ -908,7 +1006,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     /** */
     std::vector<size_t> all_dimensions;
 
-		Cache1D<512, 128, T> cache;
+		Cache1D<4096, 256, T> cache;
+
+    //DistData<STAR, CIDS, T> dynamic_sources;
+    Data<T> dynamic_sources;
 
 
 }; /** end class DistKernelMatrix */
