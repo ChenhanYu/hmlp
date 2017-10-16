@@ -93,7 +93,10 @@ template <class Real> class KernelMatrix {
      Real elem = 0;
      StaticArray<Long, DIM + 2> idx_arr;
      for (Integer i = 0; i < DIM; i++) idx_arr[i] = (tcoord[i] - scoord[i]) * GridDim_;
-     if (0 || std::abs(idx_arr[0]) < 3 && std::abs(idx_arr[1]) < 3 && std::abs(idx_arr[2]) < 3) { // Store near-interaction matrices
+     if ( 0 || std::abs(idx_arr[0]) < 1000
+				    && std::abs(idx_arr[1]) < 1000
+					  && std::abs(idx_arr[2]) < 1000 ) 
+		 { // Store near-interaction matrices
        idx_arr[DIM + 0] = src_elem;
        idx_arr[DIM + 1] = trg_elem;
        Long idx = cantor_signed(idx_arr, DIM + 2);

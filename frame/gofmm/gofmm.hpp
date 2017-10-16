@@ -2500,6 +2500,9 @@ void SkeletonsToSkeletons( NODE *node )
     }
     else
     {
+      printf( "Far Kab not cached treelist_id %lu, l %lu\n\n",
+					node->treelist_id, node->l ); fflush( stdout );
+
       /** get submatrix Kad from K */
       beg = omp_get_wtime();
       auto Kab = K( amap, bmap );

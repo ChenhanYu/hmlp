@@ -2553,6 +2553,8 @@ class SimpleNearFarNodesTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
+      if ( arg->parent )
+				arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
       arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
       this->TryEnqueue();
     };
@@ -2944,6 +2946,55 @@ class WaitLETTask : public hmlp::Task
     };
 
 }; /** end class WaitLETTask */
+
+
+
+/**
+ *  @brief Work only for no NN pruning.
+ *
+ */
+template<typename NODE>
+class WaitSiblingTask : public hmlp::Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "WaitSibling" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+
+      /** we don't know the exact cost here */
+      cost = 5.0;
+
+      /** high priority */
+      priority = true;
+    }
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+
+      if ( !arg->isleaf )
+      {
+        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      }
+
+      /** try to enqueue if there is no dependency */
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+    };
+
+}; /** end class WaitSiblingTask */
 
 
 
@@ -4072,25 +4123,23 @@ DistData<RIDS, STAR, T> Evaluate
 			/** N2S (Loca first, Dist follows) */
 			gofmm::UpdateWeightsTask<NODE, T> seqN2Stask;
 			mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
-			mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
 			tree.LocaTraverseUp( seqN2Stask );
 			tree.DistTraverseUp( mpiN2Stask );
 			//tree.LocaTraverseLeafs( seqL2Ltask );
 			hmlp_run();
 			hmlp::mpi::Barrier( MPI_COMM_WORLD );
 
-      //tree.DependencyCleanUp();
-			///** L2L */
-			//mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
-			//tree.LocaTraverseLeafs( seqL2Ltask );
-			//hmlp_run();
-			//hmlp::mpi::Barrier( MPI_COMM_WORLD );
+      tree.DependencyCleanUp();
+			/** L2L */
+			mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
+			tree.LocaTraverseLeafs( seqL2Ltask );
+			hmlp_run();
+			hmlp::mpi::Barrier( MPI_COMM_WORLD );
 
       tree.DependencyCleanUp();
 			/** S2S */
 			gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T> seqS2Stask;
 			mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
-			tree.LocaTraverseLeafs( seqL2Ltask );
 			tree.LocaTraverseUnOrdered( seqS2Stask );
 			tree.DistTraverseUnOrdered( mpiS2Stask );
 			hmlp_run();
@@ -4319,6 +4368,12 @@ mpitree::Tree<
   //}
 
 
+  //hmlp_redistribute_workers( omp_get_max_threads(), 0, 1 );
+  //hmlp_redistribute_workers( 1, 0, omp_get_max_threads() );
+  //hmlp_redistribute_workers( 2, 0, 10 );
+
+
+
 
 
 
@@ -4367,22 +4422,22 @@ mpitree::Tree<
   /** skeletonization */
 	if ( rank == 0 )
 	{
-    printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
+		printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
 	}
-  mpi::Barrier( MPI_COMM_WORLD );
-  beg = omp_get_wtime();
+	mpi::Barrier( MPI_COMM_WORLD );
+	beg = omp_get_wtime();
 
-  /** clean up all dependencies for skeletonization */
-  tree.DependencyCleanUp();
-  hmlp_redistribute_workers( 
-  		omp_get_max_threads(), 
-  		omp_get_max_threads() / 4 + 1, 1 );
-  //hmlp_redistribute_workers( 
-  //    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-  //    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-  //    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+	/** clean up all dependencies for skeletonization */
+	tree.DependencyCleanUp();
+	//hmlp_redistribute_workers( 
+	//		omp_get_max_threads(), 
+	//		omp_get_max_threads() / 4 + 1, 1 );
+	//hmlp_redistribute_workers( 
+	//    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+	//    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+	//    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
-  //hmlp_set_num_workers( 10 );
+	//hmlp_set_num_workers( 10 );
 
 
 	if ( 0 )
@@ -4431,6 +4486,11 @@ mpitree::Tree<
 		mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
 		mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
 		tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+
+		auto *waitsibtask = new WaitSiblingTask<NODE>();
+		waitsibtask->Set( tree.treelist[ 0 ] );
+    waitsibtask->DependencyAnalysis();
+		waitsibtask->Submit();
 
 		gofmm::InterpolateTask<NODE, T> seqPROJtask;
 		tree.LocaTraverseUnOrdered( seqPROJtask );
@@ -4494,6 +4554,22 @@ mpitree::Tree<
 		mpi::Barrier( MPI_COMM_WORLD );
 
 		tree.DependencyCleanUp();
+		/** create interaction lists */
+		SimpleNearFarNodesTask<NODE> seqNEARFARtask;
+		tree.LocaTraverseDown( seqNEARFARtask );
+
+		/** cache near KIJ interactions */
+		mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+		tree.LocaTraverseLeafs( seqNEARKIJtask );
+
+		/** cache  far KIJ interactions */
+		mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
+		tree.LocaTraverseUnOrdered( seqFARKIJtask );
+		hmlp_run();
+		mpi::Barrier( MPI_COMM_WORLD );
+
+
+		tree.DependencyCleanUp();
 		hmlp_redistribute_workers(
 				hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
 				hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
@@ -4514,19 +4590,11 @@ mpitree::Tree<
 				omp_get_max_threads() / 4 + 1, 1 );
 
 		/** create interaction lists */
-		SimpleNearFarNodesTask<NODE> seqNEARFARtask;
 		DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
 		tree.DistTraverseDown( mpiNEARFARtask );
-		tree.LocaTraverseDown( seqNEARFARtask );
-
-		/** cache near KIJ interactions */
-		mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-		tree.LocaTraverseLeafs( seqNEARKIJtask );
 
 		/** cache  far KIJ interactions */
-		mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
 		mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-		tree.LocaTraverseUnOrdered( seqFARKIJtask );
 		tree.DistTraverseUnOrdered( mpiFARKIJtask );
 
 		hmlp_run();
