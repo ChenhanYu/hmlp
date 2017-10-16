@@ -20,7 +20,7 @@ template <class Real> class KernelMatrix {
      Integer order = 6, depth = 0;
      auto& ker = Stokes3D<Real>::FxU();
      Integer Ncoeff = order * (order + 1) / 2 * ker.Dim(0);
-     depth = sqrt(N / (2 * DIM * Ncoeff)) - 1;
+     depth = log(N / (2.0 * DIM * Ncoeff))/log(4.0);
      Initialize(order, depth, ker);
    }
 
@@ -93,25 +93,24 @@ template <class Real> class KernelMatrix {
      Real elem = 0;
      StaticArray<Long, DIM + 2> idx_arr;
      for (Integer i = 0; i < DIM; i++) idx_arr[i] = (tcoord[i] - scoord[i]) * GridDim_;
-     //if (std::abs(idx_arr[0]) < 3 && std::abs(idx_arr[1]) < 3 && std::abs(idx_arr[2]) < 3) 
-     if (std::abs(idx_arr[0]) < 101 && std::abs(idx_arr[1]) < 101 && std::abs(idx_arr[2]) < 101 ) 
-		 { // Store near-interaction matrices
+     if (0 || std::abs(idx_arr[0]) < 3 && std::abs(idx_arr[1]) < 3 && std::abs(idx_arr[2]) < 3) { // Store near-interaction matrices
        idx_arr[DIM + 0] = src_elem;
        idx_arr[DIM + 1] = trg_elem;
        Long idx = cantor_signed(idx_arr, DIM + 2);
        #pragma omp critical
        { // Set elem
-         if (mat.find(idx) == mat.end()) 
-				 { // Compute and store new matrix
+         if (mat.find(idx) == mat.end()) { // Compute and store new matrix
            mat[idx] = Integ(order_, scoord, src_elem, depth_, tcoord, trg_elem, depth_, *ker_);
          }
          elem = mat[idx][src_coeff_idx][trg_coeff_idx];
        }
-     } 
-		 else
-		 { // TODO: implement optimized algorithm for well-separated octants
-       Matrix<Real> M = Integ(order_, scoord, src_elem, depth_, tcoord, trg_elem, depth_, *ker_);
-       elem = M[src_coeff_idx][trg_coeff_idx];
+     } else { // TODO: implement optimized algorithm for well-separated octants
+       elem = IntegFar(order_, scoord, src_elem, depth_, tcoord, trg_elem, depth_, *ker_, src_coeff_idx, trg_coeff_idx);
+       //Matrix<Real> M = Integ(order_, scoord, src_elem, depth_, tcoord, trg_elem, depth_, *ker_);
+       //auto elem_ = M[src_coeff_idx][trg_coeff_idx];
+       //static Real max_err = 0;
+       //max_err = std::max(fabs(elem_-elem), max_err);
+       //std::cout<<max_err<<'\n';
      }
      return elem;
    }
@@ -150,8 +149,11 @@ template <class Real> class KernelMatrix {
    }
 
    static Vector<Real> ChebNodes(ConstIterator<Real> coord, Integer elem, Integer depth, Integer order) {
-     Vector<Vector<Real>> ref_nodes;
-     ReferenceElemNodes(order, ref_nodes);
+     static Vector<Vector<Real>> ref_nodes;
+     #pragma omp critical (REF_NODES_CRITICAL)
+     if (!ref_nodes.Dim()) {
+       ReferenceElemNodes(order, ref_nodes);
+     }
 
      Vector<Real> nodes;
      nodes = ref_nodes[elem];
@@ -167,14 +169,11 @@ template <class Real> class KernelMatrix {
    }
 
    static Matrix<Real> Integ(Integer order, ConstIterator<Real> scoord, Integer src_elem, Integer src_depth, ConstIterator<Real> tcoord, Integer trg_elem, Integer trg_depth, const KernelFunction<Real, DIM> &ker, Real tol = -1) {
-     //Matrix<Real> M; ////////////
-
      Matrix<Real> Mcoeff2nodes;
      { // Set Mcoeff2nodes
        Vector<Real> trg_nodes = ChebNodes(tcoord, trg_elem, trg_depth, order);
        Integer Ntrg = trg_nodes.Dim() / DIM;
        PVFMM_ASSERT(Ntrg);
-       //M.ReInit(Ntrg, 3, trg_nodes.Begin()); /////////////////
 
        for (Integer i = 0; i < Ntrg; i++) {  // Shift trg_nodes by scoord
          for (Integer j = 0; j < DIM; j++) {
@@ -187,7 +186,6 @@ template <class Real> class KernelMatrix {
        #pragma omp parallel for schedule(dynamic)
        for (Integer i = 0; i < Ntrg; i++) {
          ChebBasis<Real>::template Integ<DIM, ELEMDIM>(Mcoeff[i], order, trg_nodes.Begin() + i * DIM, s, src_elem, ker, tol);
-         //for (Integer j=0;j<DIM;j++) M[i][j] += Mcoeff[i][(src_elem/2)*order*(order+1)/2][j]*10;//////////////////
        }
 
        Mcoeff2nodes.ReInit(Mcoeff[0].Dim(0), Mcoeff[0].Dim(1) * Ntrg);
@@ -216,9 +214,6 @@ template <class Real> class KernelMatrix {
        Mcoeff2coeff.ReInit(Mcoeff2nodes.Dim(0), coeff.Dim() / Mcoeff2nodes.Dim(0), coeff.Begin());
      }
 
-     //std::cout<<Mcoeff2coeff<<'\n';
-     //std::cout<<M; ////////////////////////////////////////
-
      return Mcoeff2coeff;
    }
 
@@ -244,6 +239,98 @@ template <class Real> class KernelMatrix {
        idx = 2 * idx + (x[i] < 0 ? 0 : 1);
      }
      return idx;
+   }
+
+
+
+
+   template <Integer DIM, Integer SUBDIM> static Real IntegFar(Integer order, const Vector<Real>& r_trg, Real side, Integer src_face, const KernelFunction<Real, DIM>& ker, Integer src_coeff_idx, Integer trg_coeff_idx) {
+     static const Real eps = ChebBasis<Real>::machine_eps() * 64;
+     Real side_inv = 1.0 / side;
+     Integer Nq = 6;
+
+     static Vector<Real> qp, qw, p0;
+     #pragma omp critical
+     if (!qp.Dim()) {
+       ChebBasis<Real>::quad_rule(Nq, qp, qw);
+       ChebBasis<Real>::EvalBasis1D(order, qp, p0);
+     }
+
+     Integer Ncoeff;
+     {  // Set Ncoeff
+       Ncoeff = 1;
+       for (Integer i = 0; i < SUBDIM; i++) Ncoeff = (Ncoeff * (order + i)) / (i + 1);
+     }
+     StaticArray<Integer, 2> kdim;
+     kdim[0] = ker.Dim(0);
+     kdim[1] = ker.Dim(1);
+
+     Integer sidx0=0, sidx1=0, sidx2=0;
+     Integer tidx0=0, tidx1=0, tidx2=0;
+     { // Set sidx
+       sidx2 = src_coeff_idx / Ncoeff;
+       Integer idx=0, sidx = src_coeff_idx % Ncoeff;
+       for (Integer i0=0;i0<order;i0++){
+         for (Integer i1=0;i0+i1<order;i1++){
+           if(idx==sidx) {
+             sidx0 = i1;
+             sidx1 = i0;
+           }
+           idx++;
+         }
+       }
+     }
+     { // Set tidx
+       tidx2 = trg_coeff_idx / Ncoeff;
+       Integer idx=0, tidx = trg_coeff_idx % Ncoeff;
+       for (Integer i0=0;i0<order;i0++){
+         for (Integer i1=0;i0+i1<order;i1++){
+           if(idx==tidx) {
+             tidx0 = i1;
+             tidx1 = i0;
+           }
+           idx++;
+         }
+       }
+     }
+
+     PVFMM_ASSERT(SUBDIM==2 && DIM==3);
+     Vector<Real> n_src(pvfmm::pow<SUBDIM, Integer>(Nq)*DIM);
+     Vector<Real> r_src(pvfmm::pow<SUBDIM, Integer>(Nq)*DIM);
+     Vector<Real> v_src(pvfmm::pow<SUBDIM, Integer>(Nq)*kdim[0]);
+     n_src.SetZero();
+     v_src.SetZero();
+     for (Integer i0=0;i0<Nq;i0++){
+       for (Integer i1=0;i1<Nq;i1++){
+         n_src[(i0 * Nq + i1) * DIM + src_face >> 1] = (src_face & 1 ? -1.0 : 1.0);
+         r_src[(i0 * Nq + i1) * DIM + ((src_face>>1)+0)%DIM] = (src_face & 1 ? 1.0 : 0.0) * side;
+         r_src[(i0 * Nq + i1) * DIM + ((src_face>>1)+1)%DIM] = qp[i0] * side;
+         r_src[(i0 * Nq + i1) * DIM + ((src_face>>1)+2)%DIM] = qp[i1] * side;
+         v_src[(i0 * Nq + i1) * kdim[0] + sidx2] = p0[sidx0 * Nq + i0] * p0[sidx1 * Nq + i1] * qw[i0] * qw[i1]*side*side;
+       }
+     }
+
+     Long Ntrg = r_trg.Dim() / DIM;
+     Vector<Real> v_trg(Ntrg * kdim[1]);
+     v_trg.SetZero();
+     ker(r_src, n_src, v_src, r_trg, v_trg);
+
+     Vector<Real> fn_v(Ntrg), coeff;
+     for (Long i=0;i<Ntrg;i++) fn_v[i] = v_trg[i * kdim[1] + tidx2];
+     ChebBasis<Real>::template Approx<ELEMDIM>(order, fn_v, coeff);
+     return coeff[trg_coeff_idx % Ncoeff];
+   }
+
+   static Real IntegFar(Integer order, ConstIterator<Real> scoord, Integer src_elem, Integer src_depth, ConstIterator<Real> tcoord, Integer trg_elem, Integer trg_depth, const KernelFunction<Real, DIM> &ker, Integer src_coeff_idx, Integer trg_coeff_idx) {
+     Vector<Real> trg_nodes = ChebNodes(tcoord, trg_elem, trg_depth, order);
+     Integer Ntrg = trg_nodes.Dim() / DIM; PVFMM_ASSERT(Ntrg);
+     for (Integer i = 0; i < Ntrg; i++) {
+       for (Integer j = 0; j < DIM; j++) {
+         trg_nodes[i * DIM + j] -= scoord[j];
+       }
+     }
+     Real s = pvfmm::pow<Real>(0.5, src_depth);
+     return IntegFar<DIM, ELEMDIM>(order, trg_nodes, s, src_elem, ker, src_coeff_idx, trg_coeff_idx);
    }
 
    mutable std::map<Long, Matrix<Real>> mat;
