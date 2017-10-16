@@ -1001,7 +1001,7 @@ template <class ValueType, class Derived> class BasisInterface {
   }
 
 
- private:
+ //private:
   BasisInterface() {
     void (*EvalBasis1D)(Integer, const Vector<ValueType>&, Vector<ValueType>&) = Derived::EvalBasis1D;
     void (*Nodes1D)(Integer, Vector<ValueType>&) = Derived::Nodes1D;
@@ -1393,7 +1393,7 @@ template <class ValueType, class Derived> class BasisInterface {
 
 template <class ValueType> class ChebBasis : public BasisInterface<ValueType, ChebBasis<ValueType>> {
 
- private:
+ public:
   ChebBasis();
 
   static void Nodes1D(Integer order, Vector<ValueType>& nodes) { BasisInterface<ValueType, ChebBasis<ValueType>>::cheb_nodes_1d(order, nodes); }
