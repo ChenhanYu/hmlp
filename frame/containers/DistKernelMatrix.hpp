@@ -1006,7 +1006,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     /** */
     std::vector<size_t> all_dimensions;
 
-		Cache1D<4096, 256, T> cache;
+		//Cache1D<4096, 256, T> cache;
+		Cache1D<256, 256, T> cache;
 
     //DistData<STAR, CIDS, T> dynamic_sources;
     Data<T> dynamic_sources;

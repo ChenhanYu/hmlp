@@ -4013,59 +4013,101 @@ DistData<RIDS, STAR, T> Evaluate
   }
   if ( SYMMETRIC_PRUNE )
   {
-    /** global barrier and timer */
-    hmlp::mpi::Barrier( MPI_COMM_WORLD );
-    beg = omp_get_wtime();
+		if ( 1 )
+		{
+			/** global barrier and timer */
+			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			beg = omp_get_wtime();
 
-    /** TreeView */
-    gofmm::TreeViewTask<NODE> seqVIEWtask;
-    mpigofmm::DistTreeViewTask<MPINODE> mpiVIEWtask;
-    tree.DistTraverseDown( mpiVIEWtask );
-    tree.LocaTraverseDown( seqVIEWtask );
+			/** TreeView */
+			gofmm::TreeViewTask<NODE> seqVIEWtask;
+			mpigofmm::DistTreeViewTask<MPINODE> mpiVIEWtask;
+			tree.DistTraverseDown( mpiVIEWtask );
+			tree.LocaTraverseDown( seqVIEWtask );
 
-    /** N2S (Loca first, Dist follows) */
-    gofmm::UpdateWeightsTask<NODE, T> seqN2Stask;
-    mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
-    tree.LocaTraverseUp( seqN2Stask );
-    tree.DistTraverseUp( mpiN2Stask );
+			/** N2S (Loca first, Dist follows) */
+			gofmm::UpdateWeightsTask<NODE, T> seqN2Stask;
+			mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
+			tree.LocaTraverseUp( seqN2Stask );
+			tree.DistTraverseUp( mpiN2Stask );
 
-    /** L2L */
-    mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
-    tree.LocaTraverseLeafs( seqL2Ltask );
+			/** L2L */
+			mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
+			tree.LocaTraverseLeafs( seqL2Ltask );
+
+			/** S2S */
+			gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T> seqS2Stask;
+			mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
+			tree.LocaTraverseUnOrdered( seqS2Stask );
+			tree.DistTraverseUnOrdered( mpiS2Stask );
+
+			/** S2N (Dist first, Loca follows) */
+			gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T> seqS2Ntask;
+			mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
+			tree.DistTraverseDown( mpiS2Ntask );
+			tree.LocaTraverseDown( seqS2Ntask );
+
+			/** epoch */
+			hmlp_run();
+			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			computeall_time = omp_get_wtime() - beg;
+		}
+		else
+		{
+			/** global barrier and timer */
+			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			beg = omp_get_wtime();
+
+			/** TreeView */
+			gofmm::TreeViewTask<NODE> seqVIEWtask;
+			mpigofmm::DistTreeViewTask<MPINODE> mpiVIEWtask;
+			tree.DistTraverseDown( mpiVIEWtask );
+			tree.LocaTraverseDown( seqVIEWtask );
+
+			hmlp_run();
+			hmlp::mpi::Barrier( MPI_COMM_WORLD );
 
 
-    /** S2S */
-    gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T> seqS2Stask;
-    mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
-    tree.LocaTraverseUnOrdered( seqS2Stask );
-    tree.DistTraverseUnOrdered( mpiS2Stask );
+      tree.DependencyCleanUp();
+			/** N2S (Loca first, Dist follows) */
+			gofmm::UpdateWeightsTask<NODE, T> seqN2Stask;
+			mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
+			mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
+			tree.LocaTraverseUp( seqN2Stask );
+			tree.DistTraverseUp( mpiN2Stask );
+			//tree.LocaTraverseLeafs( seqL2Ltask );
+			hmlp_run();
+			hmlp::mpi::Barrier( MPI_COMM_WORLD );
 
-    /** S2N (Dist first, Loca follows) */
-    gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T> seqS2Ntask;
-    mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
-    tree.DistTraverseDown( mpiS2Ntask );
-    tree.LocaTraverseDown( seqS2Ntask );
+      //tree.DependencyCleanUp();
+			///** L2L */
+			//mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
+			//tree.LocaTraverseLeafs( seqL2Ltask );
+			//hmlp_run();
+			//hmlp::mpi::Barrier( MPI_COMM_WORLD );
 
-    /** epoch */
-    hmlp_run();
+      tree.DependencyCleanUp();
+			/** S2S */
+			gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T> seqS2Stask;
+			mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
+			tree.LocaTraverseLeafs( seqL2Ltask );
+			tree.LocaTraverseUnOrdered( seqS2Stask );
+			tree.DistTraverseUnOrdered( mpiS2Stask );
+			hmlp_run();
+			hmlp::mpi::Barrier( MPI_COMM_WORLD );
 
-    /** reduce direct iteractions from 4 copies */
-    //#pragma omp parallel for
-    //for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-    //{
-    //  auto *node = *(level_beg + node_ind);
-    //  auto &u_leaf = node->data.u_leaf[ 0 ];
-    //  /** reduce all u_leaf[0:4] */
-    //  for ( size_t p = 1; p < 20; p ++ )
-    //  {
-    //    for ( size_t i = 0; i < node->data.u_leaf[ p ].size(); i ++ )
-    //      u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
-    //  }
-    //}
+      tree.DependencyCleanUp();
+			/** S2N (Dist first, Loca follows) */
+			gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T> seqS2Ntask;
+			mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
+			tree.DistTraverseDown( mpiS2Ntask );
+			tree.LocaTraverseDown( seqS2Ntask );
 
-    /** global barrier and timer */
-    hmlp::mpi::Barrier( MPI_COMM_WORLD );
-    computeall_time = omp_get_wtime() - beg;
+			/** epoch */
+			hmlp_run();
+			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			computeall_time = omp_get_wtime() - beg;
+		}
   }
   else 
   {
@@ -4343,103 +4385,154 @@ mpitree::Tree<
   //hmlp_set_num_workers( 10 );
 
 
-//  /** gather sample rows and skeleton columns, then ID */
-//  mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
-//  mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
-//  mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
-//  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
-//  tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
-//  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-//
-//  /** compute the coefficient matrix of ID */
-//  gofmm::InterpolateTask<NODE, T> seqPROJtask;
-//  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
-//  tree.LocaTraverseUnOrdered( seqPROJtask );
-//  tree.DistTraverseUnOrdered( mpiPROJtask );
-//
-//	/** create interaction lists */
-//	SimpleNearFarNodesTask<NODE> seqNEARFARtask;
-//	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
-//  tree.DistTraverseDown( mpiNEARFARtask );
-//	tree.LocaTraverseDown( seqNEARFARtask );
-//
-//	/** cache near KIJ interactions */
-//  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-//	tree.LocaTraverseLeafs( seqNEARKIJtask );
-//
-//	/** cache  far KIJ interactions */
-//  mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
-//  mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-//  tree.LocaTraverseUnOrdered( seqFARKIJtask );
-//  tree.DistTraverseUnOrdered( mpiFARKIJtask );
-//
-//  
-//  other_time += omp_get_wtime() - beg;
-//  hmlp_run();
-//  mpi::Barrier( MPI_COMM_WORLD );
-//  skel_time = omp_get_wtime() - beg;
+	if ( 0 )
+	{
+		/** gather sample rows and skeleton columns, then ID */
+		mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
+		mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
+		mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
+		mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
+		tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+		tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
 
+		/** compute the coefficient matrix of ID */
+		gofmm::InterpolateTask<NODE, T> seqPROJtask;
+		mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
+		tree.LocaTraverseUnOrdered( seqPROJtask );
+		tree.DistTraverseUnOrdered( mpiPROJtask );
 
-  //hmlp_set_num_workers( 20 );
+		/** create interaction lists */
+		SimpleNearFarNodesTask<NODE> seqNEARFARtask;
+		DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
+		tree.DistTraverseDown( mpiNEARFARtask );
+		tree.LocaTraverseDown( seqNEARFARtask );
 
+		/** cache near KIJ interactions */
+		mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+		tree.LocaTraverseLeafs( seqNEARKIJtask );
 
+		/** cache  far KIJ interactions */
+		mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
+		mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
+		tree.LocaTraverseUnOrdered( seqFARKIJtask );
+		tree.DistTraverseUnOrdered( mpiFARKIJtask );
 
-  mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
-  mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
-  tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
-
-  gofmm::InterpolateTask<NODE, T> seqPROJtask;
-  tree.LocaTraverseUnOrdered( seqPROJtask );
-
-	/** create interaction lists */
-	SimpleNearFarNodesTask<NODE> seqNEARFARtask;
-	tree.LocaTraverseDown( seqNEARFARtask );
-
-	/** cache near KIJ interactions */
-  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-	tree.LocaTraverseLeafs( seqNEARKIJtask );
-
-	/** cache  far KIJ interactions */
-  mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
-  tree.LocaTraverseUnOrdered( seqFARKIJtask );
-
-  /** */
-  hmlp_run();
-  mpi::Barrier( MPI_COMM_WORLD );
-
-  /** clean up dep */
-  tree.DependencyCleanUp();
-  hmlp_redistribute_workers( 
-    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
-
-  //hmlp_set_num_workers( 2 );
-
-  mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
-  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
-  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-
-  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
-  tree.DistTraverseUnOrdered( mpiPROJtask );
-
-	DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
-  tree.DistTraverseDown( mpiNEARFARtask );
-
-  mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-  tree.DistTraverseUnOrdered( mpiFARKIJtask );
-
-  other_time += omp_get_wtime() - beg;
-  hmlp_run();
-  mpi::Barrier( MPI_COMM_WORLD );
-  skel_time = omp_get_wtime() - beg;
+		other_time += omp_get_wtime() - beg;
+		hmlp_run();
+		mpi::Barrier( MPI_COMM_WORLD );
+		skel_time = omp_get_wtime() - beg;
+	}
 
 
 
+	if ( 1 )
+	{
+
+		mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
+		mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
+		tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+
+		gofmm::InterpolateTask<NODE, T> seqPROJtask;
+		tree.LocaTraverseUnOrdered( seqPROJtask );
+
+		/** create interaction lists */
+		SimpleNearFarNodesTask<NODE> seqNEARFARtask;
+		tree.LocaTraverseDown( seqNEARFARtask );
+
+		/** cache near KIJ interactions */
+		mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+		tree.LocaTraverseLeafs( seqNEARKIJtask );
+
+		/** cache  far KIJ interactions */
+		mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
+		tree.LocaTraverseUnOrdered( seqFARKIJtask );
+
+		/** */
+		hmlp_run();
+		mpi::Barrier( MPI_COMM_WORLD );
+
+		/** clean up dep */
+		tree.DependencyCleanUp();
+		hmlp_redistribute_workers( 
+				hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+				hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+				hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+
+		//hmlp_set_num_workers( 2 );
+
+		mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
+		mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
+		tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+
+		mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
+		tree.DistTraverseUnOrdered( mpiPROJtask );
+
+		DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
+		tree.DistTraverseDown( mpiNEARFARtask );
+
+		mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
+		tree.DistTraverseUnOrdered( mpiFARKIJtask );
+
+		other_time += omp_get_wtime() - beg;
+		hmlp_run();
+		mpi::Barrier( MPI_COMM_WORLD );
+		skel_time = omp_get_wtime() - beg;
+	}
 
 
 
 
+
+	if ( 0 )
+	{
+		tree.DependencyCleanUp();
+		mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
+		mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
+		gofmm::InterpolateTask<NODE, T> seqPROJtask;
+		tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask, seqPROJtask );
+		hmlp_run();
+		mpi::Barrier( MPI_COMM_WORLD );
+
+		tree.DependencyCleanUp();
+		hmlp_redistribute_workers(
+				hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
+				hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
+				hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
+
+		mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
+		mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
+		mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
+		tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask, mpiPROJtask );
+		hmlp_run();
+		mpi::Barrier( MPI_COMM_WORLD );
+
+
+		/** clean up dep */
+		tree.DependencyCleanUp();
+		hmlp_redistribute_workers(
+				omp_get_max_threads(),
+				omp_get_max_threads() / 4 + 1, 1 );
+
+		/** create interaction lists */
+		SimpleNearFarNodesTask<NODE> seqNEARFARtask;
+		DistSimpleNearFarNodesTask<LETNODE, MPINODE> mpiNEARFARtask;
+		tree.DistTraverseDown( mpiNEARFARtask );
+		tree.LocaTraverseDown( seqNEARFARtask );
+
+		/** cache near KIJ interactions */
+		mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+		tree.LocaTraverseLeafs( seqNEARKIJtask );
+
+		/** cache  far KIJ interactions */
+		mpigofmm::CacheFarNodesTask<NNPRUNE, NODE> seqFARKIJtask;
+		mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
+		tree.LocaTraverseUnOrdered( seqFARKIJtask );
+		tree.DistTraverseUnOrdered( mpiFARKIJtask );
+
+		hmlp_run();
+		mpi::Barrier( MPI_COMM_WORLD );
+		skel_time = omp_get_wtime() - beg;
+	}
 
 
 

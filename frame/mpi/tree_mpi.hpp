@@ -1090,35 +1090,37 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       hmlp_run();
 	  	MPI_Barrier( comm );
 
+
+
+
       for ( size_t t = 0; t < n_tree; t ++ )
       {
         //printf( "t = %lu\n", t ); fflush( stdout );
         DependencyCleanUp();
 
-        //** tree partitioning */
-        //DistSplitTask<MPINODE> mpisplittask;
-        //DistTraverseDown( mpisplittask );
-        //hmlp_run();
-	  	  //MPI_Barrier( comm );
-
-			  //this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
-
-        /** queries computed in CIDS distribution  */
-        //DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
-        //    this->treelist[ 0 ]->gids, initNN, comm );
-
-        /** 
-         *  notice that setup.NN has type Data<std::pair<T, size_t>>,
-         *  but that is fine because DistData inherits Data
-         */
-        //this->setup.NN = &Q_cids;
-
-			  //DependencyCleanUp();
-        //tree::SplitTask<NODE> splittask;
-        //LocaTraverseDown( splittask );
-        //LocaTraverseLeafs( dummy );
-        //hmlp_run();
-	  	  //MPI_Barrier( comm );
+//        /** tree partitioning */
+//        DistSplitTask<MPINODE> mpisplittask;
+//        DistTraverseDown( mpisplittask );
+//        hmlp_run();
+//	  	  MPI_Barrier( comm );
+//			  this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
+//
+//        /** queries computed in CIDS distribution  */
+//        DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
+//            this->treelist[ 0 ]->gids, initNN, comm );
+//
+//        /** 
+//         *  notice that setup.NN has type Data<std::pair<T, size_t>>,
+//         *  but that is fine because DistData inherits Data
+//         */
+//        this->setup.NN = &Q_cids;
+//
+//			  DependencyCleanUp();
+//        tree::SplitTask<NODE> splittask;
+//        LocaTraverseDown( splittask );
+//        LocaTraverseLeafs( dummy );
+//        hmlp_run();
+//	  	  MPI_Barrier( comm );
 
 
 
@@ -1154,8 +1156,6 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
           this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
           DependencyCleanUp();
           LocaTraverseDown( splittask );
-          //LocaTraverseUp( seqINDXtask );
-          //DistTraverseUp( mpiINDXtask );
         }
         hmlp_run();
         MPI_Barrier( comm );
