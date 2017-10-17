@@ -195,6 +195,66 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       }
     };
 
+		void write( std::string &filename )
+		{
+			std::ofstream myFile ( filename.data(), std::ios::out | std::ios::binary );
+      myFile.write( (char*)(this->data()), this->size() * sizeof(T) );
+		};
+
+    template<int SKIP_ATTRIBUTES = 0, bool TRANS = false>
+		void readmtx( size_t m, size_t n, std::string &filename )
+		{
+      assert( this->m == m );
+      assert( this->n == n );
+      assert( this->size() == m * n );
+
+      std::cout << filename << std::endl;
+
+      std::ifstream file( filename.data() );
+			std::string line;
+			if ( file.is_open() )
+			{
+				size_t j = 0;
+				while ( std::getline( file, line ) )
+				{
+					if ( j == 0 ) printf( "%s\n", line.data() );
+
+
+					if ( j % 1000 == 0 ) printf( "%4lu ", j ); fflush( stdout );
+					if ( j >= n )
+					{
+						printf( "more data then execpted n %lu\n", n );
+					}
+
+          /** replace all ',' and ';' with white space ' ' */
+					std::replace( line.begin(), line.end(), ',', '\n' );
+					std::replace( line.begin(), line.end(), ';', '\n' );
+
+					std::istringstream iss( line );
+
+					for ( size_t i = 0; i < m + SKIP_ATTRIBUTES; i ++ )
+					{
+						T tmp;
+						if ( !( iss >> tmp ) )
+						{
+							printf( "line %lu does not have enough elements (only %lu)\n", j, i );
+					    printf( "%s\n", line.data() );
+							exit( 1 );
+						}
+						if ( i >= SKIP_ATTRIBUTES )
+						{
+							if ( TRANS ) (*this)[ j * m + i ] = tmp;
+							else         (*this)[ i * n + j ] = tmp;
+						}
+					}
+					j ++;
+				}
+				printf( "\nfinish readmatrix %s\n", filename.data() );
+			}
+		};
+
+
+
     std::tuple<size_t, size_t> shape()
     {
       return std::make_tuple( m, n );
