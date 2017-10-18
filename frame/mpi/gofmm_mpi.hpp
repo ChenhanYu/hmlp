@@ -3359,8 +3359,10 @@ class GetSkeletonMatrixTask : public hmlp::Task
     void Execute( Worker* user_worker )
     {
       //printf( "%lu GetSkeletonMatrix beg\n", arg->treelist_id );
+      double beg = omp_get_wtime();
       GetSkeletonMatrix<NODE, T>( arg );
-      //printf( "%lu GetSkeletonMatrix end\n", arg->treelist_id );
+      double getmtx_t = omp_get_wtime() - beg;
+      //printf( "%lu GetSkeletonMatrix end %lfs\n", arg->treelist_id, getmtx_t ); fflush( stdout );
     };
 
 }; /** end class GetSkeletonMatrixTask */
@@ -4014,6 +4016,7 @@ DistData<RIDS, STAR, T> Evaluate
   /** clean up all r/w dependencies left on tree nodes */
   tree.DependencyCleanUp();
   hmlp_redistribute_workers( omp_get_max_threads(), 0, 1 ); 
+  //hmlp_redistribute_workers( 4, 0, 17 );
   //hmlp_redistribute_workers( 
   //  hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
   //  hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
@@ -4368,7 +4371,7 @@ mpitree::Tree<
   //}
 
 
-  //hmlp_redistribute_workers( omp_get_max_threads(), 0, 1 );
+  //hmlp_redistribute_workers( 4, 0, 17 );
   //hmlp_redistribute_workers( 1, 0, omp_get_max_threads() );
   //hmlp_redistribute_workers( 2, 0, 10 );
 
@@ -4481,7 +4484,8 @@ mpitree::Tree<
 
 
 	if ( 1 )
-	{
+  {
+		//hmlp_redistribute_workers( omp_get_max_threads(), 9, 1 );
 
 		mpigofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
 		mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
@@ -4492,12 +4496,13 @@ mpitree::Tree<
     waitsibtask->DependencyAnalysis();
 		waitsibtask->Submit();
 
-		gofmm::InterpolateTask<NODE, T> seqPROJtask;
-		tree.LocaTraverseUnOrdered( seqPROJtask );
-
 		/** create interaction lists */
 		SimpleNearFarNodesTask<NODE> seqNEARFARtask;
-		tree.LocaTraverseDown( seqNEARFARtask );
+		tree.LocaTraverseUp( seqNEARFARtask );
+
+
+		gofmm::InterpolateTask<NODE, T> seqPROJtask;
+		tree.LocaTraverseUnOrdered( seqPROJtask );
 
 		/** cache near KIJ interactions */
 		mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;

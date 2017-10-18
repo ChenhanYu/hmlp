@@ -36,6 +36,8 @@
 
 #include <hmlp_blas_lapack.h>
 
+#include <hmlp_runtime.hpp>
+
 /** use software cache */
 #include <containers/Cache.hpp>
 
@@ -188,6 +190,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       std::vector<size_t> cacheids;
 			std::vector<size_t> jmapline;
 
+      size_t num_blk = 0;
+      size_t num_ids = 0;
+      size_t num_cac = 0;
+
 			for ( size_t j = 0; j < J.size(); j ++ )
 			{
         size_t cid = J[ j ];
@@ -196,6 +202,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         if ( cid % size == rank )
         {
 					for ( size_t i = 0; i < d; i ++ ) XJ( i, j ) = (*sources)( i, cid );
+          num_blk ++;
           continue;
         }
 
@@ -206,6 +213,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           {
             T *XJ_cids = sources_cids->columndata( cid );
 					  for ( size_t i = 0; i < d; i ++ ) XJ( i, j ) = XJ_cids[ i ];
+            num_ids ++;
             continue;
           }
         }
@@ -225,8 +233,113 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 				{
 					/** source( cid ) is cached */
 					for ( size_t i = 0; i < d; i ++ ) XJ( i, j ) = line[ i ];
+          num_cac ++;
 				}
 			}
+
+      //if ( J.size() - num_blk - num_ids - num_cac )
+      //{
+      //  printf( "blk %4lu ids %4lu cac %4lu all %lu\n", 
+      //      num_blk, num_ids, num_cac, J.size() ); fflush( stdout );
+      //}
+
+      if ( J.size() - num_blk - num_ids - num_cac > 2 )
+      {
+
+
+     int mybatchid = 0;
+
+      batch_lock.Acquire();
+      {
+        mybatchid == batch.size();
+        std::pair<std::vector<std::vector<size_t>>*, std::vector<std::vector<size_t>>*> 
+          request( &sendcids, &jmapcids );
+        batch.push_back( request );
+        batch_results.push_back( &XJ );
+
+        if ( mybatchid == 0 ) batchhascomplete = false;
+      }
+      batch_lock.Release();
+
+
+      if ( mybatchid == 0 )
+      {
+        double beg = omp_get_wtime();
+
+        /** busy waiting */
+        while ( omp_get_wtime() - beg < 0.01 && batch.size() < 16 ) {}
+
+        batch_lock.Acquire();
+        {
+			    /** started to request coordinates */
+			    for ( size_t p = 0; p < size; p ++ )
+          {
+            std::vector<size_t> Jp;
+
+            /** concatenate all requests to p */
+            for ( size_t b = 0; b < batch.size(); b ++ )
+            {
+              auto &Jpb = (*batch[ b ].first)[ p ];
+              Jp.insert( Jp.end(), Jpb.begin(), Jpb.end() );
+            }
+
+            Data<T> XJp( d, Jp.size() );
+
+            if ( p == rank )
+            {
+					     XJp = (*sources)( all_dimensions, Jp );
+            }
+            else
+            {
+					    /** tag 128 for sources */
+              int tag = omp_get_thread_num() + 128;
+						  mpi::Send( Jp.data(), Jp.size(), p, tag, this->GetRecvComm() );
+						  /** wait to recv the coorinates */
+						  mpi::Status status;
+						  mpi::Recv( XJp.data(), XJp.size(), p, tag - 128, 
+							  	this->GetSendComm(), &status );
+            }
+
+            size_t offset = 0;
+            for ( size_t b = 0; b < batch.size(); b ++ )
+            {
+              auto &Jpb = (*batch[ b ].second)[ p ];
+              auto &XJb = *(batch_results[ b ]);
+
+              for ( size_t j = 0; j < Jpb.size(); j ++ )
+                for ( size_t i = 0; i < d; i ++ )
+                  XJb( i, Jpb[ j ] ) = XJp( i, offset + j );
+
+              offset += Jpb.size();
+            }
+          }
+        
+          /** the batch request is done */
+          batch.clear();
+          batch_results.clear();
+          batchhascomplete = true;
+        }
+        batch_lock.Release();
+      }
+      else
+      {
+        while ( !batchhascomplete ) {}
+      }
+
+
+
+
+
+
+
+
+
+      }
+      else
+      {
+
+
+
 
 			/** double buffer for XJp */
 			hmlp::Data<T> buffer[ 2 ];
@@ -280,8 +393,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
               for ( size_t j = 0; j < sendcids[ previous ].size(); j ++ )
 							{
-						    mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
-								if ( test_flag ) break;
+						    //mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+								//if ( test_flag ) break;
 					      /** write to cache */
                 hmlp::Data<T> line( d, (size_t)1 );					
                 for ( size_t i = 0; i < d; i ++ ) 
@@ -290,12 +403,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
                 cache.Write( sendcids[ previous ][ j ], line ); 
 							}
 						}
-						else
+
+						while ( !test_flag )
 						{
-						  while ( !test_flag )
-						  {
-						    mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
-							}
+						  mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
 						}
 
 						/** wait to recv the coorinates */
@@ -323,6 +434,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           //cache.Write( Jp[ j ], line ); 
 				}
 			}
+
+      }
 
 			return XJ;
 
@@ -796,7 +909,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       //printf( "Enter DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
 
 
-			size_t idle_counter = 0;
+      
+			size_t iter_counter = 0;
 
 			/** keep probing for messages */
 			while ( 1 ) 
@@ -871,6 +985,20 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           /** reset flag to zero */
           probe_flag = 0;
         }
+        else
+        {
+          /** do something else */
+          if ( sources_cids )
+          {
+            if ( iter_counter < sources_cids->col_owned() )
+            {
+              auto query = sources_cids->GetIDAndColumnPointer( iter_counter );
+              Data<T> line( d, (size_t)1 );
+              for ( size_t i = 0; i < d; i ++ ) line[ i ] = (query.second)[ i ];
+              cache.Write( query.first, line );
+            }
+          }
+        }
 
 
 				/** nonblocking consensus for termination */
@@ -879,6 +1007,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
           /** while reaching both global and local concensus, exit */
           if ( this->IsTimeToTerminate() ) break;
         }
+
+
+        /** increate iteration counter */
+        iter_counter ++;
 
       }; /** end while ( 1 ) */
 
@@ -909,11 +1041,10 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       else
       {
 			  sources_cids = new DistData<STAR, CIDS, T>( d, n, cids, dynamic_sources, comm );
-
-        for ( size_t i = 0; i < cids.size(); i ++ )
-        {
-          assert( sources_cids->HasColumn( cids[ i ] ) );
-        }
+      }
+      for ( size_t i = 0; i < cids.size(); i ++ )
+      {
+        assert( sources_cids->HasColumn( cids[ i ] ) );
       }
 
     }; /** end Redistribute() */
@@ -954,6 +1085,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
       auto Xlhs = dynamic_sources( all_dimensions, lhs );
       auto Xrhs = dynamic_sources( all_dimensions, rhs );
+
       Data<T> Xpar;
 
       if ( loc_rank < loc_size / 2 )
@@ -1006,12 +1138,23 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     /** */
     std::vector<size_t> all_dimensions;
 
-		//Cache1D<4096, 256, T> cache;
-		Cache1D<256, 256, T> cache;
+		Cache1D<4096, 256, T> cache;
+		//Cache1D<256, 256, T> cache;
 
     //DistData<STAR, CIDS, T> dynamic_sources;
     Data<T> dynamic_sources;
 
+
+    bool batchhascomplete = false;
+
+    Lock batch_lock;
+
+    std::vector<std::pair<
+      std::vector<std::vector<size_t>>*,
+      std::vector<std::vector<size_t>>*
+      >> batch;
+
+    std::vector<Data<T>*> batch_results;
 
 }; /** end class DistKernelMatrix */
 }; /** end namespace hmlp */

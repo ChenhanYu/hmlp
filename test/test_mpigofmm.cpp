@@ -484,7 +484,7 @@ int main( int argc, char *argv[] )
   /** generate a Gaussian kernel matrix from the coordinates */
   if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
   {
-    using T = float;
+    using T = double;
     {
       /** read the coordinates from the file */
       hmlp::DistData<STAR, CBLK, T> X( d, n, MPI_COMM_WORLD, 

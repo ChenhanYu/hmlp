@@ -812,6 +812,10 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
       return Data<T>::columndata( cid2col[ cid ] );
     };
 
+    std::pair<size_t, T*> GetIDAndColumnPointer( size_t j )
+    {
+      return std::pair<size_t, T*>( cids[ j ], Data<T>::columndata( j ) );
+    };
 
     /**
      *  @brief Return a vector of vector that indicates the RBLK ownership
