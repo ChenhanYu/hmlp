@@ -315,6 +315,49 @@ void RecuTaskSubmit( ARG *arg, TASK& dummy, Args&... dummyargs )
 
 
 
+/**
+ *  @brief Recursive task sibmission (base case)
+ */ 
+template<typename ARG>
+void RecuTaskExecute( ARG *arg )
+{
+}; /** end RecuDistTaskSubmit() */
+
+
+
+
+/**
+ *  @brief Recursive task sibmission
+ */ 
+template<typename ARG, typename TASK, typename... Args>
+void RecuTaskExecute( ARG *arg, TASK& dummy, Args&... dummyargs )
+{
+  using NULLTASK = NULLTask<ARG>;
+
+  /** create the first normal task is it is not a NULLTask */
+  if ( !std::is_same<NULLTASK, TASK>::value )
+  {
+    auto task = new TASK();
+    task->Set( arg );
+    task->Execute( NULL );
+  }
+
+  /** now recurs to Args&... args, types are deduced automatically */
+  RecuTaskExecute( arg, dummyargs... );
+
+}; /** end RecuDistTaskExecute() */
+
+
+
+
+
+
+
+
+
+
+
+
 class ReadWrite
 {
   public:

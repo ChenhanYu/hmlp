@@ -63,7 +63,7 @@ void test_gofmm
 {
   /** instantiation for the Spd-Askit tree */
   using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA  = hmlp::gofmm::Data<T>;
+  using DATA  = hmlp::gofmm::NodeData<T>;
   using NODE  = Node<SETUP, N_CHILDREN, DATA, T>;
  
   /** all timers */

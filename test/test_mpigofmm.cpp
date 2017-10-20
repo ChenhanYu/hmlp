@@ -103,7 +103,7 @@ void test_gofmm
   /** instantiation for the Spd-Askit tree */
   //using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using SETUP = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA  = hmlp::gofmm::Data<T>;
+  using DATA  = hmlp::gofmm::NodeData<T>;
   using NODE  = Node<SETUP, N_CHILDREN, DATA, T>;
  
   /** all timers */
@@ -487,24 +487,22 @@ int main( int argc, char *argv[] )
     using T = double;
     {
       /** read the coordinates from the file */
-      hmlp::DistData<STAR, CBLK, T> X( d, n, MPI_COMM_WORLD, 
-          user_points_filename );
+      DistData<STAR, CBLK, T> X( d, n, MPI_COMM_WORLD, user_points_filename );
 
-      hmlp::Data<T> Xtmp( d, n, user_points_filename );
 
       int size, rank;
       mpi::Comm_size( MPI_COMM_WORLD, &size );
       mpi::Comm_rank( MPI_COMM_WORLD, &rank );
 
 
-      for ( size_t j = 0; j < X.col_owned(); j ++ )
-      {
-        size_t cid = j * size + rank;
-        for ( size_t i = 0; i < d; i ++ )
-        {
-          assert( Xtmp( i, cid ) == X( i, cid ) );
-        }
-      }
+      //for ( size_t j = 0; j < X.col_owned(); j ++ )
+      //{
+      //  size_t cid = j * size + rank;
+      //  for ( size_t i = 0; i < d; i ++ )
+      //  {
+      //    assert( Xtmp( i, cid ) == X( i, cid ) );
+      //  }
+      //}
 
 
       //printf( "pass all assertion\n" ); fflush( stdout );
@@ -570,7 +568,7 @@ int main( int argc, char *argv[] )
 
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
+      DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
       //hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
 
       /** routine */

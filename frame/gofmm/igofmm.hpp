@@ -42,6 +42,12 @@
 
 //#define DEBUG_IGOFMM 1
 
+using namespace std;
+using namespace hmlp;
+
+
+
+
 namespace hmlp
 {
 namespace hfamily
@@ -1639,28 +1645,28 @@ void Solve( TREE &tree, hmlp::Data<T> &input )
   {
     /** clean up all dependencies on tree nodes */
     tree.DependencyCleanUp();
-    tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( treeviewtask );
-    tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( forwardpermutetask );
-    tree.template TraverseUp   <AUTO_DEPENDENCY, USE_RUNTIME>( ulvforwardsolvetask );
-    tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( ulvbackwardsolvetask );
+    tree.template TraverseDown <USE_RUNTIME>( treeviewtask );
+    tree.template TraverseLeafs<USE_RUNTIME>( forwardpermutetask );
+    tree.template TraverseUp   <USE_RUNTIME>( ulvforwardsolvetask );
+    tree.template TraverseDown <USE_RUNTIME>( ulvbackwardsolvetask );
     if ( USE_RUNTIME ) hmlp_run();
 
     /** clean up all dependencies on tree nodes */
     tree.DependencyCleanUp();
-    tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( inversepermutetask );
+    tree.template TraverseLeafs<USE_RUNTIME>( inversepermutetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
   else
   {
     /** clean up all dependencies on tree nodes */
     tree.DependencyCleanUp();
-    tree.template TraverseDown <AUTO_DEPENDENCY, USE_RUNTIME>( treeviewtask );
-    tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( forwardpermutetask );
-    tree.template TraverseUp   <AUTO_DEPENDENCY, USE_RUNTIME>( solvetask1 );
+    tree.template TraverseDown <USE_RUNTIME>( treeviewtask );
+    tree.template TraverseLeafs<USE_RUNTIME>( forwardpermutetask );
+    tree.template TraverseUp   <USE_RUNTIME>( solvetask1 );
     if ( USE_RUNTIME ) hmlp_run();
     /** clean up all dependencies on tree nodes */
     tree.DependencyCleanUp();
-    tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( inversepermutetask );
+    tree.template TraverseLeafs<USE_RUNTIME>( inversepermutetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
 
@@ -1954,7 +1960,7 @@ void Factorize( bool do_ulv_factorization, TREE &tree, T lambda )
   tree.setup.do_ulv_factorization = do_ulv_factorization;
 
   /** setup  */
-  tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( setupfactortask );
+  tree.template TraverseUp<USE_RUNTIME>( setupfactortask );
   if ( USE_RUNTIME ) hmlp_run();
   //printf( "Execute setupfactortask\n" ); fflush( stdout );
 
@@ -1962,7 +1968,7 @@ void Factorize( bool do_ulv_factorization, TREE &tree, T lambda )
   tree.DependencyCleanUp();
 
   /** factorization */
-  tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( factorizetask );
+  tree.template TraverseUp<USE_RUNTIME>( factorizetask );
   //printf( "Create factorizetask\n" ); fflush( stdout );
   if ( USE_RUNTIME ) hmlp_run();
   //printf( "Execute factorizetask\n" ); fflush( stdout );

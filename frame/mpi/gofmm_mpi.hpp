@@ -30,7 +30,7 @@
 #include <primitives/gemm.hpp>
 
 
-
+using namespace std;
 using namespace hmlp;
 
 using namespace hmlp::gofmm;
@@ -207,7 +207,7 @@ class DistSPDMatrix : public DistData<STAR, CBLK, T>
  *         Distributed setup inherits mpitree::Setup.
  */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
-class Setup : public hmlp::mpitree::Setup<SPLITTER, T>
+class Setup : public mpitree::Setup<SPLITTER, T>
 {
   public:
 
@@ -232,14 +232,14 @@ class Setup : public hmlp::mpitree::Setup<SPLITTER, T>
     SPDMATRIX *K = NULL;
 
     /** rhs-by-n all weights */
-    hmlp::Data<T> *w = NULL;
+    Data<T> *w = NULL;
 
     /** n-by-nrhs all potentials */
-    hmlp::Data<T> *u = NULL;
+    Data<T> *u = NULL;
 
     /** buffer space, either dimension needs to be n  */
-    hmlp::Data<T> *input = NULL;
-    hmlp::Data<T> *output = NULL;
+    Data<T> *input = NULL;
+    Data<T> *output = NULL;
 
     /** regularization */
     T lambda = 0.0;
@@ -256,7 +256,7 @@ class Setup : public hmlp::mpitree::Setup<SPLITTER, T>
 
 
 template<typename T>
-class NodeData : public hmlp::hfamily::Factor<T>
+class NodeData : public hfamily::Factor<T>
 {
   public:
 
@@ -272,45 +272,45 @@ class NodeData : public hmlp::hfamily::Factor<T>
     bool hasproj = false;
 
     /** my skeletons */
-    std::vector<size_t> skels;
+    vector<size_t> skels;
 
     /** (buffer) nsamples row gids */
-    std::vector<size_t> candidate_rows;
+    vector<size_t> candidate_rows;
 
     /** (buffer) sl+sr column gids of children */
-    std::vector<size_t> candidate_cols;
+    vector<size_t> candidate_cols;
 
     /** (buffer) nsamples-by-(sl+sr) submatrix of K */
-    hmlp::Data<T> KIJ; 
+    Data<T> KIJ; 
 
     /** 2s, pivoting order of GEQP3 */
-    std::vector<int> jpvt;
+    vector<int> jpvt;
 
     /** s-by-2s */
-    hmlp::Data<T> proj;
+    Data<T> proj;
 
     /** sampling neighbors ids */
-    std::map<std::size_t, T> snids; 
+    map<std::size_t, T> snids; 
 
     /* pruning neighbors ids */
-    std::unordered_set<std::size_t> pnids; 
+    unordered_set<std::size_t> pnids; 
 
     /** skeleton weights and potentials */
-    hmlp::Data<T> w_skel;
-    hmlp::Data<T> u_skel;
+    Data<T> w_skel;
+    Data<T> u_skel;
 
     /** permuted weights and potentials (buffer) */
-    hmlp::Data<T> w_leaf;
-    hmlp::Data<T> u_leaf[ 20 ];
+    Data<T> w_leaf;
+    Data<T> u_leaf[ 20 ];
 
     /** hierarchical tree view of w<RIDS> and u<RIDS> */
     View<T> w_view;
     View<T> u_view;
 
     /** cached Kab */
-    hmlp::Data<std::size_t> Nearbmap;
-    hmlp::Data<T> NearKab;
-    hmlp::Data<T> FarKab;
+    Data<std::size_t> Nearbmap;
+    Data<T> NearKab;
+    Data<T> FarKab;
 
 
 
@@ -319,22 +319,22 @@ class NodeData : public hmlp::hfamily::Factor<T>
 
 
     /** Kij evaluation counter counters */
-    std::pair<double, std::size_t> kij_skel;
-    std::pair<double, std::size_t> kij_s2s;
-    std::pair<double, std::size_t> kij_s2n;
+    pair<double, size_t> kij_skel;
+    pair<double, size_t> kij_s2s;
+    pair<double, size_t> kij_s2n;
 
     /** many timers */
     double merge_neighbors_time = 0.0;
     double id_time = 0.0;
 
     /** recorded events (for HMLP Runtime) */
-    hmlp::Event skeletonize;
-    hmlp::Event updateweight;
-    hmlp::Event skeltoskel;
-    hmlp::Event skeltonode;
+    Event skeletonize;
+    Event updateweight;
+    Event skeltoskel;
+    Event skeltonode;
 
-    hmlp::Event s2s;
-    hmlp::Event s2n;
+    Event s2s;
+    Event s2n;
 
     /** knn accuracy */
     double knn_acc = 0.0;
@@ -349,7 +349,7 @@ class NodeData : public hmlp::hfamily::Factor<T>
  *         weights<RIDS> and potentials<RIDS>.
  */
 template<typename NODE>
-class DistTreeViewTask : public hmlp::Task
+class DistTreeViewTask : public Task
 {
   public:
 
@@ -374,11 +374,11 @@ class DistTreeViewTask : public hmlp::Task
     /** preorder dependencies (with a single source node) */
     void DependencyAnalysis()
     {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      arg->DependencyAnalysis( RW, this );
       if ( !arg->isleaf && !arg->child )
       {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->lchild->DependencyAnalysis( RW, this );
+        arg->rchild->DependencyAnalysis( RW, this );
       }
       this->TryEnqueue();
     };
@@ -454,19 +454,19 @@ class DistTreeViewTask : public hmlp::Task
  *
  */ 
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
-struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
+struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 {
 
   /** shared-memory operator */
-  inline std::vector<std::vector<std::size_t> > operator()
+  inline vector<vector<size_t> > operator()
   ( 
-    std::vector<std::size_t>& gids,
-    std::vector<std::size_t>& lids
+    vector<size_t>& gids,
+    vector<size_t>& lids
   ) const 
   {
     /** MPI */
     int size, rank, global_rank;
-    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+    mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
 
     //printf( "rank %d enter shared centersplit n = %lu\n", 
     //    global_rank, gids.size() ); fflush( stdout );
@@ -475,16 +475,16 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
 
 
-    return hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>::operator()
+    return gofmm::centersplit<SPDMATRIX, N_SPLIT, T>::operator()
       ( gids, lids );
   };
 
 
   /** distributed operator */
-  inline std::vector<std::vector<size_t> > operator()
+  inline vector<vector<size_t> > operator()
   ( 
     /** owned gids */
-    std::vector<size_t>& gids,
+    vector<size_t>& gids,
     /** communicator: */
     mpi::Comm comm
   ) const 
@@ -495,9 +495,9 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
     /** declaration */
     int size, rank, global_rank;
-    hmlp::mpi::Comm_size( comm, &size );
-    hmlp::mpi::Comm_rank( comm, &rank );
-    hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+    mpi::Comm_size( comm, &size );
+    mpi::Comm_rank( comm, &rank );
+    mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
     SPDMATRIX &K = *(this->Kptr);
     std::vector<std::vector<size_t>> split( N_SPLIT );
 
@@ -507,13 +507,13 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     /** reduce to get the total size of gids */
     int n = 0;
     int num_points_owned = gids.size();
-    std::vector<T> temp( gids.size(), 0.0 );
+    vector<T> temp( gids.size(), 0.0 );
 
     //printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
 
 
     /** n = sum( num_points_owned ) over all MPI processes in comm */
-    hmlp::mpi::Allreduce( &num_points_owned, &n, 1, 
+    mpi::Allreduce( &num_points_owned, &n, 1, 
         MPI_INT, MPI_SUM, comm );
 
 
@@ -525,7 +525,7 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     if ( n == 0 ) return split;
 
     /** diagonal entries */
-    hmlp::Data<T> DII( n, (size_t)1 ), DCC( this->n_centroid_samples, (size_t)1 );
+    Data<T> DII( n, (size_t)1 ), DCC( this->n_centroid_samples, (size_t)1 );
 
     /** collecting DII */
     //for ( size_t i = 0; i < gids.size(); i ++ )
@@ -667,9 +667,9 @@ struct centersplit : public hmlp::gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     int num_rhs_owned = split[ 1 ].size();
 
     /** nmid = sum( num_mid_owned ) over all MPI processes in comm */
-    hmlp::mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
-    hmlp::mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
-    hmlp::mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
+    mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
+    mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
+    mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
 
     //printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
     //    global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
@@ -735,10 +735,10 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 {
 
   /** shared-memory operator */
-  inline std::vector<std::vector<std::size_t> > operator()
+  inline vector<vector<size_t> > operator()
   ( 
-    std::vector<size_t>& gids,
-    std::vector<size_t>& lids
+    vector<size_t>& gids,
+    vector<size_t>& lids
   ) const 
   {
     return gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator()
@@ -746,9 +746,9 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
   };
 
   /** distributed operator */
-  inline std::vector<std::vector<size_t> > operator()
+  inline vector<vector<size_t> > operator()
   (
-    std::vector<size_t>& gids,
+    vector<size_t>& gids,
     mpi::Comm comm
   ) const 
   {
@@ -3101,157 +3101,157 @@ void DistRowSamples( NODE *node, size_t nsamples )
 
 
 
-template<typename NODE, typename T>
-void RowSamples( NODE *node, size_t nsamples )
-{
-  /** gather shared data and create reference */
-  auto &K = *node->setup->K;
-
-  /** amap contains nsamples of row gids of K */
-  std::vector<size_t> &amap = node->data.candidate_rows;
-
-  /** clean up candidates from previous iteration */
-  amap.clear();
-
-
-  /** construct snids from neighbors */
-  if ( node->setup->NN )
-  {
-    //printf( "construct snids NN.row() %lu NN.col() %lu\n", 
-    //    node->setup->NN->row(), node->setup->NN->col() ); fflush( stdout );
-    auto &NN = *(node->setup->NN);
-    auto &gids = node->gids;
-    auto &pnids = node->data.pnids;
-    auto &snids = node->data.snids;
-    size_t kbeg = ( NN.row() + 1 ) / 2;
-    size_t kend = NN.row();
-    size_t knum = kend - kbeg;
-
-    if ( node->isleaf )
-    {
-      pnids.clear();
-      for ( size_t j = 0; j < gids.size(); j ++ )
-        for ( size_t i = 0; i < NN.row() / 2; i ++ )
-          pnids.insert( NN( i, gids[ j ] ).second );
-
-      for ( size_t j = 0; j < gids.size(); j ++ )
-        pnids.erase( gids[ j ] );
-
-      snids.clear();
-      std::vector<std::pair<T, size_t>> tmp( knum * gids.size() );
-      for ( size_t j = 0; j < gids.size(); j ++ )
-        for ( size_t i = kbeg; i < kend; i ++ )
-          tmp[ j * knum + ( i - kbeg ) ] = NN( i, gids[ j ] );
-
-      /** create a sorted list */
-      std::sort( tmp.begin(), tmp.end() );
-    
-      for ( auto it = tmp.begin(); it != tmp.end(); it ++ )
-      {
-        /** create a single query */
-        std::vector<size_t> sample_query( 1, (*it).second );
-				std::vector<size_t> validation = 
-					node->setup->ContainAny( sample_query, node->morton );
-
-        if ( !pnids.count( (*it).second ) && !validation[ 0 ] )
-        {
-          /** duplication is handled by std::map */
-          auto ret = snids.insert( std::pair<size_t, T>( (*it).second, (*it).first ) );
-        }
-
-        /** while we have enough samples, then exit */
-        if ( snids.size() >= nsamples ) break;
-      }
-    }
-    else
-    {
-      auto &lsnids = node->lchild->data.snids;
-      auto &rsnids = node->rchild->data.snids;
-      auto &lpnids = node->lchild->data.pnids;
-      auto &rpnids = node->rchild->data.pnids;
-
-      /** 
-       *  merge children's sampling neighbors...    
-       *  start with left sampling neighbor list 
-       */
-      snids = lsnids;
-
-      /**
-       *  Add right sampling neighbor list. If duplicate update distace if nec.
-       */
-      for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
-      {
-        auto ret = snids.insert( *it );
-        if ( !ret.second )
-        {
-          if ( ret.first->second > (*it).first )
-            ret.first->second = (*it).first;
-        }
-      }
-
-      /** remove "own" points */
-      for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
-
-      for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ )
-        snids.erase( *it );
-      for ( auto it = rpnids.begin(); it != rpnids.end(); it ++ )
-        snids.erase( *it );
-    }
-  }
-
-  /** create an order snids by flipping the std::map */
-  std::multimap<T, size_t> ordered_snids = gofmm::flip_map( node->data.snids );
-  
-  if ( nsamples < K.col() - node->n )
-  {
-    amap.reserve( nsamples );
-
-    for ( auto it  = ordered_snids.begin(); 
-               it != ordered_snids.end(); it++ )
-    {
-      /** (*it) has type pair<T, size_t> */
-      amap.push_back( (*it).second );
-      if ( amap.size() >= nsamples ) break;
-    }
-
-    /** uniform samples */
-    if ( amap.size() < nsamples )
-    {
-      while ( amap.size() < nsamples )
-      {
-        size_t sample = rand() % K.col();
-
-        /** create a single query */
-        std::vector<size_t> sample_query( 1, sample );
-
-				std::vector<size_t> validation = 
-					node->setup->ContainAny( sample_query, node->morton );
-
-        /**
-         *  check duplication using std::find, but check whether the sample
-         *  belongs to the diagonal block using Morton ID.
-         */ 
-        if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
-             !validation[ 0 ] )
-        {
-          amap.push_back( sample );
-        }
-      }
-    }
-  }
-  else /** use all off-diagonal blocks without samples */
-  {
-    for ( size_t sample = 0; sample < K.col(); sample ++ )
-    {
-      if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() )
-      {
-        amap.push_back( sample );
-      }
-    }
-  }
-
-}; /** end RowSamples() */
-
+//template<typename NODE, typename T>
+//void RowSamples( NODE *node, size_t nsamples )
+//{
+//  /** gather shared data and create reference */
+//  auto &K = *node->setup->K;
+//
+//  /** amap contains nsamples of row gids of K */
+//  std::vector<size_t> &amap = node->data.candidate_rows;
+//
+//  /** clean up candidates from previous iteration */
+//  amap.clear();
+//
+//
+//  /** construct snids from neighbors */
+//  if ( node->setup->NN )
+//  {
+//    //printf( "construct snids NN.row() %lu NN.col() %lu\n", 
+//    //    node->setup->NN->row(), node->setup->NN->col() ); fflush( stdout );
+//    auto &NN = *(node->setup->NN);
+//    auto &gids = node->gids;
+//    auto &pnids = node->data.pnids;
+//    auto &snids = node->data.snids;
+//    size_t kbeg = ( NN.row() + 1 ) / 2;
+//    size_t kend = NN.row();
+//    size_t knum = kend - kbeg;
+//
+//    if ( node->isleaf )
+//    {
+//      pnids.clear();
+//      for ( size_t j = 0; j < gids.size(); j ++ )
+//        for ( size_t i = 0; i < NN.row() / 2; i ++ )
+//          pnids.insert( NN( i, gids[ j ] ).second );
+//
+//      for ( size_t j = 0; j < gids.size(); j ++ )
+//        pnids.erase( gids[ j ] );
+//
+//      snids.clear();
+//      std::vector<std::pair<T, size_t>> tmp( knum * gids.size() );
+//      for ( size_t j = 0; j < gids.size(); j ++ )
+//        for ( size_t i = kbeg; i < kend; i ++ )
+//          tmp[ j * knum + ( i - kbeg ) ] = NN( i, gids[ j ] );
+//
+//      /** create a sorted list */
+//      std::sort( tmp.begin(), tmp.end() );
+//    
+//      for ( auto it = tmp.begin(); it != tmp.end(); it ++ )
+//      {
+//        /** create a single query */
+//        std::vector<size_t> sample_query( 1, (*it).second );
+//				std::vector<size_t> validation = 
+//					node->setup->ContainAny( sample_query, node->morton );
+//
+//        if ( !pnids.count( (*it).second ) && !validation[ 0 ] )
+//        {
+//          /** duplication is handled by std::map */
+//          auto ret = snids.insert( std::pair<size_t, T>( (*it).second, (*it).first ) );
+//        }
+//
+//        /** while we have enough samples, then exit */
+//        if ( snids.size() >= nsamples ) break;
+//      }
+//    }
+//    else
+//    {
+//      auto &lsnids = node->lchild->data.snids;
+//      auto &rsnids = node->rchild->data.snids;
+//      auto &lpnids = node->lchild->data.pnids;
+//      auto &rpnids = node->rchild->data.pnids;
+//
+//      /** 
+//       *  merge children's sampling neighbors...    
+//       *  start with left sampling neighbor list 
+//       */
+//      snids = lsnids;
+//
+//      /**
+//       *  Add right sampling neighbor list. If duplicate update distace if nec.
+//       */
+//      for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
+//      {
+//        auto ret = snids.insert( *it );
+//        if ( !ret.second )
+//        {
+//          if ( ret.first->second > (*it).first )
+//            ret.first->second = (*it).first;
+//        }
+//      }
+//
+//      /** remove "own" points */
+//      for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
+//
+//      for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ )
+//        snids.erase( *it );
+//      for ( auto it = rpnids.begin(); it != rpnids.end(); it ++ )
+//        snids.erase( *it );
+//    }
+//  }
+//
+//  /** create an order snids by flipping the std::map */
+//  std::multimap<T, size_t> ordered_snids = gofmm::flip_map( node->data.snids );
+//  
+//  if ( nsamples < K.col() - node->n )
+//  {
+//    amap.reserve( nsamples );
+//
+//    for ( auto it  = ordered_snids.begin(); 
+//               it != ordered_snids.end(); it++ )
+//    {
+//      /** (*it) has type pair<T, size_t> */
+//      amap.push_back( (*it).second );
+//      if ( amap.size() >= nsamples ) break;
+//    }
+//
+//    /** uniform samples */
+//    if ( amap.size() < nsamples )
+//    {
+//      while ( amap.size() < nsamples )
+//      {
+//        size_t sample = rand() % K.col();
+//
+//        /** create a single query */
+//        std::vector<size_t> sample_query( 1, sample );
+//
+//				std::vector<size_t> validation = 
+//					node->setup->ContainAny( sample_query, node->morton );
+//
+//        /**
+//         *  check duplication using std::find, but check whether the sample
+//         *  belongs to the diagonal block using Morton ID.
+//         */ 
+//        if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
+//             !validation[ 0 ] )
+//        {
+//          amap.push_back( sample );
+//        }
+//      }
+//    }
+//  }
+//  else /** use all off-diagonal blocks without samples */
+//  {
+//    for ( size_t sample = 0; sample < K.col(); sample ++ )
+//    {
+//      if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() )
+//      {
+//        amap.push_back( sample );
+//      }
+//    }
+//  }
+//
+//}; /** end RowSamples() */
+//
 
 
 
@@ -3299,7 +3299,7 @@ void GetSkeletonMatrix( NODE *node )
   //gofmm::BuildNeighbors<NODE, T>( node, nsamples );
 
   /** sample off-diagonal rows */
-  RowSamples<NODE, T>( node, nsamples );
+  gofmm::RowSamples<NODE, T>( node, nsamples );
 
   /** 
    *  get KIJ for skeletonization 
@@ -3360,7 +3360,7 @@ class GetSkeletonMatrixTask : public hmlp::Task
     {
       //printf( "%lu GetSkeletonMatrix beg\n", arg->treelist_id );
       double beg = omp_get_wtime();
-      GetSkeletonMatrix<NODE, T>( arg );
+      gofmm::GetSkeletonMatrix<NODE, T>( arg );
       double getmtx_t = omp_get_wtime() - beg;
       //printf( "%lu GetSkeletonMatrix end %lfs\n", arg->treelist_id, getmtx_t ); fflush( stdout );
     };
@@ -3403,7 +3403,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
   if ( size < 2 )
   {
     /** this node is the root of the local tree */
-    GetSkeletonMatrix<NODE, T>( node );
+    gofmm::GetSkeletonMatrix<NODE, T>( node );
   }
   else
   {
@@ -3912,7 +3912,7 @@ class DistSkeletonizeTask : public hmlp::Task
  *  @brief
  */ 
 template<typename NODE, typename T>
-class InterpolateTask : public hmlp::Task
+class InterpolateTask : public Task
 {
   public:
 
@@ -3939,7 +3939,8 @@ class InterpolateTask : public hmlp::Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-    }
+      this->TryEnqueue();
+    };
 
     void Execute( Worker* user_worker )
     {
@@ -4103,13 +4104,13 @@ DistData<RIDS, STAR, T> Evaluate
 
 			/** epoch */
 			hmlp_run();
-			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			mpi::Barrier( MPI_COMM_WORLD );
 			computeall_time = omp_get_wtime() - beg;
 		}
 		else
 		{
 			/** global barrier and timer */
-			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			mpi::Barrier( MPI_COMM_WORLD );
 			beg = omp_get_wtime();
 
 			/** TreeView */
@@ -4119,7 +4120,7 @@ DistData<RIDS, STAR, T> Evaluate
 			tree.LocaTraverseDown( seqVIEWtask );
 
 			hmlp_run();
-			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			mpi::Barrier( MPI_COMM_WORLD );
 
 
       tree.DependencyCleanUp();
@@ -4130,14 +4131,14 @@ DistData<RIDS, STAR, T> Evaluate
 			tree.DistTraverseUp( mpiN2Stask );
 			//tree.LocaTraverseLeafs( seqL2Ltask );
 			hmlp_run();
-			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			mpi::Barrier( MPI_COMM_WORLD );
 
       tree.DependencyCleanUp();
 			/** L2L */
 			mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
 			tree.LocaTraverseLeafs( seqL2Ltask );
 			hmlp_run();
-			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			mpi::Barrier( MPI_COMM_WORLD );
 
       tree.DependencyCleanUp();
 			/** S2S */
@@ -4146,7 +4147,7 @@ DistData<RIDS, STAR, T> Evaluate
 			tree.LocaTraverseUnOrdered( seqS2Stask );
 			tree.DistTraverseUnOrdered( mpiS2Stask );
 			hmlp_run();
-			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			mpi::Barrier( MPI_COMM_WORLD );
 
       tree.DependencyCleanUp();
 			/** S2N (Dist first, Loca follows) */
@@ -4157,7 +4158,7 @@ DistData<RIDS, STAR, T> Evaluate
 
 			/** epoch */
 			hmlp_run();
-			hmlp::mpi::Barrier( MPI_COMM_WORLD );
+			mpi::Barrier( MPI_COMM_WORLD );
 			computeall_time = omp_get_wtime() - beg;
 		}
   }
@@ -4648,7 +4649,7 @@ mpitree::Tree<
   tree_ptr->DependencyCleanUp();
 
   /** global barrier to make sure all processes have completed */
-  hmlp::mpi::Barrier( MPI_COMM_WORLD );
+  mpi::Barrier( MPI_COMM_WORLD );
 
 
 

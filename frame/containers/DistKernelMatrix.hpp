@@ -45,6 +45,10 @@
 #include <containers/DistVirtualMatrix.hpp>
 
 
+/** use STL templates */
+using namespace std;
+
+
 namespace hmlp
 {
 
@@ -168,47 +172,47 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 		/**
 		 *  @brief This function collects 
 		 */ 
-    hmlp::Data<T> RequestSources( std::vector<size_t>& J )
-    {
-      /** MPI */
-      int size = this->Comm_size();
+		Data<T> RequestSources( std::vector<size_t>& J )
+		{
+			/** MPI */
+			int size = this->Comm_size();
 			int rank = this->Comm_rank();
 
 
-      //printf( "%d RequestSources %lu\n", rank, J.size() ); fflush( stdout );
+			//printf( "%d RequestSources %lu\n", rank, J.size() ); fflush( stdout );
 
 			/** return value */
-      hmlp::Data<T> XJ( d, J.size() );
+			Data<T> XJ( d, J.size() );
 
 			/** check if source j are both owned by this MPI process */
 			std::vector<std::vector<size_t>> sendcids( size );
 
-      /** record the destination order */
-      std::vector<std::vector<size_t>> jmapcids( size );
+			/** record the destination order */
+			std::vector<std::vector<size_t>> jmapcids( size );
 
 			/** check if source j is cached */
-      std::vector<size_t> cacheids;
+			std::vector<size_t> cacheids;
 			std::vector<size_t> jmapline;
 
-      size_t num_blk = 0;
-      size_t num_ids = 0;
-      size_t num_cac = 0;
+			size_t num_blk = 0;
+			size_t num_ids = 0;
+			size_t num_cac = 0;
 
 			for ( size_t j = 0; j < J.size(); j ++ )
 			{
-        size_t cid = J[ j ];
+				size_t cid = J[ j ];
 
-        /** source( cid ) is stored locally <STAR, CBLK> */
-        if ( cid % size == rank )
-        {
+				/** source( cid ) is stored locally <STAR, CBLK> */
+				if ( cid % size == rank )
+				{
 					for ( size_t i = 0; i < d; i ++ ) XJ( i, j ) = (*sources)( i, cid );
-          num_blk ++;
-          continue;
-        }
+					num_blk ++;
+					continue;
+				}
 
-        if ( sources_cids )
-        {
-          /** source( cid ) is stored locally <STAR, CIDS> */
+				if ( sources_cids )
+				{
+					/** source( cid ) is stored locally <STAR, CIDS> */
           if ( sources_cids->HasColumn( cid ) )
           {
             T *XJ_cids = sources_cids->columndata( cid );
@@ -1051,10 +1055,13 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
    
 
-    virtual void RedistributeWithPartner(
-        std::vector<size_t> &gids,
-        std::vector<size_t> &lhs, 
-        std::vector<size_t> &rhs, mpi::Comm comm )
+    virtual void RedistributeWithPartner
+    (
+      vector<size_t> &gids,
+      vector<size_t> &lhs, 
+      vector<size_t> &rhs, 
+      mpi::Comm comm 
+    )
     {
       mpi::Status status;
       int loc_size, loc_rank;
@@ -1118,7 +1125,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     bool is_symmetric = true;
 
-    std::size_t d;
+    size_t d;
 
     /** legacy data structure */
     kernel_s<T> kernel;
@@ -1149,12 +1156,9 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     Lock batch_lock;
 
-    std::vector<std::pair<
-      std::vector<std::vector<size_t>>*,
-      std::vector<std::vector<size_t>>*
-      >> batch;
+    vector<pair<vector<vector<size_t>>*, vector<vector<size_t>>*>> batch;
 
-    std::vector<Data<T>*> batch_results;
+    vector<Data<T>*> batch_results;
 
 }; /** end class DistKernelMatrix */
 }; /** end namespace hmlp */

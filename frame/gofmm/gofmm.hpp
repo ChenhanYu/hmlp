@@ -101,6 +101,9 @@ typedef enum
 } DistanceMetric;
 
 
+using namespace std;
+using namespace hmlp;
+
 
 namespace hmlp
 {
@@ -171,12 +174,13 @@ class Configuration
 }; /** end class Configuration */
 
 
+
 /**
  *  @brief These are data that shared by the whole local tree.
  *
  */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
-class Setup : public hmlp::tree::Setup<SPLITTER, T>
+class Setup : public tree::Setup<SPLITTER, T>
 {
   public:
 
@@ -201,14 +205,14 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
     SPDMATRIX *K = NULL;
 
     /** rhs-by-n all weights */
-    hmlp::Data<T> *w = NULL;
+    Data<T> *w = NULL;
 
     /** n-by-nrhs all potentials */
-    hmlp::Data<T> *u = NULL;
+    Data<T> *u = NULL;
 
     /** buffer space, either dimension needs to be n  */
-    hmlp::Data<T> *input = NULL;
-    hmlp::Data<T> *output = NULL;
+    Data<T> *input = NULL;
+    Data<T> *output = NULL;
 
 
 
@@ -232,11 +236,11 @@ class Setup : public hmlp::tree::Setup<SPLITTER, T>
  *
  */ 
 template<typename T>
-class Data : public hmlp::hfamily::Factor<T>
+class NodeData : public hfamily::Factor<T>
 {
   public:
 
-    Data() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
+    NodeData() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
 
     /** the omp (or pthread) lock */
     Lock lock;
@@ -248,63 +252,63 @@ class Data : public hmlp::hfamily::Factor<T>
     bool hasproj = false;
 
     /** my skeletons */
-    std::vector<size_t> skels;
+    vector<size_t> skels;
 
     /** (buffer) nsamples row gids */
-    std::vector<size_t> candidate_rows;
+    vector<size_t> candidate_rows;
 
     /** (buffer) sl+sr column gids of children */
-    std::vector<size_t> candidate_cols;
+    vector<size_t> candidate_cols;
 
     /** (buffer) nsamples-by-(sl+sr) submatrix of K */
-    hmlp::Data<T> KIJ; 
+    Data<T> KIJ; 
 
     /** 2s, pivoting order of GEQP3 */
-    std::vector<int> jpvt;
+    vector<int> jpvt;
 
     /** s-by-2s */
-    hmlp::Data<T> proj;
+    Data<T> proj;
 
     /** sampling neighbors ids */
-    std::map<std::size_t, T> snids; 
+    map<std::size_t, T> snids; 
 
     /* pruning neighbors ids */
-    std::unordered_set<std::size_t> pnids; 
+    unordered_set<std::size_t> pnids; 
 
     /** skeleton weights and potentials */
-    hmlp::Data<T> w_skel;
-    hmlp::Data<T> u_skel;
+    Data<T> w_skel;
+    Data<T> u_skel;
 
     /** permuted weights and potentials (buffer) */
-    hmlp::Data<T> w_leaf;
-    hmlp::Data<T> u_leaf[ 20 ];
+    Data<T> w_leaf;
+    Data<T> u_leaf[ 20 ];
 
     /** hierarchical tree view of w<RIDS> and u<RIDS> */
     View<T> w_view;
     View<T> u_view;
 
     /** cached Kab */
-    hmlp::Data<std::size_t> Nearbmap;
-    hmlp::Data<T> NearKab;
-    hmlp::Data<T> FarKab;
+    Data<size_t> Nearbmap;
+    Data<T> NearKab;
+    Data<T> FarKab;
 
     /** Kij evaluation counter counters */
-    std::pair<double, std::size_t> kij_skel;
-    std::pair<double, std::size_t> kij_s2s;
-    std::pair<double, std::size_t> kij_s2n;
+    pair<double, size_t> kij_skel;
+    pair<double, size_t> kij_s2s;
+    pair<double, size_t> kij_s2n;
 
     /** many timers */
     double merge_neighbors_time = 0.0;
     double id_time = 0.0;
 
     /** recorded events (for HMLP Runtime) */
-    hmlp::Event skeletonize;
-    hmlp::Event updateweight;
-    hmlp::Event skeltoskel;
-    hmlp::Event skeltonode;
+    Event skeletonize;
+    Event updateweight;
+    Event skeltoskel;
+    Event skeltonode;
 
-    hmlp::Event s2s;
-    hmlp::Event s2n;
+    Event s2s;
+    Event s2n;
 
     /** knn accuracy */
     double knn_acc = 0.0;
@@ -320,7 +324,7 @@ class Data : public hmlp::hfamily::Factor<T>
  *         weights<RIDS> and potentials<RIDS>.
  */
 template<typename NODE>
-class TreeViewTask : public hmlp::Task
+class TreeViewTask : public Task
 {
   public:
 
@@ -345,11 +349,12 @@ class TreeViewTask : public hmlp::Task
     /** preorder dependencies (with a single source node) */
     void DependencyAnalysis()
     {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      arg->DependencyAnalysis( R, this );
+
       if ( !arg->isleaf )
       {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->lchild->DependencyAnalysis( RW, this );
+        arg->rchild->DependencyAnalysis( RW, this );
       }
       this->TryEnqueue();
     };
@@ -426,13 +431,13 @@ class TreeViewTask : public hmlp::Task
  *         support two interfaces for data fetching.
  */ 
 template<typename T>
-class SPDMatrix : public hmlp::Data<T>
+class SPDMatrix : public Data<T>
 {
   public:
 
-    hmlp::Data<T> Diagonal( std::vector<size_t> &I )
+    Data<T> Diagonal( std::vector<size_t> &I )
     {
-      hmlp::Data<T> DII( I.size(), 1 );
+      Data<T> DII( I.size(), 1 );
 
       for ( size_t i = 0; i < I.size(); i ++ )
         DII[ i ] = (*this)( I[ i ], I[ i ] );
@@ -445,14 +450,16 @@ class SPDMatrix : public hmlp::Data<T>
 		{
 		};
 
-    virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
+    virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
     {
     };
 
-    virtual void RedistributeWithPartner( 
-        std::vector<size_t> &gids,
-        std::vector<size_t> &lhs, 
-        std::vector<size_t> &rhs, mpi::Comm comm )
+    virtual void RedistributeWithPartner
+    ( 
+     vector<size_t> &gids,
+     vector<size_t> &lhs, 
+     vector<size_t> &rhs, mpi::Comm comm 
+    )
     {
     };
 
@@ -473,9 +480,9 @@ class Summary
 
     Summary() {};
 
-    std::deque<hmlp::Statistic> rank;
+    deque<Statistic> rank;
 
-    std::deque<hmlp::Statistic> merge_neighbors_time;
+    deque<Statistic> merge_neighbors_time;
 
     std::deque<hmlp::Statistic> kij_skel;
 
@@ -593,12 +600,12 @@ class Summary
  *         However, KIC is a mamtrix and its dimensions must match.
  */
 template<typename T>
-std::vector<T> AllToCentroid
+vector<T> AllToCentroid
 ( 
   DistanceMetric metric,
-  hmlp::Data<T> &DII, /** diagonals of K( I, I ) */
-  hmlp::Data<T> &KIC, /**              K( I, C ) */
-  hmlp::Data<T> &DCC  /** diagonals of K( C, C ) */
+  Data<T> &DII, /** diagonals of K( I, I ) */
+  Data<T> &KIC, /**              K( I, C ) */
+  Data<T> &DCC  /** diagonals of K( C, C ) */
 )
 {
   /** distances from I to C */
@@ -667,12 +674,12 @@ std::vector<T> AllToCentroid
 
 /** compute all2f (distance to the farthest point) */
 template<typename T>
-std::vector<T> AllToFarthest
+vector<T> AllToFarthest
 (
   DistanceMetric metric,
-  hmlp::Data<T> &DII, /**  */
-  hmlp::Data<T> &KIP, /**  */
-  T             &kpp
+  Data<T> &DII, /**  */
+  Data<T> &KIP, /**  */
+  T       &kpp
 )
 {
   /** distances from I to P */
@@ -713,18 +720,18 @@ std::vector<T> AllToFarthest
 
 
 template<typename T>
-std::vector<T> AllToLeftRight
+vector<T> AllToLeftRight
 ( 
   DistanceMetric metric,
-  hmlp::Data<T> &DII,
-  hmlp::Data<T> &KIP,
-  hmlp::Data<T> &KIQ,
-  T              kpp,
-  T              kqq
+  Data<T> &DII,
+  Data<T> &KIP,
+  Data<T> &KIQ,
+  T       kpp,
+  T       kqq
 )
 {
   /** distance differences between I to P and I to Q */
-  std::vector<T> I2PQ( KIP.row(), 0.0 );
+  vector<T> I2PQ( KIP.row(), 0.0 );
 
   switch ( metric )
   {
@@ -852,10 +859,9 @@ struct centersplit
   
 
 	/** overload the operator */
-  std::vector<std::vector<std::size_t> > operator()
+  vector<vector<size_t> > operator()
   ( 
-    std::vector<std::size_t>& gids,
-    std::vector<std::size_t>& lids
+    vector<size_t>& gids, vector<size_t>& lids
   ) const 
   {
     /** all assertions */
@@ -873,7 +879,7 @@ struct centersplit
     beg = omp_get_wtime();
 
     /** diagonal entries */
-    hmlp::Data<T> DII( n, (size_t)1 ), DCC( n_centroid_samples, (size_t)1 );
+    Data<T> DII( n, (size_t)1 ), DCC( n_centroid_samples, (size_t)1 );
 
 
     //printf( "shared enter DII\n" ); fflush( stdout );
@@ -1401,10 +1407,10 @@ class KNNTask : public hmlp::Task
  *  @brief This is the ANN routine design for CSC matrices.
  */ 
 template<bool DOAPPROXIMATE, bool SORTED, typename T, typename CSCMATRIX>
-hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATRIX &K )
+Data<pair<T, size_t>> SparsePattern( size_t n, size_t k, CSCMATRIX &K )
 {
-  std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
-  hmlp::Data<std::pair<T, std::size_t>> NN( k, n, initNN );
+  pair<T, size_t> initNN( numeric_limits<T>::max(), n );
+  Data<pair<T, size_t>> NN( k, n, initNN );
 
   printf( "SparsePattern k %lu n %lu, NN.row %lu NN.col %lu ...", 
       k, n, NN.row(), NN.col() ); fflush( stdout );
@@ -1492,17 +1498,17 @@ hmlp::Data<std::pair<T, std::size_t>> SparsePattern( size_t n, size_t k, CSCMATR
  * @brief Helper functions for sorting sampling neighbors.
  */ 
 template<typename TA, typename TB>
-std::pair<TB, TA> flip_pair( const std::pair<TA, TB> &p )
+pair<TB, TA> flip_pair( const pair<TA, TB> &p )
 {
-  return std::pair<TB, TA>( p.second, p.first );
+  return pair<TB, TA>( p.second, p.first );
 }; /** end flip_pair() */
 
 
 template<typename TA, typename TB>
-std::multimap<TB, TA> flip_map( const std::map<TA, TB> &src )
+multimap<TB, TA> flip_map( const map<TA, TB> &src )
 {
-  std::multimap<TB, TA> dst;
-  std::transform( src.begin(), src.end(), std::inserter( dst, dst.begin() ), 
+  multimap<TB, TA> dst;
+  transform( src.begin(), src.end(), inserter( dst, dst.begin() ), 
                  flip_pair<TA, TB> );
   return dst;
 }; /** end flip_map() */
@@ -1625,47 +1631,6 @@ void BuildNeighbors( NODE *node, size_t nsamples )
 
 
 
-/**
- *  @brief This routine seperate the original skeletonization step into
- *         two parts: 1) preparation and 2) computation.
- */ 
-//template<typename NODE>
-//void GetSkeletonMatrix( NODE *node )
-//{
-//  /** gather shared data and create reference */
-//  auto &K = *(node->setup->K);
-//
-//  /** gather per node data and create reference */
-//  auto &data = node->data;
-//  auto &candidate_rows = data.candidate_rows;
-//  auto &candidate_cols = data.candidate_cols;
-//  auto &KIJ = data.KIJ;
-//
-//  /** this node belongs to the local tree */
-//  auto *lchild = node->lchild;
-//  auto *rchild = node->rchild;
-//
-//  if ( node->isleaf )
-//  {
-//    /** use all columns */
-//    candidate_cols = node->gids;
-//  }
-//  else
-//  {
-//    /** concatinate [ lskels, rskels ] */
-//    auto &lskels = lchild->data.skels;
-//    auto &rskels = rchild->data.skels;
-//    candidate_cols = lskels;
-//    candidate_cols.insert( candidate_cols.end(), 
-//        rskels.begin(), rskels.end() );
-//  }
-//
-//  /** sample off-diagonal rows */
-//  RowSamples( node, 2 * candidate_cols.size() );
-//  /** get KIJ for skeletonization */
-//  KIJ = K( candidate_rows, candidate_cols );
-//
-//}; /** end GetSkeletonMatrix() */
 
 
 
@@ -1763,11 +1728,11 @@ void Interpolate( NODE *node )
  *  @brief
  */ 
 template<typename NODE, typename T>
-class InterpolateTask : public hmlp::Task
+class InterpolateTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
@@ -1789,7 +1754,8 @@ class InterpolateTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      arg->DependencyAnalysis( RW, this );
+      this->TryEnqueue();
     }
 
     void Execute( Worker* user_worker )
@@ -1800,6 +1766,400 @@ class InterpolateTask : public hmlp::Task
     };
 
 }; /** end class InterpolateTask */
+
+
+
+
+template<typename NODE, typename T>
+void RowSamples( NODE *node, size_t nsamples )
+{
+  /** gather shared data and create reference */
+  auto &K = *node->setup->K;
+
+  /** amap contains nsamples of row gids of K */
+  vector<size_t> &amap = node->data.candidate_rows;
+
+  /** clean up candidates from previous iteration */
+  amap.clear();
+
+  /** construct snids from neighbors */
+  if ( node->setup->NN )
+  {
+    //printf( "construct snids NN.row() %lu NN.col() %lu\n", 
+    //    node->setup->NN->row(), node->setup->NN->col() ); fflush( stdout );
+    auto &NN = *(node->setup->NN);
+    auto &gids = node->gids;
+    auto &pnids = node->data.pnids;
+    auto &snids = node->data.snids;
+    size_t kbeg = ( NN.row() + 1 ) / 2;
+    size_t kend = NN.row();
+    size_t knum = kend - kbeg;
+
+    if ( node->isleaf )
+    {
+      pnids.clear();
+      snids.clear();
+
+      for ( size_t j = 0; j < gids.size(); j ++ )
+        for ( size_t i = 0; i < NN.row() / 2; i ++ )
+          pnids.insert( NN( i, gids[ j ] ).second );
+
+      /** remove self on-diagonal indices */
+      for ( size_t j = 0; j < gids.size(); j ++ )
+        pnids.erase( gids[ j ] );
+
+      vector<pair<T, size_t>> tmp( knum * gids.size() );
+
+      for ( size_t j = 0; j < gids.size(); j ++ )
+        for ( size_t i = kbeg; i < kend; i ++ )
+          tmp[ j * knum + ( i - kbeg ) ] = NN( i, gids[ j ] );
+
+      /** create a sorted list */
+      std::sort( tmp.begin(), tmp.end() );
+    
+      for ( auto it = tmp.begin(); it != tmp.end(); it ++ )
+      {
+        /** create a single query */
+        vector<size_t> sample_query( 1, (*it).second );
+				vector<size_t> validation = 
+					node->setup->ContainAny( sample_query, node->morton );
+
+        if ( !pnids.count( (*it).second ) && !validation[ 0 ] )
+        {
+          /** duplication is handled by std::map */
+          auto ret = snids.insert( pair<size_t, T>( (*it).second, (*it).first ) );
+        }
+
+        /** while we have enough samples, then exit */
+        if ( snids.size() >= nsamples ) break;
+      }
+    }
+    else
+    {
+      auto &lsnids = node->lchild->data.snids;
+      auto &rsnids = node->rchild->data.snids;
+      auto &lpnids = node->lchild->data.pnids;
+      auto &rpnids = node->rchild->data.pnids;
+
+      /** 
+       *  merge children's sampling neighbors...    
+       *  start with left sampling neighbor list 
+       */
+      snids = lsnids;
+
+      /**
+       *  Add right sampling neighbor list. If duplicate update distace if nec.
+       */
+      for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
+      {
+        auto ret = snids.insert( *it );
+        if ( !ret.second )
+        {
+          if ( ret.first->second > (*it).first )
+            ret.first->second = (*it).first;
+        }
+      }
+
+      /** remove on-diagonal indicies */
+      for ( size_t i = 0; i < gids.size(); i ++ ) 
+        snids.erase( gids[ i ] );
+
+      /**remove direct evaluation indices */
+      for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ )
+        snids.erase( *it );
+      for ( auto it = rpnids.begin(); it != rpnids.end(); it ++ )
+        snids.erase( *it );
+    }
+
+    /** create an order snids by flipping the std::map */
+    multimap<T, size_t> ordered_snids = flip_map( node->data.snids );
+
+    if ( nsamples < K.col() - node->n )
+    {
+      amap.reserve( nsamples );
+
+      for ( auto it  = ordered_snids.begin(); it != ordered_snids.end(); it++ )
+      {
+        /** (*it) has type pair<T, size_t> */
+        amap.push_back( (*it).second );
+        if ( amap.size() >= nsamples ) break;
+      }
+
+      /** uniform samples */
+      if ( amap.size() < nsamples )
+      {
+        while ( amap.size() < nsamples )
+        {
+          size_t sample = rand() % K.col();
+
+          /** create a single query */
+          vector<size_t> sample_query( 1, sample );
+
+          vector<size_t> validation = 
+            node->setup->ContainAny( sample_query, node->morton );
+
+          /**
+           *  check duplication using std::find, but check whether the sample
+           *  belongs to the diagonal block using Morton ID.
+           */ 
+          if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
+              !validation[ 0 ] )
+          {
+            amap.push_back( sample );
+          }
+        }
+      }
+    }
+    else /** use all off-diagonal blocks without samples */
+    {
+      for ( size_t sample = 0; sample < K.col(); sample ++ )
+      {
+        if ( find( amap.begin(), amap.end(), sample ) == amap.end() )
+        {
+          amap.push_back( sample );
+        }
+      }
+    }
+  } /** end if ( node->setup->NN ) */
+
+}; /** end RowSamples() */
+
+
+
+
+
+
+
+
+template<typename NODE, typename T>
+void GetSkeletonMatrix( NODE *node )
+{
+  /** gather shared data and create reference */
+  auto &K = *(node->setup->K);
+
+  /** gather per node data and create reference */
+  auto &data = node->data;
+  auto &candidate_rows = data.candidate_rows;
+  auto &candidate_cols = data.candidate_cols;
+  auto &KIJ = data.KIJ;
+
+  /** this node belongs to the local tree */
+  auto *lchild = node->lchild;
+  auto *rchild = node->rchild;
+
+  if ( node->isleaf )
+  {
+    /** use all columns */
+    candidate_cols = node->gids;
+  }
+  else
+  {
+    auto &lskels = lchild->data.skels;
+    auto &rskels = rchild->data.skels;
+
+    /** if either child is not skeletonized, then return */
+    if ( !lskels.size() || !rskels.size() ) return;
+
+    /** concatinate [ lskels, rskels ] */
+    candidate_cols = lskels;
+    candidate_cols.insert( candidate_cols.end(), 
+        rskels.begin(), rskels.end() );
+  }
+
+  /** decide number of rows to sample */
+  size_t nsamples = 2 * candidate_cols.size();
+
+  /** make sure we at least m samples */
+  if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
+
+  /** sample off-diagonal rows */
+  RowSamples<NODE, T>( node, nsamples );
+
+  /** 
+   *  get KIJ for skeletonization 
+   *
+   *  notice that operator () may involve MPI collaborative communication.
+   *
+   */
+  KIJ = K( candidate_rows, candidate_cols );
+
+}; /** end GetSkeletonMatrix() */
+
+
+
+
+
+
+
+/**
+ *
+ */ 
+template<typename NODE, typename T>
+class GetSkeletonMatrixTask : public Task
+{
+  public:
+
+    NODE *arg = NULL;
+
+    void Set( NODE *user_arg )
+    {
+      ostringstream ss;
+      arg = user_arg;
+      name = string( "par-gskm" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+
+      /** we don't know the exact cost here */
+      cost = 5.0;
+
+      /** high priority */
+      priority = true;
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( RW, this );
+
+      if ( !arg->isleaf )
+      {
+        arg->lchild->DependencyAnalysis( R, this );
+        arg->rchild->DependencyAnalysis( R, this );
+      }
+
+      /** try to enqueue if there is no dependency */
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      GetSkeletonMatrix<NODE, T>( arg );
+    };
+}; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ *  @brief Skeletonization with interpolative decomposition.
+ */ 
+template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
+void Skeletonize2( NODE *node )
+{
+  /** early return if we do not need to skeletonize */
+  if ( !node->parent ) return;
+
+  /** gather shared data and create reference */
+  auto &K   = *(node->setup->K);
+  auto &NN  = *(node->setup->NN);
+  auto maxs = node->setup->s;
+  auto stol = node->setup->stol;
+
+  /** gather per node data and create reference */
+  auto &data  = node->data;
+  auto &skels = data.skels;
+  auto &proj  = data.proj;
+  auto &jpvt  = data.jpvt;
+  auto &KIJ   = data.KIJ;
+  auto &candidate_cols = data.candidate_cols;
+
+  /** interpolative decomposition */
+  size_t N = K.col();
+  size_t m = KIJ.row();
+  size_t n = KIJ.col();
+  size_t q = node->n;
+
+  if ( LEVELRESTRICTION )
+  {
+    assert( ADAPTIVE );
+    if ( !node->isleaf && ( !lchild->data.isskel || !rchild->data.isskel ) )
+    {
+      skels.clear();
+      proj.resize( 0, 0 );
+      data.isskel = false;
+      return;
+    }
+  }
+
+
+  /** Bill's l2 norm scaling factor */
+  T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
+
+  /** account for uniform sampling */
+  scaled_stol *= std::sqrt( (T)q / N );
+
+  hmlp::lowrank::id<ADAPTIVE, LEVELRESTRICTION>
+  ( 
+    KIJ.row(), KIJ.col(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
+    KIJ, skels, proj, jpvt
+  );
+
+  /** free KIJ for spaces */
+  KIJ.resize( 0, 0 );
+
+  /** depending on the flag, decide isskel or not */
+  if ( LEVELRESTRICTION )
+  {
+    /** TODO: this needs to be bcast to other nodes */
+    data.isskel = (skels.size() != 0);
+  }
+  else
+  {
+    assert( skels.size() );
+    assert( proj.size() );
+    assert( jpvt.size() );
+    data.isskel = true;
+  }
+  
+  /** relabel skeletions with the real lids */
+  for ( size_t i = 0; i < skels.size(); i ++ )
+  {
+    skels[ i ] = candidate_cols[ skels[ i ] ];
+  }
+
+  /** update pruning neighbor list */
+  data.pnids.clear();
+  for ( size_t j = 0 ; j < skels.size() ; j ++ )
+    for ( size_t i = 0; i < NN.row() / 2; i ++ )
+      data.pnids.insert( NN( i, skels[ j ] ).second );
+
+}; /** end Skeletonize() */
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2039,21 +2399,22 @@ void Skeletonize( NODE *node )
 }; /** end void Skeletonize() */
 
 
+
 /**
  *
  */ 
 template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
-class SkeletonizeTask : public hmlp::Task
+class SkeletonizeTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
+      ostringstream ss;
       arg = user_arg;
-      name = std::string( "sk" );
+      name = string( "sk" );
       //label = std::to_string( arg->treelist_id );
       ss << arg->treelist_id;
       label = ss.str();
@@ -2098,18 +2459,11 @@ class SkeletonizeTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      arg->DependencyAnalysis( RW, this );
       if ( !arg->isleaf )
       {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-
-        /** sample from sibling's skeleton */
-        //if ( arg->sibling )
-        //{
-        //  arg->sibling->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        //  arg->sibling->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        //}
+        arg->lchild->DependencyAnalysis( R, this );
+        arg->rchild->DependencyAnalysis( R, this );
       }
       this->TryEnqueue();
     };
@@ -2122,6 +2476,34 @@ class SkeletonizeTask : public hmlp::Task
     };
 
 }; /** end class SkeletonizeTask */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2273,15 +2655,15 @@ class UpdateWeightsTask : public hmlp::Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "n2s" );
+      name = string( "n2s" );
       {
         //label = std::to_string( arg->treelist_id );
-        std::ostringstream ss;
+        ostringstream ss;
         ss << arg->treelist_id;
         label = ss.str();
       }
@@ -2371,41 +2753,16 @@ class UpdateWeightsTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      //if ( !arg->parent ) 
-      //{
-      //  this->Enqueue();
-      //  return;
-      //}
-
-      //auto &w_skel = arg->data.w_skel;
-      //w_skel.DependencyAnalysis( hmlp::ReadWriteType::W, this );
-
-      //if ( !arg->isleaf )
-      //{
-      //  auto &w_lskel = arg->lchild->data.w_skel;
-      //  auto &w_rskel = arg->rchild->data.w_skel;
-      //  w_lskel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      //  w_rskel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      //}
-      //else
-      //{
-      //  this->Enqueue();
-      //}
-    
-
-
-
       if ( arg->parent ) 
       {
-        arg->DependencyAnalysis( hmlp::ReadWriteType::W, this );
+        arg->DependencyAnalysis( W, this );
       }
       if ( !arg->isleaf )
       {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->lchild->DependencyAnalysis( R, this );
+        arg->rchild->DependencyAnalysis( R, this );
       }
       this->TryEnqueue();
-
     };
 
     void Execute( Worker* user_worker )
@@ -2420,7 +2777,7 @@ class UpdateWeightsTask : public hmlp::Task
 #endif
     };
 
-}; // end class SetWeights
+}; /** end class UpdateWeightsTask */
 
 
 
@@ -2543,7 +2900,7 @@ void SkeletonsToSkeletons( NODE *node )
  *
  */ 
 template<bool NNPRUNE, typename NODE, typename T>
-class SkeletonsToSkeletonsTask : public hmlp::Task
+class SkeletonsToSkeletonsTask : public Task
 {
   public:
 
@@ -2552,10 +2909,10 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "s2s" );
+      name = string( "s2s" );
       {
         //label = std::to_string( arg->treelist_id );
-        std::ostringstream ss;
+        ostringstream ss;
         ss << arg->treelist_id;
         label = ss.str();
       }
@@ -2601,37 +2958,18 @@ class SkeletonsToSkeletonsTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      auto &u_skel = arg->data.u_skel;
-      std::set<NODE*> *FarNodes;
+      set<NODE*> *FarNodes;
       FarNodes = &arg->NNFarNodes;
-
-      //if ( !arg->parent || !FarNodes->size() ) this->Enqueue();
-
-      ////printf( "node %lu write u_skel ", arg->treelist_id );
-      //u_skel.DependencyAnalysis( hmlp::ReadWriteType::W, this );
-      //for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
-      //{
-      //  //printf( "%lu ", (*it)->treelist_id );
-      //  auto &w_skel = (*it)->data.w_skel;
-      //  w_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      //}
-      ////printf( "\n" );
-     
-
-
-
 
       if ( FarNodes->size() )
       {
-        arg->DependencyAnalysis( hmlp::ReadWriteType::W, this );
+        arg->DependencyAnalysis( W, this );
         for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
         {
-          (*it)->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+          (*it)->DependencyAnalysis( R, this );
         }
       }
       this->TryEnqueue();
-      
-      
     };
 
     void Execute( Worker* user_worker )
@@ -2762,19 +3100,19 @@ void SkeletonsToNodes( NODE *node )
 
 
 template<bool NNPRUNE, typename NODE, typename T>
-class SkeletonsToNodesTask : public hmlp::Task
+class SkeletonsToNodesTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "s2n" );
+      name = string( "s2n" );
       {
         //label = std::to_string( arg->treelist_id );
-        std::ostringstream ss;
+        ostringstream ss;
         ss << arg->treelist_id;
         label = ss.str();
       }
@@ -2874,54 +3212,20 @@ class SkeletonsToNodesTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-#ifdef DEBUG_SPDASKIT
-      printf( "Skel2Node DepenencyAnalysis %lu\n", arg->treelist_id );
-#endif
-      //if ( !arg->parent ) 
-      //{
-      //  this->Enqueue();
-      //  return;
-      //}
-
-      //auto &u_skel = arg->data.u_skel;
-      //u_skel.DependencyAnalysis( hmlp::ReadWriteType::R, this );
-
-      //if ( !arg->isleaf )
-      //{
-      //  auto &u_lskel = arg->lchild->data.u_skel;
-      //  auto &u_rskel = arg->rchild->data.u_skel;
-      //  u_lskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-      //  u_rskel.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-      //}
-      //else
-      //{
-      //  /** impose rw dependencies on multiple copies */
-      //  //for ( size_t p = 0; p < 4; p ++ )
-      //  //{
-      //  //  auto &u_leaf = arg->data.u_leaf[ p ];
-      //  //  u_leaf.DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-      //  //}
-      //}
-
       if ( arg->parent )
       {
-        arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->DependencyAnalysis( R, this );
       }
       if ( !arg->isleaf )
       {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->lchild->DependencyAnalysis( RW, this );
+        arg->rchild->DependencyAnalysis( RW, this );
       }
       else
       {
-        arg->DependencyAnalysis( hmlp::ReadWriteType::W, this );
+        arg->DependencyAnalysis( W, this );
       }
       this->TryEnqueue();
-
-
-
-
-
     };
 
     void Execute( Worker* user_worker )
@@ -3072,11 +3376,11 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
 
 
 template<int SUBTASKID, bool NNPRUNE, typename NODE, typename T>
-class LeavesToLeavesTask : public hmlp::Task
+class LeavesToLeavesTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     size_t itbeg;
 
@@ -3160,7 +3464,7 @@ class LeavesToLeavesTask : public hmlp::Task
     {
       assert( arg->isleaf );
       /** depends on nothing */
-      this->Enqueue();
+      this->TryEnqueue();
 
       /** impose rw dependencies on multiple copies */
       //auto &u_leaf = arg->data.u_leaf[ SUBTASKID ];
@@ -3434,11 +3738,11 @@ void FindNearNodes( TREE &tree, double budget )
  *  @brief Task wrapper for FindNearNodes()
  */ 
 template<bool SYMMETRIC, typename TREE>
-class NearNodesTask : public hmlp::Task
+class NearNodesTask : public Task
 {
   public:
 
-    TREE *arg;
+    TREE *arg = NULL;
 
     double budget = 0.0;
 
@@ -4233,16 +4537,16 @@ hmlp::Data<T> Evaluate
 
     /** CPU-GPU hybrid uses a different kind of L2L task */
 #ifdef HMLP_USE_CUDA
-    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleafver2task );
+    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleafver2task );
 #else
-    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
-    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
-    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
-    tree.template TraverseLeafs    <AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
+    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleaftask1 );
+    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleaftask2 );
+    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleaftask3 );
+    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleaftask4 );
 #endif
-    tree.template TraverseUp       <AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
-    tree.template TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
-    tree.template TraverseDown     <AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+    tree.template TraverseUp       <USE_RUNTIME>( nodetoskeltask );
+    tree.template TraverseUnOrdered<USE_RUNTIME>( skeltoskeltask );
+    tree.template TraverseDown     <USE_RUNTIME>( skeltonodetask );
     hmlp_run();
 
 #ifdef HMLP_USE_CUDA
@@ -4276,15 +4580,9 @@ hmlp::Data<T> Evaluate
   }
   else // TODO: implement unsymmetric prunning
   {
-    using NODETOSKELTASK = UpdateWeightsTask<NODE, T>;
-
-    NODETOSKELTASK nodetoskeltask;
-
-    tree.template TraverseUp<false, USE_RUNTIME>( nodetoskeltask );
-    if ( USE_RUNTIME ) hmlp_run();
-
-    // Not yet implemented.
+    /** Not yet implemented. */
     printf( "Non symmetric ComputeAll is not yet implemented\n" );
+    exit( 1 );
   }
 
 
@@ -4368,7 +4666,7 @@ template<
   typename    SPDMATRIX>
 hmlp::tree::Tree<
   hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  hmlp::gofmm::Data<T>,
+  hmlp::gofmm::NodeData<T>,
   N_CHILDREN,
   T> 
 *Compress
@@ -4400,7 +4698,7 @@ hmlp::tree::Tree<
 
   /** instantiation for the Spd-Askit tree */
   using SETUP              = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA               = hmlp::gofmm::Data<T>;
+  using DATA               = hmlp::gofmm::NodeData<T>;
   using NODE               = hmlp::tree::Node<SETUP, N_CHILDREN, DATA, T>;
   using TREE               = hmlp::tree::Tree<SETUP, DATA, N_CHILDREN, T>;
   using SKELTASK           = hmlp::gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
@@ -4538,11 +4836,11 @@ hmlp::tree::Tree<
   }
   const bool AUTODEPENDENCY = true;
   beg = omp_get_wtime();
-  tree.template TraverseUp       <AUTODEPENDENCY, true>( skeltask );
+  tree.template TraverseUp       <true>( skeltask );
   nearnodestask->DependencyAnalysis();
-  tree.template TraverseUnOrdered<AUTODEPENDENCY, true>( projtask );
+  tree.template TraverseUnOrdered<true>( projtask );
   if ( CACHE )
-    tree.template TraverseLeafs  <AUTODEPENDENCY, true>( cachenearnodestask );
+    tree.template TraverseLeafs  <true>( cachenearnodestask );
   other_time += omp_get_wtime() - beg;
   hmlp_run();
   skel_time = omp_get_wtime() - beg;
@@ -4550,38 +4848,14 @@ hmlp::tree::Tree<
 
   /** (optional for comparison) parallel level-by-level traversal */
   beg = omp_get_wtime();
-  if ( OMPLEVEL ) 
-  {
-    printf( "Skeletonization (Level-By-Level) ...\n" ); fflush( stdout );
-    tree.template TraverseUp       <false, false>( skeltask );
-    tree.template TraverseUnOrdered<false, false>( projtask );
-    if ( CACHE )
-      tree.template TraverseLeafs  <false, false>( cachenearnodestask );
-  }
   ref_time = omp_get_wtime() - beg;
-
  
   /** (optional for comparison) sekeletonization with omp task. */
   beg = omp_get_wtime();
-  if ( OMPRECTASK ) 
-  {
-    printf( "Skeletonization (Recursive OpenMP tasks) ...\n" ); fflush( stdout );
-    tree.template PostOrder<true>( tree.treelist[ 0 ], skeltask );
-    tree.template TraverseUnOrdered<false, false>( projtask );
-    if ( CACHE )
-      tree.template TraverseLeafs  <false, false>( cachenearnodestask );
-  }
   omptask_time = omp_get_wtime() - beg;
 
   /** (optional for comparison) sekeletonization with omp task. */
   beg = omp_get_wtime();
-  if ( OMPDAGTASK ) 
-  {
-    printf( "Skeletonization (OpenMP-4.5 Dependency tasks) ...\n" ); fflush( stdout );
-    tree.template UpDown<true, true, false>( skeltask, projtask, projtask );
-    if ( CACHE )
-      tree.template TraverseLeafs  <false, false>( cachenearnodestask );
-  }
   omptask45_time = omp_get_wtime() - beg;
 
 
@@ -4656,7 +4930,7 @@ hmlp::tree::Tree<
 template<typename T, typename SPDMATRIX>
 hmlp::tree::Tree<
   hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-  hmlp::gofmm::Data<T>,
+  hmlp::gofmm::NodeData<T>,
   2,
   T> 
 *Compress( SPDMATRIX &K, T stol, T budget, size_t m, size_t k, size_t s )
@@ -4700,7 +4974,7 @@ hmlp::tree::Tree<
 template<typename T, typename SPDMATRIX>
 hmlp::tree::Tree<
   hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-  hmlp::gofmm::Data<T>,
+  hmlp::gofmm::NodeData<T>,
   2,
   T> 
 *Compress( SPDMATRIX &K, T stol, T budget )
@@ -4764,7 +5038,7 @@ hmlp::tree::Tree<
 template<typename T>
 hmlp::tree::Tree<
   hmlp::gofmm::Setup<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
-  hmlp::gofmm::Data<T>,
+  hmlp::gofmm::NodeData<T>,
   2,
   T>
 *Compress( SPDMatrix<T> &K, T stol, T budget )
@@ -4943,7 +5217,7 @@ class SimpleGOFMM
     /** GOFMM tree */
     hmlp::tree::Tree<
       hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-      hmlp::gofmm::Data<T>, 2, T> *tree_ptr = NULL; 
+      hmlp::gofmm::NodeData<T>, 2, T> *tree_ptr = NULL; 
 
 }; /** end class SimpleGOFMM */
 
@@ -4972,8 +5246,8 @@ typedef hmlp::gofmm::Setup<SPDMatrix<double>,
 typedef hmlp::gofmm::Setup<SPDMatrix<float>, 
     centersplit<SPDMatrix<float >, 2,  float>,  float> sSetup_t;
 
-typedef hmlp::tree::Tree<dSetup_t, hmlp::gofmm::Data<double>, 2, double> dTree_t;
-typedef hmlp::tree::Tree<sSetup_t, hmlp::gofmm::Data<float >, 2, float > sTree_t;
+typedef hmlp::tree::Tree<dSetup_t, hmlp::gofmm::NodeData<double>, 2, double> dTree_t;
+typedef hmlp::tree::Tree<sSetup_t, hmlp::gofmm::NodeData<float >, 2, float > sTree_t;
 
 
 
