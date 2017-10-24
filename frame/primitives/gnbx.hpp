@@ -300,18 +300,25 @@ void gnbx_internal
   TPACKB *packB 
 )
 {
+  /** get comm.Split = jc_comm, jc_comm.Split = pc_comm, ic_comm */
+
+
+
   packA  += ( thread.jc_id * thread.ic_nt                ) * PACK_MC * KC
           + ( thread.ic_id                               ) * PACK_MC * KC;
   packB  += ( thread.jc_id                               ) * pack_nc * KC;
 
+  /** Comm6th.DistributeOver1DGang( 0, n, nc ) */
   auto loop6th = GetRange( 0,      n, nc, thread.jc_id, thread.jc_nt );
   auto loop5th = GetRange( k_stra, k, KC );
+  /** Comm4th.DistributeOver1DGang( 0, m, MC ) */
   auto loop4th = GetRange( 0,      m, MC, thread.ic_id, thread.ic_nt );
 
   for ( int jc  = loop6th.beg(); 
             jc  < loop6th.end(); 
             jc += loop6th.inc() )                          // beg 6th loop 
   {
+    /** Comm6th */
     auto &jc_comm = *thread.jc_comm;
     auto jb = std::min( n - jc, nc );
 
@@ -319,10 +326,13 @@ void gnbx_internal
               pc  < loop5th.end();
               pc += loop5th.inc() )
     {
+      /** Comm5th */
       auto &pc_comm = *thread.pc_comm;
       auto pb = std::min( k - pc, KC );
       auto is_the_last_pc_iteration = ( pc + KC >= k );
+      /** Comm5th.DistributeOver1DThread( 0, jb, NR ) */
       auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
+      /** Comm5th.DistributeOver1DThread( 0, jb, PACK_NR ) */
       auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
 
       for ( int j   = looppkB.beg(), jp  = packpkB.beg(); 
@@ -330,18 +340,24 @@ void gnbx_internal
                 j  += looppkB.inc(), jp += packpkB.inc() ) 
       {
         /** packB and typecast from TB to TPACKB  */
-        packbkernel( k, pc, pb, n, jc + j, std::min( jb - j, NR ), 
+        packbkernel( 
+            k, pc, pb, 
+            n, jc + j, std::min( jb - j, NR ), 
             B, &packB[ jp * pb ] );
       }
+      /** Comm5th.Barrier() */
       pc_comm.Barrier();
 
       for ( int ic  = loop4th.beg(); 
                 ic  < loop4th.end(); 
                 ic += loop4th.inc() )                      // beg 4th loop
       {
+        /** Comm4th */
         auto &ic_comm = *thread.ic_comm;
         auto ib = std::min( m - ic, MC );
+        /** Comm5th.DistributeOver1DThread( 0, ib, MR ) */
         auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt ); 
+        /** Comm5th.DistributeOver1DThread( 0, ib, PACK_MR ) */
         auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt ); 
 
         for ( int i   = looppkA.beg(), ip  = packpkA.beg();  
@@ -349,9 +365,12 @@ void gnbx_internal
                   i  += looppkA.inc(), ip += packpkA.inc() )     
         {
           /** packA and typecast from TA to TPACKA  */
-          packakernel( k, pc, pb, m, ic + i, std::min( ib - i, MR ), 
+          packakernel( 
+              k, pc, pb, 
+              m, ic + i, std::min( ib - i, MR ), 
               A, &packA[ ip * pb ] );
         }
+        /** Comm4th.Barrier() */
         ic_comm.Barrier();
 
         if ( is_the_last_pc_iteration )                    // fused_macro_kernel
@@ -390,8 +409,10 @@ void gnbx_internal
             semiringkernel
           );
         }
+        /** Comm4th.Barrier() */
         ic_comm.Barrier();                                 // sync all jr_id!!
       }                                                    // end 4th loop
+      /** Comm5th.Barrier() */
       pc_comm.Barrier();
     }                                                      // end 5th loop
   }                                                        // end 6th loop

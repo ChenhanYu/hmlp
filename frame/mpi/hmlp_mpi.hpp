@@ -3,9 +3,18 @@
 
 
 #ifdef HMLP_USE_MPI
+/** use vender mpi.h */
 #include <mpi.h>
 #else
+/** use self-define MPI */
 #warning MPI routines are disable (-HMLP_USE_MPI=false)
+
+/* For supported thread levels */
+#define MPI_THREAD_SINGLE 0
+#define MPI_THREAD_FUNNELED 1
+#define MPI_THREAD_SERIALIZED 2
+#define MPI_THREAD_MULTIPLE 3
+
 /** define MPI macros */
 #define MPI_COMM_WORLD              0
 #define MPI_SUCCESS                 0
@@ -61,8 +70,32 @@ typedef int MPI_Op;
 #define MPI_MAXLOC (MPI_Op)(111)
 
 
+/* Permanent key values */
+/** 
+ *  C Versions (return pointer to value),
+ *  Fortran Versions (return integer value).
+ *  Handled directly by the attribute value routine
+ *
+ *  DO NOT CHANGE THESE.  The values encode:
+ *  builtin kind (0x1 in bit 30-31)
+ *  Keyval object (0x9 in bits 26-29)
+ *  for communicator (0x1 in bits 22-25)
+ *
+ *  Fortran versions of the attributes are formed by
+ *  adding one to the C version.
+ */
+#define MPI_TAG_UB           0x64400001
+#define MPI_HOST             0x64400003
+#define MPI_IO               0x64400005
+#define MPI_WTIME_IS_GLOBAL  0x64400007
+#define MPI_UNIVERSE_SIZE    0x64400009
+#define MPI_LASTUSEDCODE     0x6440000b
+#define MPI_APPNUM           0x6440000d
 
-#endif
+
+#endif /** ifdef HMLP_USE_MPI */
+
+
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -130,10 +163,15 @@ typedef struct
   int MPI_TAG;
   int MPI_ERROR;
 } Status;
+
+#define MPI_STATUS_IGNORE   (mpi::Status *)NULL
+#define MPI_STATUSES_IGNORE (mpi::Status *)NULL
+
 typedef int Request;
 typedef int Comm;
 typedef int Datatype;
 typedef int Op;
+
 #endif /** ifdef HMLP_USE_MPI */
 
 

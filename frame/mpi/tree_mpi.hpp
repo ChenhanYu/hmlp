@@ -1088,7 +1088,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       //DistIndexPermuteTask<MPINODE> mpiINDXtask;
 			//DistTraverseUp( mpiINDXtask );
       hmlp_run();
-	  	MPI_Barrier( comm );
+      mpi::Barrier( comm );
 
 
 
@@ -1152,13 +1152,13 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
         {
           DistTraverseDown( mpisplittask );
           hmlp_run();
-          MPI_Barrier( comm );
+          mpi::Barrier( comm );
           this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
           DependencyCleanUp();
           LocaTraverseDown( splittask );
         }
         hmlp_run();
-        MPI_Barrier( comm );
+        mpi::Barrier( comm );
         double nn_t = omp_get_wtime() - beg;
         //printf( "NN+tree time %lfs\n", nn_t ); fflush( stdout );
 
@@ -1250,7 +1250,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
       /** need to redistribute  */
       hmlp_run();
-      MPI_Barrier( comm );
+      mpi::Barrier( comm );
       this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
 
 
