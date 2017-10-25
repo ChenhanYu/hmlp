@@ -4381,6 +4381,10 @@ mpitree::Tree<
 
 
 
+
+
+
+
   /** initialize metric ball tree using approximate center split */
   auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
 	auto &tree = *tree_ptr;
@@ -4412,15 +4416,37 @@ mpitree::Tree<
 	}
   mpi::Barrier( MPI_COMM_WORLD );
 
-  /** now redistribute K */
+  /** 
+   *  Now redistribute K. 
+   *
+   *
+   */
   K.Redistribute( true, tree.treelist[ 0 ]->gids );
 
 
 
-  /** now redistribute NN according to gids */
+  /** 
+   *  Now redistribute NN according to gids 
+   */
   DistData<STAR, CIDS, std::pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
   NN = NN_cblk;
   tree.setup.NN = &NN;
+
+
+  /**
+   *  Now we need to cache submatirces for imporant samples.
+   *
+   *  Each MPI process first compute 4s candidates for each leaf node by
+   *  merging neighbors.
+   *  Then 
+   *
+   *
+   */
+
+
+
+
+
 
 
   /** skeletonization */

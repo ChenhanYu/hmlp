@@ -7,10 +7,16 @@
 #SBATCH -n 4
 #SBATCH -N 4
 
+export OMP_PLACES=cores
+export OMP_PROC_BIND=spread,close
+
 export OMP_NUM_THREADS=20
-export OMP_PROC_BIND=spread
+export HMLP_NORMAL_WORKER=11
+export HMLP_SERVER_WORKER=10
+export HMLP_NESTED_WORKER=10
 export KS_IC_NT=20
 export GSKNN_IC_NT=20
+
 ulimit -Hc unlimited
 ulimit -Sc unlimited
 
@@ -48,6 +54,7 @@ distance="angle"
 ## spdmatrix type (testsuit, dense, kernel, userdefine)
 matrixtype="kernel"
 #matrixtype="testsuit"
+#matrixtype="pvfmm"
 
 # ======= Do not change anything below this line ========
 #mpiexec="ibrun tacc_affinity"
@@ -106,6 +113,12 @@ fi
 
 if [[ "$matrixtype" == "kernel" ]] ; then
   $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $points $d $h; status=$?
+  echo "@STATUS"
+  echo $status
+fi
+
+if [[ "$matrixtype" == "pvfmm" ]] ; then
+  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype; status=$?
   echo "@STATUS"
   echo $status
 fi
