@@ -31,7 +31,6 @@
 #include <hmlp_internal.hpp>
 #include <hmlp_util.hpp>
 #include <hmlp_thread.hpp>
-//#include <hmlp_runtime.hpp>
 
 /** for USE_STRASSEN */
 //#include <primitives/strassen.hpp>
@@ -65,7 +64,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void rank_k_macro_kernel
 (
-  Worker &thread,
+  Worker &Comm4th,
   int ic, int jc, int pc,
   int  m, int n,  int  k,
   TA *packA,
@@ -74,16 +73,16 @@ void rank_k_macro_kernel
   SEMIRINGKERNEL semiringkernel
 )
 {
-  thread_communicator &ic_comm = *thread.ic_comm;
+  thread_communicator &ic_comm = *Comm4th.comm;
 
-  auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );
-  auto pack3rd = GetRange( 0, n, PACK_NR, thread.jr_id, ic_comm.GetNumThreads() );
-  auto loop2nd = GetRange( 0, m,      MR );
-  auto pack2nd = GetRange( 0, m, PACK_MR );
+  auto Loop3rd = Comm4th.DistributeOver1DGangs(        0, n,      NR );
+  auto Pack3rd = Comm4th.DistributeOver1DGangs(        0, n, PACK_NR );
+  auto Loop2nd = Comm4th.DistributeOver1DThreads(      0, m,      MR );
+  auto Pack2nd = Comm4th.DistributeOver1DThreads(      0, m, PACK_MR );
 
-  for ( int j   = loop3rd.beg(), jp  = pack3rd.beg(); 
-            j   < loop3rd.end();
-            j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
+  for ( int j  = get<0>( Loop3rd ), jp  = get<0>( Pack3rd );
+            j  < get<1>( Loop3rd );
+            j += get<2>( Loop3rd ), jp += get<2>( Pack3rd ) )
   {
     struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
@@ -91,9 +90,9 @@ void rank_k_macro_kernel
     aux.do_packC = 0;
     aux.jb       = std::min( n - j, NR );
 
-    for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
-              i  < loop2nd.end(); 
-              i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
+    for ( int i  = get<0>( Loop2nd ), ip  = get<0>( Pack2nd );
+              i  < get<1>( Loop2nd );
+              i += get<2>( Loop2nd ), ip += get<2>( Pack2nd ) )
     {
       aux.ib = std::min( m - i, MR );
       if ( i + MR >= m ) 
@@ -155,7 +154,7 @@ typename FUSEDKERNEL,
 typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
 (
-  Worker &thread,
+  Worker &Comm4th,
   int ic, int jc, int pc,
   int  m,  int n,  int k,
   TA *packA,
@@ -166,25 +165,26 @@ void fused_macro_kernel
   FUSEDKERNEL fusedkernel
 )
 {
-  thread_communicator &ic_comm = *thread.ic_comm;
+  thread_communicator &ic_comm = *Comm4th.comm;
 
-  auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );
-  auto pack3rd = GetRange( 0, n, PACK_NR, thread.jr_id, ic_comm.GetNumThreads() );
-  auto loop2nd = GetRange( 0, m,      MR );
-  auto pack2nd = GetRange( 0, m, PACK_MR );
+  auto Loop3rd = Comm4th.DistributeOver1DGangs(        0, n,      NR );
+  auto Pack3rd = Comm4th.DistributeOver1DGangs(        0, n, PACK_NR );
+  auto Loop2nd = Comm4th.DistributeOver1DThreads(      0, m,      MR );
+  auto Pack2nd = Comm4th.DistributeOver1DThreads(      0, m, PACK_MR );
 
-  for ( int j   = loop3rd.beg(), jp  = pack3rd.beg(); 
-            j   < loop3rd.end();
-            j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop
+
+  for ( int j  = get<0>( Loop3rd ), jp  = get<0>( Pack3rd );
+            j  < get<1>( Loop3rd );
+            j += get<2>( Loop3rd ), jp += get<2>( Pack3rd ) )
   {
     struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
     aux.b_next   = packB;
     aux.do_packC = 0;
 
-    for ( int i  = loop2nd.beg(), ip  = pack2nd.beg(); 
-              i  < loop2nd.end(); 
-              i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
+    for ( int i  = get<0>( Loop2nd ), ip  = get<0>( Pack2nd );
+              i  < get<1>( Loop2nd );
+              i += get<2>( Loop2nd ), ip += get<2>( Pack2nd ) )
     {
       // These auxiluary infos are used to access data in the closure of
       // opkernel and opreduce.
@@ -295,49 +295,61 @@ void gnbx_internal
   int batchId,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel,
-  int nc, int pack_nc,
-  TPACKA *packA, 
-  TPACKB *packB 
+  int nc, int pack_nc
+  //TPACKA *packA, 
+  //TPACKB *packB 
 )
 {
-  /** get comm.Split = jc_comm, jc_comm.Split = pc_comm, ic_comm */
+  auto CommGLB = thread.Split();
+  auto Comm6th = CommGLB.Split();
+  auto Comm5th = Comm6th.Split();
+  auto Comm4th = Comm5th.Split();
+
+  //printf( "CommGLB %s tid %d gid %d ngangs %d\n", CommGLB.comm->name.data(), CommGLB.tid, CommGLB.gid, CommGLB.comm->GetNumGroups() );
+  //printf( "Comm6th %s tid %d gid %d ngangs %d\n", Comm6th.comm->name.data(), Comm6th.tid, Comm6th.gid, Comm6th.comm->GetNumGroups() );
+  //printf( "Comm5th %s tid %d gid %d ngangs %d\n", Comm5th.comm->name.data(), Comm5th.tid, Comm5th.gid, Comm5th.comm->GetNumGroups() );
+  //printf( "Comm4th %s tid %d gid %d ngangs %d\n", Comm4th.comm->name.data(), Comm4th.tid, Comm4th.gid, Comm4th.comm->GetNumGroups() );
+  //fflush( stdout );
+
+  TPACKA *packA = NULL;
+  TPACKB *packB = NULL;
+
+  if ( Comm4th.Master() ) packA = hmlp_malloc<ALIGN_SIZE, TPACKA>( KC * ( PACK_MC + 1 ) );
+  Comm4th.Bcast( packA );
+
+  if ( Comm5th.Master() ) packB = hmlp_malloc<ALIGN_SIZE, TPACKB>( KC * ( pack_nc + 1 ) ); 
+  Comm5th.Bcast( packB );
+
+  //printf( "packA %ld\n", packA );
+  //printf( "packB %ld\n", packB );
 
 
+  auto Loop6th = CommGLB.DistributeOver1DGangs(      0, n, nc );
+  auto Loop5th = Comm6th.DistributeOver1DGangs( k_stra, k, KC );
+  auto Loop4th = Comm5th.DistributeOver1DGangs(      0, m, MC );
 
-  packA  += ( thread.jc_id * thread.ic_nt                ) * PACK_MC * KC
-          + ( thread.ic_id                               ) * PACK_MC * KC;
-  packB  += ( thread.jc_id                               ) * pack_nc * KC;
 
-  /** Comm6th.DistributeOver1DGang( 0, n, nc ) */
-  auto loop6th = GetRange( 0,      n, nc, thread.jc_id, thread.jc_nt );
-  auto loop5th = GetRange( k_stra, k, KC );
-  /** Comm4th.DistributeOver1DGang( 0, m, MC ) */
-  auto loop4th = GetRange( 0,      m, MC, thread.ic_id, thread.ic_nt );
-
-  for ( int jc  = loop6th.beg(); 
-            jc  < loop6th.end(); 
-            jc += loop6th.inc() )                          // beg 6th loop 
+  /** Comm6th is used inside the 6th loop (i.e. jc loop) */
+  for ( int jc  = get<0>( Loop6th );
+            jc  < get<1>( Loop6th );
+            jc += get<2>( Loop6th ) )
   {
-    /** Comm6th */
-    auto &jc_comm = *thread.jc_comm;
     auto jb = std::min( n - jc, nc );
 
-    for ( int pc  = loop5th.beg();
-              pc  < loop5th.end();
-              pc += loop5th.inc() )
+
+    /** Comm5th is used inside the 6th loop (i.e. pc loop) */
+    for ( int pc  = get<0>( Loop5th );
+              pc  < get<1>( Loop5th );
+              pc += get<2>( Loop5th ) )
     {
-      /** Comm5th */
-      auto &pc_comm = *thread.pc_comm;
       auto pb = std::min( k - pc, KC );
       auto is_the_last_pc_iteration = ( pc + KC >= k );
-      /** Comm5th.DistributeOver1DThread( 0, jb, NR ) */
-      auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
-      /** Comm5th.DistributeOver1DThread( 0, jb, PACK_NR ) */
-      auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() ); 
+      auto LooppkB = Comm5th.DistributeOver1DThreads( 0, jb,      NR );
+      auto PackpkB = Comm5th.DistributeOver1DThreads( 0, jb, PACK_NR );
 
-      for ( int j   = looppkB.beg(), jp  = packpkB.beg(); 
-                j   < looppkB.end(); 
-                j  += looppkB.inc(), jp += packpkB.inc() ) 
+      for ( int j  = get<0>( LooppkB ), jp  = get<0>( PackpkB );
+                j  < get<1>( LooppkB );
+                j += get<2>( LooppkB ), jp += get<2>( PackpkB ) )
       {
         /** packB and typecast from TB to TPACKB  */
         packbkernel( 
@@ -345,24 +357,22 @@ void gnbx_internal
             n, jc + j, std::min( jb - j, NR ), 
             B, &packB[ jp * pb ] );
       }
-      /** Comm5th.Barrier() */
-      pc_comm.Barrier();
+      Comm5th.Barrier();
 
-      for ( int ic  = loop4th.beg(); 
-                ic  < loop4th.end(); 
-                ic += loop4th.inc() )                      // beg 4th loop
+
+      /** Comm4th is used inside the 6th loop (i.e. pc loop) */
+      for ( int ic  = get<0>( Loop4th );
+                ic  < get<1>( Loop4th );
+                ic += get<2>( Loop4th ) )
       {
-        /** Comm4th */
         auto &ic_comm = *thread.ic_comm;
         auto ib = std::min( m - ic, MC );
-        /** Comm5th.DistributeOver1DThread( 0, ib, MR ) */
-        auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt ); 
-        /** Comm5th.DistributeOver1DThread( 0, ib, PACK_MR ) */
-        auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt ); 
+        auto LooppkA = Comm4th.DistributeOver1DThreads( 0, ib, MR );
+        auto PackpkA = Comm4th.DistributeOver1DThreads( 0, ib, PACK_MR );
 
-        for ( int i   = looppkA.beg(), ip  = packpkA.beg();  
-                  i   < looppkA.end(); 
-                  i  += looppkA.inc(), ip += packpkA.inc() )     
+        for ( int i  = get<0>( LooppkA ), ip  = get<0>( PackpkA );
+                  i  < get<1>( LooppkA );
+                  i += get<2>( LooppkA ), ip += get<2>( PackpkA ) )
         {
           /** packA and typecast from TA to TPACKA  */
           packakernel( 
@@ -370,8 +380,7 @@ void gnbx_internal
               m, ic + i, std::min( ib - i, MR ), 
               A, &packA[ ip * pb ] );
         }
-        /** Comm4th.Barrier() */
-        ic_comm.Barrier();
+        Comm4th.Barrier();
 
         if ( is_the_last_pc_iteration )                    // fused_macro_kernel
         {
@@ -381,7 +390,8 @@ void gnbx_internal
             MICROKERNEL, 
             TPACKA, TPACKB, TC, TV>
           (
-            thread, 
+            //thread, 
+            Comm4th, 
             ic, jc, pc,
             ib, jb, pb,
             packA, 
@@ -399,7 +409,8 @@ void gnbx_internal
             SEMIRINGKERNEL, 
             TPACKA, TPACKB, TC, TV>
           (  
-            thread, 
+            //thread, 
+            Comm4th, 
             ic, jc, pc,
             ib, jb, pb,
             packA,
@@ -409,13 +420,18 @@ void gnbx_internal
             semiringkernel
           );
         }
-        /** Comm4th.Barrier() */
-        ic_comm.Barrier();                                 // sync all jr_id!!
+        Comm4th.Barrier();
       }                                                    // end 4th loop
-      /** Comm5th.Barrier() */
-      pc_comm.Barrier();
+      Comm5th.Barrier();
     }                                                      // end 5th loop
+    Comm6th.Barrier();
   }                                                        // end 6th loop
+  CommGLB.Barrier();
+
+  /** Free packing buffer */
+  if ( Comm4th.Master() ) hmlp_free( packA );
+  if ( Comm5th.Master() ) hmlp_free( packB );
+
 };                                                         // end gnbx_internal
 
 
@@ -463,8 +479,6 @@ void gnbx
   int nc = NC, pack_nc = PACK_NC;
   char *str;
 
-  TPACKA *packA_buff = NULL;
-  TPACKB *packB_buff = NULL;
   TV *V = NULL;
 
   /** Early return if possible */
@@ -490,11 +504,6 @@ void gnbx
     nc = ( ( n - 1 ) / ( NR * jc_nt ) + 1 ) * NR;
     pack_nc = ( nc / NR ) * PACK_NR;
   }
-
-  /** allocate packing memory */
-  packA_buff  = hmlp_malloc<ALIGN_SIZE, TPACKA>( KC * ( PACK_MC + 1 ) * jc_nt * ic_nt );
-  packB_buff  = hmlp_malloc<ALIGN_SIZE, TPACKB>( KC * ( pack_nc + 1 ) * jc_nt         ); 
-
 
   /** allocate V if k > KC */
   if ( k > KC && !std::is_same<TC, TV>::value && !REUSE_C )
@@ -531,6 +540,9 @@ void gnbx
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
     Worker thread( &my_comm );
+
+    /** TODO:  */
+    thread.InitWithCommunicator( &my_comm, omp_get_thread_num(), 0 );
 
     //if ( USE_STRASSEN )
     //{
@@ -569,15 +581,9 @@ void gnbx
       V, ldv,
       batchId,
       semiringkernel, microkernel,
-      nc, pack_nc,
-      packA_buff,
-      packB_buff
+      nc, pack_nc
     );
   }                                                        // end omp parallel
-
-  hmlp_free( packA_buff );
-  hmlp_free( packB_buff );
-  //hmlp_free( V );
 };                                                         // end gkmx
 
 

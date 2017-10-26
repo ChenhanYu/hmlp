@@ -28,6 +28,8 @@
 #endif /** ifdef HMLP_HAVE_RUNTIME */
 
 
+using namespace std;
+
 
 namespace hmlp
 {
@@ -164,7 +166,7 @@ range GetRange( int beg, int end, int nb )
  */ 
 void thread_communicator::Create( int level, int num_threads, int *config )
 {
-  if ( level < 2 ) 
+  if ( level < 1 ) 
   {
     kids = NULL;
   }
@@ -179,7 +181,7 @@ void thread_communicator::Create( int level, int num_threads, int *config )
     else if ( level == 1 ) name = std::string( "jr_comm" );
     else                   name = std::string( "na_comm" );
 
-    // std::cout << name << ", " << n_threads << ", " << n_groups << "\n";
+    //std::cout << name << ", " << n_threads << ", " << n_groups << "\n";
 
     kids = new thread_communicator[ n_groups ]();
     for ( int i = 0; i < n_groups; i ++ ) 
@@ -192,8 +194,8 @@ void thread_communicator::Create( int level, int num_threads, int *config )
 thread_communicator::thread_communicator() :
   sent_object( NULL ), 
   comm_id( 0 ),
-  n_threads( 0 ), 
-  n_groups( 0 ),
+  n_threads( 1 ), 
+  n_groups( 1 ),
   barrier_sense( false ),
   barrier_threads_arrived( 0 )
 {};
@@ -204,20 +206,21 @@ thread_communicator::thread_communicator() :
 thread_communicator::thread_communicator( int jc_nt, int pc_nt, int ic_nt, int jr_nt ) :
   sent_object( NULL ), 
   comm_id( 0 ),
-  n_threads( 0 ), 
-  n_groups( 0 ),
+  n_threads( 1 ), 
+  n_groups( 1 ),
   barrier_sense( false ),
   barrier_threads_arrived( 0 )
 {
-  int config[ 6 ] = { 0, 0, jr_nt, ic_nt, pc_nt, jc_nt };
+  int config[ 6 ] = { 1, 1, jr_nt, ic_nt, pc_nt, jc_nt };
   n_threads = jc_nt * pc_nt * ic_nt * jr_nt;
-  n_groups  = jc_nt;
+  //n_groups  = jc_nt;
+  n_groups  = 1;
   name = std::string( "my_comm" );
   kids = new thread_communicator[ n_groups ]();
 
   for ( int i = 0; i < n_groups; i ++ ) 
   {
-    kids[ i ].Create( 4, n_threads / n_groups, config );
+    kids[ i ].Create( 5, n_threads / n_groups, config );
   }
 };
 
@@ -262,6 +265,15 @@ void thread_communicator::Print()
   Barrier();
 };
 
+void thread_communicator::Send( void** buffer )
+{
+  sent_object = *buffer;
+};
+
+void thread_communicator::Recv( void** buffer )
+{
+  *buffer = sent_object;
+};
 
 /**
  *  @brief Device implementation
@@ -307,7 +319,8 @@ Worker::Worker( thread_communicator *comm ) :
   tid   = omp_get_thread_num();
   tmp   = tid;
 
-  my_comm = comm;
+  //my_comm = comm;
+  my_comm = &(comm->kids[ 0 ]);
 
   jc_nt = my_comm->GetNumGroups();
   jc_id = tmp / ( my_comm->GetNumThreads() / my_comm->GetNumGroups() );
@@ -340,7 +353,8 @@ void Worker::Communicator( thread_communicator *comm )
   tid   = omp_get_thread_num();
   tmp   = tid;
 
-  my_comm = comm;
+  //my_comm = comm;
+  my_comm = &(comm->kids[ 0 ]);
 
   jc_nt = my_comm->GetNumGroups();
   jc_id = tmp / ( my_comm->GetNumThreads() / my_comm->GetNumGroups() );
@@ -362,6 +376,175 @@ void Worker::Communicator( thread_communicator *comm )
   ic_comm = &(pc_comm->kids[ ic_id ]);
   jr_nt = ic_comm->GetNumGroups();
 };
+
+bool Worker::Master() { return tid == 0; };
+
+void Worker::Barrier() 
+{
+  assert( comm );
+  comm->Barrier();
+};
+
+
+//void Worker::Bcast( void** buffer )
+//{
+//  if ( Master() ) comm->Send( buffer );
+//  Barrier();
+//  if ( !Master() ) comm->Recv( buffer );
+//};
+
+
+
+void Worker::InitWithCommunicator( thread_communicator* comm, size_t tid, size_t gid )
+{
+  this->comm = comm;
+  this->tid = tid;
+  this->gid = gid;
+};
+
+Worker Worker::Split()
+{
+  Worker child;
+
+  //printf( "Before Split %s\n", comm->name.data() ); fflush( stdout );
+
+  size_t n_splits  = comm->GetNumGroups();
+  size_t n_threads = comm->GetNumThreads();
+
+  //printf( "Split %s n_split %lu n_thread %lu\n", 
+  //    comm->name.data(), n_splits, n_threads ); fflush( stdout );
+
+  if ( n_splits == 1 )
+  {
+    child.InitWithCommunicator( &(comm->kids[ 0 ]), tid, 0 );
+    return child;
+  }
+
+  /** 
+   *  By default, we split threads evenly usine "close" affinity.
+   *  Threads with the same color will be in the same subcomm.
+   *
+   *  example: (n_splits=2)
+   *
+   *  tid        0  1  2  3  4  5  6  7  
+   *  color      0  0  0  0  1  1  1  1  (gang id)
+   *  first      0  0  0  0  4  4  4  4 
+   *  last       4  4  4  4  8  8  8  8
+   *  child_tid  0  1  2  3  0  1  2  3
+   *             4  4  4  4  4  4  4  4  (child_n_threads)
+   */
+  size_t color = ( n_splits * tid ) / n_threads;
+  size_t first = ( ( color + 0 ) * n_threads ) / n_splits;
+  size_t last  = ( ( color + 1 ) * n_threads ) / n_splits;
+  size_t child_tid = tid - first;
+  size_t child_n_threads = last - first;
+
+  //printf( "Split %s n_split %lu n_thread %lu color %lu\n", 
+  //    comm->name.data(), n_splits, n_threads, color ); fflush( stdout );
+
+  gid = color;
+
+  /** make sure all threads have the new communicator */
+  child.InitWithCommunicator( &(comm->kids[ gid ]), child_tid, 0 );
+
+  return child;
+
+};
+
+
+
+
+tuple<size_t, size_t, size_t> Worker::DistributeOver1DGangs(
+    size_t beg, size_t end, size_t nb )
+{
+  size_t nparts = comm->GetNumGroups();
+
+  SchedulePolicy strategy = HMLP_SCHEDULE_DEFAULT;
+
+  switch ( strategy )
+  {
+    case HMLP_SCHEDULE_DEFAULT:
+    {
+      size_t gid_beg = beg + gid * nb;
+      size_t gid_inc = nparts * nb;
+      return make_tuple( gid_beg, end, gid_inc );
+    }
+    case HMLP_SCHEDULE_ROUND_ROBIN:
+    {
+      auto gid_beg = beg + gid * nb;
+      auto gid_inc = nparts * nb;
+      return make_tuple( gid_beg, end, gid_inc );
+    }
+    case HMLP_SCHEDULE_UNIFORM:
+    {
+      printf( "GetRange(): HMLP_SCHEDULE_UNIFORM not yet implemented yet.\n" );
+      exit( 1 );
+    }
+    case HMLP_SCHEDULE_HEFT:
+    {
+      printf( "GetRange(): HMLP_SCHEDULE_HEFT not yet implemented yet.\n" );
+      exit( 1 );
+    }
+    default:
+    {
+      exit( 1 );
+    }
+  }
+};
+
+
+
+
+tuple<size_t, size_t, size_t> Worker::DistributeOver1DThreads(
+    size_t beg, size_t end, size_t nb )
+{
+  size_t nparts = comm->GetNumThreads();
+
+  SchedulePolicy strategy = HMLP_SCHEDULE_DEFAULT;
+
+  switch ( strategy )
+  {
+    case HMLP_SCHEDULE_DEFAULT:
+    {
+      size_t tid_beg = beg + tid * nb;
+      size_t tid_inc = nparts * nb;
+      return make_tuple( tid_beg, end, tid_inc );
+    }
+    case HMLP_SCHEDULE_ROUND_ROBIN:
+    {
+      auto tid_beg = beg + tid * nb;
+      auto tid_inc = nparts * nb;
+      return make_tuple( tid_beg, end, tid_inc );
+    }
+    case HMLP_SCHEDULE_UNIFORM:
+    {
+      printf( "GetRange(): HMLP_SCHEDULE_UNIFORM not yet implemented yet.\n" );
+      exit( 1 );
+    }
+    case HMLP_SCHEDULE_HEFT:
+    {
+      printf( "GetRange(): HMLP_SCHEDULE_HEFT not yet implemented yet.\n" );
+      exit( 1 );
+    }
+    default:
+    {
+      exit( 1 );
+    }
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
