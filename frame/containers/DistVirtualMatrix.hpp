@@ -34,6 +34,10 @@
 #include <hmlp_mpi.hpp>
 
 
+using namespace std;
+using namespace hmlp;
+
+
 namespace hmlp
 {
 
@@ -126,10 +130,7 @@ class DistVirtualMatrix : public mpi::MPIObject
      *  the reference of K( i, j ).
      *
      */
-    virtual hmlp::Data<T> operator()
-    ( 
-     std::vector<size_t> &I, std::vector<size_t> &J 
-    ) = 0;
+    virtual hmlp::Data<T> operator() ( vector<size_t> &I, vector<size_t> &J ) = 0;
 
 
     /**
@@ -141,27 +142,45 @@ class DistVirtualMatrix : public mpi::MPIObject
      *             Redistribute( gids ) the two virtual functions
      *             above cannot involve any blocking communication.
      */ 
-    virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
+    virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
     {
 
     }; /** end Redistribute() */
 
 
     virtual void RedistributeWithPartner( 
-        std::vector<size_t> &lhs, 
-        std::vector<size_t> &rhs, mpi::Comm comm )
+        vector<size_t> &lhs, 
+        vector<size_t> &rhs, mpi::Comm comm )
     {
 
     }; /** end RedistributeWithPartner() */
 
 
 
+    void ProvideImportantSamples( vector<size_t> &I, vector<size_t> &J, Data<T> &KIJ )
+    {
+      tuple<map<size_t, size_t>, map<size_t, size_t>, Data<T>> candidate;
+      
+      for ( size_t i = 0; i < I.size(); i ++ )
+        get<0>( candidate )[ I[ i ] ] = i;
+      for ( size_t j = 0; j < J.size(); j ++ )
+        get<1>( candidate )[ J[ j ] ] = j;
+
+      get<2>( candidate ) = KIJ;
+
+      samples.push_back( candidate );
+    };
+
+
+
+
+
     /** 
      *  (Clients) request KIJ from rank-p 
      */
-		virtual hmlp::Data<T> RequestKIJ
+		virtual Data<T> RequestKIJ
 		( 
-		  std::vector<size_t> &I, std::vector<size_t> &J, int p
+		  vector<size_t> &I, vector<size_t> &J, int p
 	  )
     {
       /** return values */
@@ -353,6 +372,19 @@ class DistVirtualMatrix : public mpi::MPIObject
 
     /** whether to terminate the background process */
     bool do_terminate = false;
+
+    /** 
+     *  Importannt samples:
+     *
+     *  The idea of important samples in GOFMM is to collect submatrices
+     *  that may be accessed in advance to prevent hugh latency.
+     *
+     *  Each stored submatrix has row and column maps, and the values
+     *  are stored in hmlp::Data<T> format.
+     *   
+     */
+    vector<tuple<map<size_t, size_t>, map<size_t, size_t>, Data<T>>> samples;
+
 
 }; /** end class DistVirtualMatrix */
 
