@@ -452,6 +452,12 @@ Worker Worker::Split()
 };
 
 
+size_t Worker::BalanceOver1DGangs( size_t n, size_t default_size, size_t nb )
+{
+  size_t nparts = comm->GetNumGroups();
+  if ( nparts > 1 ) return ( ( n - 1 ) / ( nb * nparts ) + 1 ) * nb;
+  return default_size;
+};
 
 
 tuple<size_t, size_t, size_t> Worker::DistributeOver1DGangs(

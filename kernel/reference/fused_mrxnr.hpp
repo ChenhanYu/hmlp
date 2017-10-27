@@ -4,13 +4,17 @@
  *         GKMM operation.
  *
  */ 
-template<
-int MR, 
-int NR,
+template<int MR, int NR,
 typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 struct gkmm_mrxnr 
 {
+  const size_t mr         = MR;
+  const size_t nr         = NR;
+  const size_t pack_mr    = MR;
+  const size_t pack_nr    = NR;
+  const size_t align_size = 32;
+
   OPKERNEL opkernel;
   OP1 op1;
   OP2 op2;

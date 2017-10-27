@@ -241,6 +241,23 @@ class Worker
       if ( !Master() ) comm->Recv( (void**)&buffer );
     }
 
+    template<int ALIGN_SIZE, typename T>
+    T *AllocateSharedMemory( size_t count )
+    {
+      T* ptr = NULL;
+      if ( Master() ) ptr = hmlp_malloc<ALIGN_SIZE, T>( count );
+      Bcast( ptr );
+      return ptr;
+    };
+
+    template<typename T>
+    void FreeSharedMemory( T *ptr )
+    {
+      if ( Master() ) hmlp_free( ptr );
+    };
+
+    size_t BalanceOver1DGangs( size_t n, size_t default_size, size_t nb );
+
     tuple<size_t, size_t, size_t> DistributeOver1DGangs(
       size_t beg, size_t end, size_t nb );
 

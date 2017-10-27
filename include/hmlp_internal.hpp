@@ -53,12 +53,12 @@ struct aux_s
 
   TV *hj;
 
-  // For gsknn
-  TV *D;
-
-  int *I;
-
-  int ldr;
+//  // For gsknn
+//  TV *D;
+//
+//  int *I;
+//
+//  int ldr;
 
   // index for gkmx to access data in the closure of opkernel and opreduce.
   int i;

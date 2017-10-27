@@ -15,6 +15,13 @@ BLIS_GEMM_KERNEL(bli_dgemm_asm_8x4,double);
 
 struct rank_k_asm_d8x4
 {
+  const static size_t mr         =  8;
+  const static size_t nr         =  4;
+  const static size_t pack_mr    =  8;
+  const static size_t pack_nr    =  4;
+  const static size_t align_size = 32;
+  const static bool   row_major  = false;
+
 
   /** defined in hmlp_internal.hpp */
   inline STRA_OPERATOR(double) const

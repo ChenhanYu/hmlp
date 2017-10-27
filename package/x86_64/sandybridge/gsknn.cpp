@@ -24,7 +24,7 @@
 
 /** Sandy-bridge micro-kernels */
 #include <rank_k_d8x4.hpp>
-#include <rnn_r_int_d8x4_row.hpp>
+#include <knn_d8x4.hpp>
 
 using namespace hmlp::gsknn;
 
@@ -39,20 +39,20 @@ void gsknn
   const bool USE_STRASSEN = false;
 
   rank_k_asm_d8x4 semiringkernel;
-  rnn_r_int_d8x4_row microkernel;
+  knn_int_d8x4    fusedkernel;
   gsknn<
     104, 2048, 256, 8, 4, 
     104, 2048,      8, 4, 32,
     USE_STRASSEN,
     rank_k_asm_d8x4,
-    rnn_r_int_d8x4_row,
+    knn_int_d8x4,
     double, double, double, double>
   (
     m, n, k, r,
     A, A2, amap,
     B, B2, bmap,
     D,     I,
-    semiringkernel, microkernel
+    semiringkernel, fusedkernel
   );
 };
 

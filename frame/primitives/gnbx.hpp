@@ -58,28 +58,36 @@ namespace gnbx
  *         configuration of the communicator, the 3rd loop may be parallelized.
  *         b_next is the prefetch pointer.
  */ 
-template<
-  int KC, int MR, int NR, int PACK_MR, int PACK_NR,
+template<int KC, 
   typename SEMIRINGKERNEL,
   typename TA, typename TB, typename TC, typename TV>
 void rank_k_macro_kernel
 (
   Worker &Comm4th,
   int ic, int jc, int pc,
-  int  m, int n,  int  k,
+  int  m, int  n, int  k,
   TA *packA,
   TB *packB,
   TV *V, int ldv,
   SEMIRINGKERNEL semiringkernel
 )
 {
+  /** Get all block sizes */
+  const static int MR         = SEMIRINGKERNEL::mr;
+  const static int NR         = SEMIRINGKERNEL::nr;
+  const static int PACK_MR    = SEMIRINGKERNEL::pack_mr;
+  const static int PACK_NR    = SEMIRINGKERNEL::pack_nr;
+
+  /** Get ic loop communicator */
   thread_communicator &ic_comm = *Comm4th.comm;
 
+  /** Compute loop ranges for each thread */
   auto Loop3rd = Comm4th.DistributeOver1DGangs(        0, n,      NR );
   auto Pack3rd = Comm4th.DistributeOver1DGangs(        0, n, PACK_NR );
   auto Loop2nd = Comm4th.DistributeOver1DThreads(      0, m,      MR );
   auto Pack2nd = Comm4th.DistributeOver1DThreads(      0, m, PACK_MR );
 
+  /** Loop 3rd (jr loop) */
   for ( int j  = get<0>( Loop3rd ), jp  = get<0>( Pack3rd );
             j  < get<1>( Loop3rd );
             j += get<2>( Loop3rd ), jp += get<2>( Pack3rd ) )
@@ -90,6 +98,7 @@ void rank_k_macro_kernel
     aux.do_packC = 0;
     aux.jb       = std::min( n - j, NR );
 
+    /** Loop 2nd (ir loop) */
     for ( int i  = get<0>( Loop2nd ), ip  = get<0>( Pack2nd );
               i  < get<1>( Loop2nd );
               i += get<2>( Loop2nd ), ip += get<2>( Pack2nd ) )
@@ -147,9 +156,7 @@ void rank_k_macro_kernel
  *         one in rank_k_macro_kernel. ctmp used in the conner case is also
  *         type TC. 
  */ 
-template<
-int KC, int MR, int NR, int PACK_MR, int PACK_NR,
-bool REUSE_C,
+template<int KC, bool REUSE_C,
 typename FUSEDKERNEL,
 typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
@@ -165,14 +172,22 @@ void fused_macro_kernel
   FUSEDKERNEL fusedkernel
 )
 {
+  /** Get all block sizes */
+  const static int MR         = FUSEDKERNEL::mr;
+  const static int NR         = FUSEDKERNEL::nr;
+  const static int PACK_MR    = FUSEDKERNEL::pack_mr;
+  const static int PACK_NR    = FUSEDKERNEL::pack_nr;
+
+  /** Get ic loop communicator */
   thread_communicator &ic_comm = *Comm4th.comm;
 
+  /** Compute loop ranges for each thread */
   auto Loop3rd = Comm4th.DistributeOver1DGangs(        0, n,      NR );
   auto Pack3rd = Comm4th.DistributeOver1DGangs(        0, n, PACK_NR );
   auto Loop2nd = Comm4th.DistributeOver1DThreads(      0, m,      MR );
   auto Pack2nd = Comm4th.DistributeOver1DThreads(      0, m, PACK_MR );
 
-
+  /** Loop 3rd (jr loop) */
   for ( int j  = get<0>( Loop3rd ), jp  = get<0>( Pack3rd );
             j  < get<1>( Loop3rd );
             j += get<2>( Loop3rd ), jp += get<2>( Pack3rd ) )
@@ -182,6 +197,7 @@ void fused_macro_kernel
     aux.b_next   = packB;
     aux.do_packC = 0;
 
+    /** Loop 2nd (ir loop) */
     for ( int i  = get<0>( Loop2nd ), ip  = get<0>( Pack2nd );
               i  < get<1>( Loop2nd );
               i += get<2>( Loop2nd ), ip += get<2>( Pack2nd ) )
@@ -267,16 +283,7 @@ void fused_macro_kernel
  *         their ids.
  */ 
 template<
-  int MC, 
-  int NC, 
-  int KC, 
-  int MR, 
-  int NR, 
-  int PACK_MC, 
-  int PACK_NC, 
-  int PACK_MR, 
-  int PACK_NR, 
-  int ALIGN_SIZE,
+  int MC, int NC, int KC, 
   bool USE_STRASSEN, 
   bool REUSE_C,
   typename PACKAKERNEL, typename PACKBKERNEL,
@@ -294,16 +301,30 @@ void gnbx_internal
   TV *V, int ldv,
   int batchId,
   SEMIRINGKERNEL semiringkernel,
-  MICROKERNEL microkernel,
-  int nc, int pack_nc
-  //TPACKA *packA, 
-  //TPACKB *packB 
+  MICROKERNEL microkernel
 )
 {
+  /** Get all block sizes */
+  const static int MR         = SEMIRINGKERNEL::mr;
+  const static int NR         = SEMIRINGKERNEL::nr;
+  const static int PACK_MR    = SEMIRINGKERNEL::pack_mr;
+  const static int PACK_NR    = SEMIRINGKERNEL::pack_nr;
+  const static int ALIGN_SIZE = SEMIRINGKERNEL::align_size;
+  const static int PACK_MC    = ( MC / MR ) * PACK_MR;
+  const static int PACK_NC    = ( NC / NR ) * PACK_NR;
+
+  /** Create subcommunicators for each loop */
   auto CommGLB = thread.Split();
   auto Comm6th = CommGLB.Split();
   auto Comm5th = Comm6th.Split();
   auto Comm4th = Comm5th.Split();
+
+
+  /** Adjuest nc and pack_nc if the 6th loop is parallelized */
+  int nc = CommGLB.BalanceOver1DGangs( n, NC, NR );
+  int pack_nc = ( nc / NR ) * PACK_NR;
+
+
 
   //printf( "CommGLB %s tid %d gid %d ngangs %d\n", CommGLB.comm->name.data(), CommGLB.tid, CommGLB.gid, CommGLB.comm->GetNumGroups() );
   //printf( "Comm6th %s tid %d gid %d ngangs %d\n", Comm6th.comm->name.data(), Comm6th.tid, Comm6th.gid, Comm6th.comm->GetNumGroups() );
@@ -311,23 +332,19 @@ void gnbx_internal
   //printf( "Comm4th %s tid %d gid %d ngangs %d\n", Comm4th.comm->name.data(), Comm4th.tid, Comm4th.gid, Comm4th.comm->GetNumGroups() );
   //fflush( stdout );
 
-  TPACKA *packA = NULL;
-  TPACKB *packB = NULL;
+  /** 
+   *  Allocate packing buffers:
+   *
+   *  packA is shared over Comm4th
+   *  packB is shared over Comm5th
+   */
+  auto *packA = Comm4th.AllocateSharedMemory<ALIGN_SIZE, TPACKA>( KC * ( PACK_MC + 1 ) );
+  auto *packB = Comm5th.AllocateSharedMemory<ALIGN_SIZE, TPACKB>( KC * ( pack_nc + 1 ) );
 
-  if ( Comm4th.Master() ) packA = hmlp_malloc<ALIGN_SIZE, TPACKA>( KC * ( PACK_MC + 1 ) );
-  Comm4th.Bcast( packA );
-
-  if ( Comm5th.Master() ) packB = hmlp_malloc<ALIGN_SIZE, TPACKB>( KC * ( pack_nc + 1 ) ); 
-  Comm5th.Bcast( packB );
-
-  //printf( "packA %ld\n", packA );
-  //printf( "packB %ld\n", packB );
-
-
+  /** Compute loop ranges for each thread */
   auto Loop6th = CommGLB.DistributeOver1DGangs(      0, n, nc );
   auto Loop5th = Comm6th.DistributeOver1DGangs( k_stra, k, KC );
   auto Loop4th = Comm5th.DistributeOver1DGangs(      0, m, MC );
-
 
   /** Comm6th is used inside the 6th loop (i.e. jc loop) */
   for ( int jc  = get<0>( Loop6th );
@@ -384,13 +401,8 @@ void gnbx_internal
 
         if ( is_the_last_pc_iteration )                    // fused_macro_kernel
         {
-          fused_macro_kernel<
-            KC, MR, NR, PACK_MR, PACK_NR, 
-            REUSE_C, 
-            MICROKERNEL, 
-            TPACKA, TPACKB, TC, TV>
+          fused_macro_kernel<KC, REUSE_C, MICROKERNEL, TPACKA, TPACKB, TC, TV>
           (
-            //thread, 
             Comm4th, 
             ic, jc, pc,
             ib, jb, pb,
@@ -404,12 +416,8 @@ void gnbx_internal
         }
         else                                               // semiring rank-k update
         {
-          rank_k_macro_kernel<
-            KC, MR, NR, PACK_MR, PACK_NR, 
-            SEMIRINGKERNEL, 
-            TPACKA, TPACKB, TC, TV>
+          rank_k_macro_kernel<KC, SEMIRINGKERNEL, TPACKA, TPACKB, TC, TV>
           (  
-            //thread, 
             Comm4th, 
             ic, jc, pc,
             ib, jb, pb,
@@ -429,10 +437,10 @@ void gnbx_internal
   CommGLB.Barrier();
 
   /** Free packing buffer */
-  if ( Comm4th.Master() ) hmlp_free( packA );
-  if ( Comm5th.Master() ) hmlp_free( packB );
+  Comm4th.FreeSharedMemory( packA );
+  Comm5th.FreeSharedMemory( packB );
 
-};                                                         // end gnbx_internal
+}; /** end gnbx_internal() */
 
 
 
@@ -445,16 +453,7 @@ void gnbx_internal
  *
  */ 
 template<
-  int MC, 
-  int NC, 
-  int KC, 
-  int MR, 
-  int NR, 
-  int PACK_MC, 
-  int PACK_NC, 
-  int PACK_MR, 
-  int PACK_NR, 
-  int ALIGN_SIZE,
+  int MC, int NC, int KC, 
   bool USE_STRASSEN = false, 
   bool REUSE_C,
   typename PACKAKERNEL, typename PACKBKERNEL,
@@ -473,11 +472,23 @@ void gnbx
   MICROKERNEL microkernel
 )
 {
+  const static int MR         = SEMIRINGKERNEL::mr;
+  const static int NR         = SEMIRINGKERNEL::nr;
+  const static int PACK_MR    = SEMIRINGKERNEL::pack_mr;
+  const static int PACK_NR    = SEMIRINGKERNEL::pack_nr;
+  const static int ALIGN_SIZE = SEMIRINGKERNEL::align_size;
+  const static int PACK_MC    = ( MC / MR ) * PACK_MR;
+  const static int PACK_NC    = ( NC / NR ) * PACK_NR;
+
+
   int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
   int k_stra = 0; 
   int ldv = 0;
   int nc = NC, pack_nc = PACK_NC;
   char *str;
+
+
+
 
   TV *V = NULL;
 
@@ -499,11 +510,6 @@ void gnbx
     jr_nt = hmlp_read_nway_from_env( "KS_JR_NT" );
   }
 
-  if ( jc_nt > 1 )
-  {
-    nc = ( ( n - 1 ) / ( NR * jc_nt ) + 1 ) * NR;
-    pack_nc = ( nc / NR ) * PACK_NR;
-  }
 
   /** allocate V if k > KC */
   if ( k > KC && !std::is_same<TC, TV>::value && !REUSE_C )
@@ -517,8 +523,6 @@ void gnbx
     ldv = ldc;
   }
 
-  /** allocate tree communicator */
-  thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
 
 
   if ( USE_STRASSEN )
@@ -536,6 +540,9 @@ void gnbx
     }
   }
 
+
+  /** allocate tree communicator */
+  thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
 
   #pragma omp parallel num_threads( my_comm.GetNumThreads() ) 
   {
@@ -566,8 +573,7 @@ void gnbx
     //}
 
     gnbx_internal<
-      MC, NC, KC, MR, NR, 
-      PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+      MC, NC, KC, 
       USE_STRASSEN, REUSE_C,
       PACKAKERNEL, PACKBKERNEL,
       SEMIRINGKERNEL, MICROKERNEL,
@@ -580,8 +586,8 @@ void gnbx
       C, ldc,
       V, ldv,
       batchId,
-      semiringkernel, microkernel,
-      nc, pack_nc
+      semiringkernel, microkernel
+      //nc, pack_nc
     );
   }                                                        // end omp parallel
 };                                                         // end gkmx
@@ -593,129 +599,129 @@ void gnbx
 /**
  *  @beief  
  */ 
-template<
-  int MC            = 104, 
-  int NC            = 1024, 
-  int KC            = 256, 
-  int MR            = 8, 
-  int NR            = 4, 
-  int PACK_MC       = 104, 
-  int PACK_NC       = 1024, 
-  int PACK_MR       = 8, 
-  int PACK_NR       = 4, 
-  int ALIGN_SIZE    = 32,
-  bool USE_STRASSEN = false,
-  bool REUSE_C = false,
-  typename OPKERNEL, typename OP1, typename OP2,
-  typename TA, typename TB, typename TC, typename TV>
-void gkmm
-(
-  int m, int n, int k,
-  TA *A, int lda,
-  TB *B, int ldb,
-  TC *C, int ldc,
-  int batchId,
-  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
-)
-{
-  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
-  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV> gkmmkernel;
-
-  semiringkernel.op1 = op1;
-  semiringkernel.op2 = op2;
-  semiringkernel.initV = initV;
-
-  gkmmkernel.op1 = op1;
-  gkmmkernel.op2 = op2;
-  gkmmkernel.opkernel = opkernel;
-  gkmmkernel.initV = initV;
-
-  gkmx
-  <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
-  USE_STRASSEN, REUSE_C,
-  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
-  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
-  TA, TB, TC, TV>
-  (
-    m, n, k,
-    A, lda,
-    B, ldb,
-    C, ldc,
-    batchId,
-    semiringkernel, gkmmkernel
-  );
-};
-
-
-
-
-
-
-/**
- *  @beief Implement GKRM with GKMX template. Notice that OPREDUCE 
- *         is handled inside fusedkernel. Updating microkernel has 
- *         to be atomic if jc_nt or jr_nt is not 1. We may be atomic
- *         update.
- *         
- */ 
-template<
-  int MC            = 104, 
-  int NC            = 1024, 
-  int KC            = 256, 
-  int MR            = 8, 
-  int NR            = 4, 
-  int PACK_MC       = 104, 
-  int PACK_NC       = 1024, 
-  int PACK_MR       = 8, 
-  int PACK_NR       = 4, 
-  int ALIGN_SIZE    = 32,
-  bool USE_STRASSEN = false,
-  typename PACKAKERNEL, typename PACKBKERNEL,
-  typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
-  typename TA, typename TPACKA, typename TB, typename TPACKB, 
-  typename TC, typename TV = TC>
-void gnbx
-(
-  int m, int n, int k,
-  TA *A, PACKAKERNEL packakernel,
-  TB *B, PACKBKERNEL packbkernel,
-  TC *C, int ldc,
-  int batchId,
-  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, 
-  OPREDUCE opreduce, TC initC
-)
-{
-  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
-  gkrm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, OPREDUCE, TA, TB, TC, TV> gkrmkernel;
-
-  semiringkernel.op1 = op1;
-  semiringkernel.op2 = op2;
-  semiringkernel.initV = initV;
-  
-  gkrmkernel.op1 = op1;
-  gkrmkernel.op2 = op2;
-  gkrmkernel.opkernel = opkernel;
-  gkrmkernel.initV = initV;
-  gkrmkernel.opreduce = opreduce;
-  gkrmkernel.initC = initC;
-
-  gnbx<
-    MC, NC, KC, MR, NR, 
-    PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
-    USE_STRASSEN,
-    semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
-    gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
-    TA, TPACKA, TB, TPACKB, TC, TV>
-  (
-    m, n, k,
-    A, packakernel,
-    B, packbkernel,
-    C, 0, // TODO: is there a better way to do this?
-    batchId,
-    semiringkernel, gkrmkernel
-  );
-
-}; /** end gnbx() */
+//template<
+//  int MC            = 104, 
+//  int NC            = 1024, 
+//  int KC            = 256, 
+//  int MR            = 8, 
+//  int NR            = 4, 
+//  int PACK_MC       = 104, 
+//  int PACK_NC       = 1024, 
+//  int PACK_MR       = 8, 
+//  int PACK_NR       = 4, 
+//  int ALIGN_SIZE    = 32,
+//  bool USE_STRASSEN = false,
+//  bool REUSE_C = false,
+//  typename OPKERNEL, typename OP1, typename OP2,
+//  typename TA, typename TB, typename TC, typename TV>
+//void gkmm
+//(
+//  int m, int n, int k,
+//  TA *A, int lda,
+//  TB *B, int ldb,
+//  TC *C, int ldc,
+//  int batchId,
+//  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
+//)
+//{
+//  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
+//  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV> gkmmkernel;
+//
+//  semiringkernel.op1 = op1;
+//  semiringkernel.op2 = op2;
+//  semiringkernel.initV = initV;
+//
+//  gkmmkernel.op1 = op1;
+//  gkmmkernel.op2 = op2;
+//  gkmmkernel.opkernel = opkernel;
+//  gkmmkernel.initV = initV;
+//
+//  gkmx
+//  <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+//  USE_STRASSEN, REUSE_C,
+//  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
+//  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
+//  TA, TB, TC, TV>
+//  (
+//    m, n, k,
+//    A, lda,
+//    B, ldb,
+//    C, ldc,
+//    batchId,
+//    semiringkernel, gkmmkernel
+//  );
+//};
+//
+//
+//
+//
+//
+//
+///**
+// *  @beief Implement GKRM with GKMX template. Notice that OPREDUCE 
+// *         is handled inside fusedkernel. Updating microkernel has 
+// *         to be atomic if jc_nt or jr_nt is not 1. We may be atomic
+// *         update.
+// *         
+// */ 
+//template<
+//  int MC            = 104, 
+//  int NC            = 1024, 
+//  int KC            = 256, 
+//  int MR            = 8, 
+//  int NR            = 4, 
+//  int PACK_MC       = 104, 
+//  int PACK_NC       = 1024, 
+//  int PACK_MR       = 8, 
+//  int PACK_NR       = 4, 
+//  int ALIGN_SIZE    = 32,
+//  bool USE_STRASSEN = false,
+//  typename PACKAKERNEL, typename PACKBKERNEL,
+//  typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
+//  typename TA, typename TPACKA, typename TB, typename TPACKB, 
+//  typename TC, typename TV = TC>
+//void gnbx
+//(
+//  int m, int n, int k,
+//  TA *A, PACKAKERNEL packakernel,
+//  TB *B, PACKBKERNEL packbkernel,
+//  TC *C, int ldc,
+//  int batchId,
+//  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, 
+//  OPREDUCE opreduce, TC initC
+//)
+//{
+//  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
+//  gkrm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, OPREDUCE, TA, TB, TC, TV> gkrmkernel;
+//
+//  semiringkernel.op1 = op1;
+//  semiringkernel.op2 = op2;
+//  semiringkernel.initV = initV;
+//  
+//  gkrmkernel.op1 = op1;
+//  gkrmkernel.op2 = op2;
+//  gkrmkernel.opkernel = opkernel;
+//  gkrmkernel.initV = initV;
+//  gkrmkernel.opreduce = opreduce;
+//  gkrmkernel.initC = initC;
+//
+//  gnbx<
+//    MC, NC, KC, MR, NR, 
+//    PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
+//    USE_STRASSEN,
+//    semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
+//    gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
+//    TA, TPACKA, TB, TPACKB, TC, TV>
+//  (
+//    m, n, k,
+//    A, packakernel,
+//    B, packbkernel,
+//    C, 0, // TODO: is there a better way to do this?
+//    batchId,
+//    semiringkernel, gkrmkernel
+//  );
+//
+//}; /** end gnbx() */
 
 
 
