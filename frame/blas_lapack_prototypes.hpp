@@ -104,6 +104,12 @@ void dpotrs_(
 void spotrs_( 
     const char *uplo, 
     int *n, int *nrhs, float *A, int *lda, float *B, int *ldb, int *info );
+void dposv_(
+    const char *uplo, 
+    int *n, int *nrhs, double *A, int *lda, double *B, int *ldb, int *info );
+void sposv_(
+    const char *uplo, 
+    int *n, int *nrhs, float *A, int *lda, float *B, int *ldb, int *info );
 void dgetrf_(
     int *m, int *n, 
     double *A, int *lda, int *ipiv, int *info );

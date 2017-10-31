@@ -116,200 +116,45 @@ void xlaswp
   int k1, int k2, int *ipiv, int incx 
 );
 
-void xpotrf
-(
-  const char *uplo, 
-  int n, double *A, int lda
-);
-
-void xpotrf
-(
-  const char *uplo, 
-  int n, float *A, int lda
-);
+/** Cholesky family */
+void xpotrf( const char *uplo, int n, double *A, int lda );
+void xpotrf( const char *uplo, int n, float  *A, int lda );
+void xpotrs( const char *uplo, int n, int nrhs, double *A, int lda, double *B, int ldb );
+void xpotrs( const char *uplo, int n, int nrhs, float  *A, int lda, float  *B, int ldb );
+void xposv( const char *uplo, int n, int nrhs, double *A, int lda, double *B, int ldb );
+void xposv( const char *uplo, int n, int nrhs, float  *A, int lda, float  *B, int ldb );
 
 
-void xpotrs
-(
-  const char *uplo, 
-  int n, int nrhs, double *A, int lda, double *B, int ldb
-);
 
-void xpotrs
-(
-  const char *uplo, 
-  int n, int nrhs, float *A, int lda, float *B, int ldb
-);
+/** LU family */
+void xgetrf( int m, int n, double *A, int lda, int *ipiv );
+void xgetrf( int m, int n, float  *A, int lda, int *ipiv );
+void xgetrs( const char *trans, int m, int nrhs, double *A, int lda, int *ipiv, double *B, int ldb );
+void xgetrs( const char *trans, int m, int nrhs, float  *A, int lda, int *ipiv, float  *B, int ldb );
 
-void xgetrf
-(
-  int m, int n, 
-  double *A, int lda, int *ipiv
-);
+/** QR family */
+void xgeqrf( int m, int n, double *A, int lda, double *tau, double *work, int lwork );
+void xgeqrf( int m, int n, float  *A, int lda, float  *tau, float  *work, int lwork );
+void xorgqr( int m, int n, int k, double *A, int lda, double *tau, double *work, int lwork );
+void xorgqr( int m, int n, int k, float  *A, int lda, float  *tau, float  *work, int lwork );
+void xormqr( const char *side, const char *trans,
+  int m, int n, int k, float  *A, int lda, float  *tau, float  *C, int ldc, float  *work, int lwork );
+void xormqr( const char *side, const char *trans,
+  int m, int n, int k, double *A, int lda, double *tau, double *C, int ldc, double *work, int lwork );
+void xgeqp3( int m, int n, float  *A, int lda, int *jpvt, float  *tau, float  *work, int lwork );
+void xgeqp3( int m, int n, double *A, int lda, int *jpvt, double *tau, double *work, int lwork );
 
-void xgetrf
-(
-  int m, int n, 
-  float *A, int lda, int *ipiv
-);
+void xgeqp4( int m, int n, float  *A, int lda, int *jpvt, float  *tau, float  *work, int lwork );
+void xgeqp4( int m, int n, double *A, int lda, int *jpvt, double *tau, double *work, int lwork );
+void xgels( const char *trans, int m, int n, int nrhs, float  *A, int lda, float  *B, int ldb, float  *work, int lwork );
+void xgels( const char *trans, int m, int n, int nrhs, double *A, int lda, double *B, int ldb, double *work, int lwork );
 
-void xgetrs
-(
-  const char *trans,
-  int m, int nrhs, 
-  double *A, int lda, int *ipiv,
-  double *B, int ldb
-);
 
-void xgetrs
-(
-  const char *trans,
-  int m, int nrhs, 
-  float *A, int lda, int *ipiv,
-  float *B, int ldb
-);
+void xgecon( const char *norm, int n, float  *A, int lda, float  anorm, float  *rcond, float  *work, int *iwork );
+void xgecon( const char *norm, int n, double *A, int lda, double anorm, double *rcond, double *work, int *iwork );
 
-void xgeqrf
-(
-  int m, int n, 
-  double *A, int lda, 
-  double *tau, 
-  double *work, int lwork 
-);
-
-void xgeqrf
-(
-  int m, int n, 
-  float *A, int lda, 
-  float *tau, 
-  float *work, int lwork 
-);
-
-void xorgqr
-(
-  int m, int n, int k,
-  double *A, int lda, 
-  double *tau,
-  double *work, int lwork 
-);
-
-void xorgqr
-(
-  int m, int n, int k,
-  float *A, int lda, 
-  float *tau,
-  float *work, int lwork 
-);
-
-void xormqr
-(
-  const char *side, const char *trans,
-  int m, int n, int k, 
-  float *A, int lda, 
-  float *tau,
-  float *C, int ldc, 
-  float *work, int lwork
-);
-
-void xormqr
-(
-  const char *side, const char *trans,
-  int m, int n, int k, 
-  double *A, int lda, 
-  double *tau,
-  double *C, int ldc, 
-  double *work, int lwork
-);
-
-void xgeqp3
-(
-  int m, int n,
-  float *A, int lda, int *jpvt, 
-  float *tau,
-  float *work, int lwork 
-);
-
-void xgeqp3
-(
-  int m, int n,
-  double *A, int lda, int *jpvt,
-  double *tau,
-  double *work, int lwork 
-);
-
-void xgeqp4
-(
-  int m, int n,
-  float *A, int lda, int *jpvt, 
-  float *tau,
-  float *work, int lwork 
-);
-
-void xgeqp4
-(
-  int m, int n,
-  double *A, int lda, int *jpvt,
-  double *tau,
-  double *work, int lwork 
-);
-
-void xgels
-(
-  const char *trans,
-  int m, int n, int nrhs,
-  float *A, int lda,
-  float *B, int ldb,
-  float *work, int lwork 
-);
-
-void xgels
-(
-  const char *trans,
-  int m, int n, int nrhs,
-  double *A, int lda,
-  double *B, int ldb,
-  double *work, int lwork 
-);
-
-void xgecon
-(
-  const char *norm,
-  int n,
-  float *A, int lda, 
-  float anorm, 
-  float *rcond, 
-  float *work, int *iwork 
-);
-
-void xgecon
-(
-  const char *norm,
-  int n,
-  double *A, int lda, 
-  double anorm, 
-  double *rcond, 
-  double *work, int *iwork 
-);
-
-void xstev
-(
-  const char *jobz,
-  int n, 
-  double *D, 
-  double *E, 
-  double *Z, int ldz, 
-  double *work  
-);
-
-void xstev
-(
-  const char *jobz,
-  int n, 
-  float *D, 
-  float *E, 
-  float *Z, int ldz, 
-  float *work  
-);
+void xstev( const char *jobz, int n, double *D, double *E, double *Z, int ldz, double *work );
+void xstev( const char *jobz, int n, float  *D, float  *E, float  *Z, int ldz, float  *work );
 
 
 double xdot( int n, double *dx, int incx, double *dy, int incy );

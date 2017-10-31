@@ -20,6 +20,7 @@
 #include <containers/KernelMatrix.hpp>
 
 
+using namespace std;
 
 
 namespace hmlp
@@ -39,7 +40,45 @@ class Regression
     };
 
 
-    hmlp::Data<T> SoftMax( kernel_s<T> &kernel, size_t nclass, size_t niter )
+    /**
+     *  @brief 
+     */ 
+    Data<T> Ridge( kernel_s<T> &kernel, size_t niter )
+    {
+      size_t nrhs = Y->col();
+
+      /** linear ridge regression */
+      Data<T> XXt( d, d, 0.0 );
+      Data<T> XY( d, nrhs, 0.0 );
+      
+      /** XXt + lambda * I */
+      xsyrk( "Lower", "No transpose", d, n, 
+          1.0, X->data(), d, 0.0, XXt.data(), d );
+
+      for ( size_t i = 0; i < d; i ++ ) XXt( i, i ) += lambda;
+
+      /** XY */
+      xgemm( "No transpose", "No transpose", d, n, nrhs, 
+          1.0, X->data(), d, 
+               Y->data(), Y->row(),
+          0.0, XY.data(), d );
+
+      /** W = ( XXt + lambda * I )^{-1} * XY */
+      xposv( "Lower", d, nrhs, X->data(), d, XY.data(), d );
+
+      return XY;
+
+    }; /** end Ridge() */
+
+
+
+    Data<T> Lasso( kernel_s<T> &kernel, size_t niter )
+    {
+    }; /** end Lasso() */
+
+
+
+    Data<T> SoftMax( kernel_s<T> &kernel, size_t nclass, size_t niter )
     {
       /** create a kernel matrix */
       KernelMatrix<T> K( n, n, d, kernel, *X );

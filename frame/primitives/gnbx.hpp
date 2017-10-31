@@ -116,7 +116,7 @@ void rank_k_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          &V[ j * ldv + i ], ldv,
+          &V[ j * ldv + i ], 1, ldv,
           &aux
         );
       }
@@ -136,7 +136,7 @@ void rank_k_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          vtmp, MR,
+          vtmp, 1, MR,
           &aux
         );
 
@@ -226,7 +226,7 @@ void fused_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          &C[ j * ldc + i ], ldc,
+          &C[ j * ldc + i ], 1, ldc,
           &aux
         );
       }
@@ -258,7 +258,7 @@ void fused_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          ctmp, MR,
+          ctmp, 1, MR,
           &aux
         );
 

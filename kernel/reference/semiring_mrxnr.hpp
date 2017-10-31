@@ -58,7 +58,7 @@ struct semiring_mrxnr
     int k, 
     TA *a, 
     TB *b, 
-    TV *v, int ldv,
+    TV *v, int rs_c, int cs_c,
     aux_s<TA, TB, TC, TV> *aux 
   ) const 
   {
@@ -78,7 +78,7 @@ struct semiring_mrxnr
       for ( int j = 0; j < NR; j ++ )
         #pragma simd
         for ( int i = 0; i < MR; i ++ )
-          regV[ j * MR + i ] = v[ j * ldv + i ];
+          regV[ j * MR + i ] = v[ j * cs_c + i * rs_c ];
     }
     
     // semiring rank-k update
@@ -98,7 +98,7 @@ struct semiring_mrxnr
     for ( int j = 0; j < NR; j ++ )
       #pragma simd
       for ( int i = 0; i < MR; i ++ )
-        v[ j * ldv + i ] = regV[ j * MR + i ];
+        v[ j * cs_c + i * rs_c ] = regV[ j * MR + i ];
 
   };
 };

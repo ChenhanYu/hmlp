@@ -100,7 +100,7 @@ void rank_k_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          &packC[ j * ldc + i ], ldc,
+          &packC[ j * ldc + i ], 1, ldc,
           &aux
         );
       }
@@ -118,7 +118,7 @@ void rank_k_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          cbuff, MR,
+          cbuff, 1, MR,
           &aux
         );
         for ( auto jj = 0; jj < aux.jb; jj ++ )

@@ -99,10 +99,10 @@ struct aux_s
 #define GEMM_OPERATOR(type)            \
   void operator()                      \
   (                                    \
-    int k,                             \
+    dim_t k,                           \
     type *a,                           \
     type *b,                           \
-    type *c, int ldc,                  \
+    type *c, inc_t rs_c, inc_t cs_c,   \
     aux_s<type, type, type, type> *aux \
   )                                    \
 

@@ -444,7 +444,7 @@ struct rank_k_asm_d8x4
       a,
       b,
       &beta,
-      c, 1, ldc,
+      c, rs_c, cs_c,
       aux
     );
   }; /** end inline void operator() */
