@@ -9,6 +9,12 @@ BLIS_GEMM_KERNEL(bli_dgemm_asm_8x6,double);
 
 struct rank_k_asm_s16x6 
 {
+  const static size_t mr         = 16;
+  const static size_t nr         =  6;
+  const static size_t pack_mr    = 16;
+  const static size_t pack_nr    =  6;
+  const static size_t align_size = 32;
+  const static bool   row_major  = false;
 
   inline STRA_OPERATOR(float) const
   {
@@ -29,7 +35,7 @@ struct rank_k_asm_s16x6
       a,
       b,
       &beta,
-      c, 1, ldc,
+      c, rs_c, cs_c,
       aux
     );
   };
@@ -39,6 +45,12 @@ struct rank_k_asm_s16x6
 
 struct rank_k_asm_d8x6 
 {
+  const static size_t mr         =  8;
+  const static size_t nr         =  6;
+  const static size_t pack_mr    =  8;
+  const static size_t pack_nr    =  6;
+  const static size_t align_size = 32;
+  const static bool   row_major  = false;
 
   inline STRA_OPERATOR(double) const
   {
@@ -59,7 +71,7 @@ struct rank_k_asm_d8x6
       a,
       b,
       &beta,
-      c, 1, ldc,
+      c, rs_c, cs_c,
       aux
     );
   };

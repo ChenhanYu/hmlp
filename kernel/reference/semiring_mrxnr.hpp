@@ -1,3 +1,14 @@
+/**
+ *
+ */ 
+//template<typename TA, typename TB, typename TC, typename TV>
+//struct semiring_
+//{
+//  
+//};
+
+
+
 template<
 int MR, int NR,
 typename OP1, typename OP2,

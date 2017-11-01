@@ -31,6 +31,36 @@ struct pack_pbxib
 }; /** end struct pack_pbxib */
 
 
+/** arbitrary unpacking routine */
+template<size_t NB, typename T, typename TPACK>
+struct unpack_ibxjb
+{
+  /** structure closure, e.g. ldx, rs_c and cs_c */
+  size_t rs_c = 0;
+  size_t cs_c = 0;
+
+  inline virtual void operator ()
+  (
+    size_t m, size_t ic, size_t ib,
+    size_t n, size_t jc, size_t jb,
+    T *X,
+    TPACK *packX
+  ) = 0;
+
+}; /** end struct unpack_ibxjb */
+
+
+
+
+
+
+
+
+
+
+
+
+
 /** column-major matrix packing routine */
 template<int NB, typename T, typename TPACK>
 struct pack2D_pbxib : public pack_pbxib<NB, T, TPACK>
@@ -118,6 +148,27 @@ struct pack2D_pbxib : public pack_pbxib<NB, T, TPACK>
 
 
 
+/** arbitrary unpacking routine */
+template<size_t NB, typename T, typename TPACK>
+struct unpack2D_ibxjb : public unpack_ibxjb<NB, T, TPACK>
+{
+  /** structure closure, e.g. ldx */
+
+  inline virtual void operator ()
+  (
+    size_t m, size_t ic, size_t ib,
+    size_t n, size_t jc, size_t jb,
+    T *X,
+    TPACK *packX
+  )
+  {
+    for ( size_t j = 0; j < jb; j ++ )
+      for ( size_t i = 0; i < ib; i ++ )
+        X[ ( jc + j ) * this->cs_c + ( ic + i ) * this->rs_c ] 
+          = packX[ j * NB + i ];
+  };
+
+}; /** end struct unpack2D_ibxjb */
 
 
 

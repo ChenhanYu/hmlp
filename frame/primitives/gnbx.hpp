@@ -40,6 +40,7 @@
 #include <semiring_mrxnr.hpp>
 #include <fused_mrxnr.hpp>
 
+using namespace std;
 
 
 namespace hmlp
@@ -68,7 +69,7 @@ void rank_k_macro_kernel
   int  m, int  n, int  k,
   TA *packA,
   TB *packB,
-  TV *V, int ldv,
+  TV *V, int rs_v, int cs_v,
   SEMIRINGKERNEL semiringkernel
 )
 {
@@ -116,7 +117,7 @@ void rank_k_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          &V[ j * ldv + i ], 1, ldv,
+          &V[ i * rs_v + j * cs_v ], rs_v, cs_v,
           &aux
         );
       }
@@ -128,7 +129,8 @@ void rank_k_macro_kernel
         {
           for ( auto jj = 0; jj < aux.jb; jj ++ )
             for ( auto ii = 0; ii < aux.ib; ii ++ )
-              vtmp[ jj * MR + ii ] = V[ ( j + jj ) * ldv + i + ii ];
+              vtmp[ jj * MR + ii ] = 
+                V[ ( j + jj ) * cs_v + ( i + ii ) * rs_v ];
         }
 
         semiringkernel
@@ -142,7 +144,7 @@ void rank_k_macro_kernel
 
         for ( auto jj = 0; jj < aux.jb; jj ++ )
           for ( auto ii = 0; ii < aux.ib; ii ++ )
-            V[ ( j + jj ) * ldv + i + ii ] = vtmp[ jj * MR + ii ];
+            V[ ( j + jj ) * cs_v + ( i + ii ) * rs_v ] = vtmp[ jj * MR + ii ];
       }
     }                                                      // end 2nd loop
   }                                                        // end 3rd loop
@@ -157,17 +159,19 @@ void rank_k_macro_kernel
  *         type TC. 
  */ 
 template<int KC, bool REUSE_C,
+typename UNPACKCKERNEL,
 typename FUSEDKERNEL,
 typename TA, typename TB, typename TC, typename TV>
 void fused_macro_kernel
 (
   Worker &Comm4th,
+  int m, int n,
   int ic, int jc, int pc,
-  int  m,  int n,  int k,
+  int mc, int nc, int kc,
   TA *packA,
   TB *packB,
-  TC *C, int ldc,
-  TV *V, int ldv,
+  TC *C, UNPACKCKERNEL unpackckernel,
+  TV *V, int rs_v, int cs_v,
   int batchId,
   FUSEDKERNEL fusedkernel
 )
@@ -182,10 +186,10 @@ void fused_macro_kernel
   thread_communicator &ic_comm = *Comm4th.comm;
 
   /** Compute loop ranges for each thread */
-  auto Loop3rd = Comm4th.DistributeOver1DGangs(        0, n,      NR );
-  auto Pack3rd = Comm4th.DistributeOver1DGangs(        0, n, PACK_NR );
-  auto Loop2nd = Comm4th.DistributeOver1DThreads(      0, m,      MR );
-  auto Pack2nd = Comm4th.DistributeOver1DThreads(      0, m, PACK_MR );
+  auto Loop3rd = Comm4th.DistributeOver1DGangs(        0, nc,      NR );
+  auto Pack3rd = Comm4th.DistributeOver1DGangs(        0, nc, PACK_NR );
+  auto Loop2nd = Comm4th.DistributeOver1DThreads(      0, mc,      MR );
+  auto Pack2nd = Comm4th.DistributeOver1DThreads(      0, mc, PACK_MR );
 
   /** Loop 3rd (jr loop) */
   for ( int j  = get<0>( Loop3rd ), jp  = get<0>( Pack3rd );
@@ -208,46 +212,55 @@ void fused_macro_kernel
       aux.j = jc + j;
       aux.b = batchId;
 
-      aux.ib = std::min( m - i, MR );
-      aux.jb = std::min( n - j, NR );
+      aux.ib = std::min( mc - i, MR );
+      aux.jb = std::min( nc - j, NR );
 
-      aux.V = V + j * ldv + i;
-      aux.ldv = ldv;
+      /** prepare the intermediate semiring rank-k update */
+      aux.V = V + i * rs_v + j * cs_v;
+      aux.ldv = cs_v;
 
-      if ( i + MR >= m ) 
+      if ( i + MR >= mc ) 
       {
-        aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
+        aux.b_next += ic_comm.GetNumThreads() * PACK_NR * kc;
       }
 
-      if ( aux.jb == NR && aux.ib == MR )                 
+      if ( aux.jb == NR && aux.ib == MR && 
+           is_same<UNPACKCKERNEL, unpack2D_ibxjb<PACK_MR, TC, TV>>::value )                 
       {
+        size_t rs_c = unpackckernel.rs_c;
+        size_t cs_c = unpackckernel.cs_c;
+        /** */
         fusedkernel
         (
-          k,
-          &packA[ ip * k ],
-          &packB[ jp * k ],
-          &C[ j * ldc + i ], 1, ldc,
+          kc,
+          &packA[ ip * kc ],
+          &packB[ jp * kc ],
+          ( C + aux.j * cs_c + aux.i * rs_c ), rs_c, cs_c,
           &aux
         );
       }
-      else                                                 // corner case
+      else /** corner case */
       {
         TC ctmp[ MR * NR ];
         TV vtmp[ MR * NR ];
 
         if ( pc ) // initilize ctmp
         {
-          if ( REUSE_C )
+          if ( is_same<TC, TV>::value )
           {
             for ( auto jj = 0; jj < aux.jb; jj ++ )
               for ( auto ii = 0; ii < aux.ib; ii ++ )
-                ctmp[ jj * MR + ii ] = C[ ( j + jj ) * ldc + i + ii ];
+                ctmp[ jj * MR + ii ] = 
+                  V[ ( j + jj ) * cs_v + ( i + ii ) * rs_v ];
+            aux.V = ctmp;
+            aux.ldv = MR;
           }
           else
           {
             for ( auto jj = 0; jj < aux.jb; jj ++ )
               for ( auto ii = 0; ii < aux.ib; ii ++ )
-                vtmp[ jj * MR + ii ] = V[ ( j + jj ) * ldv + i + ii ];
+                vtmp[ jj * MR + ii ] = 
+                  V[ ( j + jj ) * cs_v + ( i + ii ) * rs_v ];
             aux.V = vtmp;
             aux.ldv = MR;
           }
@@ -255,16 +268,19 @@ void fused_macro_kernel
 
         fusedkernel
         (
-          k,
-          &packA[ ip * k ],
-          &packB[ jp * k ],
+          kc,
+          &packA[ ip * kc ],
+          &packB[ jp * kc ],
           ctmp, 1, MR,
           &aux
         );
 
-        for ( auto jj = 0; jj < aux.jb; jj ++ )
-          for ( auto ii = 0; ii < aux.ib; ii ++ )
-            C[ ( j + jj ) * ldc + i + ii ] = ctmp[ jj * MR + ii ];
+        /** C( aux.i : aux.i + aux.ib, aux.j : aux.j + aux.jb ) = ctmp */
+        unpackckernel
+        ( 
+          m, aux.i, aux.ib, 
+          n, aux.j, aux.jb, C, ctmp 
+        );
 
       }
     }                                                      // end 2nd loop
@@ -286,7 +302,7 @@ template<
   int MC, int NC, int KC, 
   bool USE_STRASSEN, 
   bool REUSE_C,
-  typename PACKAKERNEL, typename PACKBKERNEL,
+  typename PACKAKERNEL, typename PACKBKERNEL, typename UNPACKCKERNEL,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TPACKA, 
   typename TB, typename TPACKB, 
@@ -297,8 +313,8 @@ void gnbx_internal
   int m, int n, int k, int k_stra,
   TA *A, PACKAKERNEL packakernel,
   TB *B, PACKBKERNEL packbkernel,
-  TC *C, int ldc,
-  TV *V, int ldv,
+  TC *C, UNPACKCKERNEL unpackckernel,
+  TV *V, int rs_v, int cs_v,
   int batchId,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel
@@ -401,18 +417,20 @@ void gnbx_internal
 
         if ( is_the_last_pc_iteration )                    // fused_macro_kernel
         {
-          fused_macro_kernel<KC, REUSE_C, MICROKERNEL, TPACKA, TPACKB, TC, TV>
+          fused_macro_kernel<KC, REUSE_C, UNPACKCKERNEL, MICROKERNEL, TPACKA, TPACKB, TC, TV>
           (
-            Comm4th, 
+            Comm4th,
+            m, n, 
             ic, jc, pc,
             ib, jb, pb,
             packA, 
             packB, 
-            C + jc * ldc + ic, ldc,
-            V + jc * ldv + ic, ldv, // if REUSE_C, then V = C.
+            C, unpackckernel,
+            V + ic * rs_v + jc * cs_v, rs_v, cs_v,
             batchId,
             microkernel
           );
+
         }
         else                                               // semiring rank-k update
         {
@@ -423,8 +441,7 @@ void gnbx_internal
             ib, jb, pb,
             packA,
             packB,
-            //C + jc * ldc + ic, ldc, 
-            V + jc * ldv + ic, ldv, 
+            V + ic * rs_v + jc * cs_v, rs_v, cs_v,
             semiringkernel
           );
         }
@@ -456,7 +473,7 @@ template<
   int MC, int NC, int KC, 
   bool USE_STRASSEN = false, 
   bool REUSE_C,
-  typename PACKAKERNEL, typename PACKBKERNEL,
+  typename PACKAKERNEL, typename PACKBKERNEL, typename UNPACKCKERNEL,
   typename SEMIRINGKERNEL, typename MICROKERNEL,
   typename TA, typename TPACKA, 
   typename TB, typename TPACKB, 
@@ -466,7 +483,7 @@ void gnbx
   int m, int n, int k,
   TA *A, PACKAKERNEL packakernel,
   TB *B, PACKBKERNEL packbkernel,
-  TC *C, int ldc,
+  TC *C, UNPACKCKERNEL unpackckernel,
   int batchId,
   SEMIRINGKERNEL semiringkernel,
   MICROKERNEL microkernel
@@ -480,51 +497,37 @@ void gnbx
   const static int PACK_MC    = ( MC / MR ) * PACK_MR;
   const static int PACK_NC    = ( NC / NR ) * PACK_NR;
 
-
-  int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
-  int k_stra = 0; 
-  int ldv = 0;
-  int nc = NC, pack_nc = PACK_NC;
-  char *str;
-
-
-
-
-  TV *V = NULL;
-
   /** Early return if possible */
   if ( m == 0 || n == 0 || k == 0 ) return;
 
-  /** type checking (currently assume TC == TV) */
-  if ( typeid(TC) != typeid(TV) && k > KC )
-  {
-    printf( "gnbx: currently k(%d) must be smaller than %d when TC != TV\n", k, KC );
-    exit( 1 );
-  }
 
-  if ( omp_get_num_threads() == 1 && omp_get_max_threads() > 1 )
-  {
-    /** Check the environment variable. */
-    jc_nt = hmlp_read_nway_from_env( "KS_JC_NT" );
-    ic_nt = hmlp_read_nway_from_env( "KS_IC_NT" );
-    jr_nt = hmlp_read_nway_from_env( "KS_JR_NT" );
-  }
+  TV *V = NULL;
+  int rs_v = 0;
+  int cs_v = 0;
 
-
-  /** allocate V if k > KC */
-  if ( k > KC && !std::is_same<TC, TV>::value && !REUSE_C )
+  /** 
+   *  Allocate V for intermediate semiring rank-k update if necessary. 
+   *  Notice that V is only required when k is larger than KC.
+   *
+   *  When C is a matrix (identified by type UPACKCKERNEL),
+   *  we can directly use C for intermediate storage if TV == TC. 
+   */
+  if ( k > KC && ( !std::is_same<TC, TV>::value || 
+       !is_same<UNPACKCKERNEL, unpack2D_ibxjb<PACK_MR, TC, TV>>::value ) )
   {
     V = hmlp_malloc<ALIGN_SIZE, TV>( m * n );
-    ldv = m;
+    rs_v = 1;
+    cs_v = m;
   }
-  else // TODO: do not free V in this case.
+  else
   {
+    /** Directly use C for intermediate semiring rank-k update */
     V = reinterpret_cast<TV*>( C );
-    ldv = ldc;
+    rs_v = unpackckernel.rs_c;
+    cs_v = unpackckernel.cs_c;
   }
 
-
-
+  int k_stra = 0; 
   if ( USE_STRASSEN )
   {
     assert( typeid(TA) == typeid(TB) );
@@ -532,14 +535,16 @@ void gnbx
     k_stra = k - k % KC;
 
     if ( k_stra == k ) k_stra -= KC;
-
-    if ( k_stra )
-    {
-      #pragma omp parallel for
-      for ( int i = 0; i < n * ldv; i ++ ) V[ i ] = 0.0;
-    }
   }
 
+  int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;
+  if ( omp_get_num_threads() == 1 && omp_get_max_threads() > 1 )
+  {
+    /** Check the environment variable. */
+    jc_nt = hmlp_read_nway_from_env( "KS_JC_NT" );
+    ic_nt = hmlp_read_nway_from_env( "KS_IC_NT" );
+    jr_nt = hmlp_read_nway_from_env( "KS_JR_NT" );
+  }
 
   /** allocate tree communicator */
   thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );
@@ -575,7 +580,7 @@ void gnbx
     gnbx_internal<
       MC, NC, KC, 
       USE_STRASSEN, REUSE_C,
-      PACKAKERNEL, PACKBKERNEL,
+      PACKAKERNEL, PACKBKERNEL, UNPACKCKERNEL,
       SEMIRINGKERNEL, MICROKERNEL,
       TA, TPACKA, TB, TPACKB, TC, TV>
     (
@@ -583,13 +588,18 @@ void gnbx
       m, n, k, k_stra,
       A, packakernel,
       B, packbkernel,
-      C, ldc,
-      V, ldv,
+      C, unpackckernel,
+      V, rs_v, cs_v,
       batchId,
       semiringkernel, microkernel
-      //nc, pack_nc
     );
   }                                                        // end omp parallel
+
+  if ( k > KC && ( !std::is_same<TC, TV>::value || 
+       !is_same<UNPACKCKERNEL, unpack2D_ibxjb<PACK_MR, TC, TV>>::value ) )
+  {
+    hmlp_free( V );
+  }
 };                                                         // end gkmx
 
 
