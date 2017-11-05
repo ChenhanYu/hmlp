@@ -2027,7 +2027,7 @@ class GetSkeletonMatrixTask : public Task
         arg->rchild->DependencyAnalysis( R, this );
       }
 
-      /** try to enqueue if there is no dependency */
+      /** Try to enqueue if there is no dependency */
       this->TryEnqueue();
     };
 
@@ -2035,7 +2035,8 @@ class GetSkeletonMatrixTask : public Task
     {
       GetSkeletonMatrix<NODE, T>( arg );
     };
-}; 
+
+}; /** end class GetSkeletonMatrixTask */ 
 
 
 
@@ -2096,7 +2097,7 @@ void Skeletonize2( NODE *node )
   if ( LEVELRESTRICTION )
   {
     assert( ADAPTIVE );
-    if ( !node->isleaf && ( !lchild->data.isskel || !rchild->data.isskel ) )
+    if ( !node->isleaf && ( !node->lchild->data.isskel || !node->rchild->data.isskel ) )
     {
       skels.clear();
       proj.resize( 0, 0 );
@@ -2147,7 +2148,92 @@ void Skeletonize2( NODE *node )
     for ( size_t i = 0; i < NN.row() / 2; i ++ )
       data.pnids.insert( NN( i, skels[ j ] ).second );
 
-}; /** end Skeletonize() */
+}; /** end Skeletonize2() */
+
+
+
+
+/**
+ *
+ */ 
+template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
+class SkeletonizeTask2 : public Task
+{
+  public:
+
+    NODE *arg = NULL;
+
+    void Set( NODE *user_arg )
+    {
+      ostringstream ss;
+      arg = user_arg;
+      name = string( "sk" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+
+      /** we don't know the exact cost here */
+      cost = 5.0;
+
+      /** high priority */
+      priority = true;
+    };
+
+    void GetEventRecord()
+    {
+      double flops = 0.0, mops = 0.0;
+
+      auto &K = *arg->setup->K;
+      size_t n = arg->data.proj.col();
+      size_t m = 2 * n;
+      size_t k = arg->data.proj.row();
+
+      /** Kab */
+      flops += K.flops( m, n );
+
+      /** GEQP3 */
+      flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+
+      /* TRSM */
+      flops += k * ( k - 1 ) * ( n + 1 );
+      mops  += 2.0 * ( k * k + k * n );
+
+      //flops += ( 2.0 / 3.0 ) * k * k * ( 3 * m - k );
+      //mops += 2.0 * m * k;
+      //flops += 2.0 * m * n * k;
+      //mops += 2.0 * ( m * k + k * n + m * n );
+      //flops += ( 1.0 / 3.0 ) * k * k * n;
+      //mops += 2.0 * ( k * k + k * n );
+
+      event.Set( label + name, flops, mops );
+      arg->data.skeletonize = event;
+    };
+
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( RW, this );
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      //printf( "%lu Skel beg\n", arg->treelist_id );
+      Skeletonize2<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+      //printf( "%lu Skel end\n", arg->treelist_id );
+    };
+
+}; /** end class SkeletonizeTask */
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4828,6 +4914,9 @@ tree::Tree<
   beg = omp_get_wtime();
   gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
   tree.template TraverseUp<true>( SKELtask );
+  //gofmm::GetSkeletonMatrixTask<NODE, T> GETMTXtask;
+  //gofmm::SkeletonizeTask2<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
+  //tree.template TraverseUp<true>( GETMTXtask, SKELtask );
   nearnodestask->DependencyAnalysis();
   gofmm::InterpolateTask<NODE, T> PROJtask;
   tree.template TraverseUnOrdered<true>( PROJtask );
