@@ -493,17 +493,17 @@ class Summary
     std::deque<hmlp::Statistic> skeletonize;
 
     /** n2s */
-    std::deque<hmlp::Statistic> updateweight;
+    deque<hmlp::Statistic> updateweight;
 
     /** s2s */
-    std::deque<hmlp::Statistic> s2s_kij_t;
-    std::deque<hmlp::Statistic> s2s_t;
-    std::deque<hmlp::Statistic> s2s_gfp;
+    deque<hmlp::Statistic> s2s_kij_t;
+    deque<hmlp::Statistic> s2s_t;
+    deque<hmlp::Statistic> s2s_gfp;
 
     /** s2n */
-    std::deque<hmlp::Statistic> s2n_kij_t;
-    std::deque<hmlp::Statistic> s2n_t;
-    std::deque<hmlp::Statistic> s2n_gfp;
+    deque<hmlp::Statistic> s2n_kij_t;
+    deque<hmlp::Statistic> s2n_t;
+    deque<hmlp::Statistic> s2n_gfp;
 
 
     void operator() ( NODE *node )
@@ -1207,7 +1207,7 @@ struct randomsplit
  *
  */ 
 template<int NUM_TEST, class NODE, typename T>
-class KNNTask : public hmlp::Task
+class KNNTask : public Task
 {
   public:
 
@@ -4664,21 +4664,18 @@ template<
   typename    RKDTSPLITTER, 
   typename    T, 
   typename    SPDMATRIX>
-hmlp::tree::Tree<
-  hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  hmlp::gofmm::NodeData<T>,
+tree::Tree<
+  gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
+  gofmm::NodeData<T>,
   N_CHILDREN,
   T> 
 *Compress
 ( 
-  hmlp::Data<T> *X,
+  Data<T> *X,
   SPDMATRIX &K, 
-  hmlp::Data<std::pair<T, std::size_t>> &NN,
-  //DistanceMetric metric,
+  Data<pair<T, std::size_t>> &NN,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
-  //size_t n, size_t m, size_t k, size_t s, 
-  //double stol, double budget,
 	Configuration<T> &config
 )
 {
@@ -4697,19 +4694,14 @@ hmlp::tree::Tree<
   const bool CACHE     = true;
 
   /** instantiation for the Spd-Askit tree */
-  using SETUP              = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA               = hmlp::gofmm::NodeData<T>;
-  using NODE               = hmlp::tree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using TREE               = hmlp::tree::Tree<SETUP, DATA, N_CHILDREN, T>;
-  using SKELTASK           = hmlp::gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T>;
-  using PROJTASK           = hmlp::gofmm::InterpolateTask<NODE, T>;
-  using NEARNODESTASK      = hmlp::gofmm::NearNodesTask<SYMMETRIC, TREE>;
-  using CACHENEARNODESTASK = hmlp::gofmm::CacheNearNodesTask<NNPRUNE, NODE>;
+  using SETUP     = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using DATA      = gofmm::NodeData<T>;
+  using NODE      = tree::Node<SETUP, N_CHILDREN, DATA, T>;
+  using TREE      = tree::Tree<SETUP, DATA, N_CHILDREN, T>;
 
   /** instantiation for the randomisze Spd-Askit tree */
-  using RKDTSETUP          = hmlp::gofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
-  using RKDTNODE           = hmlp::tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using KNNTASK            = hmlp::gofmm::KNNTask<3, RKDTNODE, T>;
+  using RKDTSETUP = gofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
+  using RKDTNODE  = tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
 
   /** all timers */
   double beg, omptask45_time, omptask_time, ref_time;
@@ -4717,16 +4709,10 @@ hmlp::tree::Tree<
   double ann_time, tree_time, skel_time, mergefarnodes_time, cachefarnodes_time;
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
 
-  /** dummy instances for each task */
-  SKELTASK           skeltask;
-  PROJTASK           projtask;
-  KNNTASK            knntask;
-  CACHENEARNODESTASK cachenearnodestask;
-
 
   /** original order of the matrix */
   beg = omp_get_wtime();
-  std::vector<std::size_t> gids( n ), lids( n );
+  vector<size_t> gids( n ), lids( n );
   #pragma omp parallel for
   for ( auto i = 0; i < n; i ++ ) 
   {
@@ -4740,12 +4726,12 @@ hmlp::tree::Tree<
   const size_t n_iter = 10;
   const bool SORTED = false;
   /** do not change anything below this line */
-  hmlp::tree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
+  tree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
   rkdt.setup.X = X;
   rkdt.setup.K = &K;
 	rkdt.setup.metric = metric; 
   rkdt.setup.splitter = rkdtsplitter;
-  std::pair<T, std::size_t> initNN( std::numeric_limits<T>::max(), n );
+  pair<T, size_t> initNN( numeric_limits<T>::max(), n );
   if ( REPORT_COMPRESS_STATUS )
   {
     printf( "NeighborSearch ...\n" ); fflush( stdout );
@@ -4753,8 +4739,9 @@ hmlp::tree::Tree<
   beg = omp_get_wtime();
   if ( NN.size() != n * k )
   {
+    gofmm::KNNTask<3, RKDTNODE, T> KNNtask;
     NN = rkdt.template AllNearestNeighbor<SORTED>
-         ( n_iter, k, 10, gids, lids, initNN, knntask );
+         ( n_iter, k, 10, gids, lids, initNN, KNNtask );
   }
   else
   {
@@ -4785,7 +4772,7 @@ hmlp::tree::Tree<
 
 
   /** initialize metric ball tree using approximate center split */
-  auto *tree_ptr = new hmlp::tree::Tree<SETUP, DATA, N_CHILDREN, T>();
+  auto *tree_ptr = new tree::Tree<SETUP, DATA, N_CHILDREN, T>();
 	auto &tree = *tree_ptr;
   tree.setup.X = X;
   tree.setup.K = &K;
@@ -4824,7 +4811,7 @@ hmlp::tree::Tree<
 
 
   /** FindNearNodes (executed with skeletonization) */
-  auto *nearnodestask = new NEARNODESTASK();
+  auto *nearnodestask = new gofmm::NearNodesTask<SYMMETRIC, TREE>();
   nearnodestask->Set( &tree, budget );
   nearnodestask->Submit();
 
@@ -4834,13 +4821,21 @@ hmlp::tree::Tree<
   {
     printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
   }
+
+
+
   const bool AUTODEPENDENCY = true;
   beg = omp_get_wtime();
-  tree.template TraverseUp       <true>( skeltask );
+  gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
+  tree.template TraverseUp<true>( SKELtask );
   nearnodestask->DependencyAnalysis();
-  tree.template TraverseUnOrdered<true>( projtask );
+  gofmm::InterpolateTask<NODE, T> PROJtask;
+  tree.template TraverseUnOrdered<true>( PROJtask );
   if ( CACHE )
-    tree.template TraverseLeafs  <true>( cachenearnodestask );
+  {
+    gofmm::CacheNearNodesTask<NNPRUNE, NODE> KIJtask;
+    tree.template TraverseLeafs<true>( KIJtask );
+  }
   other_time += omp_get_wtime() - beg;
   hmlp_run();
   skel_time = omp_get_wtime() - beg;
@@ -4865,7 +4860,7 @@ hmlp::tree::Tree<
   {
     printf( "MergeFarNodes ...\n" ); fflush( stdout );
   }
-  hmlp::gofmm::MergeFarNodes<SYMMETRIC>( tree );
+  gofmm::MergeFarNodes<SYMMETRIC>( tree );
   mergefarnodes_time = omp_get_wtime() - beg;
 
   /** CacheFarNodes */
@@ -4874,7 +4869,7 @@ hmlp::tree::Tree<
   {
     printf( "CacheFarNodes ...\n" ); fflush( stdout );
   }
-  hmlp::gofmm::CacheFarNodes<NNPRUNE, CACHE>( tree );
+  gofmm::CacheFarNodes<NNPRUNE, CACHE>( tree );
   cachefarnodes_time = omp_get_wtime() - beg;
 
   /** plot iteraction matrix */  
@@ -4921,6 +4916,44 @@ hmlp::tree::Tree<
   return tree_ptr;
 
 }; /** end Compress() */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5049,38 +5082,6 @@ hmlp::tree::Tree<
 
 
 
-
-///**
-// *  @brief Python wrapper for Compress()
-// */ 
-//static PyObject * Compress_wrapper( PyObject *self, PyObject *args )
-//{
-//  hmlp::Data<double> *K;
-//  double stol = 0.0, budget = 0.0;
-//
-//  /** parse arguments */
-//  if ( !PyArg_ParseTuple( args, "Odd", K, &stol, &budget ) ) 
-//  {
-//    return NULL;
-//  }
-//
-//  /** run the actual function */
-//  auto tree = Compress<double>( *K, stol, budget );
-//
-//  return Py_BuildValue( "O", &tree );
-//
-//}; /** end Compress_wrapper() */
-//
-//
-//static PyMethodDef CompressMethods[] = {
-//  {"Compress",  Compress_wrapper, METH_VARARGS, "Execute Compress."},
-//  {NULL, NULL, 0, NULL}        /* Sentinel */
-//};
-//
-//PyMODINIT_FUNC initCompress(void)
-//{
-//  Py_InitModule("Compress", CompressMethods);
-//};
 
 
 

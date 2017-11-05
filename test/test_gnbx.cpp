@@ -36,7 +36,8 @@ void gnbx
 	int m, int n, int k,
 	float  *A, int lda,
   float  *B, int ldb,
-  double *C, int ldc
+  //double *C, int ldc
+  float  *C, int ldc
 );
 
 
@@ -101,7 +102,7 @@ template<typename TLOWPRECISION, typename T>
 void test_gnbx( int m, int n, int k ) 
 {
   T *A, *B, *C, *C_ref;
-  TLOWPRECISION *A_f, *B_f;
+  TLOWPRECISION *A_f, *B_f, *C_f;
   double ref_beg, ref_time, gkmx_beg, gkmx_time;
   double flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 0.0 );
 
@@ -114,6 +115,7 @@ void test_gnbx( int m, int n, int k )
 #ifdef HMLP_MIC_AVX512
   A_f   = (TLOWPRECISION*)hbw_malloc( sizeof(TLOWPRECISION) * m * k );
   B_f   = (TLOWPRECISION*)hbw_malloc( sizeof(TLOWPRECISION) * k * n );
+  C_f   = (TLOWPRECISION*)hbw_malloc( sizeof(TLOWPRECISION) * m * n );
   A     = (T*)hbw_malloc( sizeof(T) * m * k );
   B     = (T*)hbw_malloc( sizeof(T) * k * n );
   C     = (T*)hbw_malloc( sizeof(T) * m * n );
@@ -121,6 +123,7 @@ void test_gnbx( int m, int n, int k )
 #else
   A_f   = (TLOWPRECISION*)malloc( sizeof(TLOWPRECISION) * m * k );
   B_f   = (TLOWPRECISION*)malloc( sizeof(TLOWPRECISION) * k * n );
+  C_f   = (TLOWPRECISION*)malloc( sizeof(TLOWPRECISION) * m * n );
   A     = (T*)malloc( sizeof(T) * m * k );
   B     = (T*)malloc( sizeof(T) * k * n );
   //C     = (T*)malloc( sizeof(T) * m * n );
@@ -164,15 +167,19 @@ void test_gnbx( int m, int n, int k )
     //gkmx_dfma_simple
     gnbx
     (
-      //HMLP_OP_N, HMLP_OP_N,
       m, n, k,
       A_f, m,
       B_f, k,
-      C, m 
+      //C, m 
+      C_f, m 
     );
   }
   gkmx_time = omp_get_wtime() - gkmx_beg;
   // ------------------------------------------------------------------------
+
+
+  for ( size_t i = 0; i < m * n; i ++ ) C[ i ] = C_f[ i ];
+
 
   // ------------------------------------------------------------------------
   // Call the reference function (NN)

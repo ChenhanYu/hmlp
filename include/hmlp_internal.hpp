@@ -72,6 +72,10 @@ struct aux_s
 
   int jb;
 
+  int m;
+
+  int n;
+
   // whether this is the first rank-k update.
   int pc;
 
