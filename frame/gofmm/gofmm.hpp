@@ -5432,28 +5432,23 @@ tree::Tree<
 
 
 
+  /**
+   *  Build the near node list and merge neighbors
+   */ 
   NearSamplesTask<NODE, T> NEARSAMPLEStask;
   tree.TraverseLeafs<true>( NEARSAMPLEStask );
   hmlp_run();
   tree.DependencyCleanUp();
+
+
+  /**
+   *  Create sample pools for each tree node by merging the near interaction
+   *  list. 
+   */ 
   BuildPoolTask<NODE, T> BUILDPOOLtask;
   tree.TraverseUp<true>( BUILDPOOLtask );
   hmlp_run();
   tree.DependencyCleanUp();
-
-
-
-
-
-
-
-
-
-
-  /** FindNearNodes (executed with skeletonization) */
-  //auto *nearnodestask = new gofmm::NearNodesTask<SYMMETRIC, TREE>();
-  //nearnodestask->Set( &tree, budget );
-  //nearnodestask->Submit();
 
 
   /** Skeletonization */
@@ -5461,17 +5456,12 @@ tree::Tree<
   {
     printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
   }
-
-
-
-  const bool AUTODEPENDENCY = true;
   beg = omp_get_wtime();
   //gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
   //tree.template TraverseUp<true>( SKELtask );
   gofmm::GetSkeletonMatrixTask<NODE, T> GETMTXtask;
   gofmm::SkeletonizeTask2<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
-  tree.template TraverseUp<true>( GETMTXtask, SKELtask );
-  //nearnodestask->DependencyAnalysis();
+  tree.template TraverseUp( GETMTXtask, SKELtask );
   gofmm::InterpolateTask<NODE, T> PROJtask;
   tree.template TraverseUnOrdered<true>( PROJtask );
   if ( CACHE )

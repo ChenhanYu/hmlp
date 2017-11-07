@@ -711,6 +711,7 @@ class Node : public ReadWrite
     /** These two prunning lists are used when in NN pruning. */
     set<size_t> NNFarIDs;
     set<Node*>  NNFarNodes;
+    set<Node*>  ProposedNNFarNodes;
     set<size_t> NNFarNodeMortonIDs;
 
     /** Only leaf nodes will have this list. */
@@ -1242,7 +1243,7 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME, typename TASK, typename... Args>
+    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
     void TraverseLeafs( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
@@ -1276,7 +1277,7 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME, typename TASK, typename... Args>
+    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
     void TraverseUp( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
@@ -1327,7 +1328,7 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME, typename TASK, typename... Args>
+    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
     void TraverseDown( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
@@ -1376,7 +1377,7 @@ class Tree
      *  @brief For unordered traversal, we just call local
      *         downward traversal.
      */ 
-    template<bool USE_RUNTIME, typename TASK, typename... Args>
+    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
     void TraverseUnOrdered( TASK &dummy, Args&... args )
     {
       TraverseDown<USE_RUNTIME>( dummy, args... );
