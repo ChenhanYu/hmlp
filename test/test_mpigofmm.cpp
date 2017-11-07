@@ -75,10 +75,10 @@
 #define N_CHILDREN 2
 
 
-
+using namespace std;
 using namespace hmlp;
-using namespace hmlp::tree;
-using namespace hmlp::gofmm;
+//using namespace hmlp::tree;
+//using namespace hmlp::gofmm;
 
 
 template<
@@ -90,22 +90,22 @@ template<
   typename    SPDMATRIX>
 void test_gofmm
 ( 
-  hmlp::DistData<STAR, CBLK, T> *X,
+  DistData<STAR, CBLK, T> *X,
   SPDMATRIX &K, 
-  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> &NN,
+  DistData<STAR, CBLK, pair<T, std::size_t>> &NN,
   DistanceMetric metric,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
   size_t n, size_t m, size_t k, size_t s, 
-  double stol, double budget, size_t nrhs 
+  double stol, double budget, size_t nrhs, 
+  mpi::Comm CommGOFMM
 )
 {
-  /** instantiation for the Spd-Askit tree */
-  //using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using SETUP = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA  = hmlp::gofmm::NodeData<T>;
-  using NODE  = Node<SETUP, N_CHILDREN, DATA, T>;
- 
+  /** MPI: Message Passing Interface */
+  int size, rank;
+  mpi::Comm_size( CommGOFMM, &size );
+  mpi::Comm_rank( CommGOFMM, &rank );
+
   /** all timers */
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
   double ann_time, tree_time, overhead_time;
@@ -124,30 +124,17 @@ void test_gofmm
    config );
   auto &tree = *tree_ptr;
 
-  /** */
-  //DistData<RBLK, STAR, T> w_rblk( n, nrhs, MPI_COMM_WORLD );
-  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
-
   /** redistribute from RBLK to RIDS */
-  //w_rblk.rand();
-  //w_rids = w_rblk;
+  //DistData<RBLK, STAR, T> w_rblk( n, nrhs, MPI_COMM_WORLD );
+  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, CommGOFMM );
   w_rids.rand();
   
-
-
-  /** MPI */
-  int comm_size, comm_rank;
-  mpi::Comm comm = MPI_COMM_WORLD;
-  mpi::Comm_size( comm, &comm_size );
-  mpi::Comm_rank( comm, &comm_rank );
-
   /** Evaluate u ~ K * w */
-  auto u_rids = mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, comm );
+  auto u_rids = mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, CommGOFMM );
 
   /** redistribution */
-  DistData<RBLK, STAR, T> u_rblk( n, nrhs, MPI_COMM_WORLD );
+  DistData<RBLK, STAR, T> u_rblk( n, nrhs, CommGOFMM );
   u_rblk = u_rids;
-
 
   /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
   std::size_t ntest = 100;
@@ -155,7 +142,7 @@ void test_gofmm
   T nonnerr_avg = 0.0;
   T fmmerr_avg = 0.0;
 
-  if ( comm_rank == 0 )
+  if ( rank == 0 )
   {
     printf( "========================================================\n");
     printf( "Accuracy report\n" );
@@ -167,7 +154,7 @@ void test_gofmm
 
     hmlp::Data<T> potentials( (size_t)1, nrhs );
  
-    if ( comm_rank == ( i % comm_size ) )
+    if ( rank == ( i % size ) )
     {
       for ( size_t p = 0; p < potentials.col(); p ++ )
       {
@@ -176,7 +163,7 @@ void test_gofmm
     }
 
     /** bcast potentials to all MPI processes */
-    hmlp::mpi::Bcast( potentials.data(), nrhs, i % comm_size, comm );
+    mpi::Bcast( potentials.data(), nrhs, i % size, CommGOFMM );
 
 
 
@@ -190,10 +177,10 @@ void test_gofmm
     T nonnerr = 0.0;
 
     //auto fmmerr = ComputeError( tree, i, potentials );
-    auto fmmerr = hmlp::mpigofmm::ComputeError( tree, i, potentials, comm );
+    auto fmmerr = mpigofmm::ComputeError( tree, i, potentials, CommGOFMM );
 
     /** only print 10 values. */
-    if ( i < 10 && comm_rank == 0 )
+    if ( i < 10 && rank == 0 )
     {
       printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
           i, nnerr, nonnerr, fmmerr );
@@ -202,7 +189,7 @@ void test_gofmm
     nonnerr_avg += nonnerr;
     fmmerr_avg += fmmerr;
   }
-  if ( comm_rank == 0 )
+  if ( rank == 0 )
   {
     printf( "========================================================\n");
     printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
@@ -249,12 +236,13 @@ void test_gofmm
 template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T, typename SPDMATRIX>
 void test_gofmm_setup
 ( 
-  hmlp::DistData<STAR, CBLK, T> *X,
+  DistData<STAR, CBLK, T> *X,
   SPDMATRIX &K, 
-  hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> &NN,
+  DistData<STAR, CBLK, pair<T, size_t>> &NN,
   DistanceMetric metric,
   size_t n, size_t m, size_t k, size_t s, 
-  double stol, double budget, size_t nrhs
+  double stol, double budget, size_t nrhs,
+  mpi::Comm CommGOFMM
 )
 {
   switch ( metric )
@@ -263,8 +251,8 @@ void test_gofmm_setup
     {
       assert( X );
 			/** using geometric splitters from hmlp::tree */
-      using SPLITTER     = hmlp::mpitree::centersplit<N_CHILDREN, T>;
-      using RKDTSPLITTER = hmlp::mpitree::randomsplit<N_CHILDREN, T>;
+      using SPLITTER     = mpitree::centersplit<N_CHILDREN, T>;
+      using RKDTSPLITTER = mpitree::randomsplit<N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
       splitter.Coordinate = X;
@@ -272,15 +260,15 @@ void test_gofmm_setup
       RKDTSPLITTER rkdtsplitter;
       rkdtsplitter.Coordinate = X;
       test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
+      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs, CommGOFMM );
       break;
     }
     case KERNEL_DISTANCE:
     case ANGLE_DISTANCE:
     {
 			/** using geometric-oblivious splitters from hmlp::gofmm */
-      using SPLITTER     = hmlp::mpigofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
-      using RKDTSPLITTER = hmlp::mpigofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
+      using SPLITTER     = mpigofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
+      using RKDTSPLITTER = mpigofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
       splitter.Kptr = &K;
@@ -290,7 +278,7 @@ void test_gofmm_setup
       rkdtsplitter.Kptr = &K;
 			rkdtsplitter.metric = metric;
       test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
+      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs, CommGOFMM );
       break;
     }
     default:
@@ -321,7 +309,7 @@ int main( int argc, char *argv[] )
   const bool SPARSETESTSUIT = false;
 
   /** default data directory */
-  std::string DATADIR( "/" );
+  string DATADIR( "/" );
 
   /** default precision */
   using T = double;
@@ -332,10 +320,10 @@ int main( int argc, char *argv[] )
 
   /** (optional) */
   size_t nnz; 
-  std::string distance_type;
-  std::string spdmatrix_type;
-  std::string user_matrix_filename;
-  std::string user_points_filename;
+  string distance_type;
+  string spdmatrix_type;
+  string user_matrix_filename;
+  string user_points_filename;
 
   /** (optional) set the default Gaussian kernel bandwidth */
   float h = 1.0;
@@ -424,26 +412,26 @@ int main( int argc, char *argv[] )
     exit( 1 );
   }
 
-  /** Message Passing Interface */
-  int size = -1, rank = -1;
 
 
+  /** MPI (Message Passing Interface): check for THREAD_MULTIPLE support */
+  int size, rank, provided;
 
-  //hmlp::mpi::Init( &argc, &argv );
-
-	int provided;
-	hmlp::mpi::Init_thread( &argc, &argv, MPI_THREAD_MULTIPLE, &provided );
+	mpi::Init_thread( &argc, &argv, MPI_THREAD_MULTIPLE, &provided );
 	if ( provided != MPI_THREAD_MULTIPLE )
 	{
 		printf( "MPI_THREAD_MULTIPLE is not supported\n" ); fflush( stdout );
+    exit( 1 );
 	}
 
-
-
-
-  hmlp::mpi::Comm_size( MPI_COMM_WORLD, &size );
-  hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
+  /** MPI (Message Passing Interface): create a specific comm for GOFMM */
+  mpi::Comm CommGOFMM;
+  mpi::Comm_dup( MPI_COMM_WORLD, &CommGOFMM );
+  mpi::Comm_size( CommGOFMM, &size );
+  mpi::Comm_rank( CommGOFMM, &rank );
   printf( "size %d rank %d\n", size, rank );
+
+
 
   /** HMLP API call to initialize the runtime */
   hmlp_init();
@@ -453,29 +441,26 @@ int main( int argc, char *argv[] )
   {
     using T = float;
     {
-			hmlp::DistSPDMatrix<T> A( n, n, MPI_COMM_WORLD );
-
-
       /** dense spd matrix format */
-      hmlp::gofmm::SPDMatrix<T> K;
+      gofmm::SPDMatrix<T> K;
       K.resize( n, n );
       K.read( n, n, user_matrix_filename );
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
+      DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
 
 			/** (optional) provide coordinates */
       if ( user_points_filename.size() )
       {
-        hmlp::DistData<STAR, CBLK, T> X( d, n, MPI_COMM_WORLD,  user_points_filename );
+        DistData<STAR, CBLK, T> X( d, n, CommGOFMM,  user_points_filename );
         test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
       }
       else
       {
-        hmlp::DistData<STAR, CBLK, T> *X = NULL;
+        DistData<STAR, CBLK, T> *X = NULL;
         test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
       }
     }
   }
@@ -487,95 +472,25 @@ int main( int argc, char *argv[] )
     using T = double;
     {
       /** read the coordinates from the file */
-      DistData<STAR, CBLK, T> X( d, n, MPI_COMM_WORLD, user_points_filename );
-
-
-      int size, rank;
-      mpi::Comm_size( MPI_COMM_WORLD, &size );
-      mpi::Comm_rank( MPI_COMM_WORLD, &rank );
-
-
-      //for ( size_t j = 0; j < X.col_owned(); j ++ )
-      //{
-      //  size_t cid = j * size + rank;
-      //  for ( size_t i = 0; i < d; i ++ )
-      //  {
-      //    assert( Xtmp( i, cid ) == X( i, cid ) );
-      //  }
-      //}
-
-
-      //printf( "pass all assertion\n" ); fflush( stdout );
-      mpi::Barrier( MPI_COMM_WORLD );
+      DistData<STAR, CBLK, T> X( d, n, CommGOFMM, user_points_filename );
 
       /** setup the kernel object as Gaussian */
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
 
-
-			/** create a specific comm for the matrix */
-			mpi::Comm matrixcomm;
-			mpi::Comm_dup( MPI_COMM_WORLD, &matrixcomm );
-			
-
       /** distributed spd kernel matrix format (implicitly create) */
-      hmlp::DistKernelMatrix<T> K( n, n, d, kernel, X, matrixcomm );
+      DistKernelMatrix<T> K( n, n, d, kernel, X, CommGOFMM );
 			
       /** shared spd kernel matrix format (implicitly create) */
 			//hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
 
-
-			//size_t nI = 5;
-			//size_t nJ = 5;
-
-			//std::vector<size_t> I( nI, 0 );
-			//std::vector<size_t> J( nJ, 0 );
-
-			//for ( size_t i = 0; i < nI; i ++ ) I[ i ] = i;
-			//for ( size_t j = 0; j < nJ; j ++ ) J[ j ] = j * 3;
-
-			//auto KIJg = Kg( I, J );
-      //hmlp::Data<T> KIJ;
-
-			//bool do_terminate = false;
-			///** use omp sections to create client-server */
-      //#pragma omp parallel sections
-			//{
-			//	/** client thread */
-      //  #pragma omp section
-			//	{
-			//		KIJ = K( I, J );
-			//		do_terminate = true;
-			//	}
-			//	/** server thread */
-      //  #pragma omp section
-			//	{
-			//		K.BackGroundProcess( &do_terminate );
-			//	}
-
-			//}; /** end omp parallel sections */
-
-			//for ( size_t j = 0; j < nJ; j ++ )
-		  //	for ( size_t i = 0; i < nI; i ++ )
-			//		if ( KIJ( i, j ) != KIJg( i, j ) )
-			//		{
-			//			printf( "i %lu j %lu KIJ %E, KIJg %E\n", I[ i ], J[ j ], KIJ( i, j ), KIJg( i, j ) );
-			//		}
-
-
-
-
-
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
-      //hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
+      DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
 
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-
-
+        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     }
   }
 
@@ -616,20 +531,19 @@ int main( int argc, char *argv[] )
 		using T = float;
 		{
 			/** no geometric coordinates provided */
-			hmlp::DistData<STAR, CBLK, T> *X = NULL;
+			DistData<STAR, CBLK, T> *X = NULL;
 			/** dense spd matrix format */
-			hmlp::gofmm::SPDMatrix<T> K;
+			gofmm::SPDMatrix<T> K;
 			K.resize( n, n );
 			/** random spd initialization */
 			K.randspd<USE_LOWRANK>( 0.0, 1.0 );
 			/** broadcast K to all other rank */
-			hmlp::mpi::Bcast( K.data(), n * n, 0, MPI_COMM_WORLD );
+			mpi::Bcast( K.data(), n * n, 0, CommGOFMM );
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
-      //hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
+      DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
 		}
 
 
@@ -659,18 +573,14 @@ int main( int argc, char *argv[] )
     using T = double;
     {
       /** no geometric coordinates provided */
-      hmlp::DistData<STAR, CBLK, T> *X = NULL;
+      DistData<STAR, CBLK, T> *X = NULL;
       /** dense spd matrix format */
-			printf( "preparing PVFMM matrix\n" ); fflush( stdout );
-      hmlp::PVFMMKernelMatrix<T> K( n, n );
-			printf( "preparing PVFMM matrix done\n" ); fflush( stdout );
-
+      PVFMMKernelMatrix<T> K( n, n );
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> NN( 0, n, MPI_COMM_WORLD );
-      //hmlp::DistData<STAR, CBLK, std::pair<T, std::size_t>> *NN = NULL;
+      DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
-        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     }
 	}
 
@@ -682,7 +592,7 @@ int main( int argc, char *argv[] )
   hmlp_finalize();
 
   /** Message Passing Interface */
-  hmlp::mpi::Finalize();
+  mpi::Finalize();
 
   return 0;
 
