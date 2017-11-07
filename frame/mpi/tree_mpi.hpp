@@ -573,11 +573,9 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
     /** constructor for inner node (gids and n unassigned) */
-    Node( SETUP *setup, size_t n, size_t l, 
-        Node *parent, mpi::Comm comm ) 
+    Node( SETUP *setup, size_t n, size_t l, Node *parent, mpi::Comm comm ) 
     /** inherits from */
-      : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
-        ( setup, n, l, parent ) 
+      : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, parent, NULL ) 
     {
       /** local communicator */
       this->comm = comm;
@@ -590,12 +588,9 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
     /** constructor for root */
-    Node( SETUP *setup, size_t n, size_t l,
-        std::vector<size_t> &gids,
-        Node *parent, mpi::Comm comm ) 
+    Node( SETUP *setup, size_t n, size_t l, std::vector<size_t> &gids, Node *parent, mpi::Comm comm ) 
     /** inherits from */
-      : Node<SETUP, N_CHILDREN, NODEDATA, T>
-        ( setup, n, l, parent, comm ) 
+      : Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, parent, comm ) 
     {
       /** notice that "gids.size() < n" */
       this->gids = gids;
@@ -781,15 +776,15 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
  *
  */ 
 template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
-class LetNode : public hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+class LetNode : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 {
   public:
 
     /** inherit all parameters from hmlp::tree::Node */
 
     LetNode( SETUP *setup, size_t morton )
-      : hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
-        ( setup, (size_t)0, (size_t)1, NULL ) 
+      : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+        ( setup, (size_t)0, (size_t)1, NULL, NULL ) 
     {
       this->morton = morton;
     };

@@ -84,11 +84,11 @@ void test_gofmm
 	auto &tree = *tree_ptr;
 
   /** Evaluate u ~ K * w */
-  hmlp::Data<T> w( nrhs, n ); w.rand();
+  hmlp::Data<T> w( n, nrhs ); w.rand();
   auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
 
   /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
-  std::size_t ntest = 100;
+  size_t ntest = 100;
   T nnerr_avg = 0.0;
   T nonnerr_avg = 0.0;
   T fmmerr_avg = 0.0;
@@ -107,7 +107,7 @@ void test_gofmm
     /** get results from GOFMM */
     for ( size_t p = 0; p < potentials.col(); p ++ )
     {
-      potentials[ p ] = u( p, i );
+      potentials[ p ] = u( i, p );
     }
     auto fmmerr = ComputeError( tree, i, potentials );
 
@@ -130,7 +130,6 @@ void test_gofmm
       nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
   printf( "========================================================\n");
   // ------------------------------------------------------------------------
-
 
 	/** delete tree_ptr */
   delete tree_ptr;

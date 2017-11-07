@@ -65,7 +65,7 @@ export HMLP_GPU_ARCH_MINOR=kepler
 ## (3) arm/armv8a
 ## (4) mic/knl
 export HMLP_ARCH_MAJOR=x86_64
-export HMLP_ARCH_MINOR=sandybridge
+export HMLP_ARCH_MINOR=haswell
 
 #if [[ ${icesmachine} == *"lando"* ]]; then
 #  export HMLP_ARCH_MAJOR=x86_64
@@ -76,7 +76,7 @@ export HMLP_ARCH_MINOR=sandybridge
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 
 ## Distributed environment poptions (if true, compile with MPI)
-export HMLP_USE_MPI=true
+export HMLP_USE_MPI=false
 
 ## GPU compiler options (if true, compile the gpu library as well).
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it).

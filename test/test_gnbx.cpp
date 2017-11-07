@@ -36,9 +36,18 @@ void gnbx
 	int m, int n, int k,
 	float  *A, int lda,
   float  *B, int ldb,
-  //double *C, int ldc
   float  *C, int ldc
 );
+
+
+void gnbx
+(
+	int m, int n, int k,
+	double *A, int lda,
+  double *B, int ldb,
+  double *C, int ldc
+);
+
 
 
 
@@ -102,11 +111,11 @@ template<typename TLOWPRECISION, typename T>
 void test_gnbx( int m, int n, int k ) 
 {
   T *A, *B, *C, *C_ref;
-  TLOWPRECISION *A_f, *B_f, *C_f;
+  TLOWPRECISION *A_f, *B_f, *C_f, *C_fref;
   double ref_beg, ref_time, gkmx_beg, gkmx_time;
   double flops = ( (double)( m * n ) / GFLOPS ) * ( 2.0 * k + 0.0 );
 
-  int n_iter = 1;
+  int n_iter = 3;
 
 
   // ------------------------------------------------------------------------
@@ -128,31 +137,47 @@ void test_gnbx( int m, int n, int k )
   B     = (T*)malloc( sizeof(T) * k * n );
   //C     = (T*)malloc( sizeof(T) * m * n );
   //C_ref = (T*)malloc( sizeof(T) * m * n );
-  posix_memalign( (void**)&C,     32, sizeof(T) * m * n );
-  posix_memalign( (void**)&C_ref, 32, sizeof(T) * m * n );
+  posix_memalign( (void**)&C,      32, sizeof(T) * m * n );
+  posix_memalign( (void**)&C_ref,  32, sizeof(T) * m * n );
+  posix_memalign( (void**)&C_fref, 32, sizeof(TLOWPRECISION) * m * n );
 #endif
   // ------------------------------------------------------------------------
 
   // ------------------------------------------------------------------------
   // Initialization
   // ------------------------------------------------------------------------
+  #pragma omp parallel for
+  for ( auto i = 0; i < m; i ++ ) 
+    for ( auto p = 0; p < k; p ++ ) 
+      //A_f[ i * k + p ] = (T)( rand() % 100 ) / 1000.0;
+      A[ i * k + p ] = (T)( rand() % 100 ) / 1000.0;
+  for ( auto j = 0; j < n; j ++ ) 
+    for ( auto p = 0; p < k; p ++ ) 
+      //B_f[ j * k + p ] = (T)( rand() % 100 ) / 1000.0;	
+      B[ j * k + p ] = (T)( rand() % 100 ) / 1000.0;	
+  
+  
+
+  double beg = omp_get_wtime();
+  #pragma omp parallel for
   for ( auto i = 0; i < m; i ++ ) 
   {
     for ( auto p = 0; p < k; p ++ ) 
     {
-      A_f[ i * k + p ] = (T)( rand() % 100 ) / 1000.0;
-      A[ i * k + p ] = A_f[ i * k + p ];
+      //A[ i * k + p ] = A_f[ i * k + p ];
+      A_f[ i * k + p ] = A[ i * k + p ];
     }
   }
-
+  #pragma omp parallel for
   for ( auto j = 0; j < n; j ++ ) 
   {
     for ( auto p = 0; p < k; p ++ ) 
     {
-      B_f[ j * k + p ] = (T)( rand() % 100 ) / 1000.0;	
-      B[ j * k + p ] = B_f[ j * k + p ];
+      //B[ j * k + p ] = B_f[ j * k + p ];
+      B_f[ j * k + p ] = B[ j * k + p ];
     }
   }
+  double conversion_t = omp_get_wtime() - beg;
   // ------------------------------------------------------------------------
 
 
@@ -162,23 +187,30 @@ void test_gnbx( int m, int n, int k )
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) gkmx_beg = omp_get_wtime();
-    //gkmx_sfma
-    //gkmx_dfma
-    //gkmx_dfma_simple
+    //gnbx
+    //(
+    //  m, n, k,
+    //  A_f, m,
+    //  B_f, k,
+    //  C_f, m 
+    //);
     gnbx
     (
       m, n, k,
-      A_f, m,
-      B_f, k,
-      //C, m 
-      C_f, m 
+      A, m,
+      B, k,
+      C, m 
     );
   }
   gkmx_time = omp_get_wtime() - gkmx_beg;
   // ------------------------------------------------------------------------
 
 
-  for ( size_t i = 0; i < m * n; i ++ ) C[ i ] = C_f[ i ];
+  beg = omp_get_wtime();
+  #pragma omp parallel for
+  //for ( size_t i = 0; i < m * n; i ++ ) C[ i ] = C_f[ i ];
+  for ( size_t i = 0; i < m * n; i ++ ) C_f[ i ] = C[ i ];
+  conversion_t += omp_get_wtime() - beg;
 
 
   // ------------------------------------------------------------------------
@@ -187,22 +219,40 @@ void test_gnbx( int m, int n, int k )
   for ( auto iter = -1; iter < n_iter; iter ++ ) 
   {
     if ( iter == 0 ) ref_beg = omp_get_wtime();
+    //hmlp::xgemm
+    //( 
+    //  "N", "N", 
+    //  m, n, k, 
+    //  1.0, A,     m, 
+    //       B,     k, 
+    //  0.0, C_ref, m 
+    //);
     hmlp::xgemm
     ( 
       "N", "N", 
       m, n, k, 
-      1.0, A,     m, 
-           B,     k, 
-      0.0, C_ref, m 
+      1.0, A_f,    m, 
+           B_f,    k, 
+      0.0, C_fref, m 
     );
   }
   ref_time = omp_get_wtime() - ref_beg;
   // ------------------------------------------------------------------------
 
-  ref_time  /= n_iter;
+
+  beg = omp_get_wtime();
+  #pragma omp parallel for
+  for ( size_t i = 0; i < m * n; i ++ ) C_ref[ i ] = C_fref[ i ];
+  //for ( size_t i = 0; i < m * n; i ++ ) C_f[ i ] = C[ i ];
+  conversion_t += omp_get_wtime() - beg;
+
+
+
+  ref_time  /= n_iter; ref_time += conversion_t;
   gkmx_time /= n_iter;
 
   compute_error( m, n, C, m, C_ref, m );
+  //compute_error( m, n, C_f, m, C_fref, m );
 
   printf( "NN %5d, %5d, %5d, %5.2lf, %5.2lf;\n", 
       m, n, k, flops / gkmx_time, flops / ref_time );

@@ -495,14 +495,10 @@ class Node : public ReadWrite
 {
   public:
 
-    Node
-    (
-      SETUP *user_setup,
-      size_t n, size_t l, 
-      Node *parent 
-    )
+    Node( SETUP* setup, size_t n, size_t l, 
+        Node *parent, map<size_t, Node*> *morton2node )
     {
-      this->setup = user_setup;
+      this->setup = setup;
       this->n = n;
       this->l = l;
       this->morton = 0;
@@ -513,19 +509,14 @@ class Node : public ReadWrite
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
+      this->morton2node = morton2node;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
-    Node
-    ( 
-      SETUP *user_setup,
-      int n, int l, 
-      vector<size_t> gids,
-      vector<size_t> lids,
-      Node *parent 
-    )
+    Node( SETUP *setup, int n, int l, vector<size_t> gids, vector<size_t> lids,
+      Node *parent, map<size_t, Node*> *morton2node )
     {
-      this->setup = user_setup;
+      this->setup = setup;
       this->n = n;
       this->l = l;
       this->morton = 0;
@@ -536,6 +527,7 @@ class Node : public ReadWrite
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
+      this->morton2node = morton2node;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
@@ -724,18 +716,18 @@ class Node : public ReadWrite
     /** Only leaf nodes will have this list. */
     set<size_t> NNNearIDs;
     set<Node*>  NNNearNodes;
+    set<Node*>  ProposedNNNearNodes;
     set<size_t> NNNearNodeMortonIDs;
 
-    Node *parent = NULL;
-
+    /**
+     *  All points to other tree nodes.
+     */ 
     Node *kids[ N_CHILDREN ];
-
-    /** make it easy */
-    Node *lchild = NULL; 
-
-    Node *rchild = NULL;
-
+    Node *lchild  = NULL; 
+    Node *rchild  = NULL;
     Node *sibling = NULL;
+    Node *parent  = NULL;
+    map<size_t, Node*> *morton2node = NULL;
 
     bool isleaf;
 
@@ -848,8 +840,12 @@ class Tree
     size_t depth;
 
     vector<NODE*> treelist;
-    deque<NODE*> treequeue;
 
+    /** 
+     *  Map MortonID to tree nodes. When distributed tree inherit Tree,
+     *  morton2node will also contain distributed and LET node.
+     */
+    map<size_t, NODE*> morton2node;
 
     /** constructor */
     Tree() : n( 0 ), m( 0 ), depth( 0 )
@@ -864,10 +860,7 @@ class Tree
       {
         if ( treelist[ i ] ) delete treelist[ i ];
       }
-      for ( int i = 0; i < treequeue.size(); i ++ )
-      {
-        if ( treequeue[ i ] ) delete treequeue[ i ];
-      }
+      morton2node.clear();
       //printf( "end ~Tree() shared\n" );
     };
 
@@ -978,16 +971,17 @@ class Tree
        */
 			depth = glb_depth - root->l;
 
-			printf( "local AllocateNodes n %lu m %lu glb_depth %d loc_depth %lu\n", 
-					n, m, glb_depth, depth );
+			//printf( "local AllocateNodes n %lu m %lu glb_depth %d loc_depth %lu\n", 
+			//		n, m, glb_depth, depth );
 
       /** 
        *  Clean up and reserve space for local tree nodes.
        *  Push root into the treelist.
        */
+      morton2node.clear();
       treelist.clear();
-      treequeue.clear();
       treelist.reserve( 1 << ( depth + 1 ) );
+      deque<NODE*> treequeue;
       treequeue.push_back( root );
 
 
@@ -1003,7 +997,7 @@ class Tree
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node );
+            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node, &morton2node );
             treequeue.push_back( node->kids[ i ] );
           }
 					node->lchild = node->kids[ 0 ];
@@ -1047,7 +1041,7 @@ class Tree
        *  Allocate all tree nodes in advance.
        */
       beg = omp_get_wtime();
-      AllocateNodes( new NODE( &setup, n, 0, gids, lids, NULL ) );
+      AllocateNodes( new NODE( &setup, n, 0, gids, lids, NULL, &morton2node ) );
       alloc_time = omp_get_wtime() - beg;
 
       /**
@@ -1067,6 +1061,15 @@ class Tree
       Morton( treelist[ 0 ], 0 );
       Offset( treelist[ 0 ], 0 );
       morton_time = omp_get_wtime() - beg;
+
+      /**
+       *  Construct morton2node map
+       */
+      morton2node.clear();
+      for ( size_t i = 0; i < treelist.size(); i ++ )
+      {
+        morton2node[ treelist[ i ]->morton ] = treelist[ i ];
+      }
 
 
       /** 
