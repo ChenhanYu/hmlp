@@ -53,12 +53,12 @@ struct aux_s
 
   TV *hj;
 
-  // For gsknn
-  TV *D;
-
-  int *I;
-
-  int ldr;
+//  // For gsknn
+//  TV *D;
+//
+//  int *I;
+//
+//  int ldr;
 
   // index for gkmx to access data in the closure of opkernel and opreduce.
   int i;
@@ -71,6 +71,10 @@ struct aux_s
   int ib;
 
   int jb;
+
+  int m;
+
+  int n;
 
   // whether this is the first rank-k update.
   int pc;
@@ -99,10 +103,10 @@ struct aux_s
 #define GEMM_OPERATOR(type)            \
   void operator()                      \
   (                                    \
-    int k,                             \
+    dim_t k,                           \
     type *a,                           \
     type *b,                           \
-    type *c, int ldc,                  \
+    type *c, inc_t rs_c, inc_t cs_c,   \
     aux_s<type, type, type, type> *aux \
   )                                    \
 

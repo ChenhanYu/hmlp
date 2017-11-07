@@ -58,7 +58,8 @@ export HMLP_GPU_ARCH_MINOR=kepler
 ## (3) arm/armv8a
 ## (4) mic/knl
 export HMLP_ARCH_MAJOR=x86_64
-export HMLP_ARCH_MINOR=sandybridge
+#export HMLP_ARCH_MINOR=sandybridge
+export HMLP_ARCH_MINOR=haswell
 #export HMLP_ARCH_MAJOR=mic
 #export HMLP_ARCH_MINOR=knl
 

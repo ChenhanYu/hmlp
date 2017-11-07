@@ -100,7 +100,7 @@ void rank_k_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          &packC[ j * ldc + i ], ldc,
+          &packC[ j * ldc + i ], 1, ldc,
           &aux
         );
       }
@@ -118,7 +118,7 @@ void rank_k_macro_kernel
           k,
           &packA[ ip * k ],
           &packB[ jp * k ],
-          cbuff, MR,
+          cbuff, 1, MR,
           &aux
         );
         for ( auto jj = 0; jj < aux.jb; jj ++ )
@@ -165,7 +165,7 @@ void fused_macro_kernel
     struct aux_s<TA, TB, TC, TV> aux;
     aux.pc       = pc;
     aux.b_next   = packB;
-    aux.ldr      = ldr;
+    //aux.ldr      = ldr;
     aux.jb       = min( n - j, NR );
 
     for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();
@@ -173,8 +173,8 @@ void fused_macro_kernel
               i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop
     {
       aux.ib = min( m - i, MR );
-      aux.I  = I + i * ldr;
-      aux.D  = D + i * ldr;
+      //aux.I  = I + i * ldr;
+      //aux.D  = D + i * ldr;
       if ( i + MR >= m )
       {
         aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;
@@ -186,15 +186,12 @@ void fused_macro_kernel
       }
       microkernel
       (
-        k,
-        r,
-        packA  + ip * k,
-        packA2 + ip,
-        packB  + jp * k,
-        packB2 + jp,
+        k, r,
+        packA  + ip * k, packA2 + ip,
+        packB  + jp * k, packB2 + jp, bmap + j,
         cbuff,
-        &aux,
-        bmap   + j
+        D + i * ldr, I + i * ldr, ldr,
+        &aux
       );
       if ( pc ) {
         for ( auto jj = 0; jj < aux.jb; jj ++ )
@@ -316,7 +313,8 @@ void gsknn_internal
 
 
         ic_comm.Barrier();
-        if ( pc + KC  < k ) {
+        if ( pc + KC  < k ) 
+        {
           rank_k_macro_kernel
           <KC, MR, NR, PACK_MR, PACK_NR, SEMIRINGKERNEL, TA, TB, TC, TV>
           (
@@ -330,7 +328,8 @@ void gsknn_internal
             semiringkernel
           );
         }
-        else {
+        else 
+        {
           fused_macro_kernel
           <KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV>
           (

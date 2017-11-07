@@ -10,22 +10,41 @@
 #include <primitives/gsknn.hpp>
 #include <avx_type.h> // self-defined vector type
 
-struct rnn_r_int_d8x4_row
+struct knn_int_d8x4
 {
+  const size_t mr         =  8;
+  const size_t nr         =  4;
+  const size_t pack_mr    =  8;
+  const size_t pack_nr    =  4;
+  const size_t align_size = 32;
+  const bool   row_major  = true;
+
+  //inline void operator()
+  //(
+  //  int k,
+  //  int r,
+  //  double *a, double *aa,
+  //  double *b, double *bb,
+  //  double *c,
+  //  aux_s<double, double, double, double> *aux,
+  //  int *bmap
+  //) const
   inline void operator()
   (
     int k,
     int r,
     double *a, double *aa,
-    double *b, double *bb,
+    double *b, double *bb, int *bmap,
     double *c,
-    aux_s<double, double, double, double> *aux,
-    int *bmap
+    double *Keys, int *Values, int ldr,
+    aux_s<double, double, double, double> *aux//,
   ) const
   {
-    int    i, j, ldr;
-    int    *I = aux->I;
-    double *D = aux->D;
+    int    i, j; //ldr;
+    double *D = Keys;
+    int    *I = Values;
+    //int    *I = aux->I;
+    //double *D = aux->D;
     // int   ldc = aux->ldc;
 
     double neg2 = -2.0;
@@ -341,7 +360,7 @@ struct rnn_r_int_d8x4_row
   c47_3.v    = _mm256_permute2f128_pd( tmpc47_1.v, tmpc47_3.v, 0x31 );
 
 
-  ldr = aux->ldr;
+  //ldr = aux->ldr;
 
 
   aa_tmp.v = _mm256_broadcast_sd( D );

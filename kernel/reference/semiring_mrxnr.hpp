@@ -1,9 +1,26 @@
+/**
+ *
+ */ 
+//template<typename TA, typename TB, typename TC, typename TV>
+//struct semiring_
+//{
+//  
+//};
+
+
+
 template<
 int MR, int NR,
 typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 struct semiring_mrxnr 
 {
+  const size_t mr         = MR;
+  const size_t nr         = NR;
+  const size_t pack_mr    = MR;
+  const size_t pack_nr    = NR;
+  const size_t align_size = 32;
+
   OP1 op1;
   OP2 op2;
   TV initV;
@@ -52,7 +69,7 @@ struct semiring_mrxnr
     int k, 
     TA *a, 
     TB *b, 
-    TV *v, int ldv,
+    TV *v, int rs_c, int cs_c,
     aux_s<TA, TB, TC, TV> *aux 
   ) const 
   {
@@ -72,7 +89,7 @@ struct semiring_mrxnr
       for ( int j = 0; j < NR; j ++ )
         #pragma simd
         for ( int i = 0; i < MR; i ++ )
-          regV[ j * MR + i ] = v[ j * ldv + i ];
+          regV[ j * MR + i ] = v[ j * cs_c + i * rs_c ];
     }
     
     // semiring rank-k update
@@ -92,7 +109,7 @@ struct semiring_mrxnr
     for ( int j = 0; j < NR; j ++ )
       #pragma simd
       for ( int i = 0; i < MR; i ++ )
-        v[ j * ldv + i ] = regV[ j * MR + i ];
+        v[ j * cs_c + i * rs_c ] = regV[ j * MR + i ];
 
   };
 };

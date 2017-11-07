@@ -91,7 +91,7 @@ bool IsMyParent( size_t me, size_t it )
 /**
  *
  */ 
-bool ContainAnyMortonID( std::vector<size_t> &querys, size_t morton )
+bool ContainAnyMortonID( vector<size_t> &querys, size_t morton )
 {
   for ( size_t i = 0; i < querys.size(); i ++ )
   {
@@ -105,7 +105,7 @@ bool ContainAnyMortonID( std::vector<size_t> &querys, size_t morton )
 /**
  *
  */ 
-bool ContainAnyMortonID( std::set<size_t> &querys, size_t morton )
+bool ContainAnyMortonID( set<size_t> &querys, size_t morton )
 {
   for ( auto it = querys.begin(); it != querys.end(); it ++ )
   {
@@ -126,7 +126,7 @@ bool ContainAnyMortonID( std::set<size_t> &querys, size_t morton )
  *         bottom up traversal.
  */ 
 template<typename NODE>
-class IndexPermuteTask : public hmlp::Task
+class IndexPermuteTask : public Task
 {
   public:
 
@@ -142,11 +142,11 @@ class IndexPermuteTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      arg->DependencyAnalysis( RW, this );
       if ( !arg->isleaf )
       {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+        arg->lchild->DependencyAnalysis( R, this );
+        arg->rchild->DependencyAnalysis( R, this );
       }
       this->TryEnqueue();
     };
@@ -196,11 +196,11 @@ class SplitTask : public Task
 
 		void DependencyAnalysis()
 		{
-      arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      arg->DependencyAnalysis( R, this );
       if ( !arg->isleaf )
       {
-        arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        arg->lchild->DependencyAnalysis( RW, this );
+        arg->rchild->DependencyAnalysis( RW, this );
       }
       this->TryEnqueue();
 		};
@@ -229,7 +229,7 @@ template<int N_SPLIT, typename T>
 struct centersplit
 {
   /** closure */
-  Data<T> *Coordinate;
+  Data<T> *Coordinate = NULL;
 
   inline vector<vector<size_t> > operator()
   ( 
@@ -345,7 +345,7 @@ struct centersplit
     
     if ( 1 )
     {
-      median = hmlp::combinatorics::Select( n, n / 2, projection );
+      median = combinatorics::Select( n, n / 2, projection );
     }
     else
     {
@@ -495,14 +495,10 @@ class Node : public ReadWrite
 {
   public:
 
-    Node
-    (
-      SETUP *user_setup,
-      size_t n, size_t l, 
-      Node *parent 
-    )
+    Node( SETUP* setup, size_t n, size_t l, 
+        Node *parent, map<size_t, Node*> *morton2node )
     {
-      this->setup = user_setup;
+      this->setup = setup;
       this->n = n;
       this->l = l;
       this->morton = 0;
@@ -513,19 +509,14 @@ class Node : public ReadWrite
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
+      this->morton2node = morton2node;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
-    Node
-    ( 
-      SETUP *user_setup,
-      int n, int l, 
-      std::vector<std::size_t> gids,
-      std::vector<std::size_t> lids,
-      Node *parent 
-    )
+    Node( SETUP *setup, int n, int l, vector<size_t> gids, vector<size_t> lids,
+      Node *parent, map<size_t, Node*> *morton2node )
     {
-      this->setup = user_setup;
+      this->setup = setup;
       this->n = n;
       this->l = l;
       this->morton = 0;
@@ -536,6 +527,7 @@ class Node : public ReadWrite
       this->parent = parent;
       this->lchild = NULL;
       this->rchild = NULL;
+      this->morton2node = morton2node;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
@@ -557,7 +549,8 @@ class Node : public ReadWrite
       int m = setup->m;
       int max_depth = setup->max_depth;
 
-      if ( n > m && l < max_depth || ( PREALLOCATE && kids[ 0 ] ) )
+      //if ( n > m && l < max_depth || ( PREALLOCATE && kids[ 0 ] ) )
+      if ( !isleaf )
       {
         double beg = omp_get_wtime();
         auto split = setup->splitter( gids, lids );
@@ -583,22 +576,14 @@ class Node : public ReadWrite
           }
         }
 
-        for ( int i = 0; i < N_CHILDREN; i ++ )
+        for ( size_t i = 0; i < N_CHILDREN; i ++ )
         {
           int nchild = split[ i ].size();
-     
-          if ( PREALLOCATE )
-          {
-            assert( kids[ i ] );
-            kids[ i ]->Resize( nchild );
-          }
-          else
-          {
-            kids[ i ] = new Node( setup, nchild, l + 1, this );
-            printf( "bug here\n" );
-          }
 
-          //#pragma omp parallel for
+          /**
+           *  TODO: need a better way
+           */ 
+          kids[ i ]->Resize( nchild );
           for ( int j = 0; j < nchild; j ++ )
           {
             kids[ i ]->gids[ j ] = gids[ split[ i ][ j ] ];
@@ -607,21 +592,21 @@ class Node : public ReadWrite
         }
 
         /** facilitate binary tree */
-        if ( N_CHILDREN > 1  )
-        {
-          lchild = kids[ 0 ];
-          rchild = kids[ 1 ];
-          if ( lchild ) lchild->sibling = rchild;
-          if ( rchild ) rchild->sibling = lchild;
-        }
+        //if ( N_CHILDREN > 1  )
+        //{
+        //  lchild = kids[ 0 ];
+        //  rchild = kids[ 1 ];
+        //  if ( lchild ) lchild->sibling = rchild;
+        //  if ( rchild ) rchild->sibling = lchild;
+        //}
       }
-      else
-      {
-        if ( PREALLOCATE ) assert( kids[ 0 ] == NULL );
-        isleaf = true;
-      }
+      //else
+      //{
+      //  if ( PREALLOCATE ) assert( kids[ 0 ] == NULL );
+      //  isleaf = true;
+      //}
 	  
-    }; // end Split()
+    }; /** end Split() */
 
 
     /**
@@ -630,7 +615,7 @@ class Node : public ReadWrite
 		 *         needs to be accessed using gids.
      *
      */ 
-    bool ContainAny( std::vector<size_t> &queries )
+    bool ContainAny( vector<size_t> &queries )
     {
       if ( !setup->morton.size() )
       {
@@ -655,13 +640,13 @@ class Node : public ReadWrite
     }; /** end ContainAny() */
 
 
-    bool ContainAnyMortonID( std::vector<size_t> &querys )
+    bool ContainAnyMortonID( vector<size_t> &querys )
     {
       return ContainAnyMortonID( querys, morton );
     }; /** end ContainAnyMortonID() */
 
 
-    bool ContainAny( std::set<Node*> &querys )
+    bool ContainAny( set<Node*> &querys )
     {
       if ( !setup->morton.size() )
       {
@@ -687,16 +672,16 @@ class Node : public ReadWrite
     };
 
 
-    // This is the call back pointer to the shared data.
-    SETUP *setup;
+    /** This is the call back pointer to the shared data. */
+    SETUP *setup = NULL;
 
     /** Per node private data */
     NODEDATA data;
 
-    // number of points in this node.
+    /** Number of points in this node. */
     size_t n;
 
-    // level in the tree
+    /** Level in the tree */
     size_t l;
 
     // Morton id
@@ -706,7 +691,7 @@ class Node : public ReadWrite
 
 
 
-    // In top-down topology order. (-1 if not used)
+    /** In top-down topology order */
     size_t treelist_id; 
 
     vector<size_t> gids;
@@ -726,29 +711,30 @@ class Node : public ReadWrite
     /** These two prunning lists are used when in NN pruning. */
     set<size_t> NNFarIDs;
     set<Node*>  NNFarNodes;
+    set<Node*>  ProposedNNFarNodes;
     set<size_t> NNFarNodeMortonIDs;
 
     /** Only leaf nodes will have this list. */
     set<size_t> NNNearIDs;
     set<Node*>  NNNearNodes;
+    set<Node*>  ProposedNNNearNodes;
     set<size_t> NNNearNodeMortonIDs;
 
-    Node *parent = NULL;
-
+    /**
+     *  All points to other tree nodes.
+     */ 
     Node *kids[ N_CHILDREN ];
-
-    /** make it easy */
-    Node *lchild = NULL; 
-
-    Node *rchild = NULL;
-
+    Node *lchild  = NULL; 
+    Node *rchild  = NULL;
     Node *sibling = NULL;
+    Node *parent  = NULL;
+    map<size_t, Node*> *morton2node = NULL;
 
     bool isleaf;
 
   private:
 
-};
+}; /** end class Node */
 
 
 /**
@@ -775,13 +761,58 @@ class Setup
     Data<T> *X;
 
     /** neighbors<distance, gid> (accessed with lids) */
-    Data<std::pair<T, std::size_t>> *NN;
+    Data<pair<T, size_t>> *NN;
 
     /** morton ids */
     vector<size_t> morton;
 
     /** tree splitter */
     SPLITTER splitter;
+
+
+
+    /**
+     *  @brief Check if this node contain any query using morton.
+		 *         Notice that queries[] contains gids; thus, morton[]
+		 *         needs to be accessed using gids.
+     *
+     */ 
+		vector<size_t> ContainAny( vector<size_t> &queries, size_t target )
+    {
+			vector<size_t> validation( queries.size(), 0 );
+
+      if ( !morton.size() )
+      {
+        printf( "Morton id was not initialized.\n" );
+        exit( 1 );
+      }
+
+      for ( size_t i = 0; i < queries.size(); i ++ )
+      {
+				/** notice that setup->morton only contains local morton ids */
+        //auto it = this->setup->morton.find( queries[ i ] );
+
+				//if ( it != this->setup->morton.end() )
+				//{
+        //  if ( tree::IsMyParent( *it, this->morton ) ) validation[ i ] = 1;
+				//}
+
+
+       if ( tree::IsMyParent( morton[ queries[ i ] ], target ) ) 
+				 validation[ i ] = 1;
+
+      }
+      return validation;
+
+    }; /** end ContainAny() */
+
+
+
+
+
+
+
+
 
 }; /** end class Setup */
 
@@ -811,10 +842,11 @@ class Tree
 
     vector<NODE*> treelist;
 
-    std::deque<NODE*> treequeue;
-
-    /** for omp dependent task */
-    char omptasklist[ 1 << 16 ];
+    /** 
+     *  Map MortonID to tree nodes. When distributed tree inherit Tree,
+     *  morton2node will also contain distributed and LET node.
+     */
+    map<size_t, NODE*> morton2node;
 
     /** constructor */
     Tree() : n( 0 ), m( 0 ), depth( 0 )
@@ -829,10 +861,7 @@ class Tree
       {
         if ( treelist[ i ] ) delete treelist[ i ];
       }
-      for ( int i = 0; i < treequeue.size(); i ++ )
-      {
-        if ( treequeue[ i ] ) delete treequeue[ i ];
-      }
+      morton2node.clear();
       //printf( "end ~Tree() shared\n" );
     };
 
@@ -878,8 +907,8 @@ class Tree
         if ( node->lchild )
         {
 #ifdef DEBUG_TREE
-          std::cout << IsMyParent( node->lchild->morton, node->rchild->morton ) << std::endl;
-          std::cout << IsMyParent( node->lchild->morton, node->morton         ) << std::endl;
+          cout << IsMyParent( node->lchild->morton, node->rchild->morton ) << endl;
+          cout << IsMyParent( node->lchild->morton, node->morton         ) << endl;
 #endif
         }
         else /** Setup morton id for all points in the leaf node */
@@ -912,7 +941,7 @@ class Tree
       if ( index >= ( 1 << mylevel ) )
       {
         printf( "level %lu index %lu\n", mylevel, index );
-        hmlp::hmlp_print_binary( me );
+        hmlp_print_binary( me );
       }
       return *(level_beg + index);
     };
@@ -932,59 +961,54 @@ class Tree
       /** all assertion */
       assert( N_CHILDREN == 2 );
 
-
-      /** compute the global tree depth */
-			int glb_depth = std::ceil( std::log2( n / m ) );
+      /** 
+       *  Compute the global tree depth using std::log2(). 
+       */
+			int glb_depth = std::ceil( std::log2( (double)n / m ) );
 			if ( glb_depth > setup.max_depth ) glb_depth = setup.max_depth;
 
-			/** compute the local tree depth */
+			/** 
+       *  Compute the local tree depth.
+       */
 			depth = glb_depth - root->l;
 
-			printf( "local AllocateNodes n %lu m %lu glb_depth %d loc_depth %lu\n", 
-					n, m, glb_depth, depth );
+			//printf( "local AllocateNodes n %lu m %lu glb_depth %d loc_depth %lu\n", 
+			//		n, m, glb_depth, depth );
 
-
-
-      /** clean up  */
+      /** 
+       *  Clean up and reserve space for local tree nodes.
+       *  Push root into the treelist.
+       */
+      morton2node.clear();
       treelist.clear();
-      treequeue.clear();
-
-      /** reserve space for local tree nodes */
       treelist.reserve( 1 << ( depth + 1 ) );
-
-      /** assume complete tree, compute the local tree depth first */
-      //depth = 0;
-      //size_t num_points_per_node = root->n;
-      //while ( num_points_per_node > m && root->l + depth < max_depth )
-      //{
-      //  num_points_per_node = ( num_points_per_node + 1 ) / N_CHILDREN;
-      //  depth ++;
-      //}
-      //size_t num_nodes_in_local_tree = 
-      //  ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
-
-      /** push root into the treelist */
+      deque<NODE*> treequeue;
       treequeue.push_back( root );
 
-      /** allocate children */
+
+      /** 
+       *  Allocate children with BFS (queue solution)
+       */
       while ( auto *node = treequeue.front() )
       {
-        /** assign local tree node id */
+        /** Assign local tree node id */
         node->treelist_id = treelist.size();
-        /** account for the depth of the distributed tree */
+        /** Account for the depth of the distributed tree */
         if ( node->l < glb_depth )
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node );
+            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node, &morton2node );
             treequeue.push_back( node->kids[ i ] );
           }
 					node->lchild = node->kids[ 0 ];
 					node->rchild = node->kids[ 1 ];
+          if ( node->lchild ) node->lchild->sibling = node->rchild;
+          if ( node->rchild ) node->rchild->sibling = node->lchild;
         }
         else
         {
-					/** leaf nodes */
+					/** Leaf nodes are annotated with this flag */
 					node->isleaf = true;
           treequeue.push_back( NULL );
         }
@@ -993,83 +1017,6 @@ class Tree
       }
 
     }; /** end AllocateNodes() */
-
-
-
-
-    /**
-     *  @brief parition points using a binary tree where the root is given
-     *
-     */
-    void TreePartition( NODE *root )
-    {
-      assert( N_CHILDREN == 2 );
-      
-      /** declaration */
-      std::deque<NODE*> treequeue;
-      int max_depth = setup.max_depth;
-
-      /** reset the warning flag and clean up the treelist */
-      has_uneven_split = false;
-      treelist.clear();
-      treequeue.clear();
-      treelist.reserve( ( root->n / m ) * N_CHILDREN );
-
-      /** assume complete tree, compute the local tree depth first */
-      depth = 0;
-      size_t num_points_per_node = root->n;
-      while ( num_points_per_node > m && root->l + depth < max_depth )
-      {
-        num_points_per_node = ( num_points_per_node + 1 ) / N_CHILDREN;
-        depth ++;
-      }
-      size_t num_nodes_in_local_tree = 
-        ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
-
-      /** TODO: remove lid in the future?? */
-      root->lids = root->gids;
-
-
-      /** push root into the treelist */
-      treequeue.push_back( root );
-
-      /** allocate children */
-      while ( auto *node = treequeue.front() )
-      {
-        /** assign local tree node id */
-        node->treelist_id = treelist.size();
-        /** account for the depth of the distributed tree */
-        if ( node->l < root->l + depth )
-        {
-          for ( int i = 0; i < N_CHILDREN; i ++ )
-          {
-            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
-            treequeue.push_back( node->kids[ i ] );
-          }
-        }
-        else
-        {
-          treequeue.push_back( NULL );
-        }
-        treelist.push_back( node );
-        treequeue.pop_front();
-      }
-
-      //printf( "local treelist.size() %lu\n", treelist.size() ); fflush( stdout );
-
-
-
-
-
-
-
-      /** */
-      SplitTask<NODE> splittask;
-      //TraverseDown<false, false>( splittask );
-      TraverseDown<false>( splittask );
-
-
-    }; /** end TreePartition() */
 
 
 
@@ -1082,125 +1029,56 @@ class Tree
       vector<size_t> &gids, vector<size_t> &lids
     )
     {
-      assert( N_CHILDREN == 2 );
-
       double beg, alloc_time, split_time, morton_time, permute_time;
-
-      std::deque<NODE*> treequeue;
 
       this->n = gids.size();
       this->m = setup.m;
       int max_depth = setup.max_depth;
 
-      beg = omp_get_wtime();
-
-      /** reset the warning flag and clean up the treelist */
+      /** Reset the warning flag and clean up the treelist */
       has_uneven_split = false;
-      treelist.clear();
-      treequeue.clear();
-      treelist.reserve( ( n / m ) * N_CHILDREN );
 
-      //auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
-  
-//      /** root */
-//      treequeue.push_back( new NODE( &setup, n, 0, gids, lids, NULL ) );
-//    
-//      // TODO: there is parallelism to be exploited here.
-//      while ( auto *node = treequeue.front() )
-//      {
-//        node->treelist_id = treelist.size();
-//        node->Split<false>( 0 );
-//        for ( int i = 0; i < N_CHILDREN; i ++ )
-//        {
-//          treequeue.push_back( node->kids[ i ] );
-//        }
-//        treelist.push_back( node );
-//        treequeue.pop_front();
-//      }
-
-
-
-
-      // Assume complete tree, compute the tree level first.
-      depth = 0;
-      size_t n_per_node = n;
-      while ( n_per_node > m && depth < max_depth )
-      {
-        n_per_node = ( n_per_node + 1 ) / N_CHILDREN;
-        depth ++;
-      }
-      size_t n_node = ( std::pow( (double)N_CHILDREN, depth + 1 ) - 1 ) / ( N_CHILDREN - 1 );
-      //printf( "n %lu m %lu n_per_node %lu depth %lu n_nodes %lu\n", 
-      //    n, m, n_per_node, depth, n_node );
-
-      auto *root = new NODE( &setup, n, 0, gids, lids, NULL );
-      treequeue.push_back( root );
-      while ( auto *node = treequeue.front() )
-      {
-        node->treelist_id = treelist.size();
-        if ( node->l < depth )
-        {
-          for ( int i = 0; i < N_CHILDREN; i ++ )
-          {
-            node->kids[ i ] = new NODE( &setup, node->n / N_CHILDREN, node->l + 1, node );
-            treequeue.push_back( node->kids[ i ] );
-          }
-        }
-        else
-        {
-          treequeue.push_back( NULL );
-        }
-        treelist.push_back( node );
-        treequeue.pop_front();
-      }
-
+      /** 
+       *  Allocate all tree nodes in advance.
+       */
+      beg = omp_get_wtime();
+      AllocateNodes( new NODE( &setup, n, 0, gids, lids, NULL, &morton2node ) );
       alloc_time = omp_get_wtime() - beg;
 
-
+      /**
+       *  Recursive spliting (topdown)
+       */
       beg = omp_get_wtime();
       SplitTask<NODE> splittask;
-      //TraverseDown<false, false>( splittask );
       TraverseDown<false>( splittask );
       split_time = omp_get_wtime() - beg;
 
 
-
-
-
-
-
-      /** all tree nodes were created. Now decide tree depth */
-      if ( treelist.size() )
-      {
-        treelist.shrink_to_fit();
-        depth = treelist.back()->l;
-        assert( treelist.size() == (2 << depth) - 1 );
-        //printf( "depth %lu number of tree nides %lu\n", depth, treelist.size() );
-      }
-
+      /**
+       *  Compute node and point morton id.
+       */ 
       beg = omp_get_wtime();
-      if ( N_CHILDREN == 2 )
-      {
-        setup.morton.resize( n );
-        Morton( treelist[ 0 ], 0 );
-        Offset( treelist[ 0 ], 0 );
-      }
-      else
-      {
-        printf( "No morton id available\n" );
-      }
+      setup.morton.resize( n );
+      Morton( treelist[ 0 ], 0 );
+      Offset( treelist[ 0 ], 0 );
       morton_time = omp_get_wtime() - beg;
 
+      /**
+       *  Construct morton2node map
+       */
+      morton2node.clear();
+      for ( size_t i = 0; i < treelist.size(); i ++ )
+      {
+        morton2node[ treelist[ i ]->morton ] = treelist[ i ];
+      }
 
-      /** adgust lids and gids to the appropriate order */
+
+      /** 
+       *  Adgust lids and gids to the appropriate order. 
+       */
       beg = omp_get_wtime();
       IndexPermuteTask<NODE> indexpermutetask;
-
       TraverseUp<false>( indexpermutetask );
-
-
-
-
       permute_time = omp_get_wtime() - beg;
 
       //printf( "alloc %5.3lfs split %5.3lfs morton %5.3lfs permute %5.3lfs\n", 
@@ -1215,7 +1093,8 @@ class Tree
     Data<pair<T, size_t>> AllNearestNeighbor
     (
       size_t n_tree,
-      size_t k, std::size_t max_depth,
+      size_t k, 
+      size_t max_depth,
       vector<size_t> &gids,
       vector<size_t> &lids,
       pair<T, size_t> initNN,
@@ -1263,9 +1142,9 @@ class Tree
         double knn_acc = 0.0;
         size_t num_acc = 0;
 
-        std::size_t n_nodes = 1 << depth;
+        size_t n_nodes = 1 << depth;
         auto level_beg = treelist.begin() + n_nodes - 1;
-        for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+        for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
           auto *node = *(level_beg + node_ind);
           knn_acc += node->data.knn_acc;
@@ -1364,7 +1243,7 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME, typename TASK, typename... Args>
+    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
     void TraverseLeafs( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
@@ -1398,7 +1277,7 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME, typename TASK, typename... Args>
+    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
     void TraverseUp( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
@@ -1449,7 +1328,7 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME, typename TASK, typename... Args>
+    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
     void TraverseDown( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
@@ -1498,7 +1377,7 @@ class Tree
      *  @brief For unordered traversal, we just call local
      *         downward traversal.
      */ 
-    template<bool USE_RUNTIME, typename TASK, typename... Args>
+    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
     void TraverseUnOrdered( TASK &dummy, Args&... args )
     {
       TraverseDown<USE_RUNTIME>( dummy, args... );

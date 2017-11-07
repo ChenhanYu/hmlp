@@ -97,7 +97,7 @@ void rank_k_macro_kernel
         &packA[ ip * k ],
         &packB[ jp * k ],
         //&packC[ j * ldc + i * NR ], ldc,
-        &packC[ j * ldc + i * NR ], MR,
+        &packC[ j * ldc + i * NR ], 1, MR,
         &aux
       );
     }                                                      // end 2nd loop

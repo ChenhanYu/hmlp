@@ -23,6 +23,14 @@ struct gsks_gaussian_int_s8x8
 
 struct gsks_gaussian_int_d8x4 
 {
+  const size_t mr         =  8;
+  const size_t nr         =  4;
+  const size_t pack_mr    =  8;
+  const size_t pack_nr    =  4;
+  const size_t align_size = 32;
+  const bool   row_major  = false;
+
+
   //inline void operator()
   //(
   //  kernel_s<double> *ker,

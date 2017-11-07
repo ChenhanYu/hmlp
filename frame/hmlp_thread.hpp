@@ -40,6 +40,10 @@
 #endif /** ifdef HMLP_HAVE_RUNTIME */
 
 
+
+using namespace std;
+
+
 namespace hmlp
 {
 
@@ -110,7 +114,14 @@ class thread_communicator
 
     void Create( int level, int num_threads, int *config );
 
+    //void Initialize( int )
+
+
     void Barrier();
+
+    void Send( void** buffer );
+
+    void Recv( void** buffer );
 
     void Print();
 
@@ -124,15 +135,20 @@ class thread_communicator
 
     std::string name;
 
+
+
+
+
+
 	private:
 
 	  void          *sent_object;
 
     int           comm_id;
 
-	  int           n_threads;
+	  int           n_threads = 1;
 
-    int           n_groups;
+    int           n_groups = 1;
 
 	  volatile bool barrier_sense;
 
@@ -175,7 +191,11 @@ class Worker
 //    pthread_t pthreadid;
 //#endif
 
-    int tid;
+    int tid = 0;
+
+    int gid = 0;
+
+    int child_gid = 0;
 
     int jc_id;
 
@@ -202,6 +222,57 @@ class Worker
     thread_communicator *pc_comm;
 
     thread_communicator *ic_comm;
+
+    bool Master();
+  
+    void Barrier();
+
+    void InitWithCommunicator( thread_communicator* comm, size_t tid, size_t gid );
+
+    Worker Split();
+
+    thread_communicator *comm = NULL;
+
+    template<typename Arg>
+    void Bcast( Arg& buffer )
+    {
+      if ( Master() ) comm->Send( (void**)&buffer );
+      Barrier();
+      if ( !Master() ) comm->Recv( (void**)&buffer );
+    }
+
+    template<int ALIGN_SIZE, typename T>
+    T *AllocateSharedMemory( size_t count )
+    {
+      T* ptr = NULL;
+      if ( Master() ) ptr = hmlp_malloc<ALIGN_SIZE, T>( count );
+      Bcast( ptr );
+      return ptr;
+    };
+
+    template<typename T>
+    void FreeSharedMemory( T *ptr )
+    {
+      if ( Master() ) hmlp_free( ptr );
+    };
+
+    size_t BalanceOver1DGangs( size_t n, size_t default_size, size_t nb );
+
+    tuple<size_t, size_t, size_t> DistributeOver1DGangs(
+      size_t beg, size_t end, size_t nb );
+
+    tuple<size_t, size_t, size_t> DistributeOver1DThreads(
+      size_t beg, size_t end, size_t nb );
+
+
+
+
+
+
+
+
+
+
 
 
 

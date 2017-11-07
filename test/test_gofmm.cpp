@@ -169,7 +169,7 @@ void test_gofmm
 
 
   /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
-  std::size_t ntest = 100;
+  size_t ntest = 100;
   T nnerr_avg = 0.0;
   T nonnerr_avg = 0.0;
   T fmmerr_avg = 0.0;

@@ -35,27 +35,31 @@ void gnbx
   double *C, int ldc
 )
 {
-  /** packA kernel */
-  hmlp::pack2D_pbxib<8, float, double> packakernel;
-  packakernel.trans = false;
-  packakernel.ldx = lda;
-
-  /** packB kernel */
-  hmlp::pack2D_pbxib<4, float, double> packbkernel;
-  packbkernel.trans = true;
-  packbkernel.ldx = ldb;
-
-
   /** microkernel */
   rank_k_asm_d8x4 semiringkernel;
   rank_k_asm_d8x4 microkernel;
 
+  const size_t PACK_MR = rank_k_asm_d8x4::pack_mr; 
+  const size_t PACK_NR = rank_k_asm_d8x4::pack_nr; 
+
+  /** packA kernel */
+  hmlp::pack2D_pbxib<PACK_MR, float, double> packakernel;
+  packakernel.trans = false;
+  packakernel.ldx = lda;
+
+  /** packB kernel */
+  hmlp::pack2D_pbxib<PACK_NR, float, double> packbkernel;
+  packbkernel.trans = true;
+  packbkernel.ldx = ldb;
+
+
+
   gnbx<
-    104, 4096, 256, 8, 4, 
-    104, 4096,      8, 4, 32,
+    104, 4096, 256, //8, 4, 
+    //104, 4096,      //8, 4, 32,
     false, true,
-    hmlp::pack2D_pbxib<8, float, double>,
-    hmlp::pack2D_pbxib<4, float, double>,
+    hmlp::pack2D_pbxib<PACK_MR, float, double>,
+    hmlp::pack2D_pbxib<PACK_NR, float, double>,
     rank_k_asm_d8x4, 
     rank_k_asm_d8x4,
     float, double, float, double, double, double>
