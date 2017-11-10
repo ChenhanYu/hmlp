@@ -9,6 +9,16 @@
 /** use self-define MPI */
 #warning MPI routines are disable (-HMLP_USE_MPI=false)
 
+
+
+
+
+
+
+
+
+
+
 /* For supported thread levels */
 #define MPI_THREAD_SINGLE 0
 #define MPI_THREAD_FUNNELED 1
@@ -467,9 +477,6 @@ int Alltoallv(
 #ifdef HMLP_MIC_AVX512
 /** use hbw::allocator for Intel Xeon Phi */
 template<class T, class Allocator = hbw::allocator<T> >
-#elif  HMLP_USE_CUDA
-/** use pinned (page-lock) memory for NVIDIA GPUs */
-template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
 /** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >
@@ -499,9 +506,6 @@ int SendVector(
 #ifdef HMLP_MIC_AVX512
 /** use hbw::allocator for Intel Xeon Phi */
 template<class T, class Allocator = hbw::allocator<T> >
-#elif  HMLP_USE_CUDA
-/** use pinned (page-lock) memory for NVIDIA GPUs */
-template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
 /** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >
@@ -530,9 +534,6 @@ int RecvVector(
 #ifdef HMLP_MIC_AVX512
 /** use hbw::allocator for Intel Xeon Phi */
 template<class T, class Allocator = hbw::allocator<T> >
-#elif  HMLP_USE_CUDA
-/** use pinned (page-lock) memory for NVIDIA GPUs */
-template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
 /** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >
@@ -566,9 +567,6 @@ int ExchangeVector(
 #ifdef HMLP_MIC_AVX512
 /** use hbw::allocator for Intel Xeon Phi */
 template<class T, class Allocator = hbw::allocator<T> >
-#elif  HMLP_USE_CUDA
-/** use pinned (page-lock) memory for NVIDIA GPUs */
-template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
 /** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >

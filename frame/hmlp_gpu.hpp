@@ -209,8 +209,10 @@ class Nvidia : public hmlp::Device
         memory_left -= size;
         if ( cudaMalloc( (void**)&ptr_d, size ) )
         {
+          printf( "cudaMalloc() error\n");
           exit( 1 );
         }
+        cudaMemset( ptr_d, 0, size );
       }
       else
       {

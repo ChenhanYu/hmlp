@@ -832,6 +832,38 @@ void Scheduler::DependencyAdd( Task *source, Task *target )
 }; /** end Scheduler::DependencyAdd() */
 
 
+Task *Scheduler::TryStealFromQueue( size_t target )
+{
+  Task *target_task = NULL;
+
+  /** get the lock of the target ready queue */
+  ready_queue_lock[ target ].Acquire();
+  {
+    if ( ready_queue[ target ].size() ) 
+    {
+      target_task = ready_queue[ target ].back();
+      if ( target_task ) 
+      {
+        if ( target_task->stealable )
+        {
+          ready_queue[ target ].pop_back();
+          time_remaining[ target ] -= target_task->cost;
+        }
+        else
+        {
+          target_task = NULL;
+        }
+      }
+    }
+  }
+  ready_queue_lock[ target ].Release();
+
+  return target_task;
+
+}; /** end Scheduler::TryDispatchFromQueue() */
+
+
+
 /**
  *  @brief  Try to dispatch a task from the nested queue. This routine
  *          is only invoked by the runtime while nested tasks were
@@ -1051,7 +1083,9 @@ void* Scheduler::EntryPoint( void* arg )
             scheduler->n_task ++;
           }
           scheduler->n_task_lock.Release();
-          /** move to the next task in te batch */
+          /** 
+           *  Move to the next task in te batch 
+           */
           task = task->next;
         }
       }
@@ -1081,30 +1115,24 @@ void* Scheduler::EntryPoint( void* arg )
         }
       }
 
-      /** try to steal from others */
+      /** 
+       *  Try to steal from others 
+       */
       if ( idle > 10 )
       {
         int max_remaining_task = 0;
         float max_remaining_time = 0.0;
         int target = -1;
 
-        /** only steal jobs within the numa node */
-        //int numa_grp = 2;
-        //if ( scheduler->n_worker > 31 ) numa_grp = 4;
-        //int numa_beg = ( me->tid / numa_grp ) * ( scheduler->n_worker / numa_grp );
-        //int numa_end = numa_beg + ( scheduler->n_worker / numa_grp );
-
-        //for ( int p = numa_beg; p < numa_end; p ++ )
-        /** TODO: do not steal job from 0 (with GPU) */
+        /** 
+         *  Decide which target to steal
+         */
         for ( int p = 0; p < scheduler->n_worker; p ++ )
         {
-          //printf( "worker %d try to steal from worker %d\n", me->tid, p );  
-          //if ( scheduler->time_remaining[ p ] > max_remaining_time )
-          //{
-          //  max_remaining_time = scheduler->time_remaining[ p ];
-          //  target = p;
-          //}
-
+          /**
+           *  Update the target if it has the maximum amount of 
+           *  remaining tasks. 
+           */ 
           if ( scheduler->ready_queue[ p ].size() > max_remaining_task )
           {
             max_remaining_task = scheduler->ready_queue[ p ].size();
@@ -1112,40 +1140,21 @@ void* Scheduler::EntryPoint( void* arg )
           }
         }
 
+
+        /**
+         *  If there is a target, and it is not myself
+         */ 
         if ( target >= 0 && target != me->tid )
         {
-          Task *target_task = NULL;
-
-          /** get the lock of the target ready queue */
-          scheduler->ready_queue_lock[ target ].Acquire();
-          {
-            if ( scheduler->ready_queue[ target ].size() ) 
-            {
-              target_task = scheduler->ready_queue[ target ].back();
-              if ( target_task ) 
-              {
-                scheduler->ready_queue[ target ].pop_back();
-                scheduler->time_remaining[ target ] -= target_task->cost;
-              }
-            }
-          }
-          scheduler->ready_queue_lock[ target ].Release();
+          Task *target_task = scheduler->TryStealFromQueue( target );
 
           /** if successfully steal a job */
           if ( target_task )
           {
-            //scheduler->ready_queue_lock[ me->tid ].Acquire();
-            //{
-            //  scheduler->ready_queue[ me->tid ].push_back( target_task );
-            //  scheduler->time_remaining[ me->tid ] += target_task->cost;
-            //}
-            //scheduler->ready_queue_lock[ me->tid ].Release();
-
             if ( target_task->GetStatus() != QUEUED )
             {
               printf( "bug in stolen job\n" ); exit( 1 );
             }
-
 
             idle = 0;
             target_task->SetStatus( RUNNING );

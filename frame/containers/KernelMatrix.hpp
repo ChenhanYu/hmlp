@@ -41,6 +41,9 @@ namespace hmlp
 
 #ifdef HMLP_MIC_AVX512
 template<typename T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
 template<typename T, class Allocator = std::allocator<T> >
 #endif
@@ -361,10 +364,10 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
     template<typename TINDEX>
     void Multiply( 
         size_t nrhs,
-        std::vector<T> &u, std::vector<TINDEX> &umap, 
-                           std::vector<TINDEX> &amap,
-                           std::vector<TINDEX> &bmap,
-        std::vector<T> &w, std::vector<TINDEX> &wmap )
+        std::vector<T, Allocator> &u, std::vector<TINDEX> &umap, 
+                                      std::vector<TINDEX> &amap,
+                                      std::vector<TINDEX> &bmap,
+        std::vector<T, Allocator> &w, std::vector<TINDEX> &wmap )
     {
       if ( nrhs == 1 )
       {
@@ -385,17 +388,17 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
     template<typename TINDEX>
     void Multiply( 
         size_t nrhs,
-        std::vector<T> &u,
+        std::vector<T, Allocator> &u,
                            std::vector<TINDEX> &amap,
                            std::vector<TINDEX> &bmap,
-        std::vector<T> &w )
+        std::vector<T, Allocator> &w )
     {
       Multiply( nrhs, u, amap, amap, bmap, w, bmap );
     };
 
 
     /** u += K * w */
-    void Multiply( size_t nrhs, std::vector<T> &u, std::vector<T> &w )
+    void Multiply( size_t nrhs, std::vector<T, Allocator> &u, std::vector<T, Allocator> &w )
     {
       std::vector<int> amap( this->row() );
       std::vector<int> bmap( this->col() );
@@ -404,7 +407,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
       Multiply( nrhs, u, amap, bmap, w );
     };
 
-    void Multiply( hmlp::Data<T> &u, hmlp::Data<T> &w )
+    void Multiply( hmlp::Data<T, Allocator> &u, hmlp::Data<T, Allocator> &w )
     {
       assert( u.row() == this->row() );
       assert( w.row() == this->col() );

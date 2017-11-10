@@ -44,7 +44,16 @@
 using namespace hmlp;
 
 
-template<typename T>
+#ifdef HMLP_MIC_AVX512
+/** use hbw::allocator for Intel Xeon Phi */
+template<class T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
+#else
+/** use default stl allocator */
+template<class T, class Allocator = std::allocator<T> >
+#endif
 void test_cluster( int d, int n, int ncluster, int niter, T tol, 
     std::string &user_points_filename, 
     std::string &user_labels_filename, int nclass )
@@ -105,7 +114,7 @@ void test_cluster( int d, int n, int ncluster, int niter, T tol,
   }
 
   /** cluster assignments */
-  std::vector<int> assignments( n );
+  std::vector<int, Allocator> assignments( n );
 
   /** initialize assignment (Round Robin) */
   for ( size_t i = 0; i < n; i ++ ) 

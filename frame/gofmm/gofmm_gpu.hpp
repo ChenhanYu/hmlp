@@ -28,6 +28,9 @@
 
 #define DEBUG_SPDASKIT_GPU 1
 
+using namespace std;
+
+
 namespace hmlp
 {
 namespace gofmm
@@ -35,10 +38,16 @@ namespace gofmm
 namespace gpu
 {
 
-void assemble
-( cudaStream_t stream, int m, int n, const double *a, const size_t *amap, double *A );
-void assemble
-( cudaStream_t stream, int m, int n, const float *a, const size_t *amap, float *A );
+void assemble( 
+    cudaStream_t stream, int m, int n, 
+    const double *a, 
+    const size_t *amap, 
+          double *A, int lda );
+void assemble( 
+    cudaStream_t stream, int m, int n, 
+    const  float *a, 
+    const size_t *amap, 
+           float *A, int lda );
 
 
 
@@ -65,13 +74,19 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   auto &skels = data.skels;
   auto &w_skel = data.w_skel;
   auto &w_leaf = data.w_leaf;
-  auto *lchild = node->lchild;
-  auto *rchild = node->rchild;
+  //auto *lchild = node->lchild;
+  //auto *rchild = node->rchild;
 
-  /** s-by-nrhs, TODO: need a way to only allocate GPU memory */
+
+  size_t s    = data.skels.size();
+  size_t nrhs = w.col();
+
+  /** 
+   *  s-by-nrhs, overwritten by GEMM
+   *  TODO: need a way to only allocate GPU memory 
+   */
   w_skel.resize( 0, 0 );
-  w_skel.resize( skels.size(), w.row() );
-  //printf( "-->w_skel\n" );
+  w_skel.resize( s, nrhs );
   w_skel.CacheD( dev );
 
 
@@ -89,7 +104,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   {
     /** need a memcpy */
     auto k = w_leaf.row();
-    flops = 2.0 * m * n * k;
+    flops = 2.0 * m * nrhs * k;
     //printf( "-->w_leaf\n" );
     w_leaf.FetchH2D( dev );
     assert( w_leaf.device_data( dev ) );
@@ -99,7 +114,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
     (
       reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
       CUBLAS_OP_N, CUBLAS_OP_N,
-      m, n, k,
+      m, nrhs, k,
       1.0, proj.device_data( dev ),     proj.row(),
            w_leaf.device_data( dev ), w_leaf.row(),
       0.0, w_skel.device_data( dev ), w_skel.row()
@@ -108,14 +123,16 @@ void UpdateWeights( DEVICE *dev, NODE *node )
 
     double gemm_time = omp_get_wtime() - beg;
     printf( "n2s cublas m %lu n %lu k %lu, %5.2lf (%5.2lf GFLOPS)\n", 
-        m, n, k,
+        m, nrhs, k,
         gemm_time, flops / ( gemm_time * 1E+9 ) ); fflush( stdout );
   }
   else
   {
+    auto *lchild = node->lchild;
+    auto *rchild = node->rchild;
     auto &w_lskel = lchild->data.w_skel;
     auto &w_rskel = rchild->data.w_skel;
-    flops = 2.0 * m * n * ( w_lskel.row() + w_rskel.row() );
+    flops = 2.0 * m * nrhs * ( w_lskel.row() + w_rskel.row() );
 
     //printf( "-->w_lskel\n" );
     w_lskel.FetchH2D( dev );
@@ -129,7 +146,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
     (
       reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
       CUBLAS_OP_N, CUBLAS_OP_N,
-      m, n, w_lskel.row(),
+      m, nrhs, w_lskel.row(),
       1.0, proj.device_data( dev ),       proj.row(),
            w_lskel.device_data( dev ), w_lskel.row(),
       0.0, w_skel.device_data( dev ),   w_skel.row()
@@ -139,7 +156,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
     (
       reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 ),
       CUBLAS_OP_N, CUBLAS_OP_N,
-      m, n, w_rskel.row(),
+      m, nrhs, w_rskel.row(),
       1.0, proj.device_data( dev ) + m * w_lskel.row(),    proj.row(),
            w_rskel.device_data( dev ),                  w_rskel.row(),
       1.0, w_skel.device_data( dev ),                    w_skel.row()
@@ -148,7 +165,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
 
     double gemm_time = omp_get_wtime() - beg;
     printf( "n2s cublas m %lu n %lu k %lu, %5.2lf (%5.2lf GFLOPS)\n", 
-        m, n, w_lskel.row() + w_rskel.row(),
+        m, nrhs, w_lskel.row() + w_rskel.row(),
         gemm_time, flops / ( gemm_time * 1E+9 ) ); fflush( stdout );
   }
 
@@ -185,6 +202,12 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
+
+  size_t s    = data.skels.size();
+  size_t nrhs = w.col();
+
+
+
   if ( node->isleaf )
   {
     std::set<NODE*> *NearNodes;
@@ -193,19 +216,16 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
     auto &amap = node->lids;
     auto &u_leaf = node->data.u_leaf[ 0 ];
 
-    u_leaf.resize( lids.size(), w.row() );
+    u_leaf.resize( lids.size(), nrhs );
 
-    assert( u_leaf.size() == w.row() * lids.size() );
 
     /** accumulate far interactions */
     if ( data.isskel )
     {
       proj.CacheD( dev );
-      //proj.FetchH2D( dev );
       proj.PrefetchH2D( dev, stream_id );
 
       u_skel.CacheD( dev );
-      //u_skel.FetchH2D( dev );
       u_skel.PrefetchH2D( dev, stream_id );
 
       u_leaf.CacheD( dev );
@@ -222,7 +242,7 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
       (
         reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( stream_id ),
         CUBLAS_OP_T, CUBLAS_OP_N,
-        m, n, k,
+        m, nrhs, k,
         1.0,   proj.device_data( dev ),   proj.row(),
              u_skel.device_data( dev ), u_skel.row(),
         0.0, u_leaf.device_data( dev ), u_leaf.row()
@@ -230,7 +250,7 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
       //dev->wait( 0 );
       double gemm_time = omp_get_wtime() - beg;
       printf( "s2n cublas m %lu n %lu k %lu, %5.2lf (%5.2lf GFLOPS)\n", 
-          m, n, k,
+          m, nrhs, k,
           gemm_time, flops / ( gemm_time * 1E+9 ) ); fflush( stdout );
 
       u_leaf.Redistribute<true>( dev );
@@ -331,16 +351,15 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
 
   auto &lids = node->lids;
   auto &data = node->data;
-  auto &amap = node->lids;
   auto &Nearbmap = data.Nearbmap;
-  auto &NearKab = data.NearKab;
-  auto &w_leaf = data.w_leaf;
+  auto &NearKab  = data.NearKab;
+  auto &w_leaf   = data.w_leaf;
 
 
   /** if NearKab has not yet been computed */
   if ( NearKab.size() != lids.size() * Nearbmap.size() )
   {
-    std::vector<size_t> bmap( Nearbmap.size() );
+    vector<size_t> bmap( Nearbmap.size() );
     for ( size_t i = 0; i < bmap.size(); i ++ )
       bmap[ i ] = Nearbmap[ i ];
     assert( !CACHE );
@@ -351,57 +370,62 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
 
   if ( dev )
   {
-    size_t m = w_leaf.col();
-    size_t n = NearKab.col();
-    size_t k = NearKab.row();
-    flops += 2.0 * m * n * k;
+    size_t m    = NearKab.col();
+    size_t k    = w_leaf.row();
+    size_t nrhs = w_leaf.col();
+
+    flops += 2.0 * m * nrhs * k;
 
     w_leaf.FetchH2D( dev );
     NearKab.FetchH2D( dev );
     Nearbmap.FetchH2D( dev );
 
     //printf( "prepare cublas gemm\n" ); fflush( stdout );
-    assert( m * n * sizeof(T) < 1200000000 );
+    assert( m * nrhs * sizeof(T) < 1200000000 );
 
     cublasHandle_t &handle = 
       reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( stream_id );
-    T *A = w_leaf.device_data( dev );
-    T *B = NearKab.device_data( dev );
+    T *A = NearKab.device_data( dev );
+    T *B = w_leaf.device_data( dev );
     T *C = (T*)reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->workspace();
 
     //dev->wait( stream_id );
 
     beg = omp_get_wtime();
-    /** w_leaf' * Kab  */
+    /** 
+     *  Kab' * w_leaf
+     */
     hmlp::xgemm
     (
       handle,
       CUBLAS_OP_T, CUBLAS_OP_N,
-      m, n, k,
-      1.0, A, w_leaf.row(),  
-           B, NearKab.row(),
+      m, nrhs, k,
+      1.0, A, NearKab.row(),  
+           B, w_leaf.row(),
       0.0, C, m
     );
 
     dev->wait( stream_id );
     gemm_time = omp_get_wtime() - beg;
 
-    //printf( "assemble\n" );
+    /**
+     *  u( Nearbmap, : ) = C( :, : )
+     */ 
     assemble
     ( 
       reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->getstream( stream_id ),
-      m, n,
+      m, nrhs,
       C,
       Nearbmap.device_data( dev ),
-      u.device_data( dev )
+      u.device_data( dev ), u.row()
     );
   
     /** make sure that cublas is fully stopped */
     dev->wait( stream_id );
 
     total_time = omp_get_wtime() - beg;
-    printf( "l2l cublas m %lu n %lu k %lu, %5.3lf (%5.2lf GFLOPS) total %5.3lf\n", 
-      m, n, k, 
+    printf( "l2l cublas m %lu n %lu k %lu ldu %lu, %5.3lf (%5.2lf GFLOPS) total %5.3lf\n", 
+      m, nrhs, k, u.row(),  
       gemm_time, flops / ( gemm_time * 1E+9 ), total_time );
 
     /** now only this device has the latest copy */
@@ -415,7 +439,7 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
   }
   else
   {
-    //printf( "cpu gemm begin\n" ); fflush( stdout );
+    printf( "cpu gemm begin\n" ); fflush( stdout );
     std::set<NODE*> *NearNodes;
     if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
     else           NearNodes = &node->NearNodes;
@@ -427,7 +451,8 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
     assert( NearKab.size() );
     assert( k == w_leaf.row() );
 
-    for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
+    for ( auto it  = NearNodes->begin(); 
+               it != NearNodes->end(); it ++ )
     {
       assert( omp_get_thread_num() > 0 && omp_get_thread_num() < 20 );
       auto &u_leaf = (*it)->data.u_leaf[ omp_get_thread_num() ];
@@ -458,7 +483,7 @@ void LeavesToLeaves( DEVICE *dev, NODE *node )
       );
       offset += m;
     }
-    //printf( "cpu gemm finishd\n" ); fflush( stdout );
+    printf( "cpu gemm finishd\n" ); fflush( stdout );
   }
 
   /** free Kab if not cached */
@@ -504,7 +529,7 @@ class LeavesToLeavesVer2Task : public hmlp::Task
 
       if ( !CACHE )
       {
-        std::vector<size_t> bmap;
+        vector<size_t> bmap;
         for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
         {
           bmap.insert( bmap.end(), (*it)->lids.begin(), (*it)->lids.end() );
@@ -531,6 +556,9 @@ class LeavesToLeavesVer2Task : public hmlp::Task
 
       /** high priority */
       priority = false;
+
+      /** Cannot be stolen */
+      this->stealable = false;
     };
 
     void Prefetch( Worker* user_worker )

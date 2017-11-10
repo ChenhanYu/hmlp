@@ -13,6 +13,63 @@ BLIS_GEMM_KERNEL(bli_sgemm_asm_8x8,float);
 BLIS_GEMM_KERNEL(bli_dgemm_asm_8x4,double);
 
 
+struct rank_k_asm_s8x8
+{
+  const static size_t mr         =  8;
+  const static size_t nr         =  8;
+  const static size_t pack_mr    =  8;
+  const static size_t pack_nr    =  8;
+  const static size_t align_size = 32;
+  const static bool   row_major  = false;
+
+
+  /** defined in hmlp_internal.hpp */
+  inline STRA_OPERATOR(float) const
+  {
+    printf( "no implementation\n" );
+    exit( 1 );
+  };
+
+  inline GEMM_OPERATOR(float) const
+  {
+    float alpha = 1.0;
+    /** if this is the first kc iteration then beta = 1.0 */
+    float beta = aux->pc ? 1.0 : 0.0;
+    /** invoke blis kernel */
+    bli_sgemm_asm_8x8
+    (
+      k,
+      &alpha,
+      a,
+      b,
+      &beta,
+      c, rs_c, cs_c,
+      aux
+    );
+  }; /** end inline void operator() */
+
+  template<typename TC>
+  inline void operator()                                                
+  (                                                              
+    dim_t k,                                                     
+    float *a,                                                    
+    float *b,                                                    
+    TC     *c,                                                    
+    float *v, inc_t rs_v, inc_t cs_v,                            
+    aux_s<float, float, TC, float> *aux                       
+  )
+  {
+    printf( "no implementation\n" );
+    exit( 1 );
+  };
+
+}; /**end struct rank_k_asm_s8x8 */
+
+
+
+
+
+
 struct rank_k_asm_d8x4
 {
   const static size_t mr         =  8;
@@ -448,5 +505,20 @@ struct rank_k_asm_d8x4
       aux
     );
   }; /** end inline void operator() */
+
+  template<typename TC>
+  inline void operator()                                                
+  (                                                              
+    dim_t k,                                                     
+    double *a,                                                    
+    double *b,                                                    
+    TC     *c,                                                    
+    double *v, inc_t rs_v, inc_t cs_v,                            
+    aux_s<double, double, TC, double> *aux                       
+  )
+  {
+    printf( "no implementation\n" );
+    exit( 1 );
+  };
 
 }; /**end struct rank_k_asm_d8x4 */

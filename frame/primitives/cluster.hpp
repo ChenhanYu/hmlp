@@ -105,7 +105,7 @@ class Cluster
   public:
 
     Cluster( size_t d, size_t n, size_t ncluster, 
-        hmlp::Data<T> *X, std::vector<int> *assignments ) 
+        hmlp::Data<T> *X, std::vector<int, Allocator> *assignments ) 
     {
       this->d = d;
       this->n = n;
@@ -129,7 +129,7 @@ class Cluster
       };
     };
 
-    void ProvideLabels( size_t nclass, std::vector<int> *labels )
+    void ProvideLabels( size_t nclass, std::vector<int, Allocator> *labels )
     {
       this->nclass = nclass;
       this->labels = labels;
@@ -394,7 +394,7 @@ class Cluster
 
       /** get the weights i.e. Degree = K * ones */
       K.ComputeDegree();
-      std::vector<T> &Degree = K.GetDegree();
+      std::vector<T, Allocator> &Degree = K.GetDegree();
 
       /** cluster permutation  */
       std::vector<std::vector<int>> bmap( ncluster );
@@ -415,7 +415,7 @@ class Cluster
         hmlp::Data<T> distance2centroids( n, 1, std::numeric_limits<T>::max() );
 
         /** centroids */
-        std::vector<T> centroids( n, 0.0 );
+        std::vector<T, Allocator> centroids( n, 0.0 );
 
         /** bmap permutes K into the current cluster order */
         auto cluster_sizes = ClusterPermutation( amap, bmap );
@@ -829,9 +829,9 @@ class Cluster
 
     hmlp::Data<T> X2;
 
-    std::vector<int> *assignments = NULL;
+    std::vector<int, Allocator> *assignments = NULL;
 
-    std::vector<int> *labels = NULL;
+    std::vector<int, Allocator> *labels = NULL;
 
     /** (ncluter+1)-by-(nclass+1) */
     hmlp::Data<T> Confusion;

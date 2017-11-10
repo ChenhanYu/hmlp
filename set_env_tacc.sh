@@ -104,7 +104,7 @@ export HMLP_USE_MPI=true
 
 ## GPU compiler options (if true, compile the gpu library as well).
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it).
-export HMLP_USE_CUDA=false
+export HMLP_USE_CUDA=true
 export HMLP_CUDA_DIR=$TACC_CUDA_DIR
 
 ## MAGMA (GPU LAPACK support)

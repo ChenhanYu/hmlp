@@ -242,17 +242,28 @@ class Task
     /* dependency */
     void DependenciesUpdate();
 
+    /**
+     *  Read/write sets for dependency analysis
+     */ 
     std::deque<Task*> in;
-
     std::deque<Task*> out;
 
     /** task lock */
     Lock task_lock;
 
-    /** the next task in the batch job */
+    /** 
+     *  The next task in the batch job 
+     */
     Task *next = NULL;
 
-    /** if true, then this is an MPI task */
+    /**
+     *  If true, this task can be stolen
+     */ 
+    bool stealable = true;
+
+    /** 
+     *  If true, then this is an MPI task 
+     */
     bool has_mpi_routines = false;
 
   private:
@@ -453,6 +464,10 @@ class Scheduler
     static void DependencyAdd( Task *source, Task *target );
 
     void NewTask( Task *task );
+
+    Task *TryDispatchFromQueue( size_t target );
+
+    Task *TryStealFromQueue( size_t target );
 
     Task *TryDispatchFromNestedQueue();
 

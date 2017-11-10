@@ -39,6 +39,9 @@ namespace hmlp
 
 #ifdef HMLP_MIC_AVX512
 template<typename T, class Allocator = hbw::allocator<T> >
+#elif  HMLP_USE_CUDA
+/** use pinned (page-lock) memory for NVIDIA GPUs */
+template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
 #else
 template<typename T, class Allocator = std::allocator<T> >
 #endif

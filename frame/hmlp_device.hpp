@@ -305,7 +305,11 @@ class DeviceMemory
       dev->wait( stream_id );
     };
 
-    /** */
+    /** 
+     *  Redistribute() changes the data distribution by adding 
+     *  an new device to the distribution or flushing the
+     *  distribution if we force to OVERWRITE the distribution.
+     */
     template<bool OVERWRITE>
     void Redistribute( hmlp::Device *dev )
     {

@@ -25,14 +25,15 @@
 /** Sandy-bridge micro-kernels */
 #include <rank_k_d8x4.hpp>
 
-using namespace hmlp::gnbx;
+using namespace hmlp;
+
 
 void gnbx
 (
 	int m, int n, int k,
 	float  *A, int lda,
   float  *B, int ldb,
-  double *C, int ldc
+  float  *C, int ldc
 )
 {
   /** microkernel */
@@ -41,35 +42,90 @@ void gnbx
 
   const size_t PACK_MR = rank_k_asm_d8x4::pack_mr; 
   const size_t PACK_NR = rank_k_asm_d8x4::pack_nr; 
+  const size_t MC = 104;
+  const size_t NC = 4096;
+  const size_t KC = 256;
 
-  /** packA kernel */
-  hmlp::pack2D_pbxib<PACK_MR, float, double> packakernel;
-  packakernel.trans = false;
-  packakernel.ldx = lda;
+  /** ObjA */
+  MatrixLike<PACK_MR, float, double> ObjA;
+  ObjA.Set( A, m, k, 1, lda, false );
 
-  /** packB kernel */
-  hmlp::pack2D_pbxib<PACK_NR, float, double> packbkernel;
-  packbkernel.trans = true;
-  packbkernel.ldx = ldb;
+  /** ObjB */
+  MatrixLike<PACK_NR, float, double> ObjB;
+  ObjB.Set( B, k, n, 1, ldb, true );
 
+  /** ObjC */
+  //MatrixLike<PACK_MR, double, double> ObjC;
+  MatrixLike<PACK_MR, float, double> ObjC;
+  ObjC.Set( C, m, n, 1, ldc, false );
 
-
-  gnbx<
-    104, 4096, 256, //8, 4, 
-    //104, 4096,      //8, 4, 32,
-    false, true,
-    hmlp::pack2D_pbxib<PACK_MR, float, double>,
-    hmlp::pack2D_pbxib<PACK_NR, float, double>,
-    rank_k_asm_d8x4, 
-    rank_k_asm_d8x4,
-    float, double, float, double, double, double>
+  /** General N-body operator (these 6 types are essential) */
+  gnbx::gnbx<MC, NC, KC, double, double, double>
   (
-    m, n, k,
-    A, packakernel,
-    B, packbkernel,
-    C, ldc,
-    0, // batchId
+    0, m, n, k,
+    ObjA, 
+    ObjB, 
+    ObjC,
     semiringkernel,
     microkernel
   );
-};
+
+}; /** end gnbx() */
+
+
+
+void gnbx
+(
+	int m, int n, int k,
+	double *A, int lda,
+  double *B, int ldb,
+  double *C, int ldc
+)
+{
+  /** microkernel */
+  rank_k_asm_s8x8 semiringkernel;
+  rank_k_asm_s8x8 microkernel;
+
+  const size_t PACK_MR = rank_k_asm_s8x8::pack_mr; 
+  const size_t PACK_NR = rank_k_asm_s8x8::pack_nr; 
+  const size_t MC = 128;
+  const size_t NC = 4096;
+  const size_t KC = 384;
+
+  /** ObjA, stored in double, computed in float */
+  MatrixLike<PACK_MR, double, float> ObjA;
+  ObjA.Set( A, m, k, 1, lda, false );
+
+  /** ObjB, stored in double, computed in float */
+  MatrixLike<PACK_NR, double, float> ObjB;
+  ObjB.Set( B, k, n, 1, ldb, true );
+
+  /** ObjC, stored in double, computed in float */
+  MatrixLike<PACK_MR, double, float> ObjC;
+  ObjC.Set( C, m, n, 1, ldc, false );
+
+  /** General N-body operator (these 6 types are essential) */
+  gnbx::gnbx<MC, NC, KC, float, float, float>
+  (
+    0, m, n, k,
+    ObjA, 
+    ObjB, 
+    ObjC,
+    semiringkernel,
+    microkernel
+  );
+
+}; /** end gnbx() */
+
+
+
+
+
+
+
+
+
+
+
+
+

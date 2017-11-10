@@ -2945,7 +2945,7 @@ class UpdateWeightsTask : public hmlp::Task
       hmlp::Device *device = NULL;
       if ( user_worker ) device = user_worker->GetDevice();
       if ( device ) gpu::UpdateWeights( device, arg );
-      else               UpdateWeights( arg );
+      else               UpdateWeights<NODE, T>( arg );
 #else
       UpdateWeights<NODE, T>( arg );
 #endif
@@ -3410,7 +3410,7 @@ class SkeletonsToNodesTask : public Task
       if ( device ) gpu::SkeletonsToNodes<NNPRUNE, NODE, T>( device, arg );
       else               SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
 #else
-      SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
+    SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
 #endif
     };
 
@@ -5068,9 +5068,6 @@ hmlp::Data<T> Evaluate
         w_leaf( i, j ) = weights( gids[ i ], j ); 
       }
     };
-
-
-
   }
   forward_permute_time = omp_get_wtime() - beg;
 
@@ -5168,15 +5165,20 @@ hmlp::Data<T> Evaluate
     tree.template TraverseDown     <USE_RUNTIME>( skeltonodetask );
     hmlp_run();
 
+
+    double d2h_beg_t = omp_get_wtime();
 #ifdef HMLP_USE_CUDA
-      hmlp::Device *device = hmlp_get_device( 0 );
-      for ( int stream_id = 0; stream_id < 10; stream_id ++ )
-        device->wait( stream_id );
-      //potentials.PrefetchD2H( device, 0 );
-      potentials.FetchD2H( device );
+    hmlp::Device *device = hmlp_get_device( 0 );
+    for ( int stream_id = 0; stream_id < 10; stream_id ++ )
+      device->wait( stream_id );
+    //potentials.PrefetchD2H( device, 0 );
+    potentials.FetchD2H( device );
 #endif
+    double d2h_t = omp_get_wtime() - d2h_beg_t;
+    printf( "d2h_t %lfs\n", d2h_t );
 
 
+    double aggregate_beg_t = omp_get_wtime();
     /** reduce direct iteractions from 4 copies */
     #pragma omp parallel for
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -5190,9 +5192,10 @@ hmlp::Data<T> Evaluate
           u_leaf[ i ] += node->data.u_leaf[ p ][ i ];
       }
     }
+    double aggregate_t = omp_get_wtime() - aggregate_beg_t;
+    printf( "aggregate_t %lfs\n", d2h_t );
  
 #ifdef HMLP_USE_CUDA
-    hmlp::Device *device = hmlp_get_device( 0 );
     device->wait( 0 );
 #endif
     computeall_time = omp_get_wtime() - beg;
@@ -5461,7 +5464,7 @@ tree::Tree<
   //tree.template TraverseUp<true>( SKELtask );
   gofmm::GetSkeletonMatrixTask<NODE, T> GETMTXtask;
   gofmm::SkeletonizeTask2<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
-  tree.template TraverseUp( GETMTXtask, SKELtask );
+  tree.TraverseUp( GETMTXtask, SKELtask );
   gofmm::InterpolateTask<NODE, T> PROJtask;
   tree.template TraverseUnOrdered<true>( PROJtask );
   if ( CACHE )
