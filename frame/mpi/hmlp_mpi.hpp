@@ -248,6 +248,14 @@ int Scan( void *sendbuf, void *recvbuf, int count,
 int Allreduce( void* sendbuf, void* recvbuf, int count,
     Datatype datatype, Op op, Comm comm );
 
+int Allgather(
+    void *sendbuf, int sendcount, Datatype sendtype, 
+    void *recvbuf, int recvcount, Datatype recvtype, Comm comm );
+
+int Allgatherv( 
+    void *sendbuf, int sendcount, Datatype sendtype,
+    void *recvbuf, int *recvcounts, int *displs, Datatype recvtype, Comm comm );
+
 int Alltoall( 
     void *sendbuf, int sendcount, Datatype sendtype,
     void *recvbuf, int recvcount, Datatype recvtype, Comm comm );
@@ -442,6 +450,32 @@ int Allreduce( T* sendbuf, T* recvbuf, int count, Op op, Comm comm )
   Datatype datatype = GetMPIDatatype<T>();
   return Allreduce( sendbuf, recvbuf, count, datatype, op, comm );
 }; /** end Allreduce() */
+
+
+template<typename TSEND, typename TRECV>
+int Allgather(
+    TSEND *sendbuf, int sendcount, 
+    TRECV *recvbuf, int recvcount, Comm comm )
+{
+  Datatype sendtype = GetMPIDatatype<TSEND>();
+  Datatype recvtype = GetMPIDatatype<TRECV>();
+  return Allgather( 
+      sendbuf, sendcount, sendtype,
+      recvbuf, recvcount, recvtype, comm );
+}; /** end Allgather() */
+
+
+template<typename TSEND, typename TRECV>
+int Allgatherv( 
+    TSEND *sendbuf, int sendcount,
+    TRECV *recvbuf, int *recvcounts, int *displs, Comm comm )
+{
+  Datatype sendtype = GetMPIDatatype<TSEND>();
+  Datatype recvtype = GetMPIDatatype<TRECV>();
+  return Allgatherv( 
+      sendbuf, sendcount, sendtype,
+      recvbuf, recvcounts, displs, recvtype, comm );
+}; /** end Allgatherv() */
 
 
 template<typename TSEND, typename TRECV>

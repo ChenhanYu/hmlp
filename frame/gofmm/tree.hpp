@@ -496,7 +496,7 @@ class Node : public ReadWrite
   public:
 
     Node( SETUP* setup, size_t n, size_t l, 
-        Node *parent, map<size_t, Node*> *morton2node )
+        Node *parent, map<size_t, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
       this->n = n;
@@ -510,11 +510,12 @@ class Node : public ReadWrite
       this->lchild = NULL;
       this->rchild = NULL;
       this->morton2node = morton2node;
+      this->treelock = treelock;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
     Node( SETUP *setup, int n, int l, vector<size_t> gids, vector<size_t> lids,
-      Node *parent, map<size_t, Node*> *morton2node )
+      Node *parent, map<size_t, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
       this->n = n;
@@ -528,6 +529,7 @@ class Node : public ReadWrite
       this->lchild = NULL;
       this->rchild = NULL;
       this->morton2node = morton2node;
+      this->treelock = treelock;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
@@ -721,6 +723,11 @@ class Node : public ReadWrite
     set<size_t> NNNearNodeMortonIDs;
 
     /**
+     *  Lock for exclusively modifying or accessing the tree.
+     */ 
+    Lock *treelock = NULL;
+
+    /**
      *  All points to other tree nodes.
      */ 
     Node *kids[ N_CHILDREN ];
@@ -840,6 +847,15 @@ class Tree
     /** depth of local tree */
     size_t depth;
 
+
+    /**
+     *  Mutex for getting exclusive right to modify treelist and morton2node.
+     */ 
+    Lock lock;
+
+    /**
+     *  Local tree nodes (complete binary tree) in the top-down order.
+     */ 
     vector<NODE*> treelist;
 
     /** 
@@ -998,7 +1014,7 @@ class Tree
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node, &morton2node );
+            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node, &morton2node, &lock );
             treequeue.push_back( node->kids[ i ] );
           }
 					node->lchild = node->kids[ 0 ];
@@ -1042,7 +1058,7 @@ class Tree
        *  Allocate all tree nodes in advance.
        */
       beg = omp_get_wtime();
-      AllocateNodes( new NODE( &setup, n, 0, gids, lids, NULL, &morton2node ) );
+      AllocateNodes( new NODE( &setup, n, 0, gids, lids, NULL, &morton2node, &lock ) );
       alloc_time = omp_get_wtime() - beg;
 
       /**
@@ -1064,7 +1080,7 @@ class Tree
       morton_time = omp_get_wtime() - beg;
 
       /**
-       *  Construct morton2node map
+       *  Construct morton2node map for local tree
        */
       morton2node.clear();
       for ( size_t i = 0; i < treelist.size(); i ++ )

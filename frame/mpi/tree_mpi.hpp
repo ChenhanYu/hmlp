@@ -33,6 +33,7 @@
 
 #include <gofmm/tree.hpp>
 
+using namespace std;
 using namespace hmlp;
 
 
@@ -57,7 +58,7 @@ template<int N_SPLIT, typename T>
 struct centersplit
 {
   // closure
-  hmlp::Data<T> *Coordinate;
+  Data<T> *Coordinate;
 
   inline std::vector<std::vector<std::size_t> > operator()
   ( 
@@ -569,13 +570,23 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 {
   public:
 
-    /** inherit all parameters from hmlp::tree::Node */
+    /** 
+     *  Inherit all parameters from tree::Node 
+     */
 
 
-    /** constructor for inner node (gids and n unassigned) */
-    Node( SETUP *setup, size_t n, size_t l, Node *parent, mpi::Comm comm ) 
-    /** inherits from */
-      : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, parent, NULL ) 
+    /** 
+     *  Constructor for inner node (gids and n unassigned) 
+     */
+    Node( SETUP *setup, size_t n, size_t l, 
+        Node *parent,
+        map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
+        Lock *treelock, mpi::Comm comm ) 
+    /** 
+     *  Inherits the constructor from tree::Node
+     */
+      : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, 
+          parent, morton2node, treelock ) 
     {
       /** local communicator */
       this->comm = comm;
@@ -587,12 +598,22 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
 
-    /** constructor for root */
-    Node( SETUP *setup, size_t n, size_t l, std::vector<size_t> &gids, Node *parent, mpi::Comm comm ) 
-    /** inherits from */
-      : Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, parent, comm ) 
+    /** 
+     *  Constructor for root 
+     */
+    Node( SETUP *setup, size_t n, size_t l, std::vector<size_t> &gids, 
+        Node *parent, 
+        map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
+        Lock *treelock, mpi::Comm comm ) 
+    /** 
+     *  Inherits the constructor from tree::Node
+     */
+      : Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, parent, 
+          morton2node, treelock, comm ) 
     {
-      /** notice that "gids.size() < n" */
+      /** 
+       *  Notice that "gids.size() < n" 
+       */
       this->gids = gids;
     };
 
@@ -784,7 +805,7 @@ class LetNode : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
     LetNode( SETUP *setup, size_t morton )
       : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
-        ( setup, (size_t)0, (size_t)1, NULL, NULL ) 
+        ( setup, (size_t)0, (size_t)1, NULL, NULL, NULL ) 
     {
       this->morton = morton;
     };
@@ -811,32 +832,65 @@ class LetNode : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
  *         with some additional MPI data structure and function call.
  */ 
 template<class SETUP, class NODEDATA, int N_CHILDREN, typename T>
-class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
+class Tree 
+/**
+ *  Inherits from tree::Tree
+ */ 
+: public tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 {
   public:
 
-    /** inherit parameters n, m, and depth;
-     *  local treelists and treequeue.
-     **/
+    /** 
+     *  Inherit parameters n, m, and depth; local treelists and morton2node map.
+     *
+     *  Explanation for the morton2node map in the distributed tree:
+     *
+     *  morton2node has type map<size_t, tree::Node>, but it actually contains
+     *  "three" different kinds of tree nodes.
+     *
+     *  1. Local tree nodes (exactly in type tree::Node)
+     *
+     *  2. Distributed tree nodes (in type mpitree::Node)
+     *
+     *  3. Local essential nodes (in type tree::Node with essential data)
+     *
+     */
 
-    /** define our tree node type as NODE */
+    /** 
+     *  Define local tree node type as NODE. Notice that all pointers in the
+     *  interaction lists and morton2node map will be in this type.
+     */
     typedef tree::Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
 
-    /** */
+    /** 
+     *  Define distributed tree node type as MPINODE.
+     */
     typedef Node<SETUP, N_CHILDREN, NODEDATA, T> MPINODE;
 
     /** define our tree node type as NODE */
     typedef LetNode<SETUP, N_CHILDREN, NODEDATA, T> LETNODE;
 
 
-    /** distribued tree (a list of tree nodes) */
-    std::vector<MPINODE*> mpitreelists;
+    /** 
+     *  Distribued tree nodes in the top-down order. Notice thay
+     *  mpitreelist.back() is the root of the local tree.
+     *
+     *  i.e. mpitrelist.back() == treelist.front();
+     */
+    vector<MPINODE*> mpitreelists;
 
     /** local essential tree nodes (this is not thread-safe) */
     std::map<size_t, LETNODE*> lettreelist;
 
-    /** inherit constructor */
-    Tree() : hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Tree()
+
+    /**
+     *  Default constructor
+     */ 
+    Tree() 
+    /** 
+     *  Inherit constructor 
+     */
+    : tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Tree()
     {
 			/** create a new comm_world for */
       mpi::Comm_dup( MPI_COMM_WORLD, &comm );
@@ -846,7 +900,9 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       mpi::Comm_rank( comm, &rank );
     };
 
-    /** inherit deconstructor */
+    /** 
+     *  Destructor 
+     */
     ~Tree()
     {
       //printf( "~Tree() distributed, mpitreelists.size() %lu\n",
@@ -909,7 +965,7 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
      *  @breif allocate distributed tree node
      *
      * */
-    void AllocateNodes( std::vector<size_t> &gids )
+    void AllocateNodes( vector<size_t> &gids )
     {
       /** decide the number of distributed tree level according to mpi size */
       auto mycomm  = comm;
@@ -925,7 +981,8 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
 
       /** root( setup, n = 0, l = 0, parent = NULL ) */
       auto *root = new MPINODE( &(this->setup), 
-          this->n, mylevel, gids, NULL, mycomm );
+          this->n, mylevel, gids, NULL, 
+          &(this->morton2node), &(this->lock), mycomm );
 
       /** push root to the mpi treelist */
       mpitreelists.push_back( root );
@@ -955,7 +1012,8 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
         /** create the child */
         auto *parent = mpitreelists.back();
         auto *child  = new MPINODE( &(this->setup), 
-            (size_t)0, mylevel, parent, mycomm );
+            (size_t)0, mylevel, parent, 
+            &(this->morton2node), &(this->lock), mycomm );
 
         //printf( "size %d rank %d color %d level %d here\n",
         //    mysize, myrank, mycolor, mylevel ); fflush( stdout );
@@ -1271,15 +1329,18 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
       (this->setup).morton.resize( n );
 
  
-      /** compute Morton ID for both distributed and local trees */
+      /** 
+       *  Compute Morton ID for both distributed and local trees.
+       *  Each rank will only have the MortonIDs it owns.
+       */
       double beg = omp_get_wtime();
       Morton( mpitreelists[ 0 ], 0 );
       double morton_t = omp_get_wtime() - beg;
       //printf( "Morton takes %lfs\n", morton_t );
-      hmlp::mpi::Barrier( comm );
+      mpi::Barrier( comm );
 
       Offset( mpitreelists[ 0 ], 0 );
-      hmlp::mpi::Barrier( comm );
+      mpi::Barrier( comm );
 
       /** now redistribute K */
       //this->setup.K->Redistribute( true, this->treelist[ 0 ]->gids );
@@ -1326,10 +1387,72 @@ class Tree : public hmlp::tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
     template<size_t LEVELOFFSET=4>
     void Morton( MPINODE *node, size_t morton )
     {
-      /** call shared memory Morton ID */
+      /**
+       *  MPI
+       */ 
+      int comm_size = 0;
+      int comm_rank = 0;
+      mpi::Comm_size( comm, &comm_size );
+      mpi::Comm_rank( comm, &comm_rank );
+
+      /** 
+       *  Call shared memory MortonID
+       */
       if ( node->GetCommSize() < 2 )
       {
         tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Morton( node, morton );
+        /**
+         *  Exchange MortonIDs in 3-step:
+         *
+         *  1. Allgather leafnode MortonIDs, each rank sends num_of_leaves.
+         *  
+         *  2. Allgather leafnode sizes, each rank sends num_of_leaves.
+         *
+         *  3. Allgather gids
+         */
+        auto *local_root = this->treelist[ 0 ];
+        int send_gids_size = local_root->gids.size();
+        vector<int> recv_gids_size( comm_size );
+        vector<int> recv_gids_disp( comm_size, 0 );
+        vector<size_t> send_mortons( send_gids_size );
+        vector<size_t> recv_mortons( this->n );
+        vector<size_t> recv_gids( this->n );
+
+        /**
+         *  Gather MortonIDs I own
+         */ 
+        for ( size_t i = 0; i < send_gids_size; i ++ )
+        {
+          send_mortons[ i ] = this->setup.morton[ local_root->gids[ i ] ];
+        }
+
+        /**
+         *  Recv gids_size and compute gids_disp
+         */ 
+        mpi::Allgather( &send_gids_size, 1, recv_gids_size.data(), 1, comm );
+        for ( size_t p = 0; p < comm_size; p ++ )
+        {
+          recv_gids_disp[ p ] = recv_gids_disp[ p - 1 ] + recv_gids_size[ p - 1 ];
+        }
+
+        /**
+         *  Recv gids and MortonIDs
+         */ 
+        mpi::Allgatherv( local_root->gids.data(), send_gids_size, 
+            recv_gids.data(), 
+            recv_gids_size.data(), recv_gids_disp.data(), comm );
+        mpi::Allgatherv( send_mortons.data(), send_gids_size, 
+            recv_mortons.data(), 
+            recv_gids_size.data(), recv_gids_disp.data(), comm );
+
+        /** 
+         *  Update local MortonIDs
+         */ 
+        for ( size_t i = 0; i < recv_gids.size(); i ++ )
+        {
+          this->setup.morton[ recv_gids[ i ] ] = recv_mortons[ i ];
+        }
+
         return;
       }
 
