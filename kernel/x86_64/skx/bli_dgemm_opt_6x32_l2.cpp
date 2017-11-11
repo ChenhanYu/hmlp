@@ -36,7 +36,7 @@
 #include <hmlp_internal.hpp>
 #include <assert.h>
 
-#include "../knl/bli_avx512_macros.h"
+#include "bli_avx512_macros.h"
 #include "common.h"
 
 #define CACHELINE_SIZE 64 //size of cache line in bytes

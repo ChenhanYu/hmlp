@@ -185,8 +185,8 @@ elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "sandybridge")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -mavx")
 elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "haswell")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -mavx")
-elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "skylake")
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -xCORE-AVX512")
+elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "skx")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512")
 endif()
 
 

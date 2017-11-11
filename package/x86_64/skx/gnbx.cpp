@@ -36,11 +36,11 @@ void gnbx
 )
 {
   /** microkernel */
-  rank_k_asm_d6x32 semiringkernel;
-  rank_k_asm_d6x32 microkernel;
+  rank_k_opt_d6x32 semiringkernel;
+  rank_k_opt_d6x32 microkernel;
 
-  const size_t PACK_MR = rank_k_asm_d6x32::pack_mr; 
-  const size_t PACK_NR = rank_k_asm_d6x32::pack_nr; 
+  const size_t PACK_MR = rank_k_opt_d6x32::pack_mr; 
+  const size_t PACK_NR = rank_k_opt_d6x32::pack_nr; 
   const size_t MC = 144;
   const size_t NC = 5760;
   const size_t KC = 336;
@@ -81,11 +81,11 @@ void gnbx
 )
 {
   /** microkernel */
-  rank_k_asm_s12x32 semiringkernel;
-  rank_k_asm_s12x32 microkernel;
+  rank_k_opt_s12x32 semiringkernel;
+  rank_k_opt_s12x32 microkernel;
 
-  const size_t PACK_MR = rank_k_asm_s12x32::pack_mr; 
-  const size_t PACK_NR = rank_k_asm_s12x32::pack_nr; 
+  const size_t PACK_MR = rank_k_opt_s12x32::pack_mr; 
+  const size_t PACK_NR = rank_k_opt_s12x32::pack_nr; 
   const size_t MC = 480;
   const size_t NC = 3072;
   const size_t KC = 384;

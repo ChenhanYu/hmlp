@@ -61,7 +61,8 @@ if [[ ${taccmachine} == *"stampede"* ]]; then
   export OMP_NUM_THREADS=20
 fi
 if [[ ${taccmachine} == *"stampede2"* ]]; then
-  export OMP_NUM_THREADS=68
+  #export OMP_NUM_THREADS=68
+  export OMP_NUM_THREADS=48
 fi
 
 
@@ -92,8 +93,10 @@ if [[ ${taccmachine} == *"ls5"* ]]; then
   export HMLP_ARCH_MINOR=sandybridge
 fi
 if [[ ${taccmachine} == *"stampede2"* ]]; then
-  export HMLP_ARCH_MAJOR=mic
-  export HMLP_ARCH_MINOR=knl
+  #export HMLP_ARCH_MAJOR=mic
+  #export HMLP_ARCH_MINOR=knl
+  export HMLP_ARCH_MAJOR=x86_64
+  export HMLP_ARCH_MINOR=skx
 fi
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
@@ -104,7 +107,7 @@ export HMLP_USE_MPI=true
 
 ## GPU compiler options (if true, compile the gpu library as well).
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it).
-export HMLP_USE_CUDA=true
+export HMLP_USE_CUDA=false
 export HMLP_CUDA_DIR=$TACC_CUDA_DIR
 
 ## MAGMA (GPU LAPACK support)
@@ -129,8 +132,10 @@ export OMP_NESTED=false
 export OMP_PROC_BIND=spread
 
 ## HMLP communicator
-export KS_JC_NT=1
-export KS_IC_NT=$OMP_NUM_THREADS
+#export KS_JC_NT=1
+export KS_JC_NT=6
+#export KS_IC_NT=$OMP_NUM_THREADS
+export KS_IC_NT=8
 export KS_JR_NT=1
 
 

@@ -3,16 +3,20 @@
 
 
 /** BLIS kernel prototype declaration */ 
-BLIS_GEMM_KERNEL(bli_sgemm_opt_12x32,float);
-BLIS_GEMM_KERNEL(bli_dgemm_opt_6x32,double);
+BLIS_GEMM_KERNEL(bli_sgemm_opt_12x32_l2,float);
+BLIS_GEMM_KERNEL(bli_dgemm_opt_6x32_l2,double);
 
 
-struct rank_k_asm_s12x32
+struct rank_k_opt_s12x32
 {
-  const static size_t mr         = 12;
-  const static size_t nr         = 32;
-  const static size_t pack_mr    = 12;
-  const static size_t pack_nr    = 32;
+  //const static size_t mr         = 12;
+  //const static size_t nr         = 32;
+  //const static size_t pack_mr    = 12;
+  //const static size_t pack_nr    = 32;
+  const static size_t mr         = 32;
+  const static size_t nr         = 12;
+  const static size_t pack_mr    = 32;
+  const static size_t pack_nr    = 12;
   const static size_t align_size = 64;
   const static bool   row_major  = true;
 
@@ -28,14 +32,24 @@ struct rank_k_asm_s12x32
     /** if this is the first kc iteration then beta = 1.0 */
     float beta = aux->pc ? 1.0 : 0.0;
     /** invoke blis kernel */
-    bli_sgemm_opt_12x32
+    //bli_sgemm_opt_12x32_l2
+    //(
+    //  k,
+    //  &alpha,
+    //  a,
+    //  b,
+    //  &beta,
+    //  c, rs_c, cs_c,
+    //  aux
+    //);
+    bli_sgemm_opt_12x32_l2
     (
       k,
       &alpha,
-      a,
       b,
+      a,
       &beta,
-      c, rs_c, cs_c,
+      c, cs_c, rs_c,
       aux
     );
   };
@@ -73,14 +87,24 @@ struct rank_k_asm_s12x32
     }
 
     /** invoke blis kernel */
-    bli_sgemm_asm_12x32
+    //bli_sgemm_opt_12x32_l2
+    //(
+    //  k,
+    //  &alpha,
+    //  a,
+    //  b,
+    //  &beta,
+    //  v, rs_v, cs_v,
+    //  reinterpret_cast<aux_s<float, float, float, float>*>( aux )
+    //);
+    bli_sgemm_opt_12x32_l2
     (
       k,
       &alpha,
-      a,
       b,
+      a,
       &beta,
-      v, rs_v, cs_v,
+      v, cs_v, rs_v,
       reinterpret_cast<aux_s<float, float, float, float>*>( aux )
     );
 
@@ -97,10 +121,10 @@ struct rank_k_asm_s12x32
   };
 
 
-}; /** end struct rank_k_asm_s6x16 */
+}; /** end struct rank_k_opt_s12x32 */
 
 
-struct rank_k_asm_d6x32 
+struct rank_k_opt_d6x32 
 {
   const static size_t mr         =  6;
   const static size_t nr         = 32;
@@ -121,7 +145,7 @@ struct rank_k_asm_d6x32
     /** if this is the first kc iteration then beta = 1.0 */
     double beta = aux->pc ? 1.0 : 0.0;
     /** invoke blis kernel */
-    bli_dgemm_asm_6x32
+    bli_dgemm_opt_6x32_l2
     (
       k,
       &alpha,
@@ -166,7 +190,7 @@ struct rank_k_asm_d6x32
     }
 
     /** invoke blis kernel */
-    bli_dgemm_asm_6x32
+    bli_dgemm_opt_6x32_l2
     (
       k,
       &alpha,
@@ -190,4 +214,4 @@ struct rank_k_asm_d6x32
 
   };
 
-}; /** end struct rank_k_asm_d6x32 */
+}; /** end struct rank_k_opt_d6x32 */
