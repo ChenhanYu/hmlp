@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <math.h>
 
-/** self-defined vector type */
-#include <avx_type.h> 
 /** HMLP */
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
@@ -25,9 +23,9 @@ struct gsks_gaussian_int_s12x32
 struct gsks_gaussian_int_d6x32
 {
   const size_t mr         = 32;
-  const size_t nr         = 12;
+  const size_t nr         =  6;
   const size_t pack_mr    = 32;
-  const size_t pack_nr    = 12;
+  const size_t pack_nr    =  6;
   const size_t align_size = 64;
   const bool   row_major  = false;
 
@@ -47,20 +45,21 @@ struct gsks_gaussian_int_d6x32
 
   inline GSKS_OPERATOR(double) const
   {
-    float ctmp[ mr * nr ];
-    float alpha = 1.0;
+    double ctmp[ mr * nr ];
+    double alpha = 1.0;
     /** If this is not the first kc iteration then beta = 1.0 */
-    float beta = aux->pc ? 1.0 : 0.0;
+    double beta = aux->pc ? 1.0 : 0.0;
     /** If pc, then c != NULL. We copy c to ctmp. */
-    if ( pc ) 
+    if ( aux->pc ) 
     {
-      for ( size_t i = 0; i < aux->ib; i ++ )
-        for ( size_t j = 0; j < aux->jb; j ++ )
-          ctmp[ j * mr + i ] = c[ ( aux->jc + j ) * ldc + ( aux->ic + i ) ];
+      for ( size_t j = 0; j < aux->jb; j ++ )
+        for ( size_t i = 0; i < aux->ib; i ++ )
+          //ctmp[ j * mr + i ] = c[ ( aux->j + j ) * ldc + ( aux->i + i ) ];
+          ctmp[ j * mr + i ] = c[ j * ldc + i ];
     }
 
     /** invoke blis kernel */
-    bli_sgemm_opt_12x32_l2
+    bli_dgemm_opt_6x32_l2
     (
       k,
       &alpha,
@@ -71,17 +70,17 @@ struct gsks_gaussian_int_d6x32
       aux
     );
 
-    for ( size_t i = 0; i < aux->ib; i ++ )
+    for ( size_t j = 0; j < aux->jb; j ++ )
     {
-      for ( size_t j = 0; j < aux->jb; j ++ )
+      for ( size_t i = 0; i < aux->ib; i ++ )
       {
-        c[ i * mr + j ] *= -2.0;
-        c[ i * mr + j ] += aa[ i ] + bb[ j ];
-        c[ i * mr + j ] = std::max( c[ i * mr + j ], 0 );
+        ctmp[ j * mr + i ] *= -2.0;
+        ctmp[ j * mr + i ] += aa[ i ] + bb[ j ];
+        ctmp[ j * mr + i ] = std::max( ctmp[ j * mr + i ], (double)0 );
         /**
          *  Accumulate K * w to u 
          */ 
-        u[ i ] = std::exp( ker->scal * c[ i * mr + j ] ) * w[ j ];
+        u[ i ] += std::exp( ker->scal * ctmp[ j * mr + i ] ) * w[ j ];
       }
     }
 
