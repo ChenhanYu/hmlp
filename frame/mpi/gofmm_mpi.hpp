@@ -225,6 +225,11 @@ class Setup : public mpitree::Setup<SPLITTER, T>
     /** relative error for rank-revealed QR */
     T stol = 1E-3;
 
+    /**
+     *  User specific budget for the amount of direct evaluation
+     */ 
+    double budget = 0.0;
+
 		/** (default) distance type */
 		DistanceMetric metric = ANGLE_DISTANCE;
 
@@ -312,6 +317,14 @@ class NodeData : public hfamily::Factor<T>
     Data<T> NearKab;
     Data<T> FarKab;
 
+    /**
+     *  This pool contains a subset of gids owned by this node.
+     *  Multiple threads may try to update this pool during construction.
+     *  We use a lock to prevent race condition.
+     */ 
+    map<size_t, map<size_t, T>> candidates;
+    map<size_t, T> pool;
+    multimap<T, size_t> ordered_pool;
 
 
 
@@ -2524,6 +2537,329 @@ void ParallelSimpleFarNodes( MPINODE *node,
 
 
 
+template<typename LETNODE, typename NODE, typename T>
+void DistBuildPool( NODE *node )
+{
+  /**
+   *  MPI support
+   */ 
+  mpi::Status status;
+  mpi::Comm comm = node->GetComm();
+  int size = node->GetCommSize();
+  int rank = node->GetCommRank();
+
+  auto & setup = *(node->setup);
+  auto & candidates = node->data.candidates;
+
+
+  if ( node->parent )
+  {
+    /**
+     *  We must type cast here
+     */ 
+    NODE *parent = (NODE*)node->parent;
+    mpi::Comm parent_comm = parent->GetComm();
+    int parent_size = parent->GetCommSize();
+    int parent_rank = parent->GetCommRank();
+
+		size_t send_morton = node->morton;
+		size_t recv_morton = 0;
+
+    /**
+     *  Exechage MortonIDs using parent's comm
+     */ 
+    if ( parent_rank == 0 )
+    {
+      mpi::Sendrecv( 
+          &send_morton, 1, parent_size / 2, 0, 
+          &recv_morton, 1, parent_size / 2, 0, parent_comm, &status );
+    }
+    if ( parent_rank == parent_size / 2 )
+    {
+      mpi::Sendrecv( 
+          &send_morton, 1, 0, 0, 
+          &recv_morton, 1, 0, 0, parent_comm, &status );
+    }
+
+    /**
+     *  Bcast received MortonID using my comm
+     */
+    mpi::Bcast( &recv_morton, 1, 0, comm );
+    node->sibling = new LETNODE( node->setup, recv_morton );
+    printf( "Create letnode at level %lu\n", node->l ); fflush( stdout );
+  }
+
+
+  /**
+   *  This process is a distributed upward traversal. We need
+   *  access to the sibling node, which will be created as a
+   *  local essential tree node.
+   */
+  if ( size < 2 )
+  {
+    /**
+     *  If this is the local tree root, then we call the shared memory
+     *  BuildPool to merge children's sample pool.
+     */ 
+    gofmm::BuildPool<NODE, T>( node );
+  }
+  else
+  {
+    vector<pair<T,size_t>> merged_candidates;
+    auto *child = node->child;
+    auto *sibling = node->sibling;
+
+    if ( rank == 0 )
+    {
+      /** 
+       *  Recv NNNearNodeMortonIDs from right child
+       */
+      vector<size_t> recv_NearMortonIDs;
+      mpi::RecvVector( recv_NearMortonIDs, size / 2, 0, comm, &status );
+
+      /**
+       *  For non-leaf nodes, we build the near interaction list to filter
+       *  the row samples. Rows in the near iteraction list will be sampled.
+       */ 
+      for ( auto it  = child->NNNearNodeMortonIDs.begin(); 
+                 it != child->NNNearNodeMortonIDs.end(); it ++ )
+      {
+        if ( !tree::IsMyParent( *it, node->morton ) )
+        {
+          node->NNNearNodeMortonIDs.insert( *it );
+        }
+      }
+
+      for ( auto it  = recv_NearMortonIDs.begin(); 
+                 it != recv_NearMortonIDs.end(); it ++ )
+      {
+        if ( !tree::IsMyParent( *it, node->morton ) )
+        {
+          node->NNNearNodeMortonIDs.insert( *it );
+        }
+      }
+
+      /** 
+       *  Recv candidates from right child as an array of pairs.
+       */
+      vector<pair<size_t, T>> recv_candidates;
+      mpi::RecvVector( recv_candidates, size / 2, 0, comm, &status );
+
+      /** 
+       *  Merge left and right candidates 
+       */
+      candidates = child->data.candidates;
+      for ( auto it  = recv_candidates.begin(); 
+                 it != recv_candidates.end(); it ++ )
+      {
+        size_t candidate_morton = setup.morton[ (*it).first ];
+
+        if ( candidates.find( candidate_morton ) != candidates.end() )
+        {
+          /** 
+           *  Try to insert. If gid already exist, update the distance.
+           */
+          auto & existing_candidate = candidates[ candidate_morton ];
+          auto ret = existing_candidate.insert( *it );
+          if ( ret.second == false )
+          {
+            if ( ret.first->second > it->second ) 
+              ret.first->second = it->second;
+          }
+        }
+        else
+        {
+          candidates[ candidate_morton ][ (*it).first ] = (*it).second;
+        }
+      }
+
+      for ( auto it  = node->NNNearNodeMortonIDs.begin(); 
+                 it != node->NNNearNodeMortonIDs.end(); it ++ )
+      {
+        /** 
+         *  Remove candidates in the pruning list 
+         */
+        candidates.erase( *it );
+      }
+
+      /**
+       *  Building the sample pool
+       */ 
+      if ( sibling ) 
+      {
+        for ( auto it = candidates.begin(); it != candidates.end(); it ++ )
+        {
+          size_t candidate_morton = (*it).first;
+          auto & candidate_pairs  = (*it).second;
+          if ( tree::IsMyParent( candidate_morton, sibling->morton ) )
+          { 
+            for ( auto nn_it  = candidate_pairs.begin(); 
+                       nn_it != candidate_pairs.end(); nn_it ++ )
+            {
+              //merged_candidates.push_back( *nn_it );
+              merged_candidates.push_back( flip_pair( *nn_it ) );
+            }
+          }
+        }
+        sort( merged_candidates.begin(), merged_candidates.end() );
+        size_t nsamples = 4 * std::max( setup.s, setup.m );
+        if ( merged_candidates.size() > nsamples )
+          merged_candidates.resize( nsamples );
+      }
+
+    } /** end if ( rank == 0 ) */
+
+    /**
+     *  Partner rank that holds the right child
+     */ 
+    if ( rank == size / 2 )
+    {
+      /** 
+       *  Send NNNearNodeMortonIDs to left child
+       */
+      vector<size_t> send_NearMortonIDs;
+
+      for ( auto it  = child->NNNearNodeMortonIDs.begin(); 
+                 it != child->NNNearNodeMortonIDs.end(); it ++ )
+      {
+        send_NearMortonIDs.push_back( *it );
+      }
+
+      mpi::SendVector( send_NearMortonIDs, 0, 0, comm );
+
+      /** 
+       *  Send candidates to left child as an array of pairs.
+       */
+      vector<pair<size_t, T>> send_candidates;
+
+      for ( auto it  = child->data.candidates.begin();
+                 it != child->data.candidates.end(); it ++ )
+      {
+         auto & existing_candidate = (*it).second;
+         for ( auto query_it  = existing_candidate.begin();
+                    query_it != existing_candidate.end(); query_it ++ )
+         {
+           send_candidates.push_back( *query_it );
+         }
+      }
+
+      mpi::SendVector( send_candidates, 0, 0, comm );
+
+    } /** end if ( rank == size / 2 ) */
+
+    
+    /**
+     *  Bcast merge_candidates
+     */
+    printf( "before merged level %lu size %lu\n", node->l, merged_candidates.size() ); fflush( stdout );
+    size_t recv_candidate_size = merged_candidates.size();
+    mpi::Bcast( &recv_candidate_size, 1, 0, comm );
+    merged_candidates.resize( recv_candidate_size );
+    mpi::Bcast( merged_candidates.data(), recv_candidate_size, 0, comm );
+    printf( "finish merged lebel %lu\n", node->l ); fflush( stdout );
+
+    /**
+     *  Bcast merge_candidates and create pool for sibling
+     */ 
+    if ( sibling ) 
+    {
+      auto &pool = sibling->data.pool;
+      for ( size_t i = 0; i < merged_candidates.size(); i ++ )
+      {
+        auto new_candidate = flip_pair( merged_candidates[ i ] );
+        auto ret = pool.insert( new_candidate );
+        if ( ret.second == false )
+        {
+          if ( ret.first->second > new_candidate.second ) 
+            ret.first->second = new_candidate.second;
+        }
+      }
+    }
+
+    /**
+     *  We no longer need these candidates in the parent nodes.
+     */ 
+    child->data.candidates.clear();
+  }
+
+
+
+}; /** end DistBuildPool() */
+
+
+
+
+template<typename LETNODE, typename NODE, typename T>
+class DistBuildPoolTask : public Task
+{
+  public:
+
+    NODE *arg;
+
+    void Set( NODE *user_arg )
+    {
+      /** this task contains MPI routines */
+      //this->has_mpi_routines = true;
+
+      std::ostringstream ss;
+      arg = user_arg;
+      name = std::string( "cachef" );
+      //label = std::to_string( arg->treelist_id );
+      ss << arg->treelist_id;
+      label = ss.str();
+
+      /** we don't know the exact cost here */
+      cost = 5.0;
+
+      /** high priority */
+      priority = true;
+    };
+
+		/** read this node and write to children */
+    void DependencyAnalysis()
+    {
+      arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      if ( !arg->isleaf )
+      {
+        if ( arg->GetCommSize() > 1 )
+        {
+          arg->child->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        }
+        else
+        {
+          arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+          arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+        }
+      }
+      this->TryEnqueue();
+    };
+
+    void Execute( Worker* user_worker )
+    {
+      DistBuildPool<LETNODE, NODE, T>( arg );
+    };
+
+
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 template<typename NODE>
 class SimpleNearFarNodesTask : public hmlp::Task
@@ -2670,7 +3006,7 @@ class DistSimpleNearFarNodesTask : public hmlp::Task
 				auto *child = node->child;
 				size_t send_morton = child->morton;
 				size_t recv_morton = 0;
-				LETNODE *letnode = NULL;
+				//LETNODE *letnode = NULL;
 
 				if ( node->parent )
 				{
@@ -2682,6 +3018,11 @@ class DistSimpleNearFarNodesTask : public hmlp::Task
 					  node->data.proj.resize( proj_m, proj_n );
 					mpi::Bcast( node->data.proj.data(), proj_m * proj_n, 0, comm );
 				}
+        else
+        {
+          /** Do nothing at root */
+          //return;
+        }
 
 				if ( rank == 0 )
 				{
@@ -2690,7 +3031,9 @@ class DistSimpleNearFarNodesTask : public hmlp::Task
 							&recv_morton, 1, size / 2, 0, comm, &status );
 
 					/** initialize a LetNode with sibling's MortonID */
-					letnode = new LETNODE( node->setup, recv_morton );
+					//letnode = new LETNODE( node->setup, recv_morton );
+					auto *letnode = child->sibling;
+          assert( letnode );
 					child->FarNodes.insert( letnode );
 					child->NNFarNodes.insert( letnode );
 
@@ -2726,7 +3069,9 @@ class DistSimpleNearFarNodesTask : public hmlp::Task
 							&recv_morton, 1, 0, 0, comm, &status );
 
 					/** initialize a LetNode with sibling's MortonID */
-					letnode = new LETNODE( node->setup, recv_morton );
+					//letnode = new LETNODE( node->setup, recv_morton );
+					auto *letnode = child->sibling;
+          assert( letnode );
 					child->FarNodes.insert( letnode );
 					child->NNFarNodes.insert( letnode );
 
@@ -3037,6 +3382,34 @@ void DistRowSamples( NODE *node, size_t nsamples )
       I.push_back( (*it).second );
       if ( I.size() >= nsamples ) break;
     }
+
+    //map<T, size_t> candidates;
+    //NODE *now = node;
+    //while ( now )
+    //{
+    //  auto *sibling = now->sibling;
+    //  if ( sibling )
+    //  {
+    //    for ( auto it  = sibling->data.pool.begin(); 
+    //               it != sibling->data.pool.end(); it ++ )
+    //    {
+    //      candidates.insert( flip_pair( *it ) );
+    //    }
+    //  }
+    //  printf( "Distributed row sample with candidates %lu\n", candidates.size() ); fflush( stdout );
+    //  /** 
+    //   *  Move toward parent.
+    //   *  We need to cast the pointer here becuase the now->parent may be in
+    //   *  type tree::Node, but NODE = mpitree::Node.
+    //   */
+    //  now = (NODE*)(now->parent);
+    //}
+
+    //for ( auto it = candidates.begin(); it != candidates.end(); it ++ )
+    //{
+    //  if ( I.size() < nsamples ) I.push_back( (*it).second );
+    //  else break;
+    //}
   }
 
 	/** buffer space */
@@ -3307,7 +3680,28 @@ void GetSkeletonMatrix( NODE *node )
    *  notice that operator () may involve MPI collaborative communication.
    *
    */
-  KIJ = K( candidate_rows, candidate_cols );
+  //KIJ = K( candidate_rows, candidate_cols );
+  size_t over_size_rank = node->setup->s + 20;
+  if ( candidate_rows.size() <= over_size_rank )
+  {
+    KIJ = K( candidate_rows, candidate_cols );
+  }
+  else
+  {
+    auto Ksamples = K( candidate_rows, candidate_cols );
+    /**
+     *  Compute G * KIJ
+     */
+    KIJ.resize( over_size_rank, candidate_cols.size() );
+    Data<T> G( over_size_rank, nsamples ); G.randn( 0, 1 );
+
+    View<T> Ksamples_v( false, Ksamples );
+    View<T> KIJ_v( false, KIJ );
+    View<T> G_v( false, G );
+
+    /** KIJ = G * Ksamples */
+    gemm::xgemm<GEMM_NB>( (T)1.0, G_v, Ksamples_v, (T)0.0, KIJ_v );
+  }
 
 }; /** end GetSkeletonMatrix() */
 
@@ -3548,7 +3942,29 @@ void ParallelGetSkeletonMatrix( NODE *node )
      *  communicator must flush their I and J sets before evaluation.
      *  all MPI process must participate in operator () 
      */
-    KIJ = K( candidate_rows, candidate_cols );
+    //KIJ = K( candidate_rows, candidate_cols );
+    size_t over_size_rank = node->setup->s + 20;
+    if ( candidate_rows.size() <= over_size_rank )
+    {
+      KIJ = K( candidate_rows, candidate_cols );
+    }
+    else
+    {
+      auto Ksamples = K( candidate_rows, candidate_cols );
+      /**
+       *  Compute G * KIJ
+       */
+      KIJ.resize( over_size_rank, candidate_cols.size() );
+      Data<T> G( over_size_rank, nsamples ); G.randn( 0, 1 );
+
+      View<T> Ksamples_v( false, Ksamples );
+      View<T> KIJ_v( false, KIJ );
+      View<T> G_v( false, G );
+
+      /** KIJ = G * Ksamples */
+      gemm::xgemm<GEMM_NB>( (T)1.0, G_v, Ksamples_v, (T)0.0, KIJ_v );
+    }
+
 
 		//printf( "rank %d level %lu KIJ %lu, %lu\n",
 		//		global_rank, node->l, KIJ.row(), KIJ.col() ); fflush( stdout );
@@ -4398,6 +4814,7 @@ mpitree::Tree<
   tree.setup.m = m;
   tree.setup.k = k;
   tree.setup.s = s;
+  tree.setup.budget = budget;
   tree.setup.stol = stol;
 
 	/** metric ball tree partitioning */
@@ -4419,7 +4836,6 @@ mpitree::Tree<
   /** 
    *  Now redistribute K. 
    *
-   *
    */
   K.Redistribute( true, tree.treelist[ 0 ]->gids );
 
@@ -4428,9 +4844,10 @@ mpitree::Tree<
   /** 
    *  Now redistribute NN according to gids 
    */
-  DistData<STAR, CIDS, std::pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
+  DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
   NN = NN_cblk;
   tree.setup.NN = &NN;
+  printf( "Finish redistribute NN\n" ); fflush( stdout );
 
 
   /**
@@ -4442,7 +4859,26 @@ mpitree::Tree<
    *
    *
    */
+	tree.DependencyCleanUp();
+  gofmm::NearSamplesTask<NODE, T> NEARSAMPLEStask;
+  tree.LocaTraverseLeafs( NEARSAMPLEStask );
+  printf( "Finish NearSamplesTask LocalTraverseLeafs\n" ); fflush( stdout );
+  hmlp_run();
+  tree.DependencyCleanUp();
+  printf( "Finish NearSamplesTask\n" ); fflush( stdout );
 
+
+  /**
+   *  Create sample pools for each tree node by merging the near interaction
+   *  list. 
+   */ 
+  gofmm::BuildPoolTask<NODE, T> seqBUILDPOOLtask;
+  DistBuildPoolTask<LETNODE, MPINODE, T> mpiBUILDPOOLtask;
+  tree.LocaTraverseUp( seqBUILDPOOLtask );
+  tree.DistTraverseUp( mpiBUILDPOOLtask );
+  hmlp_run();
+  tree.DependencyCleanUp();
+  printf( "Finish BuildPoolTask\n" ); fflush( stdout );
 
 
 

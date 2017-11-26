@@ -38,6 +38,7 @@
 
 #include <algorithm>
 #include <random>
+#include <chrono>
 
 #include <set>
 #include <map>
@@ -408,7 +409,8 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     void randn( T mu, T sd )
     {
-      std::default_random_engine generator;
+      unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+      std::default_random_engine generator( seed );
       std::normal_distribution<T> distribution( mu, sd );
       for ( std::size_t i = 0; i < m * n; i ++ )
       {

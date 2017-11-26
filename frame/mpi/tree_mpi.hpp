@@ -1342,6 +1342,19 @@ class Tree
       Offset( mpitreelists[ 0 ], 0 );
       mpi::Barrier( comm );
 
+
+      /**
+       *  Construct morton2node map for local tree
+       */
+      this->morton2node.clear();
+      for ( size_t i = 0; i < this->treelist.size(); i ++ )
+      {
+        this->morton2node[ this->treelist[ i ]->morton ] = this->treelist[ i ];
+      }
+
+
+
+
       /** now redistribute K */
       //this->setup.K->Redistribute( true, this->treelist[ 0 ]->gids );
 
@@ -1430,10 +1443,13 @@ class Tree
          *  Recv gids_size and compute gids_disp
          */ 
         mpi::Allgather( &send_gids_size, 1, recv_gids_size.data(), 1, comm );
-        for ( size_t p = 0; p < comm_size; p ++ )
+        for ( size_t p = 1; p < comm_size; p ++ )
         {
           recv_gids_disp[ p ] = recv_gids_disp[ p - 1 ] + recv_gids_size[ p - 1 ];
         }
+        size_t total_gids = 0;
+        for ( size_t p = 0; p < comm_size; p ++ ) total_gids += recv_gids_size[ p ];
+        assert( total_gids == this->n );
 
         /**
          *  Recv gids and MortonIDs

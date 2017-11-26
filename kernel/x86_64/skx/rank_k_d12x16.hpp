@@ -4,7 +4,7 @@
 
 /** BLIS kernel prototype declaration */ 
 BLIS_GEMM_KERNEL(bli_sgemm_opt_12x32_l2,float);
-BLIS_GEMM_KERNEL(bli_dgemm_opt_6x32_l2,double);
+BLIS_GEMM_KERNEL(bli_dgemm_opt_12x16_l2,double);
 
 
 struct rank_k_opt_s12x32
@@ -124,16 +124,16 @@ struct rank_k_opt_s12x32
 }; /** end struct rank_k_opt_s12x32 */
 
 
-struct rank_k_opt_d6x32 
+struct rank_k_opt_d12x16
 {
-  //const static size_t mr         =  6;
-  //const static size_t nr         = 32;
-  //const static size_t pack_mr    =  6;
-  //const static size_t pack_nr    = 32;
-  const static size_t mr         = 32;
-  const static size_t nr         =  6;
-  const static size_t pack_mr    = 32;
-  const static size_t pack_nr    =  6;
+  //const static size_t mr         = 12;
+  //const static size_t nr         = 16;
+  //const static size_t pack_mr    = 12;
+  //const static size_t pack_nr    = 16;
+  const static size_t mr         = 16;
+  const static size_t nr         = 12;
+  const static size_t pack_mr    = 16;
+  const static size_t pack_nr    = 12;
   const static size_t align_size = 64;
   const static bool   row_major  = true;
 
@@ -159,7 +159,7 @@ struct rank_k_opt_d6x32
     //  c, rs_c, cs_c,
     //  aux
     //);
-    bli_dgemm_opt_6x32_l2
+    bli_dgemm_opt_12x16_l2
     (
       k,
       &alpha,
@@ -204,7 +204,7 @@ struct rank_k_opt_d6x32
     }
 
     /** invoke blis kernel */
-    //bli_dgemm_opt_6x32_l2
+    //bli_dgemm_opt_12x16_l2
     //(
     //  k,
     //  &alpha,
@@ -214,7 +214,7 @@ struct rank_k_opt_d6x32
     //  v, rs_v, cs_v,
     //  reinterpret_cast<aux_s<double, double, double, double>*>( aux )
     //);
-    bli_dgemm_opt_6x32_l2
+    bli_dgemm_opt_12x16_l2
     (
       k,
       &alpha,

@@ -1907,49 +1907,12 @@ void RowSamples( NODE *node, size_t nsamples )
       }
 
 
-      /**
-       *  Use sibling's pool at every level
-       */
-      //NODE *now = node;
-      //size_t sample_per_level = nsamples / node->l + 1; 
-      //while ( now )
-      //{
-      //  auto *sibling = now->sibling;
-      //  size_t num_existing_samples = amap.size();
-      //  if ( sibling ) 
-      //  {
-      //    sibling->data.lock.Acquire();
-      //    {
-      //      if ( sibling->data.pool.size() != sibling->data.ordered_pool.size() )
-      //      {
-      //        sibling->data.ordered_pool = flip_map( sibling->data.pool );
-      //      }
-      //    }
-      //    sibling->data.lock.Release();
-
-      //    for ( auto it  = sibling->data.ordered_pool.begin(); 
-      //               it != sibling->data.ordered_pool.end(); it ++ )
-      //    {
-      //      if ( amap.size() - num_existing_samples < sample_per_level )
-      //      {
-      //        amap.push_back( (*it).second );
-      //      }
-      //    }
-      //  }
-      //  /** move toward parent */
-      //  now = now->parent;
-      //}
-
-
-
-
-
       //map<T, size_t> candidates;
-
       //NODE *now = node;
       //while ( now )
       //{
       //  auto *sibling = now->sibling;
+
       //  if ( sibling )
       //  {
       //    for ( auto it  = sibling->data.pool.begin(); 
@@ -1958,14 +1921,43 @@ void RowSamples( NODE *node, size_t nsamples )
       //      candidates.insert( flip_pair( *it ) );
       //    }
       //  }
-      //  /** move toward parent */
-      //  now = now->parent;
+
+      //  if ( now->parent ) 
+      //  {
+      //      //printf( "node %lu now level %lu sibling->data.pool.size() %lu\n", 
+      //      //    node->treelist_id, now->l,
+      //      //    sibling->data.pool.size() ); fflush( stdout );
+      //    if ( !sibling )
+      //      printf( "node %lu now level %lu\n", 
+      //          node->treelist_id, now->l); fflush( stdout );
+      //    //assert( sibling );
+      //  }
+
+      //  /** 
+      //   *  Move toward parent.
+      //   *  We need to cast the pointer here becuase the now->parent may be in
+      //   *  type tree::Node, but NODE = mpitree::Node.
+      //   */
+      //  now = (NODE*)(now->parent);
       //}
+
 
       //for ( auto it = candidates.begin(); it != candidates.end(); it ++ )
       //{
-      //  if ( amap.size() < nsamples ) amap.push_back( (*it).second );
-      //  else break;
+      //  if ( node->isleaf ) 
+      //  {
+      //    auto &pnids = node->data.pnids;
+      //    if ( !pnids.count( (*it).second ) )
+      //      amap.push_back( (*it).second );
+      //  }
+      //  else
+      //  {
+      //    auto &lpnids = node->lchild->data.pnids;
+      //    auto &rpnids = node->rchild->data.pnids;
+      //    if ( !lpnids.count( (*it).second ) && !rpnids.count( (*it).second ) )
+      //      amap.push_back( (*it).second );
+      //  }
+      //  if ( amap.size() >= nsamples ) break;
       //}
 
 
@@ -2069,7 +2061,39 @@ void GetSkeletonMatrix( NODE *node )
    *  notice that operator () may involve MPI collaborative communication.
    *
    */
-  KIJ = K( candidate_rows, candidate_cols );
+  //KIJ = K( candidate_rows, candidate_cols );
+  size_t over_size_rank = node->setup->s + 20;
+  if ( candidate_rows.size() <= over_size_rank )
+  //if ( 1 )
+  {
+    KIJ = K( candidate_rows, candidate_cols );
+  }
+  else
+  {
+    auto Ksamples = K( candidate_rows, candidate_cols );
+    /**
+     *  Compute G * KIJ
+     */
+    KIJ.resize( over_size_rank, candidate_cols.size() );
+    Data<T> G( over_size_rank, nsamples ); G.randn( 0, 1 );
+
+
+    View<T> Ksamples_v( false, Ksamples );
+    View<T> KIJ_v( false, KIJ );
+    View<T> G_v( false, G );
+
+    /** KIJ = G * Ksamples */
+    gemm::xgemm<GEMM_NB>( (T)1.0, G_v, Ksamples_v, (T)0.0, KIJ_v );
+
+    //xgemm
+    //(
+    //  "No transpose", "No transpose",
+    //  over_size_rank, candidate_cols.size(), nsamples,
+    //  1.0, G.data(), G.row(),
+    //  Ksamples.data(), Ksamples.row(),
+    //  0.0, KIJ.data(), KIJ.row()
+    //);
+  }
 
 }; /** end GetSkeletonMatrix() */
 
@@ -3770,6 +3794,7 @@ void NearSamples( NODE *node )
      */
     node->NearNodes.insert( node );
     node->NNNearNodes.insert( node );
+    node->NNNearNodeMortonIDs.insert( node->morton );
 
     /** 
      *  Ballot table ( node MortonID, ids )
@@ -3848,15 +3873,30 @@ void NearSamples( NODE *node )
       if ( node->NNNearNodes.size() >= n_nodes * budget ) break;
 
       /**
-       *  Get the node pointer from MortonID.
+       *  Get the node pointer from MortonID. 
+       *
+       *  Two situations:
+       *  1. the pointer doesn't exist, then creates a lettreenode
        */ 
-      auto *target = (*node->morton2node)[ (*it).second ];
-      node->NNNearNodeMortonIDs.insert( (*it).second );
-      node->NNNearNodes.insert( target );
+      if ( (*node->morton2node).count( (*it).second ) )
+      {
+        auto *target = (*node->morton2node)[ (*it).second ];
+        node->NNNearNodeMortonIDs.insert( (*it).second );
+        node->NNNearNodes.insert( target );
+      }
+      else
+      {
+        //printf( "bug\n" );
+
+        /** Need a lock here (use treelock) */
+
+        /** new tree::Node with MortonID (*it).second */
+
+      }
     }
-    //printf( "%3lu, gids %lu candidates %2lu/%2lu, ballot %2lu NNNearNodes %lu k %lu\n", 
+    //printf( "%3lu, gids %lu candidates %2lu/%2lu, ballot %2lu budget %lf NNNearNodes %lu k %lu\n", 
     //    node->treelist_id, gids.size(), 
-    //    candidates.size(), n_nodes, ballot.size(),
+    //    candidates.size(), n_nodes, ballot.size(), budget,
     //    node->NNNearNodes.size(), NN.row() ); fflush( stdout );
 
 
@@ -3978,7 +4018,6 @@ class NearSamplesTask : public Task
       }
       /** Try to enqueue if there is no dependency */
       this->TryEnqueue();
-
     };
 
     void Execute( Worker* user_worker )
@@ -4000,9 +4039,6 @@ void BuildPool( NODE *node )
 
   if ( node->isleaf )
   {
-    auto &gids = node->gids;
-    size_t n_nodes = ( 1 << node->l );
-
     /**
      *  Merge NNNearNodes with ProposedNNNearNodes.
      */
@@ -4010,15 +4046,7 @@ void BuildPool( NODE *node )
                it != node->ProposedNNNearNodes.end(); it ++ )
     {
       node->NNNearNodes.insert( *it );
-    }
-
-    /**
-     *  Remove near interactions from the ballot table.
-     */ 
-    for ( auto it  = node->NNNearNodes.begin(); 
-               it != node->NNNearNodes.end(); it ++ )
-    {
-      candidates.erase( (*it)->morton );
+      node->NNNearNodeMortonIDs.insert( (*it)->morton );
     }
   }
   else
@@ -4026,33 +4054,31 @@ void BuildPool( NODE *node )
     auto *lchild = node->lchild;
     auto *rchild = node->rchild;
 
-    for ( auto it  = lchild->NNNearNodes.begin(); 
-               it != lchild->NNNearNodes.end(); it ++ )
+    /**
+     *  For non-leaf nodes, we build the near interaction list to filter
+     *  the row samples. Rows in the near iteraction list will be sampled.
+     */ 
+    for ( auto it  = lchild->NNNearNodeMortonIDs.begin(); 
+               it != lchild->NNNearNodeMortonIDs.end(); it ++ )
     {
-      if ( !tree::IsMyParent( (*it)->morton, node->morton ) )
+      if ( !tree::IsMyParent( *it, node->morton ) )
       {
-        node->NNNearNodes.insert( *it );
+        node->NNNearNodeMortonIDs.insert( *it );
       }
     }
 
-    for ( auto it  = rchild->NNNearNodes.begin(); 
-               it != rchild->NNNearNodes.end(); it ++ )
+    for ( auto it  = rchild->NNNearNodeMortonIDs.begin(); 
+               it != rchild->NNNearNodeMortonIDs.end(); it ++ )
     {
-      if ( !tree::IsMyParent( (*it)->morton, node->morton ) )
+      if ( !tree::IsMyParent( *it, node->morton ) )
       {
-        node->NNNearNodes.insert( *it );
+        node->NNNearNodeMortonIDs.insert( *it );
       }
     }
 
-    for ( auto it  = node->NNNearNodes.begin(); 
-               it != node->NNNearNodes.end(); it ++ )
-    {
-      /** remove candidates in the pruning list */
-      lchild->data.candidates.erase( (*it)->morton );
-      rchild->data.candidates.erase( (*it)->morton );
-    }
-
-    /** merge left and right candidates */
+    /** 
+     *  Merge left and right candidates 
+     */
     candidates = lchild->data.candidates;
     for ( auto it  = rchild->data.candidates.begin(); 
                it != rchild->data.candidates.end(); it ++ )
@@ -4085,11 +4111,31 @@ void BuildPool( NODE *node )
   }
 
   /**
+   *  Remove near interactions from the ballot table. The key value of 
+   *  candidates is morton.
+   */ 
+  for ( auto it  = node->NNNearNodeMortonIDs.begin(); 
+             it != node->NNNearNodeMortonIDs.end(); it ++ )
+  {
+    candidates.erase( *it );
+  }
+
+
+
+
+
+
+
+
+  /**
    *  Building the sample pool
    */ 
   auto *sibling = node->sibling;
   if ( sibling ) 
   {
+    if ( node->treelist_id == 0 ) 
+      printf( "Construct sibling's sample pool for local root\n" ); fflush( stdout );
+
     //vector<pair<size_t, T>> merged_candidates;
     vector<pair<T,size_t>> merged_candidates;
 
@@ -4110,8 +4156,8 @@ void BuildPool( NODE *node )
     sort( merged_candidates.begin(), merged_candidates.end() );
 
     size_t nsamples = 4 * std::max( setup.s, setup.m );
-    if ( merged_candidates.size() > nsamples )
-      merged_candidates.resize( nsamples );
+    //if ( merged_candidates.size() > nsamples )
+    //  merged_candidates.resize( nsamples );
 
     auto &pool = sibling->data.pool;
     for ( size_t i = 0; i < merged_candidates.size(); i ++ )
@@ -4123,6 +4169,8 @@ void BuildPool( NODE *node )
         if ( ret.first->second > new_candidate.second ) 
           ret.first->second = new_candidate.second;
       }
+
+      //if ( pool.size() >= nsamples ) break;
     }
     //printf( "%3lu pool.size() %lu\n", sibling->treelist_id, pool.size() );
   }
@@ -5038,7 +5086,6 @@ hmlp::Data<T> Evaluate
   tree.setup.u = &potentials;
   allocate_time = omp_get_wtime() - beg;
 
-
   /** permute weights into w_leaf */
   if ( REPORT_EVALUATE_STATUS )
   {
@@ -5163,7 +5210,7 @@ hmlp::Data<T> Evaluate
     tree.template TraverseUp       <USE_RUNTIME>( nodetoskeltask );
     tree.template TraverseUnOrdered<USE_RUNTIME>( skeltoskeltask );
     tree.template TraverseDown     <USE_RUNTIME>( skeltonodetask );
-    hmlp_run();
+    if ( USE_RUNTIME ) hmlp_run();
 
 
     double d2h_beg_t = omp_get_wtime();
@@ -5442,6 +5489,7 @@ tree::Tree<
   tree.TraverseLeafs<true>( NEARSAMPLEStask );
   hmlp_run();
   tree.DependencyCleanUp();
+  printf( "Finish NearSamplesTask\n" ); fflush( stdout );
 
 
   /**
@@ -5452,6 +5500,7 @@ tree::Tree<
   tree.TraverseUp<true>( BUILDPOOLtask );
   hmlp_run();
   tree.DependencyCleanUp();
+  printf( "Finish BuildPoolTask\n" ); fflush( stdout );
 
 
   /** Skeletonization */

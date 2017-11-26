@@ -195,7 +195,7 @@ void id
   hmlp::Data<T> A_tmp = A;
 
   /** sample rows must be larger than columns */
-  assert( m >= n );
+  //assert( m >= n );
 
   // Initilize jpvt to zeros. Otherwise, GEQP3 will permute A.
   jpvt.clear();
