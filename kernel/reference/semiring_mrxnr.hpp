@@ -1,12 +1,4 @@
-/**
- *
- */ 
-//template<typename TA, typename TB, typename TC, typename TV>
-//struct semiring_
-//{
-//  
-//};
-
+#include <hmlp_internal.hpp>
 
 
 template<
@@ -15,11 +7,11 @@ typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 struct semiring_mrxnr 
 {
-  const size_t mr         = MR;
-  const size_t nr         = NR;
-  const size_t pack_mr    = MR;
-  const size_t pack_nr    = NR;
-  const size_t align_size = 32;
+  const static size_t mr         = MR;
+  const static size_t nr         = NR;
+  const static size_t pack_mr    = MR;
+  const static size_t pack_nr    = NR;
+  const static size_t align_size = 32;
 
   OP1 op1;
   OP2 op2;
@@ -66,7 +58,7 @@ struct semiring_mrxnr
   /** Non-Strassen interface */
   inline void operator()
   ( 
-    int k, 
+    dim_t k, 
     TA *a, 
     TB *b, 
     TV *v, int rs_c, int cs_c,

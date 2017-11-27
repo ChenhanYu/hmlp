@@ -9,11 +9,11 @@ typename OPKERNEL, typename OP1, typename OP2,
 typename TA, typename TB, typename TC, typename TV>
 struct gkmm_mrxnr 
 {
-  const size_t mr         = MR;
-  const size_t nr         = NR;
-  const size_t pack_mr    = MR;
-  const size_t pack_nr    = NR;
-  const size_t align_size = 32;
+  const static size_t mr         = MR;
+  const static size_t nr         = NR;
+  const static size_t pack_mr    = MR;
+  const static size_t pack_nr    = NR;
+  const static size_t align_size = 32;
 
   OPKERNEL opkernel;
   OP1 op1;
@@ -124,11 +124,17 @@ typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
 typename TA, typename TB, typename TC, typename TV>
 struct gkrm_mrxnr 
 {
+  const static size_t mr         = MR;
+  const static size_t nr         = NR;
+  const static size_t pack_mr    = MR;
+  const static size_t pack_nr    = NR;
+  const static size_t align_size = 32;
+
   OPKERNEL opkernel;
   OP1 op1;
   OP2 op2;
   TV initV;
-  OPKERNEL opkreduce;
+  OPKERNEL opreduce;
   TC initC;
 
   inline void operator()
@@ -195,6 +201,77 @@ struct gkrm_mrxnr
 #endif
       *c = opreduce( *c, regC[ i ] );
     }
-
   };
-};
+
+}; /** end struct gkrm_mrxnr */
+
+
+
+template<
+int MR, int NR,
+typename OPKERNEL, typename OP1, typename OP2,
+typename TA, typename TB, typename TC, typename TPACKC, typename TV>
+struct gnbx_mrxnr 
+{
+  const static size_t mr         = MR;
+  const static size_t nr         = NR;
+  const static size_t pack_mr    = MR;
+  const static size_t pack_nr    = NR;
+  const static size_t align_size = 32;
+
+  OPKERNEL opkernel;
+  OP1 op1;
+  OP2 op2;
+  TV initV;
+
+  inline void operator()
+  ( 
+    int k, 
+    TA *a, 
+    TB *b, 
+    TC *c,
+    TV *v, int rs_v, int cs_v, 
+    aux_s<TA, TB, TC, TV> *aux 
+  ) const 
+  {
+    TV     regV[ MR * NR ];
+    TPACKC regC[ MR * NR ];
+
+    if ( !aux->pc )
+    {
+      for ( int j = 0; j < NR; j ++ )
+        for ( int i = 0; i < MR; i ++ )
+          regV[ j * MR + i ] = initV;
+    }
+    else 
+    {
+      for ( int j = 0; j < aux->jb; j ++ )
+        for ( int i = 0; i < aux->ib; i ++ )
+          regV[ j * MR + i ] = v[ j * cs_v + i * rs_v ];
+    }
+
+    /** 
+     *  Semiring rank-k update
+     */  
+    for ( int p = 0; p < k; p ++ )
+    {
+      #pragma unroll
+      for ( int j = 0; j < NR; j ++ )
+        #pragma simd
+        for ( int i = 0; i < MR; i ++ )
+          regV[ j * MR + i ] = op1( regV[ j * MR + i ], op2( a[ p * MR + i ], b[ p * NR + j ] ) );
+    }
+
+    #pragma unroll
+    for ( int j = 0; j < NR; j ++ )
+      #pragma simd
+      for ( int i = 0; i < MR; i ++ )
+        regC[ j * MR + i ] = opkernel( regV[ j * MR + i ], aux->i + i, aux->j + j, aux->b );
+
+    /**
+     *  Store back
+     */ 
+    c->Unpack( aux->m, aux->i, aux->ib, aux->n, aux->j, aux->jb, regC );
+  };
+
+}; /** end struct gnbx_mrxnr */

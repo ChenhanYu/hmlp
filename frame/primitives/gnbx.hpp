@@ -563,131 +563,36 @@ void gnbx
 /**
  *  @beief  
  */ 
-//template<
-//  int MC            = 104, 
-//  int NC            = 1024, 
-//  int KC            = 256, 
-//  int MR            = 8, 
-//  int NR            = 4, 
-//  int PACK_MC       = 104, 
-//  int PACK_NC       = 1024, 
-//  int PACK_MR       = 8, 
-//  int PACK_NR       = 4, 
-//  int ALIGN_SIZE    = 32,
-//  bool USE_STRASSEN = false,
-//  bool REUSE_C = false,
-//  typename OPKERNEL, typename OP1, typename OP2,
-//  typename TA, typename TB, typename TC, typename TV>
-//void gkmm
-//(
-//  int m, int n, int k,
-//  TA *A, int lda,
-//  TB *B, int ldb,
-//  TC *C, int ldc,
-//  int batchId,
-//  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
-//)
-//{
-//  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
-//  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV> gkmmkernel;
-//
-//  semiringkernel.op1 = op1;
-//  semiringkernel.op2 = op2;
-//  semiringkernel.initV = initV;
-//
-//  gkmmkernel.op1 = op1;
-//  gkmmkernel.op2 = op2;
-//  gkmmkernel.opkernel = opkernel;
-//  gkmmkernel.initV = initV;
-//
-//  gkmx
-//  <MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
-//  USE_STRASSEN, REUSE_C,
-//  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
-//  gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
-//  TA, TB, TC, TV>
-//  (
-//    m, n, k,
-//    A, lda,
-//    B, ldb,
-//    C, ldc,
-//    batchId,
-//    semiringkernel, gkmmkernel
-//  );
-//};
-//
-//
-//
-//
-//
-//
-///**
-// *  @beief Implement GKRM with GKMX template. Notice that OPREDUCE 
-// *         is handled inside fusedkernel. Updating microkernel has 
-// *         to be atomic if jc_nt or jr_nt is not 1. We may be atomic
-// *         update.
-// *         
-// */ 
-//template<
-//  int MC            = 104, 
-//  int NC            = 1024, 
-//  int KC            = 256, 
-//  int MR            = 8, 
-//  int NR            = 4, 
-//  int PACK_MC       = 104, 
-//  int PACK_NC       = 1024, 
-//  int PACK_MR       = 8, 
-//  int PACK_NR       = 4, 
-//  int ALIGN_SIZE    = 32,
-//  bool USE_STRASSEN = false,
-//  typename PACKAKERNEL, typename PACKBKERNEL,
-//  typename OPKERNEL, typename OP1, typename OP2, typename OPREDUCE,
-//  typename TA, typename TPACKA, typename TB, typename TPACKB, 
-//  typename TC, typename TV = TC>
-//void gnbx
-//(
-//  int m, int n, int k,
-//  TA *A, PACKAKERNEL packakernel,
-//  TB *B, PACKBKERNEL packbkernel,
-//  TC *C, int ldc,
-//  int batchId,
-//  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV, 
-//  OPREDUCE opreduce, TC initC
-//)
-//{
-//  semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV> semiringkernel;
-//  gkrm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, OPREDUCE, TA, TB, TC, TV> gkrmkernel;
-//
-//  semiringkernel.op1 = op1;
-//  semiringkernel.op2 = op2;
-//  semiringkernel.initV = initV;
-//  
-//  gkrmkernel.op1 = op1;
-//  gkrmkernel.op2 = op2;
-//  gkrmkernel.opkernel = opkernel;
-//  gkrmkernel.initV = initV;
-//  gkrmkernel.opreduce = opreduce;
-//  gkrmkernel.initC = initC;
-//
-//  gnbx<
-//    MC, NC, KC, MR, NR, 
-//    PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,
-//    USE_STRASSEN,
-//    semiring_mrxnr<MR, NR, OP1, OP2, TA, TB, TC, TV>,
-//    gkmm_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TA, TB, TC, TV>,
-//    TA, TPACKA, TB, TPACKB, TC, TV>
-//  (
-//    m, n, k,
-//    A, packakernel,
-//    B, packbkernel,
-//    C, 0, // TODO: is there a better way to do this?
-//    batchId,
-//    semiringkernel, gkrmkernel
-//  );
-//
-//}; /** end gnbx() */
+template<
+  int MR, int NR, int MC, int NC, int KC,
+  typename TPACKA, typename TPACKB, typename TPACKC, typename TV,
+  typename     TA, typename     TB, typename     TC,
+  typename OPKERNEL, typename OP1, typename OP2>
+void gnbx
+(
+  int batchId, int m, int n, int k,
+  TA& A, 
+  TB& B, 
+  TC& C,
+  OPKERNEL opkernel, OP1 op1, OP2 op2, TV initV
+)
+{
+  semiring_mrxnr<MR, NR, OP1, OP2, TPACKA, TPACKB, TV, TV> semiringkernel;
+  gnbx_mrxnr<MR, NR, OPKERNEL, OP1, OP2, TPACKA, TPACKB, TC, TPACKC, TV> gkrmkernel;
 
+  semiringkernel.op1 = op1;
+  semiringkernel.op2 = op2;
+  semiringkernel.initV = initV;
 
+  gkrmkernel.op1 = op1;
+  gkrmkernel.op2 = op2;
+  gkrmkernel.opkernel = opkernel;
+  gkrmkernel.initV = initV;
+
+  gnbx<MC, NC, KC, TPACKA, TPACKB, TV>
+    ( batchId, m, n, k, A, B, C, semiringkernel, gkrmkernel );
+
+}; /** end gnbx() */
 
 }; /** end namespace gnbx */
 }; /** end namespace hmlp */
