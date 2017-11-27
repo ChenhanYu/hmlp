@@ -916,10 +916,18 @@ class Tree
     {
       if ( node )
       {
-        Morton( node->lchild, ( morton << 1 ) + 0 );
-        Morton( node->rchild, ( morton << 1 ) + 1 );
+        /**
+         *  shift = 16 - l + 4
+         */ 
         size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
         node->morton = ( morton << shift ) + node->l;
+
+        /**
+         *  Recurs
+         */
+        Morton( node->lchild, ( morton << 1 ) + 0 );
+        Morton( node->rchild, ( morton << 1 ) + 1 );
+
         if ( node->lchild )
         {
 #ifdef DEBUG_TREE

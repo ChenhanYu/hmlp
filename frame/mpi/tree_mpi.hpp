@@ -1414,6 +1414,8 @@ class Tree
       if ( node->GetCommSize() < 2 )
       {
         tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Morton( node, morton );
+        printf( "rank %d size %d morton %lu morton2rank %d\n", comm_rank, comm_size, 
+            node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
         /**
          *  Exchange MortonIDs in 3-step:
          *
@@ -1484,8 +1486,35 @@ class Tree
         size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
         /** set the node Morton ID */
         node->morton = ( morton << shift ) + node->l;
+
+        printf( "rank %d size %d morton %lu morton2rank %d\n", comm_rank, comm_size, 
+            node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
       }
+
     }; /** end Morton() */
+
+
+    template<size_t LEVELOFFSET=4>
+    int Morton2Rank( size_t morton )
+    {
+      size_t filter = ( 1 << LEVELOFFSET ) - 1;
+      size_t itlevel = it & filter;
+      size_t mpilevel = 0;
+
+      size_t tmp = size;
+      while ( tmp )
+      {
+        mpilevel ++;
+        tmp /= 2;
+      }
+
+      if ( ( 1 << itlevel ) > size ) itlevel = mpilevel;
+
+      return itshift = ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET;
+
+    }; /** end Morton2rank() */
+
+
 
 
 
