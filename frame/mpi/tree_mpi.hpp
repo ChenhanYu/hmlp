@@ -43,6 +43,37 @@ namespace mpitree
 {
 
 
+//template<size_t LEVELOFFSET=4>
+//int Morton2Rank( size_t it, mpi::Comm comm )
+//{
+//  /**
+//   *  MPI communicator size
+//   */ 
+//  int size = 0;
+//  mpi::Comm_size( &size, comm );
+//
+//  size_t filter = ( 1 << LEVELOFFSET ) - 1;
+//  size_t itlevel = it & filter;
+//  size_t mpilevel = 0;
+//
+//  size_t tmp = size;
+//  while ( tmp )
+//  {
+//    mpilevel ++;
+//    tmp /= 2;
+//  }
+//
+//  if ( ( 1 << itlevel ) > size ) itlevel = mpilevel;
+//
+//  return it >> ( ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET );
+//
+//}; /** end Morton2rank() */
+
+
+
+
+
+
 
 /**
  *  @brief This is the default ball tree splitter. Given coordinates,
@@ -618,12 +649,16 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     };
 
 
+    Node( size_t morton ) : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( morton )
+    { 
+    };
+
+
     void SetupChild( class Node *child )
     {
       this->kids[ 0 ] = child;
       this->child = child;
     };
-
 
 
 
@@ -1414,7 +1449,8 @@ class Tree
       if ( node->GetCommSize() < 2 )
       {
         tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Morton( node, morton );
-        printf( "rank %d size %d morton %lu morton2rank %d\n", comm_rank, comm_size, 
+        printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
+            node->l, comm_rank, comm_size, 
             node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
         /**
          *  Exchange MortonIDs in 3-step:
@@ -1487,22 +1523,27 @@ class Tree
         /** set the node Morton ID */
         node->morton = ( morton << shift ) + node->l;
 
-        printf( "rank %d size %d morton %lu morton2rank %d\n", comm_rank, comm_size, 
+        printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
+            node->l, comm_rank, comm_size, 
             node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
       }
 
     }; /** end Morton() */
 
 
+    /**
+     *
+     *
+     */ 
     template<size_t LEVELOFFSET=4>
-    int Morton2Rank( size_t morton )
+    int Morton2Rank( size_t it )
     {
       size_t filter = ( 1 << LEVELOFFSET ) - 1;
       size_t itlevel = it & filter;
       size_t mpilevel = 0;
 
       size_t tmp = size;
-      while ( tmp )
+      while ( tmp > 1 )
       {
         mpilevel ++;
         tmp /= 2;
@@ -1510,9 +1551,10 @@ class Tree
 
       if ( ( 1 << itlevel ) > size ) itlevel = mpilevel;
 
-      return itshift = ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET;
+      return it >> ( ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET );
 
     }; /** end Morton2rank() */
+
 
 
 
@@ -1864,10 +1906,6 @@ class Tree
     }; /** end DependencyCleanUp() */
 
 
-
-    
-  private:
-
     /** global communicator */
     mpi::Comm comm = MPI_COMM_WORLD;
 
@@ -1876,6 +1914,9 @@ class Tree
 
     /** global communicator rank */
     int rank = 0;
+
+    
+  private:
 
     /** global communicator error message */
     int ierr = 0;

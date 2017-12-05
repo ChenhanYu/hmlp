@@ -3878,21 +3878,30 @@ void NearSamples( NODE *node )
        *  Two situations:
        *  1. the pointer doesn't exist, then creates a lettreenode
        */ 
-      if ( (*node->morton2node).count( (*it).second ) )
+      if ( !(*node->morton2node).count( (*it).second ) )
       {
-        auto *target = (*node->morton2node)[ (*it).second ];
-        node->NNNearNodeMortonIDs.insert( (*it).second );
-        node->NNNearNodes.insert( target );
+        printf( "%8lu Create local essential node with MortonID %8lu\n", node->morton, (*it).second );
+        /**
+         *  Acquire the global lock to modify morton2node map.
+         */ 
+        node->treelock->Acquire();
+        {
+           /** 
+            *  Double check that the let node does not exist.
+            *  New tree::Node with MortonID (*it).second 
+            */
+           if ( !(*node->morton2node).count( (*it).second ) )
+             (*node->morton2node)[ (*it).second ] = new NODE( (*it).second );
+        }
+        node->treelock->Release();
       }
-      else
-      {
-        //printf( "bug\n" );
 
-        /** Need a lock here (use treelock) */
-
-        /** new tree::Node with MortonID (*it).second */
-
-      }
+      /**
+       *  Insert 
+       */ 
+      auto *target = (*node->morton2node)[ (*it).second ];
+      node->NNNearNodeMortonIDs.insert( (*it).second );
+      node->NNNearNodes.insert( target );
     }
     //printf( "%3lu, gids %lu candidates %2lu/%2lu, ballot %2lu budget %lf NNNearNodes %lu k %lu\n", 
     //    node->treelist_id, gids.size(), 

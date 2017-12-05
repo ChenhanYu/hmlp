@@ -532,6 +532,19 @@ class Node : public ReadWrite
       this->treelock = treelock;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
+  
+
+    /**
+     *  Constructor of local essential tree node:
+     *  This constructor will only be used in the distributed environment.
+     */ 
+    Node( size_t morton )
+    {
+      this->morton = morton;
+    };
+
+
+
 
     ~Node() {};
 
