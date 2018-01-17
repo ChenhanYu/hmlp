@@ -2467,7 +2467,12 @@ void SymmetrizeFarInteractions( TREE & tree )
         #pragma omp critical
         {
           if ( !tree.morton2node.count( query.second ) )
+          {
             tree.morton2node[ query.second ] = new NODE( query.second );
+            printf( "rank %d, %8lu Create far let node with MortonID %8lu level %lu (symmetrize)\n", 
+                comm_rank,
+                node->morton, query.second, node->l );
+          }
         }
       }
       
@@ -5410,6 +5415,8 @@ mpitree::Tree<
   printf( "Finish NearSamplesTask\n" ); fflush( stdout );
 
   SymmetrizeNearInteractions<NODE>( tree );
+  mpi::Barrier( tree.comm );
+  printf( "Finish SymmetrizeNearInteractions()\n" ); fflush( stdout );
 
 
 
@@ -5440,6 +5447,8 @@ mpitree::Tree<
   printf( "Finish MergeFarNodesTask\n" ); fflush( stdout );
 
   SymmetrizeFarInteractions<NODE>( tree );
+  mpi::Barrier( tree.comm );
+  printf( "Finish SymmetrizeFarInteractions()\n" ); fflush( stdout );
 
 
 

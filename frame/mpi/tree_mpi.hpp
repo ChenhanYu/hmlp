@@ -1024,7 +1024,7 @@ class Tree
 
       while ( mysize > 1 )
       {
-        hmlp::mpi::Comm childcomm;
+        mpi::Comm childcomm;
 
         /** increase level */
         mylevel += 1;
@@ -1036,7 +1036,7 @@ class Tree
         //    mysize, myrank, mycolor, mylevel ); fflush( stdout );
 
         /** get the subcommunicator for children */
-        ierr = hmlp::mpi::Comm_split( mycomm, mycolor, myrank, &(childcomm) );
+        ierr = mpi::Comm_split( mycomm, mycolor, myrank, &(childcomm) );
 
         //printf( "size %d rank %d color %d level %d end\n",
         //    mysize, myrank, mycolor, mylevel ); fflush( stdout );
@@ -1063,13 +1063,13 @@ class Tree
         mpitreelists.push_back( child );
 
         /** update communicator size */
-        hmlp::mpi::Comm_size( mycomm, &mysize );
+        mpi::Comm_size( mycomm, &mysize );
 
         /** update myrank in the subcommunicator */
-        hmlp::mpi::Comm_rank( mycomm, &myrank );
+        mpi::Comm_rank( mycomm, &myrank );
       }
       /** synchronize */
-      hmlp::mpi::Barrier( comm );
+      mpi::Barrier( comm );
 
 			/** allocate local tree nodes */
       auto *local_tree_root = mpitreelists.back();
@@ -1087,7 +1087,7 @@ class Tree
 
     /** */
     template<bool SORTED, typename KNNTASK>
-    hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> AllNearestNeighbor
+    DistData<STAR, CBLK, std::pair<T, size_t>> AllNearestNeighbor
     (
       size_t n_tree,
       size_t n,
@@ -1387,6 +1387,13 @@ class Tree
         this->morton2node[ this->treelist[ i ]->morton ] = this->treelist[ i ];
       }
 
+      /**
+       *  Construc morton2node map for distributed treee
+       */ 
+      for ( size_t i = 0; i < mpitreelists.size(); i ++ )
+      {
+        this->morton2node[ mpitreelists[ i ]->morton ] = mpitreelists[ i ];
+      }
 
 
 
