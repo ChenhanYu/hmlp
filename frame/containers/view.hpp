@@ -76,7 +76,7 @@ class View : public ReadWrite
       this->buff  = &buff;
     };
 
-    void Set( hmlp::Data<T> &buff )
+    void Set( Data<T> &buff )
     {
       /** default is none transpose  */
       Set( false, buff );
@@ -124,6 +124,15 @@ class View : public ReadWrite
       return *( data() + offset );
     };
 
+    /** Return a data copy of the subview */
+    Data<T> toData()
+    {
+      Data<T> A( m, n );
+      for ( size_t j = 0; j < n; j ++ )
+        for ( size_t i = 0; i < m; i ++ )
+          A( i, j ) = (*this)( i, j );
+      return A;
+    };
 
     /** [ A1;   = A 
      *    A2; ]     */

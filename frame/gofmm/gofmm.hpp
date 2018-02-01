@@ -1791,6 +1791,9 @@ class InterpolateTask : public Task
 
 
 
+/**
+ *  TODO: I decided not to use the sampling pool
+ */ 
 template<typename NODE, typename T>
 void RowSamples( NODE *node, size_t nsamples )
 {
@@ -2758,6 +2761,9 @@ void UpdateWeights( NODE *node )
 
     if ( w_leaf.size() )
     {
+      printf( "%8lu w_leaf allocated [%lu %lu]\n", 
+          node->morton, w_leaf.row(), w_leaf.col() ); fflush( stdout );
+      
       /** w_leaf is allocated */
       xgemm
       (
@@ -2772,6 +2778,10 @@ void UpdateWeights( NODE *node )
     {
       /** w_leaf is not allocated, use w_view instead */
       View<T> W = data.w_view;
+      printf( "%8lu n2s W[%lu %lu ld %lu]\n", 
+          node->morton, W.row(), W.col(), W.ld() ); fflush( stdout );
+      //for ( int i = 0; i < 10; i ++ )
+      //  printf( "%lu W.data() + %d = %E\n", node->gids[ i ], i, *(W.data() + i) );
       xgemm
       (
         "N", "N",
@@ -2795,8 +2805,9 @@ void UpdateWeights( NODE *node )
     auto &lskel = lchild->data.skels;
     auto &rskel = rchild->data.skels;
 
-    if ( node->treelist_id > 6 )
+    if ( 1 )
     {
+      printf( "%8lu n2s\n", node->morton ); fflush( stdout );
       xgemm
       (
         "N", "N",
@@ -2837,6 +2848,13 @@ void UpdateWeights( NODE *node )
     //printf( "%lu, total %.3E\n", 
     //  node->treelist_id, update_leaf_time );
   }
+
+  //if ( w_skel.HasIllegalValue() )
+  //{
+  //  printf( "Illegal value in w_skel\n" ); fflush( stdout );
+  //}
+
+
 
 #ifdef DEBUG_SPDASKIT
   printf( "%lu UpdateWeight done\n", node->treelist_id ); fflush( stdout );
@@ -3028,8 +3046,13 @@ void SkeletonsToSkeletons( NODE *node )
 
     if ( FarKab.size() ) /** Kab is cached */
     {
-      if ( node->treelist_id > 6 )
+      //if ( node->treelist_id > 6 )
+      if ( 1 )
       {
+
+        printf( "%8lu s2s %8lu w_skel[%lu %lu]\n", 
+            node->morton, (*it)->morton, w_skel.row(), w_skel.col() );
+        fflush( stdout );
         xgemm
         (
           "N", "N",
@@ -3080,6 +3103,14 @@ void SkeletonsToSkeletons( NODE *node )
     }
   }
   s2s_time = omp_get_wtime() - beg;
+
+
+  //if ( u_skel.HasIllegalValue() )
+  //{
+  //  printf( "Illegal value in u_skel\n" ); fflush( stdout );
+  //}
+
+
 
   //printf( "u_skel %.3E s2s %.3E\n", u_skel_time, s2s_time );
 
@@ -3206,10 +3237,33 @@ void SkeletonsToNodes( NODE *node )
 
   size_t nrhs = w.col();
 
+
+
+
+
   if ( node->isleaf )
   {
-    if ( data.w_leaf.size() )
+    /** Get U view of this node if initialized */
+    View<T> U = data.u_view;
+
+    if ( U.col() == nrhs )
     {
+      printf( "%8lu s2n U[%lu %lu %lu]\n", 
+          node->morton, U.row(), U.col(), U.ld() ); fflush( stdout );
+      xgemm
+      (
+        "Transpose", "Non-transpose",
+        U.row(), U.col(), u_skel.row(),
+        1.0,   proj.data(),   proj.row(),
+             u_skel.data(), u_skel.row(),
+        1.0,      U.data(),       U.ld()
+      );
+    }
+    else
+    {
+      //printf( "%8lu use u_leaf u_view [%lu %lu ld %lu]\n", 
+      //    node->morton, U.row(), U.col(), U.ld()  ); fflush( stdout );
+
       auto &u_leaf = node->data.u_leaf[ 0 ];
 
       /** zero-out u_leaf */
@@ -3230,19 +3284,6 @@ void SkeletonsToNodes( NODE *node )
         );
       }
     }
-    else
-    {
-      View<T> U = data.u_view;
-      xgemm
-      (
-        "Transpose", "Non-transpose",
-        U.row(), U.col(), u_skel.row(),
-        1.0,   proj.data(),   proj.row(),
-             u_skel.data(), u_skel.row(),
-        1.0,      U.data(),       U.ld()
-      );
-    }
-
     after_writeback_time = omp_get_wtime() - beg;
 
     //printf( "u_leaf %.3E before %.3E after %.3E\n",
@@ -3257,8 +3298,9 @@ void SkeletonsToNodes( NODE *node )
     auto &lskel = lchild->data.skels;
     auto &rskel = rchild->data.skels;
 
-    if ( node->treelist_id > 6 )
+    if ( 1 )
     {
+      printf( "%8lu s2n\n", node->morton ); fflush( stdout );
       xgemm
       (
         "Transpose", "No transpose",

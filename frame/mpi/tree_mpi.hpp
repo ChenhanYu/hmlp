@@ -662,7 +662,9 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
 
-
+    /**
+     *  TODO: need to redistribute the parameters of K as well
+     */ 
     void Split()
     {
       /** assertion */
@@ -1044,11 +1046,14 @@ class Tree
         /** update mycomm */
         mycomm = childcomm;
 
-        /** create the child */
+        /** Create the child */
         auto *parent = mpitreelists.back();
         auto *child  = new MPINODE( &(this->setup), 
             (size_t)0, mylevel, parent, 
             &(this->morton2node), &(this->lock), mycomm );
+
+        /** Create the sibling in type NODE but not MPINODE */
+        child->sibling = new NODE( (size_t)0 ); // Node morton is computed later.
 
         //printf( "size %d rank %d color %d level %d here\n",
         //    mysize, myrank, mycolor, mylevel ); fflush( stdout );
@@ -1450,15 +1455,30 @@ class Tree
       mpi::Comm_size( comm, &comm_size );
       mpi::Comm_rank( comm, &comm_rank );
 
+      /** Compute the correct shift*/
+      size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
+
+      if ( node->parent )
+      {
+        /** Compute sibling's node morton */
+        if ( morton % 2 )
+          node->sibling->morton = ( ( morton - 1 ) << shift ) + node->l;
+        else
+          node->sibling->morton = ( ( morton + 1 ) << shift ) + node->l;
+
+        /** Add sibling and its morton to the map */
+        (*node->morton2node)[ node->sibling->morton ] = node->sibling;
+      }
+
       /** 
        *  Call shared memory MortonID
        */
       if ( node->GetCommSize() < 2 )
       {
         tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Morton( node, morton );
-        printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
-            node->l, comm_rank, comm_size, 
-            node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
+        //printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
+        //    node->l, comm_rank, comm_size, 
+        //    node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
         /**
          *  Exchange MortonIDs in 3-step:
          *
@@ -1513,23 +1533,30 @@ class Tree
         {
           this->setup.morton[ recv_gids[ i ] ] = recv_mortons[ i ];
         }
-
-        return;
       }
-
-      if ( node )
+      else
       {
+        /** set the node Morton ID */
+        node->morton = ( morton << shift ) + node->l;
         /** child is the left child */
         if ( node->GetCommRank() < node->GetCommSize() / 2 )
           Morton( node->child, ( morton << 1 ) + 0 );
         /** child is the right child */
         else                   
           Morton( node->child, ( morton << 1 ) + 1 );
-        /** compute the correct shift*/
-        size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
-        /** set the node Morton ID */
-        node->morton = ( morton << shift ) + node->l;
+      }
 
+
+      /** Print information */
+      if ( node->parent )
+      {
+        printf( "level %lu rank %d size %d morton %8lu morton2rank %d sib_morton %8lu morton2rank %d\n", 
+            node->l, comm_rank, comm_size, 
+            node->morton, Morton2Rank( node->morton ),
+            node->sibling->morton, Morton2Rank( node->sibling->morton ) ); fflush( stdout );
+      }
+      else
+      {
         printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
             node->l, comm_rank, comm_size, 
             node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
@@ -1558,7 +1585,7 @@ class Tree
 
       if ( ( 1 << itlevel ) > size ) itlevel = mpilevel;
 
-      return it >> ( ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET );
+      return ( it >> ( ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET ) ) << ( mpilevel - itlevel );
 
     }; /** end Morton2rank() */
 
@@ -1921,6 +1948,20 @@ class Tree
 
     /** global communicator rank */
     int rank = 0;
+
+    /**
+     *  Interaction lists per rank
+     *
+     *  NearSentToRank[ p ]   contains all near node MortonIDs sent   to rank p.
+     *  NearRecvFromRank[ p ] contains all near node MortonIDs recv from rank p.
+     *  NearRecvFromRank[ p ][ morton ] = offset in the received vector.
+     */
+    vector<vector<size_t>>   NearSentToRank;
+    vector<map<size_t, int>> NearRecvFromRank;
+    vector<vector<size_t>>   FarSentToRank;
+    vector<map<size_t, int>> FarRecvFromRank;
+
+
 
     
   private:

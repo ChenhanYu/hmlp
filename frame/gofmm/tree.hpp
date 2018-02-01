@@ -729,11 +729,13 @@ class Node : public ReadWrite
     set<Node*>  ProposedNNFarNodes;
     set<size_t> NNFarNodeMortonIDs;
 
+
     /** Only leaf nodes will have this list. */
     set<size_t> NNNearIDs;
     set<Node*>  NNNearNodes;
     set<Node*>  ProposedNNNearNodes;
     set<size_t> NNNearNodeMortonIDs;
+
 
     /**
      *  Lock for exclusively modifying or accessing the tree.

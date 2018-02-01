@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <math.h>
 
 /** stl */
 #include <cassert>
@@ -465,6 +466,16 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     void randspd() 
     { 
       randspd<true>( 0.0, 1.0 ); 
+    };
+
+    bool HasIllegalValue()
+    {
+      for ( auto it = this->begin(); it != this->end(); it ++ )
+      {
+        if ( std::isinf( *it ) ) return true;
+        if ( std::isnan( *it ) ) return true;
+      }
+      return false;
     };
 
     void Print()

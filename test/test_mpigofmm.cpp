@@ -127,14 +127,39 @@ void test_gofmm
   /** redistribute from RBLK to RIDS */
   //DistData<RBLK, STAR, T> w_rblk( n, nrhs, MPI_COMM_WORLD );
   DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, CommGOFMM );
-  w_rids.rand();
   
+  /** Initialization */
+  w_rids.rand();
+  auto &gids = tree.treelist[ 0 ]->gids;
+  for ( int j = 0; j < nrhs; j ++ )
+    for ( int i = 0; i < gids.size(); i ++ )
+      w_rids( gids[ i ], j ) = gids[ i ];
+
+  printf( "w( %lu, 0 ) = %E\n", gids[ 0 ], w_rids( gids[ 0 ], 0 ) ); fflush( stdout );
+  printf( "w( %lu, 0 ) = %E\n", gids[ 1 ], w_rids( gids[ 1 ], 0 ) ); fflush( stdout );
+
+
+
   /** Evaluate u ~ K * w */
   auto u_rids = mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, CommGOFMM );
+
+
+  if ( u_rids.HasIllegalValue() )
+  {
+    printf( "Illegal value after Evaluate\n" ); fflush( stdout );
+  }
 
   /** redistribution */
   DistData<RBLK, STAR, T> u_rblk( n, nrhs, CommGOFMM );
   u_rblk = u_rids;
+
+
+  if ( u_rblk.HasIllegalValue() )
+  {
+    printf( "Illegal value after alltoall\n" ); fflush( stdout );
+  }
+
+
 
   /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
   std::size_t ntest = 100;
@@ -165,6 +190,10 @@ void test_gofmm
     /** bcast potentials to all MPI processes */
     mpi::Bcast( potentials.data(), nrhs, i % size, CommGOFMM );
 
+    if ( potentials.HasIllegalValue() )
+    {
+      printf( "potential %lu has illegal value %E\n", i, potentials[ 0 ] ); fflush( stdout );
+    }
 
 
     /** ASKIT treecode with NN pruning */
@@ -528,7 +557,7 @@ int main( int argc, char *argv[] )
   /** create a random spd matrix, which is diagonal-dominant */
   if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
   {
-		using T = float;
+		using T = double;
 		{
 			/** no geometric coordinates provided */
 			DistData<STAR, CBLK, T> *X = NULL;
