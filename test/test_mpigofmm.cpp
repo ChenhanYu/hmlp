@@ -57,6 +57,7 @@
 
 #include <mpi/DistData.hpp>
 #include <containers/DistKernelMatrix.hpp>
+#include <containers/DistKernelMatrix_ver2.hpp>
 #include <containers/DistSPDMatrix.hpp>
 
 
@@ -114,7 +115,7 @@ void test_gofmm
   const bool CACHE = true;
 
 	/** creatgin configuration for all user-define arguments */
-	Configuration<T> config( metric, n, m, k, s, stol, budget );
+  gofmm::Configuration<T> config( metric, n, m, k, s, stol, budget );
 
   /** compress K */
   auto *tree_ptr = mpigofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
@@ -508,9 +509,13 @@ int main( int argc, char *argv[] )
       kernel.type = KS_GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
 
-      /** distributed spd kernel matrix format (implicitly create) */
-      DistKernelMatrix<T> K( n, n, d, kernel, X, CommGOFMM );
-			
+      /** Distributed spd kernel matrix format (implicitly create) */
+      //DistKernelMatrix<T> K( n, n, d, kernel, X, CommGOFMM );
+		  DistKernelMatrix_ver2<T, T> K( n, d, kernel, X, CommGOFMM );
+
+
+
+
       /** shared spd kernel matrix format (implicitly create) */
 			//hmlp::KernelMatrix<T> K( n, n, d, kernel, Xtmp );
 

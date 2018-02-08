@@ -33,7 +33,7 @@
 using namespace std;
 using namespace hmlp;
 
-using namespace hmlp::gofmm;
+//using namespace hmlp::gofmm;
 
 namespace hmlp
 {
@@ -470,11 +470,10 @@ template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 {
 
-  /** shared-memory operator */
+  /** Shared-memory operator */
   inline vector<vector<size_t> > operator()
   ( 
-    vector<size_t>& gids,
-    vector<size_t>& lids
+    vector<size_t>& gids, vector<size_t>& lids
   ) const 
   {
     /** MPI */
@@ -483,10 +482,6 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
     //printf( "rank %d enter shared centersplit n = %lu\n", 
     //    global_rank, gids.size() ); fflush( stdout );
-
-
-
-
 
     return gofmm::centersplit<SPDMATRIX, N_SPLIT, T>::operator()
       ( gids, lids );
@@ -502,22 +497,19 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     mpi::Comm comm
   ) const 
   {
-    /** all assertions */
+    /** All assertions */
     assert( N_SPLIT == 2 );
     assert( this->Kptr );
 
-    /** declaration */
+    /** Declaration */
     int size, rank, global_rank;
     mpi::Comm_size( comm, &size );
     mpi::Comm_rank( comm, &rank );
     mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
     SPDMATRIX &K = *(this->Kptr);
-    std::vector<std::vector<size_t>> split( N_SPLIT );
+    vector<vector<size_t>> split( N_SPLIT );
 
-
-
-
-    /** reduce to get the total size of gids */
+    /** Reduce to get the total size of gids */
     int n = 0;
     int num_points_owned = gids.size();
     vector<T> temp( gids.size(), 0.0 );
@@ -526,129 +518,97 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
 
     /** n = sum( num_points_owned ) over all MPI processes in comm */
-    mpi::Allreduce( &num_points_owned, &n, 1, 
-        MPI_INT, MPI_SUM, comm );
+    mpi::Allreduce( &num_points_owned, &n, 1, MPI_SUM, comm );
+    /** Early return */
+    if ( n == 0 ) return split;
 
 
     //printf( "rank %d enter distributed centersplit n = %d\n", global_rank, n ); fflush( stdout );
 
-
-
-    /** early return */
-    if ( n == 0 ) return split;
-
-    /** diagonal entries */
-    Data<T> DII( n, (size_t)1 ), DCC( this->n_centroid_samples, (size_t)1 );
-
-    /** collecting DII */
-    //for ( size_t i = 0; i < gids.size(); i ++ )
-    //{
-    //  DII[ i ] = K( gids[ i ], gids[ i ] );
-    //}
-    DII = K.Diagonal( gids );
-
-    /** collecting column samples of K and DCC */
-    std::vector<size_t> column_samples( this->n_centroid_samples );
+    /** Collecting column samples of K and DCC */
+    vector<size_t> column_samples( this->n_centroid_samples );
     for ( size_t j = 0; j < this->n_centroid_samples; j ++ )
     {
       /** just use the first few gids */
       column_samples[ j ] = gids[ j ];
-      //DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
     }
-    DCC = K.Diagonal( column_samples );
 
 
+    /** Collecting diagonal DII, DCC, KIC */
+    Data<T> DII = K.Diagonal( gids );
+    Data<T> DCC = K.Diagonal( column_samples );
+    Data<T> KIC = K( gids, column_samples );
 
-    //printf( "rank %d enter DCC n = %d\n", rank, n ); fflush( stdout );
+    /** Compute d2c (distance to the approx centroid) for each owned point */
+    temp = gofmm::AllToCentroid( this->metric, DII, KIC, DCC );
 
+    /** Find the f2c (far most to center) from points owned */
+    auto idf2c = distance( temp.begin(), max_element( temp.begin(), temp.end() ) );
 
-		double beg = omp_get_wtime();
-    /** collecting KIC */
-    auto KIC = K( gids, column_samples );
-		double kic_t = omp_get_wtime() - beg;
-
-
-    //printf( "rank %d after KIC n = %d\n", rank, n ); fflush( stdout );
-
-    /** compute d2c (distance to the approx centroid) for each owned point */
-		beg = omp_get_wtime();
-    temp = hmlp::gofmm::AllToCentroid( this->metric, DII, KIC, DCC );
-		double a2c_t = omp_get_wtime() - beg;
-
-    /** find the f2c (far most to center) from points owned */
-    auto itf2c = std::max_element( temp.begin(), temp.end() );
-    auto idf2c = std::distance( temp.begin(), itf2c );
-
-    /** create a pair for MPI Allreduce */
-    hmlp::mpi::NumberIntPair<T> local_max_pair, max_pair; 
+    /** Create a pair for MPI Allreduce */
+    mpi::NumberIntPair<T> local_max_pair, max_pair; 
     local_max_pair.val = temp[ idf2c ];
     local_max_pair.key = rank;
 
     /** max_pair = max( local_max_pairs ) over all MPI processes in comm */
-    hmlp::mpi::Allreduce( &local_max_pair, &max_pair, 1, MPI_MAXLOC, comm );
+    mpi::Allreduce( &local_max_pair, &max_pair, 1, MPI_MAXLOC, comm );
 
-    /** boardcast gidf2c from the MPI process which has the max_pair */
+    /** Boardcast gidf2c from the MPI process which has the max_pair */
     int gidf2c = gids[ idf2c ];
-    hmlp::mpi::Bcast( &gidf2c, 1, MPI_INT, max_pair.key, comm );
+    mpi::Bcast( &gidf2c, 1, MPI_INT, max_pair.key, comm );
+
 
     //printf( "rank %d val %E key %d; global val %E key %d\n", 
     //    rank, local_max_pair.val, local_max_pair.key,
     //    max_pair.val, max_pair.key ); fflush( stdout );
     //printf( "rank %d gidf2c %d\n", rank, gidf2c  ); fflush( stdout );
 
-		beg = omp_get_wtime();
-    /** collecting KIP and kpp */
-    std::vector<size_t> P( 1, gidf2c );
-    auto KIP = K( gids, P );
-    auto kpp = K.Diagonal( P );
-		double kip_t = omp_get_wtime() - beg;
+    /** Collecting KIP and kpp */
+    vector<size_t> P( 1, gidf2c );
+    K.BcastColumns( P, max_pair.key, comm );
+    Data<T> KIP = K( gids, P );
+    Data<T> kpp = K.Diagonal( P );
 
-    /** compute the all2f (distance to farthest point) */
-    temp = hmlp::gofmm::AllToFarthest( this->metric, DII, KIP, kpp[ 0 ] );
+    /** Compute the all2f (distance to farthest point) */
+    temp = gofmm::AllToFarthest( this->metric, DII, KIP, kpp[ 0 ] );
 
 
-    /** find f2f (far most to far most) from owned points */
-    auto itf2f = std::max_element( temp.begin(), temp.end() );
-    auto idf2f = std::distance( temp.begin(), itf2f );
+    /** Find f2f (far most to far most) from owned points */
+    auto idf2f = distance( temp.begin(), max_element( temp.begin(), temp.end() ) );
 
-    /** create a pair for MPI Allreduce */
+    /** Create a pair for MPI Allreduce */
     local_max_pair.val = temp[ idf2f ];
     local_max_pair.key = rank;
 
     /** max_pair = max( local_max_pairs ) over all MPI processes in comm */
-    hmlp::mpi::Allreduce( &local_max_pair, &max_pair, 1, MPI_MAXLOC, comm );
+    mpi::Allreduce( &local_max_pair, &max_pair, 1, MPI_MAXLOC, comm );
 
     /** boardcast gidf2f from the MPI process which has the max_pair */
     int gidf2f = gids[ idf2f ];
-    hmlp::mpi::Bcast( &gidf2f, 1, MPI_INT, max_pair.key, comm );
+    mpi::Bcast( &gidf2f, 1, MPI_INT, max_pair.key, comm );
 
     //printf( "rank %d val %E key %d; global val %E key %d\n", 
     //    rank, local_max_pair.val, local_max_pair.key,
     //    max_pair.val, max_pair.key ); fflush( stdout );
     //printf( "rank %d gidf2f %d\n", rank, gidf2f  ); fflush( stdout );
 
-    /** collecting KIQ */
-    std::vector<size_t> Q( 1, gidf2f );
+    /** Collecting KIQ and kqq */
+    vector<size_t> Q( 1, gidf2f );
+    K.BcastColumns( Q, max_pair.key, comm );
     auto KIQ = K( gids, Q );
-
-    //printf( "rank %d after KIQ n = %d\n", rank, n ); fflush( stdout );
-
-    /** get diagonal entry kpp */
     auto kqq = K.Diagonal( Q );
 
     /** compute all2leftright (projection i.e. dip - diq) */
-    temp = hmlp::gofmm::AllToLeftRight( this->metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
+    temp = gofmm::AllToLeftRight( this->metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
 
     /** parallel median select */
-		beg = omp_get_wtime();
-    T  median = hmlp::combinatorics::Select( n / 2, temp, comm );
-		double select_t = omp_get_wtime() - beg;
+    T  median = combinatorics::Select( n / 2, temp, comm );
     //printf( "kic_t %lfs, a2c_t %lfs, kip_t %lfs, select_t %lfs\n", 
 		//		kic_t, a2c_t, kip_t, select_t ); fflush( stdout );
 
     //printf( "rank %d median %E\n", rank, median ); fflush( stdout );
 
-    std::vector<size_t> middle;
+    vector<size_t> middle;
     middle.reserve( gids.size() );
     split[ 0 ].reserve( gids.size() );
     split[ 1 ].reserve( gids.size() );
@@ -754,8 +714,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     vector<size_t>& lids
   ) const 
   {
-    return gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator()
-      ( gids, lids );
+    return gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator() ( gids, lids );
   };
 
   /** distributed operator */
@@ -776,7 +735,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
     mpi::Comm_size( MPI_COMM_WORLD, &global_size );
     SPDMATRIX &K = *(this->Kptr);
-    std::vector<std::vector<size_t>> split( N_SPLIT );
+    vector<vector<size_t>> split( N_SPLIT );
 
     if ( size == global_size )
     {
@@ -790,13 +749,12 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     /** reduce to get the total size of gids */
     int n = 0;
     int num_points_owned = gids.size();
-    std::vector<T> temp( gids.size(), 0.0 );
+    vector<T> temp( gids.size(), 0.0 );
 
     //printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
 
     /** n = sum( num_points_owned ) over all MPI processes in comm */
-    hmlp::mpi::Allreduce( &num_points_owned, &n, 1, 
-        MPI_INT, MPI_SUM, comm );
+    mpi::Allreduce( &num_points_owned, &n, 1, MPI_INT, MPI_SUM, comm );
 
     //printf( "rank %d enter distributed randomsplit n = %d\n", global_rank, n ); fflush( stdout );
 
@@ -804,34 +762,41 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     if ( n == 0 ) return split;
 
 
-    /** randomly select two points p and q */
-    size_t idf2c = std::rand() % gids.size();
-    size_t idf2f = std::rand() % gids.size();
-    while ( idf2c == idf2f ) idf2f = std::rand() % gids.size();
+    /** Randomly select two points p and q */
+    //size_t idf2c = std::rand() % gids.size();
+    //size_t idf2f = std::rand() % gids.size();
+    //while ( idf2c == idf2f ) idf2f = std::rand() % gids.size();
 
-    /** now get their gids */
-    auto gidf2c = gids[ idf2c ];
-    auto gidf2f = gids[ idf2f ];
+    /** Randomly select two points p and q */
+    auto gidf2c = gids[ std::rand() % gids.size() ];
+    auto gidf2f = gids[ std::rand() % gids.size() ];
 
     /** Bcast gidf2c and gidf2f from rank-0 to all MPI processes */
-    mpi::Bcast( &gidf2c, 1, 0, comm );
-    mpi::Bcast( &gidf2f, 1, 0, comm );
+    mpi::Bcast( &gidf2c, 1,        0, comm );
+    mpi::Bcast( &gidf2f, 1, size / 2, comm );
 
-	  double beg = omp_get_wtime();
+    vector<size_t> P( 1, gidf2c );
+    vector<size_t> Q( 1, gidf2f );
+		vector<size_t> PQ( 2 ); 
+    PQ[ 0 ] = gidf2c; 
+    PQ[ 1 ] = gidf2f;
+    K.BcastColumns( P,        0, comm );
+    K.BcastColumns( Q, size / 2, comm );
 
-    /** collecting DII */
+    printf( "BcastColumns %lu %lu\n", gidf2c, gidf2f ); fflush( stdout ); 
+    mpi::Barrier( comm );
+
+
+    /** Collecting DII, KIP, KIQ, kpp and kqq */
     Data<T> DII = K.Diagonal( gids );
-
-    /** collecting KIP and KIQ */
-    std::vector<size_t> P( 1, gidf2c );
-    std::vector<size_t> Q( 1, gidf2f );
-		std::vector<size_t> PQ( 2 ); PQ[ 0 ] = gidf2c; PQ[ 1 ] = gidf2f;
-		auto KIPQ = K( gids, PQ );
-    //auto KIP = K( gids, P );
-    //auto KIQ = K( gids, Q );
-		
+    Data<T> kpp = K.Diagonal( P );
+    Data<T> kqq = K.Diagonal( Q );
+		Data<T> KIPQ = K( gids, PQ );
 		Data<T> KIP( gids.size(), (size_t) 1 );
 		Data<T> KIQ( gids.size(), (size_t) 1 );
+
+    printf( "KIQP %lu %lu\n", gidf2c, gidf2f ); fflush( stdout ); 
+    mpi::Barrier( comm );
 
     for ( size_t i = 0; i < gids.size(); i ++ )
 		{
@@ -839,44 +804,15 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 			KIQ[ i ] = KIPQ( i, (size_t)1 );
 		}
 
-    /** get diagonal entry kpp and kqq */
-    auto kpp = K.Diagonal( P );
-    auto kqq = K.Diagonal( Q );
-
-
-		double kij_t = omp_get_wtime() - beg;
-		//printf( "Dist evaluate %lfs\bn", kij_t );
-
-
-
-	  beg = omp_get_wtime();
-    /** compute all2leftright (projection i.e. dip - diq) */
+    /** Compute all2leftright (projection i.e. dip - diq) */
     temp = gofmm::AllToLeftRight( this->metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
-		double a2lr_t = omp_get_wtime() - beg;
-		//printf( "Dist all2leftright %lfs\bn", a2lr_t );
-
-
-
-
-
-
-
-
-
-
-
 
 
     /** parallel median select */
-	  beg = omp_get_wtime();
     /** compute all2leftright (projection i.e. dip - diq) */
     T  median = hmlp::combinatorics::Select( n / 2, temp, comm );
-		double select_t = omp_get_wtime() - beg;
-		//printf( "Dist selec %lfs\bn", select_t );
 
-    //printf( "rank %d median %E\n", rank, median ); fflush( stdout );
-
-    std::vector<size_t> middle;
+    vector<size_t> middle;
     middle.reserve( gids.size() );
     split[ 0 ].reserve( gids.size() );
     split[ 1 ].reserve( gids.size() );
@@ -908,9 +844,9 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     int num_rhs_owned = split[ 1 ].size();
 
     /** nmid = sum( num_mid_owned ) over all MPI processes in comm */
-    hmlp::mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
-    hmlp::mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
-    hmlp::mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
+    mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
+    mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
+    mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
 
     //printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
     //    global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
@@ -935,7 +871,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
       assert( nlhs_required >= 0 );
       assert( nrhs_required >= 0 );
 
-      /** now decide the portion */
+      /** Now decide the portion */
 			double lhs_ratio = ( (double)nlhs_required ) / nmid;
       int nlhs_required_owned = num_mid_owned * lhs_ratio;
       int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
@@ -952,13 +888,18 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 
       for ( size_t i = 0; i < middle.size(); i ++ )
       {
-        if ( i < nlhs_required_owned ) split[ 0 ].push_back( middle[ i ] );
-        else                           split[ 1 ].push_back( middle[ i ] );
+        if ( i < nlhs_required_owned ) 
+          split[ 0 ].push_back( middle[ i ] );
+        else                           
+          split[ 1 ].push_back( middle[ i ] );
       }
     };
 
-    /** perform P2P redistribution */
+    /** Perform P2P redistribution */
     K.RedistributeWithPartner( gids, split[ 0 ], split[ 1 ], comm );
+
+    printf( "Finish RedistributeWithPartner\n" ); fflush( stdout );
+    mpi::Barrier( comm );
 
     return split;
   };
@@ -2825,8 +2766,17 @@ void ExchangeLET( TREE &tree, string option )
 
   /** Alltoallv */
   mpi::AlltoallVector( sendsizes, recvsizes, tree.comm );
-  mpi::AlltoallVector( sendskels, recvskels, tree.comm );
-  mpi::AlltoallVector( sendbuffs, recvbuffs, tree.comm );
+  if ( !option.compare( string( "skelgids" ) ) ||
+       !option.compare( string( "leafgids" ) ) )
+  {
+    auto &K = *tree.setup.K;
+    mpi::AlltoallVector( sendskels, recvskels, tree.comm );
+    K.RequestColumns( recvskels );
+  }
+  else
+  {
+    mpi::AlltoallVector( sendbuffs, recvbuffs, tree.comm );
+  }
 
   vector<vector<size_t>> offsets( comm_size );
 
@@ -2935,6 +2885,46 @@ void ExchangeLET( TREE &tree, string option )
 }; /** ExchangeSkeletons() */
 
 
+template<typename T, typename TREE>
+void ExchangeNeighbors( TREE &tree )
+{
+  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
+  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
+
+  /** Alltoallv buffers */
+  vector<vector<size_t>> send_buff( comm_size );
+  vector<vector<size_t>> recv_buff( comm_size );
+
+  /** NN<STAR, CIDS, pair<T, size_t>> */
+  unordered_set<size_t> requested_gids;
+  auto &NN = *tree.setup.NN;
+
+  /** Remove duplication */
+  for ( auto it = NN.begin(); it != NN.end(); it ++ )
+  {
+    requested_gids.insert( (*it).second );
+  }
+
+  /** Remove owned gids */
+  for ( auto it  = tree.treelist[ 0 ]->gids.begin();
+             it != tree.treelist[ 0 ]->gids.end(); it ++ )
+  {
+    requested_gids.erase( *it );
+  }
+
+  /** Assume gid is owned by (gid % size) */
+  for ( auto it  = requested_gids.begin();
+             it != requested_gids.end(); it ++ )
+  {
+    int p = *it % comm_size;
+    if ( p != comm_rank ) send_buff[ p ].push_back( *it );
+  }
+
+  /** Redistribute K */
+  auto &K = *tree.setup.K;
+  K.RequestColumns( send_buff );
+
+};
 
 
 
@@ -4506,8 +4496,12 @@ void DistRowSamples( NODE *node, size_t nsamples )
 	{
 		if ( rank == 0 )
 		{
-  	  for ( size_t i = 0; i < nsamples; i ++ ) 
-			  candidates[ i ] = rand() % K.col();
+  	  for ( size_t i = 0; i < nsamples; i ++ )
+      {
+			  //candidates[ i ] = rand() % K.col();
+        auto important_sample = K.ImportantSample( 0 );
+        candidates[ i ] =  important_sample.second;
+      }
 		}
 
 		/** bcast candidates */
@@ -4834,11 +4828,11 @@ class GetSkeletonMatrixTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      //printf( "%lu GetSkeletonMatrix beg\n", arg->treelist_id );
+      printf( "%lu GetSkeletonMatrix beg\n", arg->treelist_id );
       double beg = omp_get_wtime();
       gofmm::GetSkeletonMatrix<NODE, T>( arg );
       double getmtx_t = omp_get_wtime() - beg;
-      //printf( "%lu GetSkeletonMatrix end %lfs\n", arg->treelist_id, getmtx_t ); fflush( stdout );
+      printf( "%lu GetSkeletonMatrix end %lfs\n", arg->treelist_id, getmtx_t ); fflush( stdout );
     };
 
 }; /** end class GetSkeletonMatrixTask */
@@ -4870,9 +4864,9 @@ void ParallelGetSkeletonMatrix( NODE *node )
   auto &KIJ = data.KIJ;
 
   /** MPI */
+  mpi::Comm comm = node->GetComm();
   int size = node->GetCommSize();
   int rank = node->GetCommRank();
-  hmlp::mpi::Comm comm = node->GetComm();
 	int global_rank;
 	mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
 
@@ -4893,7 +4887,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
      *  
      */
     NODE *child = node->child;
-    hmlp::mpi::Status status;
+    mpi::Status status;
 		size_t nsamples = 0;
 
 
@@ -4901,7 +4895,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
      *  boardcast (isskel) to all MPI processes using children's comm
      */ 
     int child_isskel = child->data.isskel;
-    hmlp::mpi::Bcast( &child_isskel, 1, 0, child->GetComm() );
+    mpi::Bcast( &child_isskel, 1, 0, child->GetComm() );
     child->data.isskel = child_isskel;
 
 
@@ -4913,7 +4907,8 @@ void ParallelGetSkeletonMatrix( NODE *node )
       /** concatinate [ lskels, rskels ] */
       candidate_cols = child->data.skels;
       std::vector<size_t> rskel;
-      hmlp::mpi::RecvVector( rskel, size / 2, 10, comm, &status );
+      mpi::RecvVector( rskel, size / 2, 10, comm, &status );
+      K.RecvColumns( size / 2, comm, &status );
       candidate_cols.insert( candidate_cols.end(), rskel.begin(), rskel.end() );
 
 			/** use two times of skeletons */
@@ -4964,6 +4959,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
     {
       /** send rskel to rank-0 */
       mpi::SendVector( child->data.skels, 0, 10, comm );
+      K.SendColumns( child->data.skels, 0, comm );
 
       /** gather rsnids */
       auto &rsnids = node->child->data.snids;
@@ -5111,9 +5107,9 @@ class ParallelGetSkeletonMatrixTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      //printf( "%lu Par-GetSkeletonMatrix beg\n", arg->treelist_id );
+      printf( "%lu Par-GetSkeletonMatrix beg\n", arg->morton );
       ParallelGetSkeletonMatrix<NODE, T>( arg );
-      //printf( "%lu Par-GetSkeletonMatrix end\n", arg->treelist_id );
+      printf( "%lu Par-GetSkeletonMatrix end\n", arg->morton );
     };
 
 }; /** end class ParallelGetSkeletonMatrixTask */
@@ -5446,7 +5442,7 @@ class InterpolateTask : public Task
     void Execute( Worker* user_worker )
     {
       /** only executed by rank 0 */
-      if ( arg->GetCommRank() == 0  ) Interpolate<NODE, T>( arg );
+      if ( arg->GetCommRank() == 0  ) gofmm::Interpolate<NODE, T>( arg );
 
       mpi::Comm comm = arg->GetComm();
       auto &proj  = arg->data.proj;
@@ -5739,7 +5735,7 @@ mpitree::Tree<
   DistData<STAR, CBLK, std::pair<T, std::size_t>> &NN_cblk,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
-	Configuration<T> &config
+	gofmm::Configuration<T> &config
 )
 {
   /** MPI */
@@ -5882,16 +5878,16 @@ mpitree::Tree<
 	{
     printf( "TreePartitioning ...\n" ); fflush( stdout );
 	}
-  mpi::Barrier( MPI_COMM_WORLD );
+  mpi::Barrier( tree.comm );
   beg = omp_get_wtime();
   tree.TreePartition( n );
-  mpi::Barrier( MPI_COMM_WORLD );
+  mpi::Barrier( tree.comm );
   tree_time = omp_get_wtime() - beg;
 	if ( rank == 0 )
 	{
     printf( "end TreePartitioning ...\n" ); fflush( stdout );
 	}
-  mpi::Barrier( MPI_COMM_WORLD );
+  mpi::Barrier( tree.comm );
 
   /** 
    *  Now redistribute K. 
@@ -5905,9 +5901,10 @@ mpitree::Tree<
    *  Now redistribute NN according to gids i.e.
    *  NN[ *, CIDS ] = NN[ *, CBLK ];
    */
-  DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, MPI_COMM_WORLD );
+  DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, tree.comm );
   NN = NN_cblk;
   tree.setup.NN = &NN;
+  ExchangeNeighbors<T>( tree );
   printf( "Finish redistribute NN\n" ); fflush( stdout );
 
 
@@ -6014,7 +6011,7 @@ mpitree::Tree<
 	{
 		printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
 	}
-	mpi::Barrier( MPI_COMM_WORLD );
+	mpi::Barrier( tree.comm );
 	beg = omp_get_wtime();
 
 	/** clean up all dependencies for skeletonization */
@@ -6038,7 +6035,17 @@ mpitree::Tree<
 		mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
 		mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
 		tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+		hmlp_run();
+		mpi::Barrier( tree.comm );
+    tree.DependencyCleanUp();
+
+    printf( "Finish Local Skeletonization\n" ); fflush( stdout );
+
+
 		tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+		hmlp_run();
+		mpi::Barrier( tree.comm );
+    tree.DependencyCleanUp();
 
 		/** compute the coefficient matrix of ID */
 		gofmm::InterpolateTask<NODE, T> seqPROJtask;
@@ -6047,7 +6054,7 @@ mpitree::Tree<
 		tree.DistTraverseUnOrdered( mpiPROJtask );
 
 		hmlp_run();
-		mpi::Barrier( MPI_COMM_WORLD );
+		mpi::Barrier( tree.comm );
     tree.DependencyCleanUp();
     printf( "Finish Skeletonization\n" ); fflush( stdout );
 
@@ -6078,7 +6085,7 @@ mpitree::Tree<
 
 		other_time += omp_get_wtime() - beg;
 		hmlp_run();
-		mpi::Barrier( MPI_COMM_WORLD );
+		mpi::Barrier( tree.comm );
 		skel_time = omp_get_wtime() - beg;
 	}
 
@@ -6249,7 +6256,7 @@ mpitree::Tree<
   tree_ptr->DependencyCleanUp();
 
   /** global barrier to make sure all processes have completed */
-  mpi::Barrier( MPI_COMM_WORLD );
+  mpi::Barrier( tree.comm );
 
 
 
@@ -6267,17 +6274,22 @@ mpitree::Tree<
  *  @brief Here MPI_Allreduce is required.
  */ 
 template<typename TREE, typename T>
-T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials, mpi::Comm comm )
+T ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
 {
+  int comm_rank; mpi::Comm_rank( comm, &comm_rank );
+  int comm_size; mpi::Comm_size( comm, &comm_size );
+
+
   auto &K = *tree.setup.K;
   auto &w = *tree.setup.w;
 
-  auto  I = std::vector<size_t>( 1, gid );
+  auto  I = vector<size_t>( 1, gid );
   auto &J = tree.treelist[ 0 ]->gids;
 
-  //auto Kab = K( I, J );
+  /** Bcast */
+  K.BcastColumns( I, gid % comm_size, comm );
 
-	hmlp::Data<T> Kab;
+	Data<T> Kab;
 
 	bool do_terminate = false;
 
@@ -6297,12 +6309,6 @@ T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials, mpi::Comm comm
 		}
 
 	}; /** end omp parallel sections */
-
-
-  //for ( int j = 0; j < J.size(); j ++ )
-  //{
-  //  assert( *(w.data() + j) == J[ j ] );
-  //}
 
 
   auto loc_exact = potentials;

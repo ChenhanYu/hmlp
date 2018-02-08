@@ -121,6 +121,21 @@ class VirtualMatrix
       return sample; 
     }; /** end ImportantSample() */
 
+    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
+    {
+    };
+
+    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
+    {
+    };
+
+    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
+    {
+    };
+
+    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
+    {
+    };
 
     virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
     {

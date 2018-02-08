@@ -1092,21 +1092,21 @@ class Tree
 
     /** */
     template<bool SORTED, typename KNNTASK>
-    DistData<STAR, CBLK, std::pair<T, size_t>> AllNearestNeighbor
+    DistData<STAR, CBLK, pair<T, size_t>> AllNearestNeighbor
     (
       size_t n_tree,
       size_t n,
       size_t k, 
       size_t max_depth,
-      std::pair<T, std::size_t> initNN,
+      pair<T, std::size_t> initNN,
       KNNTASK &dummy
     )
     {
       /** get the problem size from setup->K->row() */
       this->n = n;
 
-      /** k-by-N */
-      hmlp::DistData<STAR, CBLK, std::pair<T, size_t>> NN( k, n, initNN, comm );
+      /** k-by-N, column major */
+      DistData<STAR, CBLK, std::pair<T, size_t>> NN( k, n, initNN, comm );
 
       /** use leaf size = 4 * k  */
       this->setup.m = 4 * k;
@@ -1122,28 +1122,12 @@ class Tree
         if ( rank >= ( n % size ) ) num_points_owned -= 1;
       }
 
-
-
-      /** initial gids distribution (asssuming Round-Robin) */
-      std::vector<size_t> gids( num_points_owned, 0 );
+      /** Initial gids distribution (asssuming Round-Robin) */
+      vector<size_t> gids( num_points_owned, 0 );
       for ( size_t i = 0; i < num_points_owned; i ++ )
-        //gids[ i ] = rank * num_points_owned + i;
         gids[ i ] = i * size + rank;
 
-      /** edge case (happens in the last MPI process) */
-      //if ( rank == size - 1 )
-      //{
-      //  num_points_owned = n - num_points_owned * ( size - 1 );
-      //  gids.resize( num_points_owned );
-      //}
-
-
-
-
-
-      //printf( "rank %d before AllocateNodes\n", rank ); fflush( stdout );
-
-      /** allocate distributed tree nodes in advance */
+      /** Allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
       //printf( "Finish allocate rkdt nodes\n" ); fflush( stdout );
@@ -1162,7 +1146,7 @@ class Tree
       //    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
       //    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
-      /** tree partitioning */
+      /** Tree partitioning */
       DistSplitTask<MPINODE> mpisplittask;
       DistTraverseDown( mpisplittask );
       hmlp_run();
@@ -1221,7 +1205,7 @@ class Tree
 
 
         /** queries computed in CIDS distribution  */
-        DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
+        DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
             this->treelist[ 0 ]->gids, initNN, comm );
 
         /** 

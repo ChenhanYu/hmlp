@@ -4,12 +4,11 @@
 #include <containers/data.hpp>
 #include <mpi/hmlp_mpi.hpp>
 
+using namespace std;
+
 
 namespace hmlp
 {
-
-
-
 
 namespace mpi
 {
@@ -21,8 +20,8 @@ namespace mpi
 template<typename T>
 int AlltoallData(
     size_t m,
-    std::vector<hmlp::Data<T>> &sendvector, 
-    std::vector<hmlp::Data<T>> &recvvector, mpi::Comm comm )
+    vector<hmlp::Data<T>> &sendvector, 
+    vector<hmlp::Data<T>> &recvvector, mpi::Comm comm )
 {
   int size = 0;
   int rank = 0;
@@ -50,12 +49,12 @@ int AlltoallData(
 
 
 
-  std::vector<T, ALLOCATOR> sendbuf;
-  std::vector<T, ALLOCATOR> recvbuf;
-  std::vector<int> sendcounts( size, 0 );
-  std::vector<int> recvcounts( size, 0 );
-  std::vector<int> sdispls( size + 1, 0 );
-  std::vector<int> rdispls( size + 1, 0 );
+  vector<T, ALLOCATOR> sendbuf;
+  vector<T, ALLOCATOR> recvbuf;
+  vector<int> sendcounts( size, 0 );
+  vector<int> recvcounts( size, 0 );
+  vector<int> sdispls( size + 1, 0 );
+  vector<int> rdispls( size + 1, 0 );
 
   for ( size_t p = 0; p < size; p ++ )
   {
@@ -133,8 +132,9 @@ typedef enum
 {
   CBLK, /** Elemental MC */
   RBLK, /** Elemental MR */
-  CIDS, /** distributed according to column ids */
-  RIDS, /** distributed according to    row ids */
+  CIDS, /** Distributed according to column ids */
+  RIDS, /** Distributed according to    row ids */
+  USER, /** Distributed acoording to user defined maps */
   STAR, /** Elemental STAR */
   CIRC  /** Elemental CIRC */
 } Distribution_t;
@@ -152,12 +152,9 @@ template<class T, class Allocator = std::allocator<T> >
 #endif
 class DistDataBase : public Data<T, Allocator>
 {
-
   public:
 
-    /**
-     *  
-     */ 
+    /** Default constructor */
     DistDataBase( size_t m, size_t n, mpi::Comm comm )
     {
       this->global_m = m;
@@ -167,56 +164,34 @@ class DistDataBase : public Data<T, Allocator>
       mpi::Comm_rank( comm, &comm_rank );
     };
 
+    /** Constrcut a zero matrix (but mpi::Comm is still required) */
     DistDataBase( mpi::Comm comm )
     {
       DistDataBase( 0, 0, comm );
     };
 
-    mpi::Comm GetComm() 
-    { 
-      return comm; 
-    };
+    /** MPI support */
+    mpi::Comm GetComm() { return comm; };
+    int GetSize() { return comm_size; };
+    int GetRank() { return comm_rank; };
 
-    int GetSize() 
-    { 
-      return comm_size; 
-    };
-    
-    int GetRank() 
-    { 
-      return comm_rank; 
-    };
+    /** Get total row and column numbers across all MPI ranks */
+    size_t row() { return global_m; };
+    size_t col() { return global_n; };
 
-    size_t row() 
-    { 
-      return global_m; 
-    };
-
-    size_t col() 
-    { 
-      return global_n; 
-    };
-
-    size_t row_owned()
-    {
-      return Data<T>::row();
-    };
-
-    size_t col_owned()
-    {
-      return Data<T>::col();
-    };
+    /** Get row and column numbers owned by this MPI rank */
+    size_t row_owned() { return Data<T>::row(); };
+    size_t col_owned() { return Data<T>::col(); };
 
   private:
 
+    /** Total row and column numbers across all MPI ranks */
     size_t global_m = 0;
-
     size_t global_n = 0;
 
+    /** MPI support */
     mpi::Comm comm = MPI_COMM_WORLD;
-
     int comm_size = 0;
-
     int comm_rank = 0;
 
 }; /** end class DistDataBase */
@@ -382,7 +357,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
     /**
      *  constructor that reads a binary file
      */ 
-    DistData( size_t m, size_t n, mpi::Comm comm, std::string &filename ) 
+    DistData( size_t m, size_t n, mpi::Comm comm, string &filename ) 
       : DistData<STAR, CBLK, T>( m, n, comm )
     {
       read( m, n, filename );
@@ -391,7 +366,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
     /**
      *  read a dense column-major matrix 
      */ 
-    void read( size_t m, size_t n, std::string &filename )
+    void read( size_t m, size_t n, string &filename )
     {
       assert( this->row() == m );
       assert( this->col() == n );
@@ -401,7 +376,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       int rank = this->GetRank();
 
       /** print out filename */
-      std::cout << filename << std::endl;
+      cout << filename << endl;
 
       std::ifstream file( filename.data(), 
           std::ios::in|std::ios::binary|std::ios::ate );
@@ -469,7 +444,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
     /**
      *  Overload operator () to return a local submatrix using gids
      */ 
-    hmlp::Data<T> operator () ( std::vector<size_t> I, std::vector<size_t> J )
+    Data<T> operator () ( vector<size_t> &I, vector<size_t> &J )
     {
       for ( auto it = J.begin(); it != J.end(); it ++ )
       {
@@ -490,7 +465,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
     };
 
     
-    /** redistribute from CIDS to CBLK */
+    /** Redistribute from CIDS to CBLK */
     DistData<STAR, CBLK, T> & operator = ( DistData<STAR, CIDS, T> &A )
     {
       /** MPI */
@@ -499,20 +474,20 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       int rank = this->GetRank();
 
       /** allocate buffer for ids */
-      std::vector<std::vector<size_t>> sendids = A.CBLKOwnership();
-      std::vector<std::vector<size_t>> recvids( size );
+      vector<vector<size_t>> sendids = A.CBLKOwnership();
+      vector<vector<size_t>> recvids( size );
 
       /** exchange cids */
       mpi::AlltoallVector( sendids, recvids, comm );
       
       /** allocate buffer for data */
-      std::vector<std::vector<T, ALLOCATOR>> senddata( size );
-      std::vector<std::vector<T, ALLOCATOR>> recvdata( size );
+      vector<vector<T, ALLOCATOR>> senddata( size );
+      vector<vector<T, ALLOCATOR>> recvdata( size );
 
-      std::vector<size_t> amap( this->row() );
+      vector<size_t> amap( this->row() );
       for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
 
-      /** extract rows from A<STAR,CIDS> */
+      /** extract rows from A<STAR, CIDS> */
       #pragma omp parallel for
       for ( size_t p = 0; p < size; p ++ )
       {
@@ -522,6 +497,11 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
 
       /** exchange data */
       mpi::AlltoallVector( senddata, recvdata, comm );
+
+      /** 
+       *  It is possible that the received cid has several copies on
+       *  different MPI rank.
+       */
 
       #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
@@ -717,11 +697,11 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
     using ALLOCATOR = std::allocator<T>;
     #endif
 
-    /** default constructor */
-    DistData( size_t m, size_t n, std::vector<size_t> &cids, mpi::Comm comm ) : 
+    /** Default constructor */
+    DistData( size_t m, size_t n, vector<size_t> &cids, mpi::Comm comm ) : 
       DistDataBase<T>( m, n, comm ) 
     {
-      /** now check if (sum cids.size() == n) */
+      /** now check if (sum cids.size() >= n) */
       size_t bcast_n = cids.size();
       size_t reduc_n = 0;
       mpi::Allreduce( &bcast_n, &reduc_n, 1, MPI_SUM, comm );
@@ -733,11 +713,11 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
         cid2col[ cids[ j ] ] = j;      
     };
 
-    /** default constructor */
-    DistData( size_t m, size_t n, std::vector<size_t> &cids, T initT, mpi::Comm comm ) : 
+    /** Default constructor */
+    DistData( size_t m, size_t n, vector<size_t> &cids, T initT, mpi::Comm comm ) : 
       DistDataBase<T>( m, n, comm ) 
     {
-      /** now check if (sum cids.size() == n) */
+      /** now check if (sum cids.size() >= n) */
       size_t bcast_n = cids.size();
       size_t reduc_n = 0;
       mpi::Allreduce( &bcast_n, &reduc_n, 1, MPI_SUM, comm );
@@ -749,13 +729,13 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
         cid2col[ cids[ j ] ] = j;      
     };
 
-    DistData( size_t m, size_t n, std::vector<size_t> &cids, Data<T> &A, mpi::Comm comm ) : 
+    DistData( size_t m, size_t n, vector<size_t> &cids, Data<T> &A, mpi::Comm comm ) : 
       DistDataBase<T>( m, n, comm ) 
     {
       assert( A.row() == m );
       assert( A.col() == cids.size() );
 
-      /** now check if (sum cids.size() == n) */
+      /** now check if (sum cids.size() >= n) */
       size_t bcast_n = cids.size();
       size_t reduc_n = 0;
       mpi::Allreduce( &bcast_n, &reduc_n, 1, MPI_SUM, comm );
@@ -767,13 +747,6 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
 
       for ( size_t j = 0; j < cids.size(); j ++ ) cid2col[ cids[ j ] ] = j;      
     };
-
-
-
-    /** */
-    //void Set( size_t m, size_t n )
-
-
 
     /**
      *  Overload operator () to allow accessing data using gids
@@ -790,7 +763,7 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
     /**
      *  Overload operator () to return a local submatrix using gids
      */ 
-    hmlp::Data<T> operator () ( std::vector<size_t> I, std::vector<size_t> J )
+    Data<T> operator () ( vector<size_t> I, vector<size_t> J )
     {
       for ( auto it = J.begin(); it != J.end(); it ++ )
       {
@@ -812,23 +785,23 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
       return Data<T>::columndata( cid2col[ cid ] );
     };
 
-    std::pair<size_t, T*> GetIDAndColumnPointer( size_t j )
+    pair<size_t, T*> GetIDAndColumnPointer( size_t j )
     {
-      return std::pair<size_t, T*>( cids[ j ], Data<T>::columndata( j ) );
+      return pair<size_t, T*>( cids[ j ], Data<T>::columndata( j ) );
     };
 
     /**
      *  @brief Return a vector of vector that indicates the RBLK ownership
      *         of each MPI rank.
      */ 
-    std::vector<std::vector<size_t>> CBLKOwnership()
+    vector<vector<size_t>> CBLKOwnership()
     {
       /** MPI */
       mpi::Comm comm = this->GetComm();
       int size = this->GetSize();
       int rank = this->GetRank();
 
-      std::vector<std::vector<size_t>> ownership( size );
+      vector<vector<size_t>> ownership( size );
 
       for ( auto it = cids.begin(); it != cids.end(); it ++ )
       {
@@ -845,21 +818,21 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
     }; /** end CBLKOwnership() */
 
 
-    std::vector<std::vector<size_t>> CIRCOwnership( int owner )
+    vector<vector<size_t>> CIRCOwnership( int owner )
     {
       /** MPI */
       mpi::Comm comm = this->GetComm();
       int size = this->GetSize();
       int rank = this->GetRank();
 
-      std::vector<std::vector<size_t>> ownership( size );
+      vector<vector<size_t>> ownership( size );
       ownership[ owner ] = cids;
       return ownership;
     }; /** end CIRCOwnership() */
 
 
 
-    /** redistribution from CBLK to CIDS */
+    /** Redistribution from CBLK to CIDS */
     DistData<STAR, CIDS, T> & operator = ( DistData<STAR, CBLK, T> &A )
     {
       /** assertion: must provide rids */
@@ -871,8 +844,8 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
       int rank = this->GetRank();
 
       /** allocate buffer for ids */
-      std::vector<std::vector<size_t>> sendids = CBLKOwnership();
-      std::vector<std::vector<size_t>> recvids( size );
+      vector<vector<size_t>> sendids = CBLKOwnership();
+      vector<vector<size_t>> recvids( size );
 
       /** 
        *  exchange cids: 
@@ -885,10 +858,10 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
 
 
       /** allocate buffer for data */
-      std::vector<std::vector<T, ALLOCATOR>> senddata( size );
-      std::vector<std::vector<T, ALLOCATOR>> recvdata( size );
+      vector<vector<T, ALLOCATOR>> senddata( size );
+      vector<vector<T, ALLOCATOR>> recvdata( size );
 
-      std::vector<size_t> amap( this->row() );
+      vector<size_t> amap( this->row() );
       for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
 
 
@@ -926,11 +899,194 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
 
   private:
 
-    std::vector<size_t> cids;
+    vector<size_t> cids;
 
-    std::map<size_t, size_t> cid2col;
+    vector<size_t> cids_from_other_ranks;
+
+    /** Use hash table: cid2col[ cid ] = local column index */
+    unordered_map<size_t, size_t> cid2col;
 
 }; /** end class DistData<STAR, CIDS, T> */
+
+
+template<typename T>
+class DistData<STAR, USER, T> : public DistDataBase<T>
+{
+  public:
+
+    #ifdef HMLP_MIC_AVX512
+    /** use hbw::allocator for Intel Xeon Phi */
+    using ALLOCATOR = hbw::allocator<T>;
+    #elif  HMLP_USE_CUDA
+    /** use pinned (page-lock) memory for NVIDIA GPUs */
+    using ALLOCATOR = thrust::system::cuda::experimental::pinned_allocator<T>;
+    #else
+    /** use default stl allocator */
+    using ALLOCATOR = std::allocator<T>;
+    #endif
+
+    /** Default constructor */
+    DistData( size_t m, size_t n, mpi::Comm comm ) 
+    : DistDataBase<T>( m, n, comm ), all_rows( m )
+    {
+      for ( size_t i = 0; i < m; i ++ ) all_rows[ i ] = i;
+    };
+
+    /** Constructed from DistDAta<STAR, CBLK> */
+    DistData( DistData<STAR, CBLK, T> &A ) 
+    : DistData( A.row(), A.col(), A.GetComm() )
+    {
+      /** MPI */
+      mpi::Comm comm = this->GetComm();
+      int comm_size; mpi::Comm_size( comm, &comm_size );
+      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
+
+      /** Insert column indecies to hash table (cyclic) */
+      for ( size_t j  = comm_rank, i = 0; 
+                   j  < this->col(); 
+                   j += comm_size, i ++ )
+      {
+        cid2col[ j ] = i;
+      }
+
+      /** Check if matches the column number */
+      assert( cid2col.size() == A.col_owned() );
+      assert( A.size() == cid2col.size() * this->row() );
+
+      /** Use vector<T>::insert */
+      this->insert( this->end(), A.begin(), A.end() );
+
+      /** Resize to update owned_row() and owned_col() */
+      this->resize( A.row_owned(), A.col_owned() );
+    };
+
+
+
+    /**
+     *  Insert cids and A in to this object.
+     *  Note: this is not thread safe. 
+     */ 
+    void InsertColumns( vector<size_t> &cids, Data<T> &A )
+    {
+      int comm_rank = this->GetRank();
+
+      /** Check if all dimensions match */
+      assert( cids.size() == A.col() );
+      assert( this->row() == A.row() );
+
+      /** Remove duplicated columns */
+      set<size_t> unique_cids;
+      vector<size_t> new_cids, msk_cids;
+      new_cids.reserve( unique_cids.size() );
+      msk_cids.reserve( unique_cids.size() );
+
+      /** 
+       * Check if cids already exist using HasColumn(). Make sure
+       * there is not duplication using unique_cids.
+       */
+      #pragma omp critical
+      {
+        for ( size_t i = 0; i < cids.size(); i ++ )
+        {
+          size_t cid = cids[ i ];
+          if ( !HasColumn( cid ) && !unique_cids.count( cid ) )
+          {
+            new_cids.push_back( cid );
+            msk_cids.push_back( i );
+            unique_cids.insert( cid );
+          }
+        }
+
+        printf( "rank %d cids[ 0 ] %lu cids %lu new_cids %lu\n", 
+            comm_rank, cids[ 0 ], cids.size(), new_cids.size() ); fflush( stdout );
+
+
+        /** Insert to hash table one-by-one */
+        for ( size_t i = 0; i < new_cids.size(); i ++ )
+          cid2col[ new_cids[ i ] ] = i + this->col_owned();
+
+        /** Use vector<T>::insert */
+        auto new_A = A( all_rows, msk_cids );
+        this->insert( this->end(), new_A.begin(), new_A.end() );
+
+        /** Check if total size matches */
+        assert( this->row_owned() * cid2col.size() == this->size() );
+
+        /** Resize to update owned_row() and owned_col() */
+        this->resize( this->row(), this->size() / this->row() );
+
+      } /** end omp critical */
+    };
+
+
+
+
+
+    /**
+     *  Overload operator () to allow accessing data using gids
+     */ 
+    T & operator () ( size_t i , size_t j )
+    {
+      /** assert that Kij is stored on this MPI process */
+      assert( cid2col.count( j ) == 1 );
+      /** return reference of Kij */
+      return DistDataBase<T>::operator () ( i, cid2col[ j ] );
+    };
+
+    /**
+     *  Overload operator () to return a local submatrix using gids
+     */ 
+    Data<T> operator () ( vector<size_t> I, vector<size_t> J )
+    {
+      int comm_rank = this->GetRank();
+
+      for ( auto it = J.begin(); it != J.end(); it ++ )
+      {
+        /** Assert that Kij is stored on this MPI process */
+        if ( cid2col.count( *it ) != 1 )
+        {
+          printf( "rank %d cid2col.count(%lu) = %lu\n", 
+              comm_rank, *it, cid2col.count( *it ) ); fflush( stdout );
+          exit( 1 );
+        }
+        /** Overwrite J with its corresponding offset */
+        (*it) = cid2col[ (*it) ];
+      }
+      return DistDataBase<T>::operator () ( I, J );
+    };
+
+    /** Check if cid already exists */
+    bool HasColumn( size_t cid ) 
+    {
+      return cid2col.count( cid );
+    };
+
+    /** Return pointer of cid column using Data<T>::columndata */
+    T *columndata( size_t cid )
+    {
+      assert( cid2col.count( cid ) == 1 );
+      return Data<T>::columndata( cid2col[ cid ] );
+    };
+
+
+  private:
+
+    /** all_rows = [ 0, 1, ..., m-1 ] */
+    vector<size_t> all_rows;
+
+
+    /** Use hash table: cid2col[ cid ] = local column index */
+    unordered_map<size_t, size_t> cid2col;
+
+}; /** end class DistData<STAR, USER, T> */
+
+
+
+
+
+
+
+
 
 
 

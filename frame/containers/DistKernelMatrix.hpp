@@ -819,8 +819,9 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     template<typename TINDEX>
     std::pair<T, TINDEX> ImportantSample( TINDEX j )
     {
-      TINDEX i = std::rand() % this->col();
-      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+      //TINDEX i = std::rand() % this->col();
+      //std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+      std::pair<T, TINDEX> sample( 0,  std::rand() % this->col() );
       return sample; 
     };
 
@@ -1023,6 +1024,9 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     }; /** end BackGroundProcess() */
 
+    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
+    {
+    };
 
     virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
     {
@@ -1068,6 +1072,8 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       mpi::Comm_size( comm, &loc_size );
       mpi::Comm_rank( comm, &loc_rank );
 
+      size_t n = this->col();
+
       /** at the root level, starts from CBLK */
       if ( loc_size == this->Comm_size() )
       {
@@ -1077,27 +1083,14 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         //    sources->row(), sources->col(), sources->col_owned() ); fflush( stdout );
       }
 
-      //if ( loc_size == 1 )
-      //{
-			//  /** delete the previous redistribution */
-			//  if ( sources_cids ) delete sources_cids;
-
-			//  /** allocation */
-			//  sources_cids = new DistData<STAR, CIDS, T>( d, this->cids, gids, this->GetComm() );
-
-      //  *sources_cids = dynamic_sources;
-
-      //  return;
-      //}
-
       auto Xlhs = dynamic_sources( all_dimensions, lhs );
       auto Xrhs = dynamic_sources( all_dimensions, rhs );
 
       Data<T> Xpar;
+      int par_rank = ( loc_rank + loc_size / 2 ) % loc_size;
 
       if ( loc_rank < loc_size / 2 )
       {
-        int par_rank = loc_rank + loc_size / 2;
         mpi::ExchangeVector( 
             Xrhs, par_rank, 0, 
             Xpar, par_rank, 0, comm, &status );
@@ -1107,7 +1100,6 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       }
       else
       {
-        int par_rank = loc_rank - loc_size / 2;
         mpi::ExchangeVector( 
             Xlhs, par_rank, 0, 
             Xpar, par_rank, 0, comm, &status );
@@ -1115,6 +1107,51 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         Xrhs.resize( d, Xrhs.size() / d );
         dynamic_sources = Xrhs;
       }
+
+      //if ( loc_size == 2 )
+      //{
+      //  printf( "Base redistribute gids %lu lhs %lu rhs %lu\n",
+      //      gids.size(), lhs.size(), rhs.size() ); fflush( stdout );
+
+      //  vector<size_t> send_gids, recv_gids, keep_gids;
+      //  send_gids.reserve( gids.size() );
+      //  recv_gids.reserve( gids.size() );
+      //  keep_gids.reserve( gids.size() );
+
+      //  if ( loc_rank < loc_size / 2 )
+      //  {
+      //    for ( auto it = lhs.begin(); it != lhs.end(); it ++ ) 
+      //      keep_gids.push_back( gids[ *it ] );
+      //    for ( auto it = rhs.begin(); it != rhs.end(); it ++ ) 
+      //      send_gids.push_back( gids[ *it ] );
+      //  }
+      //  else
+      //  {
+      //    for ( auto it = lhs.begin(); it != lhs.end(); it ++ ) 
+      //      send_gids.push_back( gids[ *it ] );
+      //    for ( auto it = rhs.begin(); it != rhs.end(); it ++ ) 
+      //      keep_gids.push_back( gids[ *it ] );
+      //  }
+
+      //  mpi::ExchangeVector( 
+      //      send_gids, par_rank, 0, 
+      //      recv_gids, par_rank, 0, comm, &status );
+
+      //  printf( "Finish Base redistribute ExchangeVector\n" ); fflush( stdout );
+
+
+      //  /** Concatenate */
+      //  keep_gids.insert( keep_gids.end(), recv_gids.begin(), recv_gids.end() );
+
+			//  /** Delete the previous redistribution */
+			//  if ( sources_cids ) delete sources_cids;
+
+			//  /** Allocation */
+			//  sources_cids = new DistData<STAR, CIDS, T>( d, n, keep_gids, 
+      //      dynamic_sources, this->GetComm() );
+      //  
+      //  printf( "Finish Base redistribute\n" ); fflush( stdout );
+      //}
 
     }; /** end RedistributeWithPartner() */
 

@@ -471,6 +471,22 @@ class SPDMatrix : public Data<T>
 		{
 		};
 
+    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
+    {
+    };
+
+    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
+    {
+    };
+
+    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
+    {
+    };
+
+    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
+    {
+    };
+
     virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
     {
     };
@@ -1973,7 +1989,9 @@ void RowSamples( NODE *node, size_t nsamples )
       {
         while ( amap.size() < nsamples )
         {
-          size_t sample = rand() % K.col();
+          //size_t sample = rand() % K.col();
+          auto important_sample = K.ImportantSample( 0 );
+          size_t sample = important_sample.second;
 
           /** create a single query */
           vector<size_t> sample_query( 1, sample );
@@ -2066,8 +2084,8 @@ void GetSkeletonMatrix( NODE *node )
    */
   //KIJ = K( candidate_rows, candidate_cols );
   size_t over_size_rank = node->setup->s + 20;
-  if ( candidate_rows.size() <= over_size_rank )
-  //if ( 1 )
+  //if ( candidate_rows.size() <= over_size_rank )
+  if ( 1 )
   {
     KIJ = K( candidate_rows, candidate_cols );
   }

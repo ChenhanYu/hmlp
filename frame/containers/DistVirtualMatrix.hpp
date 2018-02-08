@@ -130,7 +130,29 @@ class DistVirtualMatrix : public mpi::MPIObject
      *  the reference of K( i, j ).
      *
      */
-    virtual hmlp::Data<T> operator() ( vector<size_t> &I, vector<size_t> &J ) = 0;
+    virtual Data<T> operator() ( vector<size_t> &I, vector<size_t> &J ) = 0;
+
+
+
+    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
+    {
+    };
+
+    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
+    {
+    };
+
+
+    /** Bcast cids from sender for K( :, cids ) evaluation. */
+    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
+    {
+    }; /** end BcastColumns() */
+
+
+    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
+    {
+    };
+
 
 
     /**
