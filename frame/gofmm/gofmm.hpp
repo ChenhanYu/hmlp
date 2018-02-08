@@ -2779,8 +2779,8 @@ void UpdateWeights( NODE *node )
 
     if ( w_leaf.size() )
     {
-      printf( "%8lu w_leaf allocated [%lu %lu]\n", 
-          node->morton, w_leaf.row(), w_leaf.col() ); fflush( stdout );
+      //printf( "%8lu w_leaf allocated [%lu %lu]\n", 
+      //    node->morton, w_leaf.row(), w_leaf.col() ); fflush( stdout );
       
       /** w_leaf is allocated */
       xgemm
@@ -2796,8 +2796,8 @@ void UpdateWeights( NODE *node )
     {
       /** w_leaf is not allocated, use w_view instead */
       View<T> W = data.w_view;
-      printf( "%8lu n2s W[%lu %lu ld %lu]\n", 
-          node->morton, W.row(), W.col(), W.ld() ); fflush( stdout );
+      //printf( "%8lu n2s W[%lu %lu ld %lu]\n", 
+      //    node->morton, W.row(), W.col(), W.ld() ); fflush( stdout );
       //for ( int i = 0; i < 10; i ++ )
       //  printf( "%lu W.data() + %d = %E\n", node->gids[ i ], i, *(W.data() + i) );
       xgemm
@@ -2825,7 +2825,7 @@ void UpdateWeights( NODE *node )
 
     if ( 1 )
     {
-      printf( "%8lu n2s\n", node->morton ); fflush( stdout );
+      //printf( "%8lu n2s\n", node->morton ); fflush( stdout );
       xgemm
       (
         "N", "N",
@@ -3068,8 +3068,8 @@ void SkeletonsToSkeletons( NODE *node )
       if ( 1 )
       {
 
-        printf( "%8lu s2s %8lu w_skel[%lu %lu]\n", 
-            node->morton, (*it)->morton, w_skel.row(), w_skel.col() );
+        //printf( "%8lu s2s %8lu w_skel[%lu %lu]\n", 
+        //    node->morton, (*it)->morton, w_skel.row(), w_skel.col() );
         fflush( stdout );
         xgemm
         (
@@ -3266,8 +3266,8 @@ void SkeletonsToNodes( NODE *node )
 
     if ( U.col() == nrhs )
     {
-      printf( "%8lu s2n U[%lu %lu %lu]\n", 
-          node->morton, U.row(), U.col(), U.ld() ); fflush( stdout );
+      //printf( "%8lu s2n U[%lu %lu %lu]\n", 
+      //    node->morton, U.row(), U.col(), U.ld() ); fflush( stdout );
       xgemm
       (
         "Transpose", "Non-transpose",
@@ -3318,7 +3318,7 @@ void SkeletonsToNodes( NODE *node )
 
     if ( 1 )
     {
-      printf( "%8lu s2n\n", node->morton ); fflush( stdout );
+      //printf( "%8lu s2n\n", node->morton ); fflush( stdout );
       xgemm
       (
         "Transpose", "No transpose",
@@ -3940,7 +3940,7 @@ void NearSamples( NODE *node )
        */ 
       if ( !(*node->morton2node).count( (*it).second ) )
       {
-        printf( "%8lu Create local essential node with MortonID %8lu\n", node->morton, (*it).second );
+        //printf( "%8lu Create local essential node with MortonID %8lu\n", node->morton, (*it).second );
         /**
          *  Acquire the global lock to modify morton2node map.
          */ 

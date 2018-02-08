@@ -391,17 +391,17 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
     virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
     {
       int comm_rank; mpi::Comm_rank( comm, &comm_rank );
-      printf( "rank[%d %d] SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+      //printf( "rank[%d %d] SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
       Data<TP> send_para = sources_user( all_dimensions, cids );
       mpi::SendVector(      cids, dest, 90, comm );
       mpi::SendVector( send_para, dest, 90, comm );
-      printf( "rank[%d %d] end SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+      //printf( "rank[%d %d] end SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
     };
 
     virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
     {
       int comm_rank; mpi::Comm_rank( comm, &comm_rank );
-      printf( "rank[%d %d] RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+      //printf( "rank[%d %d] RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
       vector<size_t> cids;
       Data<TP> recv_para;
       mpi::RecvVector(      cids, root, 90, comm, status );
@@ -410,7 +410,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       recv_para.resize( dim(), recv_para.size() / dim() );
       /** Insert into hash table */
       sources_user.InsertColumns( cids, recv_para );
-      printf( "rank[%d %d] end RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+      //printf( "rank[%d %d] end RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
     };
 
     /** Bcast cids from sender for K( :, cids ) evaluation. */
@@ -422,7 +422,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       size_t recv_size = cids.size();
       mpi::Bcast( &recv_size, 1, root, comm );
       
-      printf( "rank %d, before Bcast root %d\n", comm_rank, root ); fflush( stdout );
+      //printf( "rank %d, before Bcast root %d\n", comm_rank, root ); fflush( stdout );
       mpi::Barrier( comm );
       /** Resize to receive cids and parameters */
       Data<TP> recv_para;
@@ -435,7 +435,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
          cids.resize( recv_size );
          recv_para.resize( dim(), recv_size );
       }
-      printf( "rank %d, after Bcast root %d\n", comm_rank, root ); fflush( stdout );
+      //printf( "rank %d, after Bcast root %d\n", comm_rank, root ); fflush( stdout );
       mpi::Barrier( comm );
 
       /** Bcast cids and parameters from root */
@@ -461,7 +461,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
       /** Send out cids request to each rank. */
       mpi::AlltoallVector( requ_cids, recv_cids, comm );
-      printf( "Finish all2allv requ_cids\n" ); fflush( stdout );
+      //printf( "Finish all2allv requ_cids\n" ); fflush( stdout );
 
       for ( int p = 0; p < comm_size; p ++ )
       {
@@ -471,7 +471,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
       /** Send out parameters */
       mpi::AlltoallVector( send_para, recv_para, comm );
-      printf( "Finish all2allv send_para\n" ); fflush( stdout );
+      //printf( "Finish all2allv send_para\n" ); fflush( stdout );
 
       for ( int p = 0; p < comm_size; p ++ )
       {
@@ -494,9 +494,9 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
      *  Allgather cids = [ cids0, cids1, ..., cidsp-1 ] from all MPI ranks.
      *  Redistribute parameters for K( :, cids ) evaluation.
      */ 
-    virtual void AllgatherColumns( vector<size_t> &cids, mpi::Comm comm )
-    {
-    };
+    //virtual void AllgatherColumns( vector<size_t> &cids, mpi::Comm comm )
+    //{
+    //};
 
 
 

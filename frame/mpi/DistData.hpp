@@ -997,8 +997,8 @@ class DistData<STAR, USER, T> : public DistDataBase<T>
           }
         }
 
-        printf( "rank %d cids[ 0 ] %lu cids %lu new_cids %lu\n", 
-            comm_rank, cids[ 0 ], cids.size(), new_cids.size() ); fflush( stdout );
+        //printf( "rank %d cids[ 0 ] %lu cids %lu new_cids %lu\n", 
+        //    comm_rank, cids[ 0 ], cids.size(), new_cids.size() ); fflush( stdout );
 
 
         /** Insert to hash table one-by-one */

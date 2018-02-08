@@ -780,10 +780,11 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 		vector<size_t> PQ( 2 ); 
     PQ[ 0 ] = gidf2c; 
     PQ[ 1 ] = gidf2f;
+    /** Distributed bcast on K */
     K.BcastColumns( P,        0, comm );
     K.BcastColumns( Q, size / 2, comm );
 
-    printf( "BcastColumns %lu %lu\n", gidf2c, gidf2f ); fflush( stdout ); 
+    //printf( "BcastColumns %lu %lu\n", gidf2c, gidf2f ); fflush( stdout ); 
     mpi::Barrier( comm );
 
 
@@ -795,7 +796,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 		Data<T> KIP( gids.size(), (size_t) 1 );
 		Data<T> KIQ( gids.size(), (size_t) 1 );
 
-    printf( "KIQP %lu %lu\n", gidf2c, gidf2f ); fflush( stdout ); 
+    //printf( "KIQP %lu %lu\n", gidf2c, gidf2f ); fflush( stdout ); 
     mpi::Barrier( comm );
 
     for ( size_t i = 0; i < gids.size(); i ++ )
@@ -1147,7 +1148,7 @@ void DistUpdateWeights( MPINODE *node )
 			//size_t sr = child->sibling->data.skels.size();
 			size_t sr = proj.col() - sl;
 
-      printf( "Update weight sl %lu sr %lu sl + sr %lu\n", sl, sr, proj.col()  );
+      //printf( "Update weight sl %lu sr %lu sl + sr %lu\n", sl, sr, proj.col()  );
 
       auto &w_lskel = child->data.w_skel;
       auto &w_rskel = child->sibling->data.w_skel;
@@ -1227,8 +1228,7 @@ void DistUpdateWeights( MPINODE *node )
 			size_t sr = child->data.skels.size();
 			size_t sl = proj.col() - sr;
 
-      //printf( "Update weight sl %lu sr %lu\n", sl, sr  );
-      printf( "Update weight sl %lu sr %lu sl + sr %lu\n", sl, sr, proj.col()  );
+      //printf( "Update weight sl %lu sr %lu sl + sr %lu\n", sl, sr, proj.col()  );
 
 
       auto &w_lskel = child->sibling->data.w_skel;
@@ -1409,11 +1409,11 @@ class DistUpdateWeightsTask : public hmlp::Task
       int global_rank = 0;
       mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
 
-      printf( "rank %d level %lu DistUpdateWeights\n", global_rank, arg->l ); fflush( stdout );
+      //printf( "rank %d level %lu DistUpdateWeights\n", global_rank, arg->l ); fflush( stdout );
 
       mpigofmm::DistUpdateWeights<NODE, T>( arg );
 
-      printf( "rank %d level %lu DistUpdateWeights end\n", global_rank, arg->l ); fflush( stdout );
+      //printf( "rank %d level %lu DistUpdateWeights end\n", global_rank, arg->l ); fflush( stdout );
     };
 
 
@@ -1589,7 +1589,7 @@ void DistSkeletonsToNodes( NODE *node )
 			size_t sl = child->data.skels.size();
 			size_t sr = proj.col() - sl;
 
-      printf( "sl %lu sr %lu\n", sl, sr ); fflush( stdout );
+      //printf( "sl %lu sr %lu\n", sl, sr ); fflush( stdout );
 
 
       mpi::SendVector( u_skel, size / 2, 0, comm );
@@ -1651,7 +1651,7 @@ void DistSkeletonsToNodes( NODE *node )
 			size_t sr = child->data.skels.size();
       size_t sl = proj.col() - sr;
 
-      printf( "sl %lu sr %lu\n", sl, sr ); fflush( stdout );
+      //printf( "sl %lu sr %lu\n", sl, sr ); fflush( stdout );
 
       /** */
 			//Data<T> u_skel_sib;
@@ -1864,11 +1864,11 @@ void DistLeavesToLeaves( NODE *node )
 
       if ( W.col() == nrhs )
       {
-        printf( "%8lu l2l %8lu U[%lu %lu %lu] W[%lu %lu %lu] KIJ[%lu %lu]\n",
-            node->morton, (*it)->morton,
-            U.row(), U.col(), U.ld(),
-            W.row(), W.col(), W.ld(),
-            KIJ.row(), KIJ.col() );
+        //printf( "%8lu l2l %8lu U[%lu %lu %lu] W[%lu %lu %lu] KIJ[%lu %lu]\n",
+        //    node->morton, (*it)->morton,
+        //    U.row(), U.col(), U.ld(),
+        //    W.row(), W.col(), W.ld(),
+        //    KIJ.row(), KIJ.col() );
         xgemm
         (
           "N", "N", U.row(), U.col(), W.row(),
@@ -1894,11 +1894,11 @@ void DistLeavesToLeaves( NODE *node )
           }
         }
 
-        printf( "%8lu l2l %8lu U[%lu %lu %lu] w_leaf[%lu %lu] KIJ[%lu %lu]\n",
-            node->morton, (*it)->morton,
-            U.row(), U.col(), U.ld(),
-            w_leaf.row(), w_leaf.col(),
-            KIJ.row(), KIJ.col() );
+        //printf( "%8lu l2l %8lu U[%lu %lu %lu] w_leaf[%lu %lu] KIJ[%lu %lu]\n",
+        //    node->morton, (*it)->morton,
+        //    U.row(), U.col(), U.ld(),
+        //    w_leaf.row(), w_leaf.col(),
+        //    KIJ.row(), KIJ.col() );
 
         xgemm
         (
@@ -2212,7 +2212,7 @@ void FindFarNodes( size_t morton, size_t l, NODE *target )
           if ( !target->morton2node->count( node_morton ) )
           {
             (*target->morton2node)[ node_morton ] = new NODE( node_morton );
-            printf( "%8lu creates far LET %8lu level %lu\n", target->morton, node_morton, l );
+            //printf( "%8lu creates far LET %8lu level %lu\n", target->morton, node_morton, l );
           }
         }
         target->treelock->Release();
@@ -2290,7 +2290,7 @@ void SymmetrizeNearInteractions( TREE & tree )
   }; /** end pargma omp parallel */
 
   mpi::Barrier( tree.comm );
-  printf( "rank %d finish first part\n", comm_rank ); fflush( stdout );
+  //printf( "rank %d finish first part\n", comm_rank ); fflush( stdout );
 
 
 
@@ -2300,7 +2300,7 @@ void SymmetrizeNearInteractions( TREE & tree )
   mpi::AlltoallVector( sendlist, recvlist, tree.comm );
 
 
-  printf( "rank %d finish AlltoallVector\n", comm_rank ); fflush( stdout );
+  //printf( "rank %d finish AlltoallVector\n", comm_rank ); fflush( stdout );
 
   /**
    *  Loop over queries
@@ -2323,8 +2323,8 @@ void SymmetrizeNearInteractions( TREE & tree )
           if ( !tree.morton2node.count( query.second ) )
           {
             tree.morton2node[ query.second ] = new NODE( query.second );
-            printf( "rank %d, %8lu level %lu creates near LET %8lu (symmetrize)\n", 
-                comm_rank, node->morton, node->l, query.second );
+            //printf( "rank %d, %8lu level %lu creates near LET %8lu (symmetrize)\n", 
+            //    comm_rank, node->morton, node->l, query.second );
           }
         }
       }
@@ -2453,8 +2453,8 @@ void SymmetrizeFarInteractions( TREE & tree )
           if ( !tree.morton2node.count( query.second ) )
           {
             tree.morton2node[ query.second ] = new NODE( query.second );
-            printf( "rank %d, %8lu level %lu creates far LET %8lu (symmetrize)\n", 
-                comm_rank, node->morton, node->l, query.second );
+            //printf( "rank %d, %8lu level %lu creates far LET %8lu (symmetrize)\n", 
+            //    comm_rank, node->morton, node->l, query.second );
           }
         }
       }
@@ -2544,30 +2544,30 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
           lists[ p ].begin(), lists[ p ].end() );
     }
 
-    for ( int p = 0; p < comm_size; p ++ )
-    {
-      if ( tree.NearSentToRank[ p ].size() )
-      {
-        printf( "Near %d to %d, ", comm_rank, p ); fflush( stdout );
-        for ( int i = 0; i < tree.NearSentToRank[ p ].size(); i ++ )
-          printf( "%8lu ", tree.NearSentToRank[ p ][ i ] ); fflush( stdout );
-        printf( "\n" ); fflush( stdout );
-      }
-    }
+    //for ( int p = 0; p < comm_size; p ++ )
+    //{
+    //  if ( tree.NearSentToRank[ p ].size() )
+    //  {
+    //    printf( "Near %d to %d, ", comm_rank, p ); fflush( stdout );
+    //    for ( int i = 0; i < tree.NearSentToRank[ p ].size(); i ++ )
+    //      printf( "%8lu ", tree.NearSentToRank[ p ][ i ] ); fflush( stdout );
+    //    printf( "\n" ); fflush( stdout );
+    //  }
+    //}
 
     /** Use buffer recvlist to catch Alltoallv results */
     mpi::AlltoallVector( tree.NearSentToRank, recvlist, tree.comm );
 
-    for ( int p = 0; p < comm_size; p ++ )
-    {
-      if ( recvlist[ p ].size() )
-      {
-        printf( "Near %d fr %d, ", comm_rank, p ); fflush( stdout );
-        for ( int i = 0; i < recvlist[ p ].size(); i ++ )
-          printf( "%8lu ", recvlist[ p ][ i ] ); fflush( stdout );
-        printf( "\n" ); fflush( stdout );
-      }
-    }
+    //for ( int p = 0; p < comm_size; p ++ )
+    //{
+    //  if ( recvlist[ p ].size() )
+    //  {
+    //    printf( "Near %d fr %d, ", comm_rank, p ); fflush( stdout );
+    //    for ( int i = 0; i < recvlist[ p ].size(); i ++ )
+    //      printf( "%8lu ", recvlist[ p ][ i ] ); fflush( stdout );
+    //    printf( "\n" ); fflush( stdout );
+    //  }
+    //}
 
     /** Cast vector of vectors to vector of maps */
     #pragma omp parallel for
@@ -2633,30 +2633,30 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
           lists[ p ].begin(), lists[ p ].end() );
     }
 
-    for ( int p = 0; p < comm_size; p ++ )
-    {
-      if ( tree.FarSentToRank[ p ].size() )
-      {
-        printf( "\nFar  %d to %d, ", comm_rank, p ); fflush( stdout );
-        for ( int i = 0; i < tree.FarSentToRank[ p ].size(); i ++ )
-          printf( "%8lu ", tree.FarSentToRank[ p ][ i ] ); fflush( stdout );
-        printf( "\n" ); fflush( stdout );
-      }
-    }
+    //for ( int p = 0; p < comm_size; p ++ )
+    //{
+    //  if ( tree.FarSentToRank[ p ].size() )
+    //  {
+    //    printf( "\nFar  %d to %d, ", comm_rank, p ); fflush( stdout );
+    //    for ( int i = 0; i < tree.FarSentToRank[ p ].size(); i ++ )
+    //      printf( "%8lu ", tree.FarSentToRank[ p ][ i ] ); fflush( stdout );
+    //    printf( "\n" ); fflush( stdout );
+    //  }
+    //}
 
     /** Use buffer recvlist to catch Alltoallv results */
     mpi::AlltoallVector( tree.FarSentToRank, recvlist, tree.comm );
 
-    for ( int p = 0; p < comm_size; p ++ )
-    {
-      if ( recvlist[ p ].size() )
-      {
-        printf( "\nFar  %d fr %d, ", comm_rank, p ); fflush( stdout );
-        for ( int i = 0; i < recvlist[ p ].size(); i ++ )
-          printf( "%8lu ", recvlist[ p ][ i ] ); fflush( stdout );
-        printf( "\n" ); fflush( stdout );
-      }
-    }
+    //for ( int p = 0; p < comm_size; p ++ )
+    //{
+    //  if ( recvlist[ p ].size() )
+    //  {
+    //    printf( "\nFar  %d fr %d, ", comm_rank, p ); fflush( stdout );
+    //    for ( int i = 0; i < recvlist[ p ].size(); i ++ )
+    //      printf( "%8lu ", recvlist[ p ][ i ] ); fflush( stdout );
+    //    printf( "\n" ); fflush( stdout );
+    //  }
+    //}
 
     /** Cast vector of vectors to vector of maps */
     #pragma omp parallel for
@@ -2718,7 +2718,7 @@ void ExchangeLET( TREE &tree, string option )
         {
           auto &w_view = node->data.w_view;
           auto  w_leaf = w_view.toData();
-          printf( "%d send w_leaf to %d [%lu %lu]\n", comm_rank, p, w_leaf.row(), w_leaf.col() );
+          //printf( "%d send w_leaf to %d [%lu %lu]\n", comm_rank, p, w_leaf.row(), w_leaf.col() );
           sendsizes[ p ].push_back( w_leaf.size() );
           sendbuffs[ p ].insert( sendbuffs[ p ].end(), w_leaf.begin(), w_leaf.end() );
           //printf( "Exchange leafweights not yet implemented\n" );
@@ -2745,8 +2745,8 @@ void ExchangeLET( TREE &tree, string option )
         else
         {
           auto &w_skel = node->data.w_skel;
-          printf( "%d send w_skel (%8lu) to %d [%lu %lu] \n", 
-              comm_rank, *it, p, w_skel.row(), w_skel.col() ); fflush( stdout );
+          //printf( "%d send w_skel (%8lu) to %d [%lu %lu] \n", 
+          //    comm_rank, *it, p, w_skel.row(), w_skel.col() ); fflush( stdout );
           //for ( int i = 0; i < 5; i ++ )
           //{
           //   printf( "%E ", w_skel[ i ] ); fflush( stdout );
@@ -2820,8 +2820,8 @@ void ExchangeLET( TREE &tree, string option )
           auto &w_leaf = node->data.w_leaf;
           size_t i = (*it).second;
           w_leaf.resize( recvsizes[ p ][ i ] / nrhs, nrhs );
-          printf( "%d recv w_leaf from %d [%lu %lu]\n", 
-              comm_rank, p, w_leaf.row(), w_leaf.col() ); fflush( stdout );
+          //printf( "%d recv w_leaf from %d [%lu %lu]\n", 
+          //    comm_rank, p, w_leaf.row(), w_leaf.col() ); fflush( stdout );
           for ( uint64_t j = offsets[ p ][ i + 0 ], jj = 0; 
                          j < offsets[ p ][ i + 1 ]; 
                          j ++,                      jj ++ )
@@ -2861,9 +2861,9 @@ void ExchangeLET( TREE &tree, string option )
           auto &w_skel = node->data.w_skel;
           size_t i = (*it).second;
           w_skel.resize( recvsizes[ p ][ i ] / nrhs, nrhs );
-          printf( "%d recv w_skel (%8lu) from %d [%lu %lu], i %lu, offset[%lu %lu] \n", 
-              comm_rank, (*it).first, p, w_skel.row(), w_skel.col(), i,
-              offsets[ p ][ i + 0 ], offsets[ p ][ i + 1 ] ); fflush( stdout );
+          //printf( "%d recv w_skel (%8lu) from %d [%lu %lu], i %lu, offset[%lu %lu] \n", 
+          //    comm_rank, (*it).first, p, w_skel.row(), w_skel.col(), i,
+          //    offsets[ p ][ i + 0 ], offsets[ p ][ i + 1 ] ); fflush( stdout );
           for ( uint64_t j = offsets[ p ][ i + 0 ], jj = 0; 
                          j < offsets[ p ][ i + 1 ]; 
                          j ++,                      jj ++ )
@@ -4828,11 +4828,11 @@ class GetSkeletonMatrixTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      printf( "%lu GetSkeletonMatrix beg\n", arg->treelist_id );
+      //printf( "%lu GetSkeletonMatrix beg\n", arg->treelist_id );
       double beg = omp_get_wtime();
       gofmm::GetSkeletonMatrix<NODE, T>( arg );
       double getmtx_t = omp_get_wtime() - beg;
-      printf( "%lu GetSkeletonMatrix end %lfs\n", arg->treelist_id, getmtx_t ); fflush( stdout );
+      //printf( "%lu GetSkeletonMatrix end %lfs\n", arg->treelist_id, getmtx_t ); fflush( stdout );
     };
 
 }; /** end class GetSkeletonMatrixTask */
