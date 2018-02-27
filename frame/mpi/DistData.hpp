@@ -904,7 +904,7 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
     vector<size_t> cids_from_other_ranks;
 
     /** Use hash table: cid2col[ cid ] = local column index */
-    unordered_map<size_t, size_t> cid2col;
+    map<size_t, size_t> cid2col;
 
 }; /** end class DistData<STAR, CIDS, T> */
 
@@ -977,15 +977,17 @@ class DistData<STAR, USER, T> : public DistDataBase<T>
       /** Remove duplicated columns */
       set<size_t> unique_cids;
       vector<size_t> new_cids, msk_cids;
-      new_cids.reserve( unique_cids.size() );
-      msk_cids.reserve( unique_cids.size() );
+      new_cids.reserve( cids.size() );
+      msk_cids.reserve( cids.size() );
+
+      //printf( "rank %d Here\n", comm_rank ); fflush( stdout );
 
       /** 
        * Check if cids already exist using HasColumn(). Make sure
        * there is not duplication using unique_cids.
        */
-      #pragma omp critical
-      {
+      //#pragma omp critical
+      //{
         for ( size_t i = 0; i < cids.size(); i ++ )
         {
           size_t cid = cids[ i ];
@@ -997,25 +999,35 @@ class DistData<STAR, USER, T> : public DistDataBase<T>
           }
         }
 
-        //printf( "rank %d cids[ 0 ] %lu cids %lu new_cids %lu\n", 
-        //    comm_rank, cids[ 0 ], cids.size(), new_cids.size() ); fflush( stdout );
+        if ( new_cids.size() )
+       // printf( "rank %d cids[ 0 ] %lu cids %lu new_cids %lu\n", 
+       //     comm_rank, cids[ 0 ], cids.size(), new_cids.size() ); fflush( stdout );
 
 
         /** Insert to hash table one-by-one */
         for ( size_t i = 0; i < new_cids.size(); i ++ )
           cid2col[ new_cids[ i ] ] = i + this->col_owned();
 
+        //printf( "rank %d new_cids %lu cid2col %lu\n", 
+        //    comm_rank, new_cids.size(), cid2col.size() ); fflush( stdout );
         /** Use vector<T>::insert */
-        auto new_A = A( all_rows, msk_cids );
+        Data<T> new_A = A( all_rows, msk_cids );
+        //printf( "rank %d A %lu %lu\n", 
+        //    comm_rank, A.row(), A.col() ); fflush( stdout );
         this->insert( this->end(), new_A.begin(), new_A.end() );
+        //printf( "rank %d this->size %lu row_owned %lu col_owned %lu\n", 
+        //    comm_rank, this->size(), this->row_owned(), this->col_owned() ); fflush( stdout );
 
         /** Check if total size matches */
         assert( this->row_owned() * cid2col.size() == this->size() );
 
         /** Resize to update owned_row() and owned_col() */
-        this->resize( this->row(), this->size() / this->row() );
+        //this->resize( this->row(), this->size() / this->row() );
+        this->resize( this->row(), cid2col.size() );
+        //printf( "rank %d this->size %lu row_owned %lu col_owned %lu done\n", 
+        //    comm_rank, this->size(), this->row_owned(), this->col_owned() ); fflush( stdout );
 
-      } /** end omp critical */
+      //} /** end omp critical */
     };
 
 
@@ -1076,7 +1088,7 @@ class DistData<STAR, USER, T> : public DistDataBase<T>
 
 
     /** Use hash table: cid2col[ cid ] = local column index */
-    unordered_map<size_t, size_t> cid2col;
+    map<size_t, size_t> cid2col;
 
 }; /** end class DistData<STAR, USER, T> */
 

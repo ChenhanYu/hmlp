@@ -159,6 +159,48 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
           Kij = exp( kernel.scal * Kij );
           break;
         }
+        case KS_LAPLACE:
+        {
+          //T scale = 0.0;
+
+          //if ( d == 1 ) scale = 1.0;
+          //else if ( d == 2 ) scale = ( 0.5 / M_PI );
+          //else
+          //{
+          //  scale = tgamma( 0.5 * d + 1.0 ) / ( d * ( d - 2 ) * pow( M_PI, 0.5 * d ) ); 
+          //}
+
+          for ( size_t k = 0; k < d; k++ )
+          {
+            /** Use high precision */
+            TP tar = itargets[ k ];
+            TP src = jsources[ k ];
+            Kij += ( tar - src ) * ( tar - src );
+          }
+
+          /** Deal with the signularity (i.e. r ~ 0.0). */
+          if ( Kij < 1E-6 ) Kij = 0.0;
+          else
+          {
+            if ( d == 1 ) Kij = sqrt( Kij );
+            else if ( d == 2 ) Kij = ( log( Kij ) / 2.0 );
+            else Kij = 1 / sqrt( Kij );
+          }
+          break;
+        }
+        case KS_QUARTIC:
+        {
+          for ( size_t k = 0; k < d; k++ )
+          {
+            TP tar = itargets[ k ];
+            TP src = jsources[ k ];
+            Kij += ( tar - src ) * ( tar - src );
+          }
+          //if ( Kij < sqrt ( 2 ) / 2 ) Kij = 1;
+          if ( Kij < 0.5 ) Kij = 1;
+          else Kij = 0;
+          break;
+        }
         default:
         {
           printf( "invalid kernel type\n" );
@@ -188,13 +230,11 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
     }; /** end operator () */
 
 
-    /** (Overwrittable) ESSENTIAL: return K( I, J ) */
-    virtual Data<T> operator() ( vector<size_t> &I, vector<size_t> &J )
+    virtual Data<T> PairwiseDistances
+    ( 
+      const vector<size_t> &I, const vector<size_t> &J 
+    )
     {
-      /** MPI */
-      int size = this->Comm_size();
-      int rank = this->Comm_rank();
-
       /** 
        *  Return values
        * 
@@ -235,8 +275,6 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       vector<T> itargets_sqnorms( I.size() );
       vector<T> jsources_sqnorms( J.size() );
 
-      //printf( "After xgemm\n" ); fflush( stdout );
-
       #pragma omp parallel for
       for ( size_t i = 0; i < I.size(); i ++ )
       {
@@ -253,21 +291,83 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
 					     jsources.data() + j * d, 1 );
       } /** end omp parallel for */
 
-      /** add square norms to inner products to get square distances */
+      /** Add square norms to inner products to get square distances */
       #pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
         for ( size_t i = 0; i < I.size(); i ++ )
           KIJ( i, j ) += itargets_sqnorms[ i ] + jsources_sqnorms[ j ];
 
+      return KIJ;
+    };
+
+
+
+
+    /** (Overwrittable) ESSENTIAL: return K( I, J ) */
+    virtual Data<T> operator() ( vector<size_t> &I, vector<size_t> &J )
+    {
+      /** MPI */
+      int size = this->Comm_size();
+      int rank = this->Comm_rank();
+
+      /** 
+       *  Return values
+       * 
+       *  NOTICE: even KIJ can be an 0-by-0 matrix for this MPI rank,
+       *  yet early return is not allowed. All MPI process must execute
+       *  all collaborative communication routines to avoid deadlock.
+       */
+      Data<T> KIJ = PairwiseDistances( I, J );
+
+			/** Early return */
+			if ( !I.size() || !J.size() ) return KIJ;
+
       switch ( kernel.type )
       {
         case KS_GAUSSIAN:
         {
-          /** apply the scaling factor and exponentiate */
+          /** Apply the scaling factor and exponent */
           #pragma omp parallel for
           for ( size_t i = 0; i < KIJ.size(); i ++ )
           {
             KIJ[ i ] = std::exp( kernel.scal * KIJ[ i ] );
+          }
+          break;
+        }
+        case KS_LAPLACE:
+        {
+          //T scale = 0.0;
+
+          //if ( d == 1 ) scale = 1.0;
+          //else if ( d == 2 ) scale = ( 0.5 / M_PI );
+          //else
+          //{
+          //  scale = tgamma( 0.5 * d + 1.0 ) / ( d * ( d - 2 ) * pow( M_PI, 0.5 * d ) ); 
+          //}
+
+          #pragma omp parallel for
+          for ( size_t i = 0; i < KIJ.size(); i ++ )
+          {
+            if ( KIJ[ i ] < 1E-6 ) KIJ[ i ] = 0.0;
+            else
+            {
+              if ( d == 1 ) KIJ[ i ] = sqrt( KIJ[ i ] );
+              else if ( d == 2 ) KIJ[ i ] = std::log( KIJ[ i ] ) / 2;
+              else         
+              {
+                KIJ[ i ] = 1 / sqrt( KIJ[ i ] );
+              }
+            }
+          }
+          break;
+        }
+        case KS_QUARTIC:
+        {
+          for ( size_t i = 0; i < KIJ.size(); i ++ )
+          {
+            //if ( KIJ[ i ] < sqrt( 2 ) / 2 ) KIJ[ i ] = 1.0;
+            if ( KIJ[ i ] < 0.5 ) KIJ[ i ] = 1.0;
+            else KIJ[ i ] = 0.0;
           }
           break;
         }
@@ -279,12 +379,23 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
         }
       }
 
+
+      //size_t nnz = 0;
+      //for ( size_t i = 0; i < KIJ.size(); i ++ )
+      //  if ( KIJ[ i ] ) nnz ++;
+      //if ( !nnz ) printf( "Zero matrix %lu %lu\n", KIJ.row(), KIJ.col() ); fflush( stdout ) ;
+
+
+      /** There should be no NAN or INF value. */
+      assert( !KIJ.HasIllegalValue() );
+
+
       /** return submatrix KIJ */
       return KIJ;
     };
 
 
-    /** get the diagonal of KII, i.e. diag( K( I, I ) ) */
+    /** Get the diagonal of KII, i.e. diag( K( I, I ) ) */
     Data<T> Diagonal( vector<size_t> &I )
     {
       /** MPI */
@@ -304,6 +415,16 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       switch ( kernel.type )
       {
         case KS_GAUSSIAN:
+        {
+          for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
+          break;
+        }
+        case KS_LAPLACE:
+        {
+          for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
+          break;
+        }
+        case KS_QUARTIC:
         {
           for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
           break;
@@ -406,7 +527,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       Data<TP> recv_para;
       mpi::RecvVector(      cids, root, 90, comm, status );
       mpi::RecvVector( recv_para, root, 90, comm, status );
-      assert( recv_para.size() / dim() == cids.size() );
+      assert( recv_para.size() == cids.size() * dim() );
       recv_para.resize( dim(), recv_para.size() / dim() );
       /** Insert into hash table */
       sources_user.InsertColumns( cids, recv_para );
@@ -520,6 +641,10 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       int loc_size; mpi::Comm_size( comm, &loc_size );
       int loc_rank; mpi::Comm_rank( comm, &loc_rank );
 
+      //printf( "RedistributeWithPartner loc_rank %d loc_size %d glb_size %d\n", 
+      //    loc_rank, loc_size, this->Comm_size() ); fflush( stdout );
+
+
       /** 
        *  At the root level, starts from sources<STAR, CBLK>. We use
        *  dynamic_sources as buffer space.
@@ -535,7 +660,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       /** Use cylic order for p2p exchange */
       int par_rank = ( loc_rank + loc_size / 2 ) % loc_size;
       vector<size_t> send_gids, keep_gids, recv_gids;
-      Data<T> Xsend, Xkeep;
+      Data<TP> Xsend, Xkeep;
 
       send_gids.reserve( gids.size() );
       recv_gids.reserve( gids.size() );
@@ -561,6 +686,17 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       }
       dynamic_sources = Xkeep;
 
+
+
+      //mpi::Barrier( comm );
+      //if ( loc_rank == 0 )
+      //{
+      //  printf( "rank %2d RedistributeWithPartner Checkpoint#1\n", 
+      //      this->Comm_rank() ); 
+      //  fflush( stdout );
+      //}
+
+
       /** Overwrite Xkeep */
       mpi::ExchangeVector( 
           send_gids, par_rank, 0,
@@ -572,14 +708,42 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
       /** Resize Xkeep to adjust its row() and col(). */
       Xkeep.resize( Xkeep.row(), Xkeep.size() / Xkeep.row() );
 
+
+      //mpi::Barrier( comm );
+      //if ( loc_rank == 0 )
+      //{
+      //  printf( "rank %2d RedistributeWithPartner Checkpoint#2\n", 
+      //      this->Comm_rank() ); 
+      //  fflush( stdout );
+      //}
+
       /** Insert received parameters into table */
       sources_user.InsertColumns( recv_gids, Xkeep );
+
+      //mpi::Barrier( comm );
+      //if ( loc_rank == 0 )
+      //{
+      //  printf( "rank %2d RedistributeWithPartner Checkpoint#3\n", 
+      //      this->Comm_rank() ); 
+      //  fflush( stdout );
+      //}
 
       /** Concatenate */
       dynamic_sources.insert( dynamic_sources.end(), Xkeep.begin(), Xkeep.end() );
 
+      //mpi::Barrier( comm );
+      //if ( loc_rank == 0 )
+      //{
+      //  printf( "rank %2d RedistributeWithPartner Checkpoint#4\n", 
+      //      this->Comm_rank() ); 
+      //  fflush( stdout );
+      //}
+
     }; /** end RedistributeWithPartner() */
 
+    virtual void BackGroundProcess( bool *do_terminate )
+    {
+    };
 
 
 

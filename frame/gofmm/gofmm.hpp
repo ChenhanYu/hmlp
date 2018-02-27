@@ -466,6 +466,12 @@ class SPDMatrix : public Data<T>
       return DII;
     };
 
+    Data<T> PairwiseDistances( const vector<size_t> &I, const vector<size_t> &J )
+    {
+      Data<T> KIJ( I.size(), J.size(), 0.0 );
+      return KIJ;
+    };
+
 
     virtual void BackGroundProcess( bool *do_terminate )
 		{
@@ -646,10 +652,26 @@ vector<T> AllToCentroid
 )
 {
   /** distances from I to C */
-  std::vector<T> I2C( DII.size(), 0.0 );
+  vector<T> I2C( DII.size(), 0.0 );
 
   switch ( metric )
   {
+    case GEOMETRY_DISTANCE:
+    {
+      if ( KIC.row() == DII.size() && KIC.col() == DCC.size() )
+      {
+        for ( size_t j = 0; j < DCC.col(); j ++ )
+          for ( size_t i = 0; i < DII.row(); i ++ )
+            I2C[ i ] += KIC( i, j );
+      }
+      else
+      {
+        for ( size_t j = 0; j < DCC.col(); j ++ )
+          for ( size_t i = 0; i < DII.row(); i ++ )
+            I2C[ i ] += KIC( j, i );
+      }
+      break;
+    }
     case KERNEL_DISTANCE:
     {
       for ( size_t i = 0; i < DII.size(); i ++ )
@@ -660,7 +682,7 @@ vector<T> AllToCentroid
         #pragma omp parallel for
         for ( size_t i = 0; i < DII.size(); i ++ )
           for ( size_t j = 0; j < DCC.size(); j ++ )
-            I2C[ i ] -= ( 2.0 / DII.size() ) * KIC( i, j );
+            I2C[ i ] -= ( 2.0 / DCC.size() ) * KIC( i, j );
       }
       else
       {
@@ -669,7 +691,7 @@ vector<T> AllToCentroid
         #pragma omp parallel for
         for ( size_t i = 0; i < DII.size(); i ++ )
           for ( size_t j = 0; j < DCC.size(); j ++ )
-            I2C[ i ] -= ( 2.0 / DII.size() ) * KCI( j, i );
+            I2C[ i ] -= ( 2.0 / DCC.size() ) * KCI( j, i );
       }
       break;
     }
@@ -724,6 +746,12 @@ vector<T> AllToFarthest
 
   switch ( metric )
   {
+    case GEOMETRY_DISTANCE:
+    {
+      #pragma omp parallel for
+      for ( size_t i = 0; i < KIP.row(); i ++ ) I2P[ i ] = KIP[ i ];
+      break;
+    }
     case KERNEL_DISTANCE:
     {
       #pragma omp parallel for
@@ -772,11 +800,16 @@ vector<T> AllToLeftRight
 
   switch ( metric )
   {
+    case GEOMETRY_DISTANCE:
+    {
+      #pragma omp parallel for
+      for ( size_t i = 0; i < KIP.row(); i ++ ) I2PQ[ i ] = KIP[ i ] - KIQ[ i ];
+      break;
+    }
     case KERNEL_DISTANCE:
     {
       #pragma omp parallel for
-      for ( size_t i = 0; i < KIP.row(); i ++ )
-          I2PQ[ i ] = KIP[ i ] - KIQ[ i ];
+      for ( size_t i = 0; i < KIP.row(); i ++ ) I2PQ[ i ] = KIP[ i ] - KIQ[ i ];
 
       break;
     }
@@ -921,11 +954,7 @@ struct centersplit
 
     //printf( "shared enter DII\n" ); fflush( stdout );
 
-    /** collecting DII */
-    //for ( size_t i = 0; i < gids.size(); i ++ )
-    //{
-    //  DII[ i ] = K( gids[ i ], gids[ i ] );
-    //}
+    /** Collecting DII */
     DII = K.Diagonal( gids );
 
 
@@ -942,8 +971,14 @@ struct centersplit
     }
     DCC = K.Diagonal( column_samples );
 
-    /** collecting KIC */
-    auto KIC = K( gids, column_samples );
+    /** Collecting KIC */
+    Data<T> KIC = K( gids, column_samples );
+
+    if ( metric == GEOMETRY_DISTANCE ) 
+    {
+      KIC = K.PairwiseDistances( gids, column_samples );
+    }
+
 
     /** compute d2c (distance to the approximate centroid) */
     temp = AllToCentroid( metric, DII, KIC, DCC );
@@ -961,6 +996,12 @@ struct centersplit
     /** collecting KIP */
     std::vector<size_t> P( 1, gidf2c );
     auto KIP = K( gids, P );
+
+    if ( metric == GEOMETRY_DISTANCE ) 
+    {
+      KIP = K.PairwiseDistances( gids, P );
+    }
+
 
     /** get diagonal entry kpp */
     //T kpp = K( gidf2c, gidf2c );
@@ -987,6 +1028,11 @@ struct centersplit
     /** collecting KIQ */
     std::vector<size_t> Q( 1, gidf2f );
     auto KIQ = K( gids, Q );
+
+    if ( metric == GEOMETRY_DISTANCE ) 
+    {
+      KIQ = K.PairwiseDistances( gids, Q );
+    }
 
     /** get diagonal entry kpp */
     auto kqq = K.Diagonal( Q );
@@ -1023,9 +1069,24 @@ struct centersplit
     std::vector<std::size_t> middle;
     for ( size_t i = 0; i < n; i ++ )
     {
-      if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
-      else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-      else                               middle.push_back( i );
+      //if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
+      //else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
+      //else                               middle.push_back( i );
+
+      auto val = temp[ i ];
+
+      if ( std::fabs( val - median ) < 1E-6 && !std::isinf( val ) && !std::isnan( val) )
+      {
+        middle.push_back( i );
+      }
+      else if ( val < median ) 
+      {
+        split[ 0 ].push_back( i );
+      }
+      else
+      {
+        split[ 1 ].push_back( i );
+      }
     }
 
     for ( size_t i = 0; i < middle.size(); i ++ )
@@ -1100,15 +1161,21 @@ struct randomsplit
 
 
     /** collecting KIP and KIQ */
-    std::vector<size_t> P( 1, gidf2c );
-    std::vector<size_t> Q( 1, gidf2f );
-		std::vector<size_t> PQ( 2 ); PQ[ 0 ] = gidf2c; PQ[ 1 ] = gidf2f;
+    vector<size_t> P( 1, gidf2c );
+    vector<size_t> Q( 1, gidf2f );
+		vector<size_t> PQ( 2 ); PQ[ 0 ] = gidf2c; PQ[ 1 ] = gidf2f;
 		auto KIPQ = K( gids, PQ );
     //auto KIP = K( gids, P );
     //auto KIQ = K( gids, Q );
-		
-		hmlp::Data<T> KIP( n, (size_t)1 );
-		hmlp::Data<T> KIQ( n, (size_t)1 );
+
+		Data<T> KIP( n, (size_t)1 );
+		Data<T> KIQ( n, (size_t)1 );
+
+    if ( metric == GEOMETRY_DISTANCE ) 
+    {
+      KIPQ = K.PairwiseDistances( gids, PQ );
+    }
+
 
     for ( size_t i = 0; i < gids.size(); i ++ )
 		{
@@ -1186,17 +1253,35 @@ struct randomsplit
 		middle.reserve( n );
     for ( size_t i = 0; i < n; i ++ )
     {
-      if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
-      else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-      else                           middle.push_back( i );
+      auto val = temp[ i ];
+      //if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
+      //else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
+      //else                           middle.push_back( i );
+
+      if ( std::fabs( val - median ) < 1E-6 && !std::isinf( val ) && !std::isnan( val) )
+      {
+        middle.push_back( i );
+      }
+      else if ( val < median ) 
+      {
+        split[ 0 ].push_back( i );
+      }
+      else
+      {
+        split[ 1 ].push_back( i );
+      }
     }
 
     for ( size_t i = 0; i < middle.size(); i ++ )
     {
-      if ( split[ 0 ].size() <= split[ 1 ].size() ) 
+      if ( split[ 0 ].size() <= split[ 1 ].size() )
+      {
         split[ 0 ].push_back( middle[ i ] );
-      else                                          
+      }
+      else
+      {
         split[ 1 ].push_back( middle[ i ] );
+      }
     }
 
 //    std::vector<size_t> lflag( n, 0 );
@@ -2823,7 +2908,8 @@ void UpdateWeights( NODE *node )
     auto &lskel = lchild->data.skels;
     auto &rskel = rchild->data.skels;
 
-    if ( 1 )
+    //if ( 1 )
+    if ( node->treelist_id > 6 )
     {
       //printf( "%8lu n2s\n", node->morton ); fflush( stdout );
       xgemm
@@ -3316,7 +3402,8 @@ void SkeletonsToNodes( NODE *node )
     auto &lskel = lchild->data.skels;
     auto &rskel = rchild->data.skels;
 
-    if ( 1 )
+    //if ( 1 )
+    if ( node->treelist_id > 6 )
     {
       //printf( "%8lu s2n\n", node->morton ); fflush( stdout );
       xgemm
@@ -3838,6 +3925,93 @@ void PrintSet( std::set<NODE*> &set )
 //};
 
 
+
+/**
+ *
+ */
+template<typename NODE>
+multimap<size_t, size_t> NearNodeBallots( NODE *node )
+{
+  /** Must be a leaf node. */
+  assert( node->isleaf );
+
+  auto &setup = *(node->setup);
+  auto &NN = *(setup.NN);
+  auto &gids = node->gids;
+
+  /** Ballot table ( node MortonID, ids ) */
+  //map<size_t, map<size_t, T>> &candidates = node->data.candidates;
+  auto &candidates = node->data.candidates;
+  map<size_t, size_t> ballot;
+
+  size_t HasMissingNeighbors = 0;
+
+
+  /** Loop over all neighbors and insert them into tables. */ 
+  for ( size_t j = 0; j < gids.size(); j ++ )
+  {
+    for ( size_t i = 0; i < NN.row(); i ++ )
+    {
+      auto value = NN( i, gids[ j ] ).first;
+      size_t neighbor_gid = NN( i, gids[ j ] ).second;
+      /** If this gid is valid, then compute its morton */
+      if ( neighbor_gid >= 0 && neighbor_gid < NN.col() )
+      {
+        size_t neighbor_morton = setup.morton[ neighbor_gid ];
+        //printf( "gid %lu i %lu neighbor_gid %lu morton %lu\n", gids[ j ], i, 
+        //    neighbor_gid, neighbor_morton );
+
+        if (  i < NN.row() / 2 )
+        {
+          if ( ballot.find( neighbor_morton ) != ballot.end() )
+          {
+            ballot[ neighbor_morton ] ++;
+          }
+          else
+          {
+            ballot[ neighbor_morton ] = 1;
+          }
+        }
+        else
+        {
+          if ( candidates.find( neighbor_morton ) != candidates.end() )
+          {
+            auto &tar = candidates[ neighbor_morton ];
+            auto ret = tar.insert( make_pair( neighbor_gid, value ) );
+
+            /** if already existed, then update distance */
+            if ( ret.second == false )
+            {
+              if ( ret.first->second > value ) ret.first->second = value;
+            }
+          }
+          else
+          {
+            candidates[ neighbor_morton ][ neighbor_gid ] = value;
+          }
+        }
+      }
+      else
+      {
+        HasMissingNeighbors ++;
+      }
+    }
+  }
+
+  if ( HasMissingNeighbors )
+  {
+    printf( "Missing %lu neighbor pairs\n", HasMissingNeighbors ); 
+    fflush( stdout );
+  }
+
+  /** Flip ballot to create sorted_ballot. */ 
+  return flip_map( ballot );
+
+}; /** end NearNodeBallots() */
+
+
+
+
 template<typename NODE, typename T>
 void NearSamples( NODE *node )
 {
@@ -3849,87 +4023,19 @@ void NearSamples( NODE *node )
     auto &gids = node->gids;
     double budget = setup.budget;
     size_t n_nodes = ( 1 << node->l );
-    /** 
-     *  Add myself to the list. 
-     */
+
+    /** Add myself to the near interaction list.  */
     node->NearNodes.insert( node );
     node->NNNearNodes.insert( node );
     node->NNNearNodeMortonIDs.insert( node->morton );
 
-    /** 
-     *  Ballot table ( node MortonID, ids )
-     */
-    map<size_t, map<size_t, T>> & candidates = node->data.candidates;
-    map<size_t, size_t> ballot;
+    /** Compute ballots for all near interactions */
+    multimap<size_t, size_t> sorted_ballot = NearNodeBallots( node );
 
-    /**
-     *  Loop over all neighbors and insert them into tables.
-     */ 
-    for ( size_t j = 0; j < gids.size(); j ++ )
-    {
-      for ( size_t i = 0; i < NN.row(); i ++ )
-      {
-        T value = NN( i, gids[ j ] ).first;
-        size_t neighbor_gid = NN( i, gids[ j ] ).second;
-        /** 
-         *  If this gid is valid, then compute its morton 
-         */
-        if ( neighbor_gid >= 0 && neighbor_gid < NN.col() )
-        {
-          size_t neighbor_morton = setup.morton[ neighbor_gid ];
-          //printf( "gid %lu i %lu neighbor_gid %lu morton %lu\n", gids[ j ], i, 
-          //    neighbor_gid, neighbor_morton );
-
-          if (  i < NN.row() / 2 )
-          {
-            if ( ballot.find( neighbor_morton ) != ballot.end() )
-            {
-              ballot[ neighbor_morton ] ++;
-            }
-            else
-            {
-              ballot[ neighbor_morton ] = 1;
-            }
-          }
-          else
-          {
-            if ( candidates.find( neighbor_morton ) != candidates.end() )
-            {
-              auto &tar = candidates[ neighbor_morton ];
-              auto ret = tar.insert( make_pair( neighbor_gid, value ) );
-
-              /** if already existed, then update distance */
-              if ( ret.second == false )
-              {
-                if ( ret.first->second > value ) ret.first->second = value;
-              }
-            }
-            else
-            {
-              candidates[ neighbor_morton ][ neighbor_gid ] = value;
-            }
-          }
-        }
-        else
-        {
-          printf( "illegal gid in neighbor pairs\n" ); fflush( stdout );
-        }
-      }
-    }
-
-    /** 
-     *  Flip ballot to create sorted_ballot.
-     */ 
-    multimap<size_t, size_t> sorted_ballot = flip_map( ballot );
-
-    /**
-     *  Insert near node cadidates until reaching the budget limit.
-     */ 
+    /** Insert near node cadidates until reaching the budget limit. */ 
     for ( auto it = sorted_ballot.rbegin(); it != sorted_ballot.rend(); it ++ )
     {
-      /**
-       *  Exit if we have enough.
-       */ 
+      /** Exit if we have enough. */ 
       if ( node->NNNearNodes.size() >= n_nodes * budget ) break;
 
       /**
@@ -3938,30 +4044,26 @@ void NearSamples( NODE *node )
        *  Two situations:
        *  1. the pointer doesn't exist, then creates a lettreenode
        */ 
-      if ( !(*node->morton2node).count( (*it).second ) )
-      {
-        //printf( "%8lu Create local essential node with MortonID %8lu\n", node->morton, (*it).second );
-        /**
-         *  Acquire the global lock to modify morton2node map.
-         */ 
-        node->treelock->Acquire();
-        {
-           /** 
-            *  Double check that the let node does not exist.
-            *  New tree::Node with MortonID (*it).second 
-            */
-           if ( !(*node->morton2node).count( (*it).second ) )
-             (*node->morton2node)[ (*it).second ] = new NODE( (*it).second );
-        }
-        node->treelock->Release();
-      }
-
-      /**
-       *  Insert 
-       */ 
-      auto *target = (*node->morton2node)[ (*it).second ];
-      node->NNNearNodeMortonIDs.insert( (*it).second );
-      node->NNNearNodes.insert( target );
+      /** Acquire the global lock to modify morton2node map. */
+      //#pragma omp critical
+      //{
+      //  node->treelock->Acquire();
+      //  {
+      //    /** 
+      //     *  Double check that the let node does not exist.
+      //     *  New tree::Node with MortonID (*it).second 
+      //     */
+      //    if ( !(*node->morton2node).count( (*it).second ) )
+      //    {
+      //      (*node->morton2node)[ (*it).second ] = new NODE( (*it).second );
+      //    }
+          /** Insert */
+          auto *target = (*node->morton2node)[ (*it).second ];
+          node->NNNearNodeMortonIDs.insert( (*it).second );
+          node->NNNearNodes.insert( target );
+      //  }
+      //  node->treelock->Release();
+      //}
     }
     //printf( "%3lu, gids %lu candidates %2lu/%2lu, ballot %2lu budget %lf NNNearNodes %lu k %lu\n", 
     //    node->treelist_id, gids.size(), 
@@ -3981,59 +4083,6 @@ void NearSamples( NODE *node )
       (*it)->data.lock.Release();
     }
 
-    /**
-     *  Remove near interactions from the ballot table.
-     */ 
-//    for ( auto it = node->NNNearNodes.begin(); it != node->NNNearNodes.end(); it ++ )
-//    {
-//      candidates.erase( (*it)->morton );
-//    }
-//    //node->NNNearNodes.clear();
-//
-//    /**
-//     *  Compute the sample pool for all siblings
-//     */
-//    NODE *now = node;
-//    while ( now )
-//    {
-//      auto *sibling = now->sibling;
-//      if ( sibling ) 
-//      {
-//        vector<pair<size_t, T>> merged_candidates;
-//        merged_candidates.reserve( NN.row() * gids.size() );
-//        for ( auto it = candidates.begin(); it != candidates.end(); it ++ )
-//        {
-//          size_t candidate_morton = (*it).first;
-//          auto & candidate_pairs  = (*it).second;
-//          if ( tree::IsMyParent( candidate_morton, sibling->morton ) )
-//          { 
-//            for ( auto nn_it  = candidate_pairs.begin(); 
-//                       nn_it != candidate_pairs.end(); nn_it ++ )
-//            {
-//              merged_candidates.push_back( *nn_it );
-//            }
-//          }
-//        }
-//
-//        sibling->data.lock.Acquire();
-//        {
-//          auto &pool = sibling->data.pool;
-//          for ( size_t i = 0; i < merged_candidates.size(); i ++ )
-//          {
-//            auto ret = pool.insert( merged_candidates[ i ] );
-//            if ( ret.second == false )
-//            {
-//              if ( ret.first->second > merged_candidates[ i ].second ) 
-//                ret.first->second = merged_candidates[ i ].second;
-//            }
-//          }
-//        }
-//        sibling->data.lock.Release();
-//      }
-//          
-//      /** move toward parent */
-//      now = now->parent;
-//    }
   }
   else
   {

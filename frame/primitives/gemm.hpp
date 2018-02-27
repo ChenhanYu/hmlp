@@ -27,7 +27,7 @@
 #include <hmlp_blas_lapack.h>
 #include <hmlp_runtime.hpp>
 
-/** matrix view */
+/** Matrix view */
 #include <containers/view.hpp>
 
 

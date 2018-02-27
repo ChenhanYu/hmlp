@@ -1179,7 +1179,8 @@ void* Scheduler::EntryPoint( void* arg )
 
       if ( scheduler->nested_queue.size() != 0 )
       {
-        printf( "bug nested_queue.size() %lu\n", scheduler->nested_queue.size() ); fflush( stdout );
+        printf( "bug nested_queue.size() %lu\n", scheduler->nested_queue.size() ); 
+        fflush( stdout );
       }
 
       /** sanity check: no task should left */
@@ -1199,8 +1200,8 @@ void* Scheduler::EntryPoint( void* arg )
     {
 			if ( scheduler->do_terminate == true )
 			{
-        printf( "worker %d has do_terminate = true, scheduler->n_task = %d, tasklist.size() %lu\n", 
-						me->tid, scheduler->n_task, scheduler->tasklist.size() ); fflush( stdout );
+        //printf( "worker %d has do_terminate = true, scheduler->n_task = %d, tasklist.size() %lu\n", 
+				//		me->tid, scheduler->n_task, scheduler->tasklist.size() ); fflush( stdout );
 				break;
 			}
 

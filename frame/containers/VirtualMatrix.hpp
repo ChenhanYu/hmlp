@@ -33,6 +33,8 @@
 /** use hmlp::Data<T> for a concrete dense submatrix */
 #include <containers/data.hpp>
 
+using namespace std;
+
 
 namespace hmlp
 {
@@ -97,6 +99,10 @@ class VirtualMatrix
       return submatrix;
     };
 
+    virtual Data<T> PairwiseDistances( vector<size_t> &I, vector<size_t> &J )
+    {
+      return (*this)( I, J );
+    };
 
 		virtual Data<T> Diagonal( std::vector<size_t> &I )
 		{

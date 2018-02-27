@@ -131,13 +131,13 @@ void test_gofmm
   
   /** Initialization */
   w_rids.rand();
-  auto &gids = tree.treelist[ 0 ]->gids;
-  for ( int j = 0; j < nrhs; j ++ )
-    for ( int i = 0; i < gids.size(); i ++ )
-      w_rids( gids[ i ], j ) = gids[ i ];
+  //auto &gids = tree.treelist[ 0 ]->gids;
+  //for ( int j = 0; j < nrhs; j ++ )
+  //  for ( int i = 0; i < gids.size(); i ++ )
+  //    w_rids( gids[ i ], j ) = gids[ i ];
 
-  printf( "w( %lu, 0 ) = %E\n", gids[ 0 ], w_rids( gids[ 0 ], 0 ) ); fflush( stdout );
-  printf( "w( %lu, 0 ) = %E\n", gids[ 1 ], w_rids( gids[ 1 ], 0 ) ); fflush( stdout );
+  //printf( "w( %lu, 0 ) = %E\n", gids[ 0 ], w_rids( gids[ 0 ], 0 ) ); fflush( stdout );
+  //printf( "w( %lu, 0 ) = %E\n", gids[ 1 ], w_rids( gids[ 1 ], 0 ) ); fflush( stdout );
 
 
 
@@ -278,21 +278,21 @@ void test_gofmm_setup
   switch ( metric )
   {
     case GEOMETRY_DISTANCE:
-    {
-      assert( X );
-			/** using geometric splitters from hmlp::tree */
-      using SPLITTER     = mpitree::centersplit<N_CHILDREN, T>;
-      using RKDTSPLITTER = mpitree::randomsplit<N_CHILDREN, T>;
-			/** GOFMM tree splitter */
-      SPLITTER splitter;
-      splitter.Coordinate = X;
-			/** randomized tree splitter */
-      RKDTSPLITTER rkdtsplitter;
-      rkdtsplitter.Coordinate = X;
-      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs, CommGOFMM );
-      break;
-    }
+    //{
+    //  assert( X );
+		//	/** using geometric splitters from hmlp::tree */
+    //  using SPLITTER     = mpitree::centersplit<N_CHILDREN, T>;
+    //  using RKDTSPLITTER = mpitree::randomsplit<N_CHILDREN, T>;
+		//	/** GOFMM tree splitter */
+    //  SPLITTER splitter;
+    //  splitter.Coordinate = X;
+		//	/** randomized tree splitter */
+    //  RKDTSPLITTER rkdtsplitter;
+    //  rkdtsplitter.Coordinate = X;
+    //  test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+    //  ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs, CommGOFMM );
+    //  break;
+    //}
     case KERNEL_DISTANCE:
     case ANGLE_DISTANCE:
     {
@@ -352,6 +352,7 @@ int main( int argc, char *argv[] )
   size_t nnz; 
   string distance_type;
   string spdmatrix_type;
+  string kernelmatrix_type;
   string user_matrix_filename;
   string user_points_filename;
 
@@ -430,11 +431,12 @@ int main( int argc, char *argv[] )
   }
   else if ( !spdmatrix_type.compare( "kernel" ) )
   {
-    user_points_filename = argv[ 10 ];
-    /** number of attributes (dimensions) */
-    sscanf( argv[ 11 ], "%lu", &d );
-    /** (optional) provide Gaussian kernel bandwidth */
-    if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
+    kernelmatrix_type = argv[ 10 ];
+    user_points_filename = argv[ 11 ];
+    /** Number of attributes (dimensions) */
+    sscanf( argv[ 12 ], "%lu", &d );
+    /** (Optional) provide Gaussian kernel bandwidth */
+    if ( argc > 13 ) sscanf( argv[ 13 ], "%f", &h );
   }
   else
   {
@@ -496,10 +498,10 @@ int main( int argc, char *argv[] )
   }
 
 
-  /** generate a Gaussian kernel matrix from the coordinates */
+  /** Generate a kernel matrix from the coordinates */
   if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
   {
-    using T = double;
+    using T = float;
     {
       /** read the coordinates from the file */
       DistData<STAR, CBLK, T> X( d, n, CommGOFMM, user_points_filename );
@@ -507,6 +509,8 @@ int main( int argc, char *argv[] )
       /** setup the kernel object as Gaussian */
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
+      if ( !kernelmatrix_type.compare( "gaussian" ) ) kernel.type = KS_GAUSSIAN;
+      if ( !kernelmatrix_type.compare( "laplace" ) )  kernel.type = KS_LAPLACE;
       kernel.scal = -0.5 / ( h * h );
 
       /** Distributed spd kernel matrix format (implicitly create) */

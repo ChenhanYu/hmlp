@@ -91,26 +91,25 @@ struct centersplit
   // closure
   Data<T> *Coordinate;
 
-  inline std::vector<std::vector<std::size_t> > operator()
+  inline vector<vector<size_t> > operator()
   ( 
-    std::vector<std::size_t>& gids,
-    std::vector<std::size_t>& lids
+    vector<size_t>& gids, vector<size_t>& lids
   ) const 
   {
     assert( N_SPLIT == 2 );
 
-    hmlp::Data<T> &X = *Coordinate;
+    Data<T> &X = *Coordinate;
     size_t d = X.row();
     size_t n = lids.size();
 
     T rcx0 = 0.0, rx01 = 0.0;
-    std::size_t x0, x1;
-    std::vector<std::vector<std::size_t> > split( N_SPLIT );
+    size_t x0, x1;
+    vector<vector<size_t> > split( N_SPLIT );
 
 
-    std::vector<T> centroid = hmlp::combinatorics::Mean( d, n, X, lids );
-    std::vector<T> direction( d );
-    std::vector<T> projection( n, 0.0 );
+    vector<T> centroid = combinatorics::Mean( d, n, X, lids );
+    vector<T> direction( d );
+    vector<T> projection( n, 0.0 );
 
     //printf( "After Mean\n" );
 
@@ -258,8 +257,8 @@ struct randomsplit
 template<typename T>
 bool less_first
 (
-  const std::pair<T, size_t> &a, 
-  const std::pair<T, size_t> &b
+  const pair<T, size_t> &a, 
+  const pair<T, size_t> &b
 )
 {
   return ( a.first < b.first );
@@ -268,8 +267,8 @@ bool less_first
 template<typename T>
 bool less_second
 ( 
-  const std::pair<T, size_t> &a, 
-  const std::pair<T, size_t> &b 
+  const pair<T, size_t> &a, 
+  const pair<T, size_t> &b 
 )
 {
   return ( a.second < b.second );
@@ -279,8 +278,8 @@ bool less_second
 template<typename T>
 bool equal_second 
 ( 
-  const std::pair<T, size_t> &a, 
-  const std::pair<T, size_t> &b 
+  const pair<T, size_t> &a, 
+  const pair<T, size_t> &b 
 )
 {
   return ( a.second == b.second );
@@ -303,9 +302,9 @@ template<class T, class Allocator = std::allocator<T> >
 void MergeNeighbors
 ( 
   size_t k,
-  std::pair<T, size_t> *A, 
-  std::pair<T, size_t> *B,
-  std::vector<std::pair<T, size_t>, Allocator> &aux
+  pair<T, size_t> *A, 
+  pair<T, size_t> *B,
+  vector<pair<T, size_t>, Allocator> &aux
 )
 {
   if ( aux.size() != 2 * k ) aux.resize( 2 * k );
@@ -313,9 +312,9 @@ void MergeNeighbors
   for ( size_t i = 0; i < k; i++ ) aux[     i ] = A[ i ];
   for ( size_t i = 0; i < k; i++ ) aux[ k + i ] = B[ i ];
 
-  std::sort( aux.begin(), aux.end(), less_second<T> );
-  auto it = std::unique( aux.begin(), aux.end(), equal_second<T> );
-  std::sort( aux.begin(), it, less_first<T> );
+  sort( aux.begin(), aux.end(), less_second<T> );
+  auto it = unique( aux.begin(), aux.end(), equal_second<T> );
+  sort( aux.begin(), it, less_first<T> );
 
   for ( size_t i = 0; i < k; i++ ) A[ i ] = aux[ i ];
 };
@@ -337,14 +336,14 @@ template<class T, class Allocator = std::allocator<T> >
 void MergeNeighbors
 ( 
   size_t k, size_t n,
-  std::vector<std::pair<T, size_t>, Allocator> &A, 
-  std::vector<std::pair<T, size_t>, Allocator> &B
+  vector<pair<T, size_t>, Allocator> &A, 
+  vector<pair<T, size_t>, Allocator> &B
 )
 {
   assert( A.size() >= n * k && B.size() >= n * k );
 	#pragma omp parallel
   {
-    std::vector<std::pair<T, size_t> > aux( 2 * k );
+    vector<pair<T, size_t> > aux( 2 * k );
     #pragma omp for
     for( size_t i = 0; i < n; i++ ) 
     {
@@ -713,9 +712,9 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
         int partner_rank = 0;
         int sent_size = 0; 
         int recv_size = 0;
-        std::vector<size_t> &kept_gids = child->gids;
-        std::vector<int>     sent_gids;
-        std::vector<int>     recv_gids;
+        vector<size_t> &kept_gids = child->gids;
+        vector<int>     sent_gids;
+        vector<int>     recv_gids;
 
         if ( rank < size / 2 ) 
         {
@@ -785,8 +784,8 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 		  } /** end if ( child ) */
       
-      /** synchronize within local communicator */
-      hmlp::mpi::Barrier( comm );
+      /** Synchronize within local communicator */
+      mpi::Barrier( comm );
 
     }; /** end Split() */
 
@@ -1094,29 +1093,26 @@ class Tree
     template<bool SORTED, typename KNNTASK>
     DistData<STAR, CBLK, pair<T, size_t>> AllNearestNeighbor
     (
-      size_t n_tree,
-      size_t n,
-      size_t k, 
-      size_t max_depth,
-      pair<T, std::size_t> initNN,
+      size_t n_tree, size_t n, size_t k, size_t max_depth,
+      pair<T, size_t> initNN,
       KNNTASK &dummy
     )
     {
-      /** get the problem size from setup->K->row() */
+      /** Get the problem size from setup->K->row() */
       this->n = n;
 
       /** k-by-N, column major */
-      DistData<STAR, CBLK, std::pair<T, size_t>> NN( k, n, initNN, comm );
+      DistData<STAR, CBLK, pair<T, size_t>> NN( k, n, initNN, comm );
 
-      /** use leaf size = 4 * k  */
+      /** Use leaf size = 4 * k  */
       this->setup.m = 4 * k;
       if ( this->setup.m < 512 ) this->setup.m = 512;
       this->m = this->setup.m;
 
-      /** local problem size (assuming Round-Robin) */
+      /** Local problem size (assuming Round-Robin) */
       num_points_owned = ( n - 1 ) / size + 1;
 
-      /** edge case */
+      /** Edge case */
       if ( n % size )
       {
         if ( rank >= ( n % size ) ) num_points_owned -= 1;
@@ -1130,129 +1126,64 @@ class Tree
       /** Allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
-      //printf( "Finish allocate rkdt nodes\n" ); fflush( stdout );
-
-
       auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
       bgtask->SetAsBackGround();
 
-      //printf( "Finish bgtask\n" ); fflush( stdout );
-
-
-      /** */
-      DependencyCleanUp();
-      //hmlp_redistribute_workers(  
-      //    hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-      //    hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-      //    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
-
-      /** Tree partitioning */
-      DistSplitTask<MPINODE> mpisplittask;
-      DistTraverseDown( mpisplittask );
-      hmlp_run();
-      this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
-
-      /** */
-      DependencyCleanUp();
-      //hmlp_redistribute_workers( 
-      //		omp_get_max_threads(), 
-      //		omp_get_max_threads() / 4 + 1, 1 );
-
-      tree::SplitTask<NODE> splittask;
-      LocaTraverseDown( splittask );
-      //tree::IndexPermuteTask<NODE> seqINDXtask;
-			//LocaTraverseUp( seqINDXtask );
-      //DistIndexPermuteTask<MPINODE> mpiINDXtask;
-			//DistTraverseUp( mpiINDXtask );
-      hmlp_run();
-      mpi::Barrier( comm );
-
-
-
-
       for ( size_t t = 0; t < n_tree; t ++ )
       {
-        //printf( "t = %lu\n", t ); fflush( stdout );
+        mpi::Barrier( comm );
+        if ( rank == 0 )
+        {
+          printf( "Iteration #%lu\n", t ); fflush( stdout );
+        }
         DependencyCleanUp();
 
-//        /** tree partitioning */
-//        DistSplitTask<MPINODE> mpisplittask;
-//        DistTraverseDown( mpisplittask );
-//        hmlp_run();
-//	  	  MPI_Barrier( comm );
-//			  this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
-//
-//        /** queries computed in CIDS distribution  */
-//        DistData<STAR, CIDS, std::pair<T, size_t>> Q_cids( k, this->n, 
-//            this->treelist[ 0 ]->gids, initNN, comm );
-//
-//        /** 
-//         *  notice that setup.NN has type Data<std::pair<T, size_t>>,
-//         *  but that is fine because DistData inherits Data
-//         */
-//        this->setup.NN = &Q_cids;
-//
-//			  DependencyCleanUp();
-//        tree::SplitTask<NODE> splittask;
-//        LocaTraverseDown( splittask );
-//        LocaTraverseLeafs( dummy );
-//        hmlp_run();
-//	  	  MPI_Barrier( comm );
-
-
-
-
-
+        /** Tree partitioning */
+        DistSplitTask<MPINODE> mpisplittask;
+        DistTraverseDown( mpisplittask );
+        hmlp_run();
+	  	  MPI_Barrier( comm );
+			  this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
 
         /** queries computed in CIDS distribution  */
         DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
             this->treelist[ 0 ]->gids, initNN, comm );
 
         /** 
-         *  notice that setup.NN has type Data<std::pair<T, size_t>>,
+         *  Notice that setup.NN has type Data<pair<T, size_t>>,
          *  but that is fine because DistData inherits Data
          */
         this->setup.NN = &Q_cids;
 
-        /**
-         *  redistribute K to reduce communication
-         */
-        double beg = omp_get_wtime();
-        //this->setup.K->Redistribute( this->treelist[ 0 ]->gids );
-        //double redist_t = omp_get_wtime() - beg;
-        //printf( "Redistribution time %lfs\n", redist_t ); fflush( stdout );
-
-        beg = omp_get_wtime();
-        /** neighbor search */
+			  DependencyCleanUp();
+        tree::SplitTask<NODE> splittask;
+        LocaTraverseDown( splittask );
         LocaTraverseLeafs( dummy );
-        if ( t + 1 < n_tree )
-        {
-          DistTraverseDown( mpisplittask );
-          hmlp_run();
-          mpi::Barrier( comm );
-          this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
-          DependencyCleanUp();
-          LocaTraverseDown( splittask );
-        }
         hmlp_run();
-        mpi::Barrier( comm );
-        double nn_t = omp_get_wtime() - beg;
-        //printf( "NN+tree time %lfs\n", nn_t ); fflush( stdout );
+	  	  MPI_Barrier( comm );
+
+        //size_t count = 0;
+        //for ( auto neig : Q_cids )
+        //{
+        //  if ( neig.second == this->n ) count ++;
+        //}
+        //printf( "rank %d missed neighbors %lu/%lu\n", rank, count, Q_cids.size() ); 
+        //fflush( stdout );
 
         if ( t == 0 )
         {
-          /** redistribute from CIDS to CBLK */
+          /** Redistribute from CIDS to CBLK */
           NN = Q_cids; 
         }
         else
         {
-          /** queries computed in CBLK distribution */
-          DistData<STAR, CBLK, std::pair<T, size_t>> Q_cblk( k, this->n, comm );
+          /** Queries computed in CBLK distribution */
+          DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->n, comm );
 
-          /** redistribute from CIDS to CBLK */
+          /** Redistribute from CIDS to CBLK */
           Q_cblk = Q_cids;
 
-          /** merge Q_cblk into NN (sort and remove duplication) */
+          /** Merge Q_cblk into NN (sort and remove duplication) */
           assert( Q_cblk.col_owned() == NN.col_owned() );
           MergeNeighbors( k, NN.col_owned(), NN, Q_cblk );
         }
@@ -1307,8 +1238,8 @@ class Tree
       //}
     
       /** check initial gids */
-      printf( "rank %d gids[ 0 ] %lu gids[ -1 ] %lu\n",
-          rank, gids[ 0 ], gids[ gids.size() - 1 ] ); fflush( stdout );
+      //printf( "rank %d gids[ 0 ] %lu gids[ -1 ] %lu\n",
+      //    rank, gids[ 0 ], gids[ gids.size() - 1 ] ); fflush( stdout );
 
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
@@ -1532,19 +1463,19 @@ class Tree
 
 
       /** Print information */
-      if ( node->parent )
-      {
-        printf( "level %lu rank %d size %d morton %8lu morton2rank %d sib_morton %8lu morton2rank %d\n", 
-            node->l, comm_rank, comm_size, 
-            node->morton, Morton2Rank( node->morton ),
-            node->sibling->morton, Morton2Rank( node->sibling->morton ) ); fflush( stdout );
-      }
-      else
-      {
-        printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
-            node->l, comm_rank, comm_size, 
-            node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
-      }
+      //if ( node->parent )
+      //{
+      //  printf( "level %lu rank %d size %d morton %8lu morton2rank %d sib_morton %8lu morton2rank %d\n", 
+      //      node->l, comm_rank, comm_size, 
+      //      node->morton, Morton2Rank( node->morton ),
+      //      node->sibling->morton, Morton2Rank( node->sibling->morton ) ); fflush( stdout );
+      //}
+      //else
+      //{
+      //  printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
+      //      node->l, comm_rank, comm_size, 
+      //      node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
+      //}
 
     }; /** end Morton() */
 
