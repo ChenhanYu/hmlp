@@ -77,6 +77,7 @@
 #include <thrust/system/cuda/experimental/pinned_allocator.h>
 #include <thrust/system_error.h>
 #include <thrust/system/cuda/error.h>
+
 template<class T>
 class managed_allocator
 {
@@ -111,8 +112,16 @@ class managed_allocator
 };
 #endif // ifdef HMLP_USE_CUDA
 
+
+
+
+
 /** debug flag */
 #define DEBUG_DATA 1
+
+
+using namespace std;
+
 
 
 
@@ -129,71 +138,74 @@ template<class T, class Allocator = thrust::system::cuda::experimental::pinned_a
 /** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >
 #endif
-class Data : public ReadWrite, public std::vector<T, Allocator>
+class Data : public ReadWrite, public vector<T, Allocator>
 #ifdef HMLP_USE_CUDA
 /** inheritate the interface fot the host-device model. */
-, public hmlp::DeviceMemory<T>
+, public DeviceMemory<T>
 #endif
 {
   public:
 
-    /** the default constructor */
+    /** Default constructor */
     Data() : m( 0 ), n( 0 ) {};
 
-    Data( std::size_t m, std::size_t n ) : std::vector<T, Allocator>( m * n )
+    Data( size_t m, size_t n ) 
+    : 
+    vector<T, Allocator>( m * n )
     { 
       this->m = m;
       this->n = n;
     };
 
-    Data( std::size_t m, std::size_t n, T initT ) 
-      : std::vector<T, Allocator>( m * n, initT )
+    Data( size_t m, size_t n, T initT ) 
+    : 
+    vector<T, Allocator>( m * n, initT )
     { 
       this->m = m;
       this->n = n;
     };
 
-    Data( std::size_t m, std::size_t n, std::string &filename ) 
-      : std::vector<T, Allocator>( m * n )
+    Data( size_t m, size_t n, string &filename ) 
+      : vector<T, Allocator>( m * n )
     {
       this->m = m;
       this->n = n;
       this->read( m, n, filename );
     };
 
-    void resize( std::size_t m, std::size_t n )
+    void resize( size_t m, size_t n )
     { 
       this->m = m;
       this->n = n;
-      std::vector<T, Allocator>::resize( m * n );
+      vector<T, Allocator>::resize( m * n );
     };
 
-    void resize( std::size_t m, std::size_t n, T initT )
+    void resize( size_t m, size_t n, T initT )
     {
       this->m = m;
       this->n = n;
-      std::vector<T, Allocator>::resize( m * n, initT );
+      vector<T, Allocator>::resize( m * n, initT );
     };
 
-    void reserve( std::size_t m, std::size_t n ) 
+    void reserve( size_t m, size_t n ) 
     {
-      std::vector<T, Allocator>::reserve( m * n );
+      vector<T, Allocator>::reserve( m * n );
     };
 
-    void read( std::size_t m, std::size_t n, std::string &filename )
+    void read( std::size_t m, std::size_t n, string &filename )
     {
       assert( this->m == m );
       assert( this->n == n );
       assert( this->size() == m * n );
 
-      std::cout << filename << std::endl;
+      cout << filename << endl;
 
-      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
+      ifstream file( filename.data(), ios::in|ios::binary|ios::ate );
       if ( file.is_open() )
       {
         auto size = file.tellg();
         assert( size == m * n * sizeof(T) );
-        file.seekg( 0, std::ios::beg );
+        file.seekg( 0, ios::beg );
         file.read( (char*)this->data(), size );
         file.close();
       }
@@ -201,25 +213,25 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
 		void write( std::string &filename )
 		{
-			std::ofstream myFile ( filename.data(), std::ios::out | std::ios::binary );
+			ofstream myFile ( filename.data(), ios::out | ios::binary );
       myFile.write( (char*)(this->data()), this->size() * sizeof(T) );
 		};
 
     template<int SKIP_ATTRIBUTES = 0, bool TRANS = false>
-		void readmtx( size_t m, size_t n, std::string &filename )
+		void readmtx( size_t m, size_t n, string &filename )
 		{
       assert( this->m == m );
       assert( this->n == n );
       assert( this->size() == m * n );
 
-      std::cout << filename << std::endl;
+      cout << filename << endl;
 
-      std::ifstream file( filename.data() );
-			std::string line;
+      ifstream file( filename.data() );
+			string line;
 			if ( file.is_open() )
 			{
 				size_t j = 0;
-				while ( std::getline( file, line ) )
+				while ( getline( file, line ) )
 				{
 					if ( j == 0 ) printf( "%s\n", line.data() );
 
@@ -230,11 +242,11 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 						printf( "more data then execpted n %lu\n", n );
 					}
 
-          /** replace all ',' and ';' with white space ' ' */
-					std::replace( line.begin(), line.end(), ',', '\n' );
-					std::replace( line.begin(), line.end(), ';', '\n' );
+          /** Replace all ',' and ';' with white space ' ' */
+					replace( line.begin(), line.end(), ',', '\n' );
+					replace( line.begin(), line.end(), ';', '\n' );
 
-					std::istringstream iss( line );
+					istringstream iss( line );
 
 					for ( size_t i = 0; i < m + SKIP_ATTRIBUTES; i ++ )
 					{
@@ -259,9 +271,9 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
 
 
-    std::tuple<size_t, size_t> shape()
+    tuple<size_t, size_t> shape()
     {
-      return std::make_tuple( m, n );
+      return make_tuple( m, n );
     };
 
    
@@ -302,10 +314,10 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 		};
 
     /** ESSENTIAL: return number of coumns */
-    std::size_t row() { return m; };
+    size_t row() { return m; };
 
     /** ESSENTIAL: return number of rows */
-    std::size_t col() { return n; };
+    size_t col() { return n; };
 
     /** ESSENTIAL: return an element */
     template<typename TINDEX>
@@ -316,9 +328,9 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     /** ESSENTIAL: return a submatrix */
     template<typename TINDEX>
-    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    inline Data<T> operator()( const vector<TINDEX> &imap, const vector<TINDEX> &jmap )
     {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+      Data<T> submatrix( imap.size(), jmap.size() );
       #pragma omp parallel for
       for ( int j = 0; j < jmap.size(); j ++ )
       {
@@ -333,18 +345,18 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
     /** ESSENTIAL: */
     template<typename TINDEX>
-    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    pair<T, TINDEX> ImportantSample( TINDEX j )
     {
       TINDEX i = std::rand() % m;
-      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+      pair<T, TINDEX> sample( (*this)( i, j ), i );
       return sample; 
     };
 
 
     template<typename TINDEX>
-    inline hmlp::Data<T> operator()( std::vector<TINDEX> &jmap )
+    inline Data<T> operator()( vector<TINDEX> &jmap )
     {
-      hmlp::Data<T> submatrix( m, jmap.size() );
+      Data<T> submatrix( m, jmap.size() );
       #pragma omp parallel for
       for ( int j = 0; j < jmap.size(); j ++ )
         for ( int i = 0; i < m; i ++ )
@@ -353,7 +365,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     };
 
     template<typename TINDEX>
-    void GatherColumns( bool TRANS, std::vector<TINDEX> &jmap, hmlp::Data<T> &submatrix )
+    void GatherColumns( bool TRANS, vector<TINDEX> &jmap, Data<T> &submatrix )
     {
       if ( TRANS )
       {
@@ -380,8 +392,8 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     template<bool SYMMETRIC = false>
     void rand( T a, T b )
     {
-      std::default_random_engine generator;
-      std::uniform_real_distribution<T> distribution( a, b );
+      default_random_engine generator;
+      uniform_real_distribution<T> distribution( a, b );
 
       if ( SYMMETRIC ) assert( m == n );
 
@@ -483,7 +495,7 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
     void Print()
     {
       printf( "Data in %lu * %lu\n", m, n );
-      hmlp::hmlp_printmatrix( m, n, this->data(), m );
+      hmlp_printmatrix( m, n, this->data(), m );
     };
 
     void WriteFile( char *name )
@@ -521,12 +533,12 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       printf( "AllocateD %5.3lf\n", alloc_time );
     };
 
-    void FreeD( hmlp::Device *dev )
+    void FreeD( Device *dev )
     {
       DeviceMemory<T>::FreeD( dev, this->size() * sizeof(T) );
     };
 
-    void PrefetchH2D( hmlp::Device *dev, int stream_id )
+    void PrefetchH2D( Device *dev, int stream_id )
     {
       double beg = omp_get_wtime();
       DeviceMemory<T>::PrefetchH2D
@@ -535,23 +547,23 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
       //printf( "PrefetchH2D %5.3lf\n", alloc_time );
     };
 
-    void PrefetchD2H( hmlp::Device *dev, int stream_id )
+    void PrefetchD2H( Device *dev, int stream_id )
     {
       DeviceMemory<T>::PrefetchD2H
         ( dev, stream_id, m * n * sizeof(T), this->data() );
     };
 
-    void WaitPrefetch( hmlp::Device *dev, int stream_id )
+    void WaitPrefetch( Device *dev, int stream_id )
     {
       DeviceMemory<T>::Wait( dev, stream_id );
     };
 
-    void FetchH2D( hmlp::Device *dev )
+    void FetchH2D( Device *dev )
     {
       DeviceMemory<T>::FetchH2D( dev, m * n * sizeof(T), this->data() );
     };
 
-    void FetchD2H( hmlp::Device *dev )
+    void FetchD2H( Device *dev )
     {
       DeviceMemory<T>::FetchD2H( dev, m * n * sizeof(T), this->data() );
     };
@@ -559,9 +571,9 @@ class Data : public ReadWrite, public std::vector<T, Allocator>
 
   private:
 
-    std::size_t m;
+    size_t m = 0;
 
-    std::size_t n;
+    size_t n = 0;
 
 }; /** end class Data */
 
@@ -848,44 +860,34 @@ template<class T, class Allocator = hbw::allocator<T> >
 #else
 template<class T, class Allocator = std::allocator<T> >
 #endif
-class OOC : public ReadWrite
+class OOCData : public ReadWrite
 {
   public:
 
-    template<typename TINDEX>
-    OOC( TINDEX m, TINDEX n, std::string filename ) :
-      file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate )
+    OOCData( size_t m, size_t n, string filename )
     {
       this->m = m;
       this->n = n;
       this->filename = filename;
 
-      //if ( file.is_open() )
-      //{
-      //  auto size = file.tellg();
-      //  assert( size == m * n * sizeof(T) );
-      //}
+      /** Open the file */
+      fd = open( filename.data(), O_RDONLY, 0 ); 
+      assert( fd != -1 );
+#ifdef __APPLE__
+      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE, fd, 0 );
+#else /** Assume Linux */
+      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
+#endif
+      assert( mmappedData != MAP_FAILED );
 
-      cache.resize( n );
-
-      fd = open( filename.data(), O_RDONLY, 0 ); assert( fd != -1 );
-//#ifdef __APPLE__
-//      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE, fd, 0 );
-//#else /** assume linux */
-//      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
-//#endif
-//
-//      assert( mmappedData != MAP_FAILED );
-
-      std::cout << filename << std::endl;
+      cout << filename << endl;
     };
 
-    ~OOC()
+    ~OOCData()
     {
-      //if ( file.is_open() ) file.close();
-      /** unmap */
-      //int rc = munmap( mmappedData, m * n * sizeof(T) );
-      //assert( rc == 0 );
+      /** Unmap */
+      int rc = munmap( mmappedData, m * n * sizeof(T) );
+      assert( rc == 0 );
       close( fd );
       printf( "finish readmatrix %s\n", filename.data() );
     };
@@ -894,121 +896,48 @@ class OOC : public ReadWrite
     template<typename TINDEX>
     inline T operator()( TINDEX i, TINDEX j )
     {
-      T Kij;
-
-      if ( !read_from_cache( i, j, &Kij ) )
-      {
-        if ( !read_from_disk( i, j, &Kij ) )
-        {
-          printf( "Accessing disk fail\n" );
-          exit( 1 );
-        }
-      }
-
-      return Kij;
+      return mmappedData[ j * m + i ];
     };
 
     template<typename TINDEX>
-    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    inline Data<T> operator()( const vector<TINDEX> &I, const vector<TINDEX> &J )
     {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-      #pragma omp parallel for
-      for ( int j = 0; j < jmap.size(); j ++ )
-      {
-        for ( int i = 0; i < imap.size(); i ++ )
-        {
-          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
-        }
-      }
-      return submatrix;
+      Data<T> KIJ( I.size(), J.size() );
+      for ( int j = 0; j < J.size(); j ++ )
+        for ( int i = 0; i < I.size(); i ++ )
+          KIJ[ j * I.size() + i ] = (*this)( I[ i ], J[ j ] );
+      return KIJ;
     }; 
 
     template<typename TINDEX>
-    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    pair<T, TINDEX> ImportantSample( TINDEX j )
     {
       TINDEX i = std::rand() % m;
-      std::pair<T, TINDEX> sample( (*this)( i, j ), i );
+      pair<T, TINDEX> sample( (*this)( i, j ), i );
       return sample; 
     };
 
-    std::size_t row() { return m; };
+    size_t row() { return m; };
 
-    std::size_t col() { return n; };
+    size_t col() { return n; };
 
     template<typename TINDEX>
     double flops( TINDEX na, TINDEX nb ) { return 0.0; };
 
   private:
 
-    template<typename TINDEX>
-    bool read_from_cache( TINDEX i, TINDEX j, T *Kij )
-    {
-      // Need some method to search in the caahe.
-      auto it = cache[ j ].find( i );
+    size_t m = 0;
 
-      if ( it != cache[ j ].end() ) 
-      {
-        *Kij = it->second;
-        return true;
-      }
-      else return false;
-    };
+    size_t n = 0;
 
-    /**
-     *  @brief We need a lock here.
-     */ 
-    template<typename TINDEX>
-    bool read_from_disk( TINDEX i, TINDEX j, T *Kij )
-    {
-      if ( file.is_open() )
-      {
-        //printf( "try %4lu, %4lu ", i, j );
-        T K015j[ 16 ];
-        size_t batch_size = 1;
-        if ( i + batch_size >= m ) batch_size = 1;
-        #pragma omp critical
-        {
-          file.seekg( ( j * m + i ) * sizeof(T) );
-          file.read( (char*)K015j, batch_size * sizeof(T) );
-        }
-        *Kij = K015j[ 0 ];
-        for ( size_t p = 0; p < batch_size; p ++ )
-        {
-          if ( cache[ j ].size() < 16384 )
-          {
-            #pragma omp critical
-            {
-              cache[ j ][ i + p ] = K015j[ p ];
-            }
-          }
-        }
-        // printf( "read %4lu, %4lu, %E\n", i, j, *Kij );
-        // TODO: Need some method to cache the data.
-        return true;
-      }
-      else
-      {
-        return false;
-      }
-    };
+    string filename;
 
-    std::size_t m;
-
-    std::size_t n;
-
-    std::string filename;
-
-    std::ifstream file;
-
-    // Use mmp
+    /** Use mmp */
     T *mmappedData;
-
-    /** */
-    std::vector<std::map<size_t, T>> cache;
 
     int fd;
 
-}; // end class OOC
+}; /** end class OOCData */
 
 
 

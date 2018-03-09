@@ -62,6 +62,7 @@
 /** by default, we use binary tree */
 #define N_CHILDREN 2
 
+using namespace std;
 using namespace hmlp::tree;
 using namespace hmlp::gofmm;
 
@@ -331,95 +332,202 @@ int main( int argc, char *argv[] )
   size_t n, m, d, k, s, nrhs;
   double stol, budget;
 
-	/** (optional) */
-  size_t nnz; 
-	std::string distance_type;
-	std::string spdmatrix_type;
-  std::string user_matrix_filename;
-  std::string user_points_filename;
+//	/** (optional) */
+//  size_t nnz; 
+//	std::string distance_type;
+//	std::string spdmatrix_type;
+//  std::string user_matrix_filename;
+//  std::string user_points_filename;
+//
+//  /** (optional) set the default Gaussian kernel bandwidth */
+//  float h = 1.0;
+//
+//  /** number of columns and rows, i.e. problem size */
+//  sscanf( argv[ 1 ], "%lu", &n );
+//
+//  /** on-diagonal block size, such that the tree has log(n/m) levels */
+//  sscanf( argv[ 2 ], "%lu", &m );
+//
+//  /** number of neighbors to use */
+//  sscanf( argv[ 3 ], "%lu", &k );
+//
+//  /** maximum off-diagonal ranks */
+//  sscanf( argv[ 4 ], "%lu", &s );
+//
+//  /** number of right hand sides */
+//  sscanf( argv[ 5 ], "%lu", &nrhs );
+//
+//  /** desired approximation accuracy */
+//  sscanf( argv[ 6 ], "%lf", &stol );
+//
+//  /** the maximum percentage of direct matrix-multiplication */
+//  sscanf( argv[ 7 ], "%lf", &budget );
+//
+//	/** specify distance type */
+//	distance_type = argv[ 8 ];
+//
+//	if ( !distance_type.compare( "geometry" ) )
+//	{
+//    metric = GEOMETRY_DISTANCE;
+//	}
+//	else if ( !distance_type.compare( "kernel" ) )
+//	{
+//    metric = KERNEL_DISTANCE;
+//	}
+//	else if ( !distance_type.compare( "angle" ) )
+//	{
+//    metric = ANGLE_DISTANCE;
+//	}
+//	else
+//	{
+//		printf( "%s is not supported\n", argv[ 9 ] );
+//		exit( 1 );
+//	}
+//
+//
+//	/** specify what kind of spdmatrix is used */
+//  spdmatrix_type = argv[ 9 ];
+//
+//	if ( !spdmatrix_type.compare( "testsuit" ) )
+//	{
+//		/** do nothing */
+//	}
+//	else if ( !spdmatrix_type.compare( "userdefine" ) )
+//	{
+//		/** do nothing */
+//	}
+//	else if ( !spdmatrix_type.compare( "dense" ) )
+//	{
+//    /** (optional) provide the path to the matrix file */
+//    user_matrix_filename = argv[ 10 ];
+//    if ( argc > 11 ) 
+//    {
+//      /** (optional) provide the path to the data file */
+//      user_points_filename = argv[ 11 ];
+//		  /** dimension of the data set */
+//      sscanf( argv[ 12 ], "%lu", &d );
+//    }
+//	}
+//	else if ( !spdmatrix_type.compare( "kernel" ) )
+//	{
+//    user_points_filename = argv[ 10 ];
+//		/** number of attributes (dimensions) */
+//    sscanf( argv[ 11 ], "%lu", &d );
+//		/** (optional) provide Gaussian kernel bandwidth */
+//    if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
+//	}
+//	else
+//	{
+//		printf( "%s is not supported\n", argv[ 9 ] );
+//		exit( 1 );
+//	}
 
-  /** (optional) set the default Gaussian kernel bandwidth */
+
+
+
+  /** (Optional) */
+  size_t nnz; 
+  string distance_type;
+  string spdmatrix_type;
+  string kernelmatrix_type;
+  string user_matrix_filename;
+  string user_points_filename;
+
+  /** (Optional) set the default Gaussian kernel bandwidth */
   float h = 1.0;
 
-  /** number of columns and rows, i.e. problem size */
+  /** Number of columns and rows, i.e. problem size */
   sscanf( argv[ 1 ], "%lu", &n );
 
-  /** on-diagonal block size, such that the tree has log(n/m) levels */
+  /** On-diagonal block size, such that the tree has log(n/m) levels */
   sscanf( argv[ 2 ], "%lu", &m );
 
-  /** number of neighbors to use */
+  /** Number of neighbors to use */
   sscanf( argv[ 3 ], "%lu", &k );
 
-  /** maximum off-diagonal ranks */
+  /** Maximum off-diagonal ranks */
   sscanf( argv[ 4 ], "%lu", &s );
 
-  /** number of right hand sides */
+  /** Number of right hand sides */
   sscanf( argv[ 5 ], "%lu", &nrhs );
 
-  /** desired approximation accuracy */
+  /** Desired approximation accuracy */
   sscanf( argv[ 6 ], "%lf", &stol );
 
-  /** the maximum percentage of direct matrix-multiplication */
+  /** The maximum percentage of direct matrix-multiplication */
   sscanf( argv[ 7 ], "%lf", &budget );
 
-	/** specify distance type */
-	distance_type = argv[ 8 ];
+  /** Specify distance type */
+  distance_type = argv[ 8 ];
 
-	if ( !distance_type.compare( "geometry" ) )
-	{
+  if ( !distance_type.compare( "geometry" ) )
+  {
     metric = GEOMETRY_DISTANCE;
-	}
-	else if ( !distance_type.compare( "kernel" ) )
-	{
+  }
+  else if ( !distance_type.compare( "kernel" ) )
+  {
     metric = KERNEL_DISTANCE;
-	}
-	else if ( !distance_type.compare( "angle" ) )
-	{
+  }
+  else if ( !distance_type.compare( "angle" ) )
+  {
     metric = ANGLE_DISTANCE;
-	}
-	else
-	{
-		printf( "%s is not supported\n", argv[ 9 ] );
-		exit( 1 );
-	}
+  }
+  else
+  {
+    printf( "%s is not supported\n", argv[ 9 ] );
+    exit( 1 );
+  }
 
-
-	/** specify what kind of spdmatrix is used */
+  /** Specify what kind of spdmatrix is used */
   spdmatrix_type = argv[ 9 ];
 
-	if ( !spdmatrix_type.compare( "testsuit" ) )
-	{
-		/** do nothing */
-	}
-	else if ( !spdmatrix_type.compare( "userdefine" ) )
-	{
-		/** do nothing */
-	}
-	else if ( !spdmatrix_type.compare( "dense" ) )
-	{
-    /** (optional) provide the path to the matrix file */
+  if ( !spdmatrix_type.compare( "testsuit" ) )
+  {
+    /** NOP */
+  }
+  else if ( !spdmatrix_type.compare( "userdefine" ) )
+  {
+    /** NOP */
+  }
+  else if ( !spdmatrix_type.compare( "pvfmm" ) )
+  {
+    /** NOP */
+  }
+  else if ( !spdmatrix_type.compare( "dense" ) || !spdmatrix_type.compare( "ooc" ) )
+  {
+    /** (Optional) provide the path to the matrix file */
     user_matrix_filename = argv[ 10 ];
     if ( argc > 11 ) 
     {
-      /** (optional) provide the path to the data file */
+      /** (Optional) provide the path to the data file */
       user_points_filename = argv[ 11 ];
-		  /** dimension of the data set */
+      /** Dimension of the data set */
       sscanf( argv[ 12 ], "%lu", &d );
     }
-	}
-	else if ( !spdmatrix_type.compare( "kernel" ) )
-	{
-    user_points_filename = argv[ 10 ];
-		/** number of attributes (dimensions) */
-    sscanf( argv[ 11 ], "%lu", &d );
-		/** (optional) provide Gaussian kernel bandwidth */
-    if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
-	}
-	else
-	{
-		printf( "%s is not supported\n", argv[ 9 ] );
-		exit( 1 );
-	}
+  }
+  else if ( !spdmatrix_type.compare( "kernel" ) )
+  {
+    kernelmatrix_type = argv[ 10 ];
+    user_points_filename = argv[ 11 ];
+    /** Number of attributes (dimensions) */
+    sscanf( argv[ 12 ], "%lu", &d );
+    /** (Optional) provide Gaussian kernel bandwidth */
+    if ( argc > 13 ) sscanf( argv[ 13 ], "%f", &h );
+  }
+  else
+  {
+    printf( "%s is not supported\n", argv[ 9 ] );
+    exit( 1 );
+  }
+
+
+
+
+
+
+
+
+
 
   /** Message Passing Interface */
   int size = -1, rank = -1;

@@ -736,15 +736,16 @@ class Node : public ReadWrite
     set<Node*>  ProposedNNNearNodes;
     set<size_t> NNNearNodeMortonIDs;
 
+    vector<set<size_t>> DistFar;
+    vector<set<size_t>> DistNear;
 
-    /**
-     *  Lock for exclusively modifying or accessing the tree.
-     */ 
+
+
+
+    /** Lock for exclusively modifying or accessing the tree.  */ 
     Lock *treelock = NULL;
 
-    /**
-     *  All points to other tree nodes.
-     */ 
+    /** All points to other tree nodes.  */ 
     Node *kids[ N_CHILDREN ];
     Node *lchild  = NULL; 
     Node *rchild  = NULL;
@@ -1425,9 +1426,16 @@ class Tree
 
     void DependencyCleanUp()
     {
-      for ( size_t i = 0; i < treelist.size(); i ++ )
+      //for ( size_t i = 0; i < treelist.size(); i ++ )
+      //{
+      //  treelist[ i ]->DependencyCleanUp();
+      //}
+      for ( auto node : treelist ) node->DependencyCleanUp();
+
+      for ( auto it : morton2node )
       {
-        treelist[ i ]->DependencyCleanUp();
+        auto *node = it.second;
+        if ( node ) node->DependencyCleanUp();
       }
     }; /** end DependencyCleanUp() */
 

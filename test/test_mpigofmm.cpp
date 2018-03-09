@@ -47,6 +47,8 @@
 
 /** GOFMM templates */
 #include <mpi/gofmm_mpi.hpp>
+/**  */
+#include <containers/SPDMatrix.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
 #include <containers/KernelMatrix.hpp>
 /** use an implicit matrix */
@@ -325,30 +327,30 @@ void test_gofmm_setup
  */ 
 int main( int argc, char *argv[] )
 {
-  /** default adaptive scheme */
+  /** Default adaptive scheme */
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
 
-  /** default geometric-oblivious scheme */
+  /** Default geometric-oblivious scheme */
   DistanceMetric metric = ANGLE_DISTANCE;
 
-  /** test suit options */
+  /** Test suit options */
   const bool SIMPLE = true;
   const bool RANDOMMATRIX = true;
   const bool USE_LOWRANK = true;
   const bool SPARSETESTSUIT = false;
 
-  /** default data directory */
+  /** Default data directory */
   string DATADIR( "/" );
 
-  /** default precision */
+  /** Default precision */
   using T = double;
 
-  /** read all parameters */
+  /** Read all parameters */
   size_t n, m, d, k, s, nrhs;
   double stol, budget;
 
-  /** (optional) */
+  /** (Optional) */
   size_t nnz; 
   string distance_type;
   string spdmatrix_type;
@@ -356,31 +358,31 @@ int main( int argc, char *argv[] )
   string user_matrix_filename;
   string user_points_filename;
 
-  /** (optional) set the default Gaussian kernel bandwidth */
+  /** (Optional) set the default Gaussian kernel bandwidth */
   float h = 1.0;
 
-  /** number of columns and rows, i.e. problem size */
+  /** Number of columns and rows, i.e. problem size */
   sscanf( argv[ 1 ], "%lu", &n );
 
-  /** on-diagonal block size, such that the tree has log(n/m) levels */
+  /** On-diagonal block size, such that the tree has log(n/m) levels */
   sscanf( argv[ 2 ], "%lu", &m );
 
-  /** number of neighbors to use */
+  /** Number of neighbors to use */
   sscanf( argv[ 3 ], "%lu", &k );
 
-  /** maximum off-diagonal ranks */
+  /** Maximum off-diagonal ranks */
   sscanf( argv[ 4 ], "%lu", &s );
 
-  /** number of right hand sides */
+  /** Number of right hand sides */
   sscanf( argv[ 5 ], "%lu", &nrhs );
 
-  /** desired approximation accuracy */
+  /** Desired approximation accuracy */
   sscanf( argv[ 6 ], "%lf", &stol );
 
-  /** the maximum percentage of direct matrix-multiplication */
+  /** The maximum percentage of direct matrix-multiplication */
   sscanf( argv[ 7 ], "%lf", &budget );
 
-  /** specify distance type */
+  /** Specify distance type */
   distance_type = argv[ 8 ];
 
   if ( !distance_type.compare( "geometry" ) )
@@ -402,30 +404,30 @@ int main( int argc, char *argv[] )
   }
 
 
-  /** specify what kind of spdmatrix is used */
+  /** Specify what kind of spdmatrix is used */
   spdmatrix_type = argv[ 9 ];
 
   if ( !spdmatrix_type.compare( "testsuit" ) )
   {
-    /** do nothing */
+    /** NOP */
   }
   else if ( !spdmatrix_type.compare( "userdefine" ) )
   {
-    /** do nothing */
+    /** NOP */
   }
   else if ( !spdmatrix_type.compare( "pvfmm" ) )
   {
-    /** do nothing */
+    /** NOP */
   }
-  else if ( !spdmatrix_type.compare( "dense" ) )
+  else if ( !spdmatrix_type.compare( "dense" ) || !spdmatrix_type.compare( "ooc" ) )
   {
-    /** (optional) provide the path to the matrix file */
+    /** (Optional) provide the path to the matrix file */
     user_matrix_filename = argv[ 10 ];
     if ( argc > 11 ) 
     {
-      /** (optional) provide the path to the data file */
+      /** (Optional) provide the path to the data file */
       user_points_filename = argv[ 11 ];
-      /** dimension of the data set */
+      /** Dimension of the data set */
       sscanf( argv[ 12 ], "%lu", &d );
     }
   }
@@ -468,12 +470,12 @@ int main( int argc, char *argv[] )
   /** HMLP API call to initialize the runtime */
   hmlp_init();
 
-  /** run the matrix file provided by users */
+  /** Run the matrix file provided by users */
   if ( !spdmatrix_type.compare( "dense" ) && user_matrix_filename.size() )
   {
     using T = float;
     {
-      /** dense spd matrix format */
+      /** Dense spd matrix format */
       gofmm::SPDMatrix<T> K;
       K.resize( n, n );
       K.read( n, n, user_matrix_filename );
@@ -498,10 +500,27 @@ int main( int argc, char *argv[] )
   }
 
 
+  /** Run the matrix file provided by users */
+  if ( !spdmatrix_type.compare( "ooc" ) && user_matrix_filename.size() )
+  {
+    using T = float;
+    {
+      OOCSPDMatrix<T> K( n, n, user_matrix_filename );
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
+      DistData<STAR, CBLK, T> *X = NULL;
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
+    }
+  }
+
+
+
+
   /** Generate a kernel matrix from the coordinates */
   if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
   {
-    using T = float;
+    using T = double;
     {
       /** read the coordinates from the file */
       DistData<STAR, CBLK, T> X( d, n, CommGOFMM, user_points_filename );

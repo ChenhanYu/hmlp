@@ -586,21 +586,18 @@ bool Worker::Execute( Task *batch )
 
   while ( task )
   {
-    task->worker = this;
-    // Fetching data from GPU memory or from other processes.
-    // Fetch( task );
-    // Prefetch( task );
-
-    //#ifdef DUMP_ANALYSIS_DATA
-    task->event.Begin( this->tid );
-    //#endif
-    task->Execute( this );
-    /** move to the next task in the batch */
-
+    /** Some tasks may be in "EXECUTED" status. */
+    if ( task->GetStatus() == RUNNING )
+    {
+      task->worker = this;
+      task->event.Begin( this->tid );
+      task->Execute( this );
+    }
+    /** Move to the next task in the batch */
     task = task->next;
   }
 
-  /** wait for all tasks in the batch to terminate */
+  /** Wait for all tasks in the batch to terminate */
   WaitExecute();
 
   task = batch;
@@ -608,7 +605,7 @@ bool Worker::Execute( Task *batch )
   {
     task->event.Terminate();
     task->GetEventRecord();
-    /** move to the next task in the batch */
+    /** Move to the next task in the batch */
     task = task->next;
   }
 

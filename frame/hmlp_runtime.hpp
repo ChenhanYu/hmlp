@@ -27,6 +27,9 @@
 #include <algorithm>
 #include <vector>
 #include <deque>
+#include <map>
+#include <unordered_map>
+#include <limits>
 #include <cstdint>
 #include <cassert>
 #include <stdio.h>
@@ -45,8 +48,12 @@
 
 #include <hmlp_device.hpp>
 #include <hmlp_thread.hpp>
+#include <hmlp_mpi.hpp>
 
 #define MAX_WORKER 68
+
+
+using namespace std;
 
 namespace hmlp
 {
@@ -59,7 +66,7 @@ namespace hmlp
 //  HMLP_SCHEDULE_HEFT
 //} SchedulePolicy;
 
-typedef enum { ALLOCATED, NOTREADY, QUEUED, RUNNING, DONE, CANCELLED } TaskStatus;
+typedef enum { ALLOCATED, NOTREADY, QUEUED, RUNNING, EXECUTED, DONE, CANCELLED } TaskStatus;
 
 typedef enum { R, W, RW } ReadWriteType;
 
@@ -134,7 +141,7 @@ class Event
     
     //~Event();
 
-    void Set( std::string, double, double );
+    void Set( string, double, double );
 
     void AddFlopsMops( double, double );
 
@@ -166,7 +173,7 @@ class Event
 
     size_t tid;
 
-	std::string label;
+	  string label;
 
     double flops;
 
@@ -191,9 +198,9 @@ class Task
 
     Worker *worker;
 
-    std::string name;
+    string name;
 
-    std::string label;
+    string label;
 
     int taskid;
 
@@ -206,12 +213,13 @@ class Task
     TaskStatus GetStatus();
 
     void SetStatus( TaskStatus status );
+    void SetBatchStatus( TaskStatus status );
 
     void Submit();
 
 		void SetAsBackGround();
 
-    virtual void Set( std::string user_name, void (*user_function)(Task*), void *user_arg );
+    virtual void Set( string user_name, void (*user_function)(Task*), void *user_arg );
 
     virtual void Prefetch( Worker* );
 
@@ -225,7 +233,7 @@ class Task
 
     void CallBackWhileWaiting();
 
-    virtual void Execute( Worker* );
+    virtual void Execute( Worker* ) = 0;
 
     virtual void GetEventRecord();
 
@@ -237,40 +245,34 @@ class Task
     /* function context */
     void *arg;
 
-    volatile int n_dependencies_remaining;
-
-    /* dependency */
+    /* Dependencies related members */
+    volatile int n_dependencies_remaining = 0;
     void DependenciesUpdate();
 
-    /**
-     *  Read/write sets for dependency analysis
-     */ 
-    std::deque<Task*> in;
-    std::deque<Task*> out;
+    /** Read/write sets for dependency analysis */ 
+    deque<Task*> in;
+    deque<Task*> out;
 
     /** task lock */
     Lock task_lock;
 
-    /** 
-     *  The next task in the batch job 
-     */
+    /** The next task in the batch job */
     Task *next = NULL;
 
-    /**
-     *  If true, this task can be stolen
-     */ 
+    /** Preserve the current task in the call stack and context switch. */
+    bool ContextSwitchToNextTask( Worker* );
+
+    /** If true, this task can be stolen */ 
     bool stealable = true;
 
-    /** 
-     *  If true, then this is an MPI task 
-     */
+    /** If true, then this is an MPI task */
     bool has_mpi_routines = false;
 
   private:
 
     volatile TaskStatus status;
 
-    /** if true, then this is a nested task */
+    /** If true, then this is a nested task */
     bool is_created_in_epoch_session = false;
 
 }; /** end class Task */
@@ -286,6 +288,230 @@ class NULLTask : public Task
     void Execute( Worker* ) {};
 
 }; /** end class NULLTask */
+
+
+class MessageTask : public Task
+{
+  public:
+
+    /** MPI communicator will be provided during Submit(). */
+    mpi::Comm comm;
+
+    /** Provided by Set(). */
+    int tar = 0;
+    int src = 0;
+    int key = 0;
+
+    void Submit();
+
+};
+
+class ListenerTask : public MessageTask
+{
+  public:
+
+    void Submit();
+
+    //virtual void Listen( int src, int key, mpi::Comm comm ) = 0;
+    virtual void Listen() = 0;
+};
+
+template<typename T, typename ARG>
+class SendTask : public MessageTask
+{
+  public:
+    
+    ARG *arg = NULL;
+
+    vector<size_t> send_sizes;
+    vector<size_t> send_skels;
+    vector<T>      send_buffs;
+
+    /** Override Set() */
+    void Set( ARG *user_arg, int src, int tar, int key )
+    {
+      name = string( "Send" );
+      this->arg = user_arg;
+      this->src = src;
+      this->tar = tar;
+      this->key = key;
+    };
+};
+
+template<typename T, typename ARG>
+class RecvTask : public ListenerTask
+{
+	public:
+
+    ARG *arg = NULL;
+
+    vector<size_t> recv_sizes;
+    vector<size_t> recv_skels;
+    vector<T>      recv_buffs;
+
+    /** Override Set() */
+    void Set( ARG *user_arg, int src, int tar, int key )
+    {
+      name = string( "Listener" );
+      this->arg = user_arg;
+      this->src = src;
+      this->tar = tar;
+      this->key = key;
+    };
+
+    void Listen()
+    {
+      int src = this->src;
+      int tar = this->tar;
+      int key = this->key;
+      mpi::Comm comm = this->comm;
+      int cnt = 0;
+      mpi::Status status;
+      /** Probe the message that contains recv_sizes */
+      mpi::Probe( src, key + 0, comm, &status );
+      mpi::Get_count( &status, HMLP_MPI_SIZE_T, &cnt );
+      recv_sizes.resize( cnt );
+      mpi::Recv( recv_sizes.data(), cnt, src, key + 0, comm, &status );
+      /** Receive recv_skels as well */
+      mpi::Probe( src, key + 1, comm, &status );
+      mpi::Get_count( &status, HMLP_MPI_SIZE_T, &cnt );
+      recv_skels.resize( cnt );
+      mpi::Recv( recv_skels.data(), cnt, src, key + 1, comm, &status );
+      /** Calculate the total size of recv_buffs */
+      cnt = 0;
+      for ( auto c : recv_sizes ) cnt += c;
+      recv_buffs.resize( cnt );
+      /** Receive recv_buffs as well */
+      mpi::Recv( recv_buffs.data(), cnt, src, key + 2, comm, &status );
+      //printf( "rank %d Listen src %d key %d, recv_sizes %lu recv_skels.sizes %lu recv_buffs %lu\n", 
+      //    tar, src, key, recv_sizes.size(), recv_skels.size(), recv_buffs.size() ); 
+      //fflush( stdout );
+    };
+
+    /** User still need to provide a concrete Execute() function */
+    //virtual void Execute( Worker *worker );
+};
+
+
+//class ListenerTask : public Task
+//{
+//	public:
+//
+//    /** Global communicator used between listeners */
+//    mpi::Comm comm;
+//
+//
+//		ListenerTask() : Task()
+//		{
+//			name = string( "BackGround" );
+//      /** Asuume computation bound */
+//      cost = 9999.9;
+//			/** High priority */
+//      priority = true;
+//		};
+//
+//    void Execute( Worker* user_worker )
+//    {
+//      /** MPI */
+//      int size; mpi::Comm_size( comm, &size );
+//      int rank; mpi::Comm_rank( comm, &rank );
+//      
+//      /** Iprobe flag */
+//      int probe_flag = 0;
+//
+//      /** Iprobe and Recv status */
+//      mpi::Status status;
+//
+//      /** Keep probing for messages */
+//      while ( 1 ) 
+//      {
+//        /** Info from mpi::Status */
+//        int recv_src;
+//        int recv_tag;
+//        int recv_cnt;
+//
+//        /** Only one thread will probe and recv message at a time */
+//        #pragma omp critical
+//        {
+//          mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &probe_flag, &status );
+//
+//          /** If receive any message, then handle it */
+//          if ( probe_flag )
+//          {
+//            /** Extract info from status */
+//            recv_src = status.MPI_SOURCE;
+//            recv_tag = status.MPI_TAG;
+//
+//
+//
+//
+//            if ( this->IsBackGroundMessage( recv_tag ) )
+//            {
+//              /** get I object count */
+//              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+//
+//              /** recv (typeless) I by matching SOURCE and TAG */
+//              I.resize( recv_cnt );
+//              mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
+//                  this->GetRecvComm(), &status );
+//
+//              /** blocking Probe the message that contains J */
+//              mpi::Probe( recv_src, recv_tag + 128, this->GetComm(), &status );
+//
+//              /** get J object count */
+//              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+//
+//              /** recv (typeless) J by matching SOURCE and TAG */
+//              J.resize( recv_cnt );
+//              mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag + 128, 
+//                  this->GetRecvComm(), &status );
+//            }
+//            else probe_flag = 0;
+//          }
+//        } /** end pragma omp critical */
+//
+//        /** Nonblocking consensus for termination */
+//        if ( *do_terminate ) 
+//        {
+//          /** While reaching both global and local concensus, exit */
+//          if ( this->IsTimeToTerminate() ) break;
+//        }
+//
+//      } /** end while ( 1 ) */
+//
+//    };
+//
+//  private:
+//
+//    bool IsTimeToTerminate()
+//    {
+//      #pragma omp critical
+//      {
+//        if ( !has_Ibarrier )
+//        {
+//          mpi::Ibarrier( this->GetComm(), &request );
+//          has_Ibarrier = true;
+//        }
+//
+//        if ( !test_flag )
+//        {
+//          /** while test_flag = 1, MPI request got reset */
+//          mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+//          if ( test_flag ) do_terminate = true;
+//        }
+//      }
+//
+//      /** if this is not the mater thread, just return the flag */
+//      return do_terminate;
+//
+//    }; /** end IsTimeToTerminate() */
+//
+//
+//}; /** end class ListenerTask */
+//
+
+
+
 
 
 
@@ -375,11 +601,11 @@ class ReadWrite
 
     ReadWrite();
 
-    // Tracking the read set of the object.
-    std::deque<Task*> read;
+    /** Tracking the read set of the object. */
+    deque<Task*> read;
 
-    // Tracking the write set of the object.
-    std::deque<Task*> write;
+    /** Tracking the write set of the object. */
+    deque<Task*> write;
 
     void DependencyAnalysis( ReadWriteType type, Task *task );
 
@@ -413,7 +639,7 @@ class MatrixReadWrite
 
     size_t n = 0;
 
-    std::vector<std::vector<ReadWrite> > Submatrices;
+    vector<vector<ReadWrite> > Submatrices;
 
 }; /** end class MatrixReadWrite */
 
@@ -441,33 +667,39 @@ class Scheduler
 
     double timeline_beg;
 
-    /** the ready queue for normal tasks */
-    std::deque<Task*> ready_queue[ MAX_WORKER ];
-    std::deque<Task*> tasklist;
+    /** Ready queues for normal tasks */
+    deque<Task*> ready_queue[ MAX_WORKER ];
+    deque<Task*> tasklist;
     Lock ready_queue_lock[ MAX_WORKER ];
 
-    /** the ready queue for nested tasks */
-    std::deque<Task*> nested_queue;
-    std::deque<Task*> nested_tasklist;
+    /** The ready queue for nested tasks */
+    deque<Task*> nested_queue;
+    deque<Task*> nested_tasklist;
     Lock nested_queue_lock;
 
-    /** the ready queue for MPI tasks */
-    std::deque<Task*> mpi_queue;
-    std::deque<Task*> mpi_tasklist;
+    /** The ready queue for MPI tasks */
+    deque<Task*> mpi_queue;
+    deque<Task*> mpi_tasklist;
     Lock mpi_queue_lock;
+
+    /** The hashmap for asynchronous MPI tasks */
+    vector<unordered_map<int, ListenerTask*>> listener_tasklist;
+    Lock listener_queue_lock;
 
     float time_remaining[ MAX_WORKER ];
 
     void ReportRemainingTime();
 
-    /** manually describe the dependencies */
+    /** Manually describe the dependencies */
     static void DependencyAdd( Task *source, Task *target );
+
+    void MessageDependencyAnalysis( int key, int p, ReadWriteType type, Task *task );
 
     void NewTask( Task *task );
 
-    Task *TryDispatchFromQueue( size_t target );
+    void NewMessageTask( MessageTask *task );
 
-    Task *TryStealFromQueue( size_t target );
+    void NewListenerTask( ListenerTask *task );
 
     Task *TryDispatchFromNestedQueue();
 
@@ -479,11 +711,29 @@ class Scheduler
 
     void Summary();
 
+    /** Global varibles for async distributed concensus */
 		bool do_terminate = false;
+    bool has_ibarrier = false;
+    mpi::Request ibarrier_request;
+    int ibarrier_consensus = 0;
 
   private:
 
     static void* EntryPoint( void* );
+
+    Task *TryDispatch( int tid );
+
+    Task *TryDispatchFromMPIQueue();
+
+    //Task *TryDispatchFromNestedQueue();
+
+    Task *TryStealFromQueue( size_t target );
+
+    bool ConsumeTasks( Worker *me, Task *batch, bool is_nested );
+
+    bool IsTimeToExit( int tid );
+
+    void Listen( Worker* );
 
     Lock run_lock[ MAX_WORKER ];
 
@@ -495,6 +745,11 @@ class Scheduler
 
 		/** background task */
 		Task *bgtask = NULL;
+
+    /** Global communicator used between listeners */
+    mpi::Comm comm;
+
+    unordered_map<int, vector<ReadWrite>> msg_dependencies;
 
 };
 
@@ -561,6 +816,8 @@ bool hmlp_is_in_epoch_session();
 
 void hmlp_set_num_background_worker( int n_background_worker );
 
+void hmlp_msg_dependency_analysis( 
+    int key, int p, hmlp::ReadWriteType type, hmlp::Task *task );
 
 void hmlp_redistribute_workers( 
 		int n_worker, 

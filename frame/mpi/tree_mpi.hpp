@@ -600,21 +600,15 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 {
   public:
 
-    /** 
-     *  Inherit all parameters from tree::Node 
-     */
+    /** Inherit all parameters from tree::Node */
 
 
-    /** 
-     *  Constructor for inner node (gids and n unassigned) 
-     */
+    /** Constructor for inner node (gids and n unassigned) */
     Node( SETUP *setup, size_t n, size_t l, 
         Node *parent,
         map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
         Lock *treelock, mpi::Comm comm ) 
-    /** 
-     *  Inherits the constructor from tree::Node
-     */
+    /** Inherits the constructor from tree::Node */
       : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, 
           parent, morton2node, treelock ) 
     {
@@ -919,21 +913,19 @@ class Tree
     std::map<size_t, LETNODE*> lettreelist;
 
 
-    /**
-     *  Default constructor
-     */ 
+    /** Default constructor */ 
     Tree() 
-    /** 
-     *  Inherit constructor 
-     */
+    /** Inherit constructor */
     : tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Tree()
     {
-			/** create a new comm_world for */
+			/** Create a new comm_world for */
       mpi::Comm_dup( MPI_COMM_WORLD, &comm );
-
-			/** get size and rank */
+			/** Get size and rank */
       mpi::Comm_size( comm, &size );
       mpi::Comm_rank( comm, &rank );
+      /** Create a ReadWrite object per rank */
+      NearRecvFrom.resize( size );
+      FarRecvFrom.resize( size );
     };
 
     /** 
@@ -1640,228 +1632,33 @@ class Tree
 
 
 
-    /** 
-     *
-     */
-    template<bool USE_RUNTIME, 
-      typename TASK1, typename MPITASK1,
-      typename TASK2, typename MPITASK2>
-    void ParallelTraverseUp( 
-        TASK1 &dummy1, MPITASK1 &mpidummy1, 
-        TASK2 &dummy2, MPITASK2 &mpidummy2 )
-    {
-      /** local and distributed treelists must be non-empty */
-      assert( this->treelist.size() );
-      assert( mpitreelists.size() );
-     
-      using NULLTASK = hmlp::NULLTask<hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>>;
-      using MPINULLTASK = hmlp::NULLTask<MPINODE>;
-
-
-      /** 
-       *  traverse the local tree without the root
-       *
-       *  IMPORTANT: local root alias of the distributed leaf node
-       *  IMPORTANT: here l must be int, size_t will wrap over 
-       *
-       */
-      for ( int l = this->depth; l >= 1; l -- )
-      {
-        std::size_t n_nodes = 1 << l;
-        auto level_beg = this->treelist.begin() + n_nodes - 1;
-
-        if ( !USE_RUNTIME )
-        { 
-          printf( "No implementation!!\n" ); fflush( stdout );
-          exit( 1 );
-        }
-        else
-        {
-          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
-          {
-            auto *node = *(level_beg + node_ind);
-            /** create the first normal task is it is not a NULLTask */
-            if ( !std::is_same<NULLTASK, TASK1>::value )
-            {
-              auto *task1 = new TASK1();
-              task1->Submit();
-              //printf( "finish task1 submit\n" ); fflush( stdout );
-              task1->Set( node );
-              //printf( "finish task1 set\n" ); fflush( stdout );
-              task1->DependencyAnalysis();
-              //printf( "finish task1 create\n" ); fflush( stdout );
-            }
-            /** create the second task and perform dependency analysis */
-            if ( !std::is_same<NULLTASK, TASK2>::value )
-            {
-              auto *task2 = new TASK2();
-              task2->Submit();
-              task2->Set( node );
-              task2->DependencyAnalysis();
-              //printf( "finish task2 create\n" ); fflush( stdout );
-            }
-          }
-        }
-        //printf( "finish level %d\n", l );
-      }
-
-      /** traverse the distributed tree upward */
-      MPINODE *node = mpitreelists.back();
-      while ( node )
-      {
-        /** create mpi tasks */
-        if ( !std::is_same<MPINULLTASK, MPITASK1>::value )
-        {
-          auto *mpitask1 = new MPITASK1();
-          mpitask1->Submit();
-          mpitask1->Set( node );
-          mpitask1->DependencyAnalysis();
-        }
-        /** create tasks and perform dependency analysis */
-        if ( !std::is_same<MPINULLTASK, MPITASK2>::value )
-        {
-          auto *mpitask2 = new MPITASK2();
-          mpitask2->Submit();
-          mpitask2->Set( node );
-          mpitask2->DependencyAnalysis();
-        }
-
-        /** 
-         *  move to its parent 
-         *  IMPORTANT: here we need to cast the pointer back to mpitree::Node*
-         */
-        node = (MPINODE*)node->parent;
-
-      } /** end while( node ) */
-    }; /** end ParallelTraverseUp() */
-
-
-
-
-
-
-
-    template<bool USE_RUNTIME, 
-      typename TASK1, typename MPITASK1,
-      typename TASK2, typename MPITASK2>
-    void ParallelTraverseDown( 
-        TASK1 &dummy1, MPITASK1 &mpidummy1, 
-        TASK2 &dummy2, MPITASK2 &mpidummy2 )
-    {
-      /** local and distributed treelists must be non-empty */
-      assert( this->treelist.size() );
-      assert( mpitreelists.size() );
-     
-      using NULLTASK = hmlp::NULLTask<hmlp::tree::Node<SETUP, N_CHILDREN, NODEDATA, T>>;
-      using MPINULLTASK = hmlp::NULLTask<MPINODE>;
-
-
-      /** traverse the distributed tree downward */
-      MPINODE *node = mpitreelists.front();
-      while ( node )
-      {
-        /** create mpi tasks */
-        if ( !std::is_same<MPINULLTASK, MPITASK1>::value )
-        {
-          auto *mpitask1 = new MPITASK1();
-          mpitask1->Submit();
-          mpitask1->Set( node );
-          mpitask1->DependencyAnalysis();
-        }
-        /** create tasks and perform dependency analysis */
-        if ( !std::is_same<MPINULLTASK, MPITASK2>::value )
-        {
-          auto *mpitask2 = new MPITASK2();
-          mpitask2->Submit();
-          mpitask2->Set( node );
-          mpitask2->DependencyAnalysis();
-        }
-
-        /** 
-         *  move to its parent 
-         *  IMPORTANT: here we need to cast the pointer back to mpitree::Node*
-         */
-        node = (MPINODE*)node->child;
-
-      } /** end while( node ) */
-
-
-      /** 
-       *  traverse the local tree without the root
-       *
-       *  IMPORTANT: local root alias of the distributed leaf node
-       *  IMPORTANT: here l must be int, size_t will wrap over 
-       *
-       */
-      for ( int l = 1; l <= this->depth; l ++ )
-      {
-        std::size_t n_nodes = 1 << l;
-        auto level_beg = this->treelist.begin() + n_nodes - 1;
-
-        if ( !USE_RUNTIME )
-        { 
-          printf( "No implementation!!\n" ); fflush( stdout );
-          exit( 1 );
-        }
-        else
-        {
-          for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
-          {
-            auto *node = *(level_beg + node_ind);
-            /** create the first normal task is it is not a NULLTask */
-            if ( !std::is_same<NULLTASK, TASK1>::value )
-            {
-              auto *task1 = new TASK1();
-              task1->Submit();
-              //printf( "finish task1 submit\n" ); fflush( stdout );
-              task1->Set( node );
-              //printf( "finish task1 set\n" ); fflush( stdout );
-              task1->DependencyAnalysis();
-              //printf( "finish task1 create\n" ); fflush( stdout );
-            }
-            /** create the second task and perform dependency analysis */
-            if ( !std::is_same<NULLTASK, TASK2>::value )
-            {
-              auto *task2 = new TASK2();
-              task2->Submit();
-              task2->Set( node );
-              task2->DependencyAnalysis();
-              //printf( "finish task2 create\n" ); fflush( stdout );
-            }
-          }
-        }
-      }
-    }; /** end ParallelTraverseDown() */
-
-
-
-
-
-
-
-
 
     void DependencyCleanUp()
     {
-      for ( size_t i = 0; i < mpitreelists.size(); i ++ )
-      {
-        mpitreelists[ i ]->DependencyCleanUp();
-      }
+      for ( auto node : mpitreelists ) node->DependencyCleanUp();
+      //for ( size_t i = 0; i < mpitreelists.size(); i ++ )
+      //{
+      //  mpitreelists[ i ]->DependencyCleanUp();
+      //}
 
       tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::DependencyCleanUp();
+
+
+
+
+
+
+      for ( auto p : NearRecvFrom ) p.DependencyCleanUp();
+      for ( auto p :  FarRecvFrom ) p.DependencyCleanUp();
 
       /** TODO also clean up the LET node */
 
     }; /** end DependencyCleanUp() */
 
 
-    /** global communicator */
+    /** Global communicator, size, and rank */
     mpi::Comm comm = MPI_COMM_WORLD;
-
-    /** global communicator size */
     int size = 1;
-
-    /** global communicator rank */
     int rank = 0;
 
     /**
@@ -1876,8 +1673,8 @@ class Tree
     vector<vector<size_t>>   FarSentToRank;
     vector<map<size_t, int>> FarRecvFromRank;
 
-
-
+    vector<ReadWrite> NearRecvFrom;
+    vector<ReadWrite> FarRecvFrom;
     
   private:
 

@@ -18,13 +18,7 @@
  *
  **/  
 
-#include <assert.h>
 #include <hmlp_runtime.hpp>
-#include <hmlp_mpi.hpp>
-
-//#ifdef USE_INTEL
-//#include <mkl.h>
-//#endif
 
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>
@@ -38,16 +32,19 @@
 #define MAX_BATCH_SIZE 4
 
 #define REPORT_RUNTIME_STATUS 1
-
 // #define DEBUG_RUNTIME 1
 // #define DEBUG_SCHEDULER 1
+
+using namespace std;
+
 
 
 struct 
 {
-  bool operator()( std::tuple<bool, double, size_t> a, std::tuple< bool , double, size_t> b )
+  bool operator()( const tuple<bool, double, size_t> &a, 
+                   const tuple<bool, double, size_t> &b )
   {   
-    return std::get<1>( a ) < std::get<1>( b );
+    return get<1>( a ) < get<1>( b );
   }   
 } EventLess;
 
@@ -219,7 +216,7 @@ Event::Event() : flops( 0.0 ), mops( 0.0 ), beg( 0.0 ), end( 0.0 ), sec( 0.0 ) {
 //};
 
 
-void Event::Set( std::string _label, double _flops, double _mops )
+void Event::Set( string _label, double _flops, double _mops )
 {
   flops = _flops;
   mops  = _mops;
@@ -339,10 +336,9 @@ void Event::MatlabTimeline( FILE *pFile )
  */ 
 Task::Task()
 {
-  /** whether this is a nested task? */
+  /** Whether this is a nested task? */
   is_created_in_epoch_session = rt.IsInEpochSession();
   status = ALLOCATED;
-  //rt.scheduler->NewTask( this );
   status = NOTREADY;
 };
 
@@ -354,14 +350,19 @@ TaskStatus Task::GetStatus()
   return status;
 };
 
-/** change the status of all tasks in the batch */
 void Task::SetStatus( TaskStatus next_status )
+{
+  this->status = next_status;
+};
+
+/** Change the status of all tasks in the batch */
+void Task::SetBatchStatus( TaskStatus next_status )
 {
   auto *task = this;
   while ( task )
   {
     task->status = next_status;
-    /** move to the next task in the batch */
+    /** Move to the next task in the batch */
     task = task->next;
   }
 };
@@ -371,13 +372,23 @@ void Task::Submit()
   rt.scheduler->NewTask( this );
 };
 
+void MessageTask::Submit()
+{
+  rt.scheduler->NewMessageTask( this );
+};
+
+void ListenerTask::Submit()
+{
+  rt.scheduler->NewListenerTask( this );
+};
+
 void Task::SetAsBackGround()
 {
 	rt.scheduler->SetBackGroundTask( this );
 };
 
 /** virtual function */
-void Task::Set( std::string user_name, void (*user_function)(Task*), void *user_arg )
+void Task::Set( string user_name, void (*user_function)(Task*), void *user_arg )
 {
   name = user_name;
   function = user_function;
@@ -402,7 +413,7 @@ void Task::DependenciesUpdate()
 
       if ( !child->n_dependencies_remaining && child->status == NOTREADY )
       {
-        /** nested tasks may not carry the worker pointer */
+        /** Nested tasks may not carry the worker pointer */
         if ( worker ) child->Enqueue( worker->tid );
         else          child->Enqueue();
       }
@@ -414,10 +425,28 @@ void Task::DependenciesUpdate()
 };
 
 
-void Task::Execute( Worker *user_worker )
+//void Task::Execute( Worker *user_worker )
+//{
+//  function( this );
+//};
+
+
+bool Task::ContextSwitchToNextTask( Worker *user_worker )
 {
-  function( this );
+  auto *task = next;
+  /** Find an unexecuted task */
+  while ( task && task->GetStatus() != RUNNING ) task = task->next;
+  /** If found, then execute it and change its status to "EXECUTED". */
+  if ( task ) 
+  {
+    task->worker = user_worker;
+    task->event.Begin( user_worker->tid );
+    task->Execute( user_worker );
+    task->SetStatus( EXECUTED );
+  }
+  return (bool)task;
 };
+
 
 /** virtual function */
 void Task::GetEventRecord() {};
@@ -428,8 +457,7 @@ void Task::DependencyAnalysis() {};
 /** try to dispatch the task if there is no dependency left */
 void Task::TryEnqueue()
 {
-  if ( status == NOTREADY && !n_dependencies_remaining )
-    Enqueue();
+  if ( status == NOTREADY && !n_dependencies_remaining ) Enqueue();
 };
 
 void Task::Enqueue()
@@ -595,7 +623,6 @@ void ReadWrite::DependencyCleanUp()
 {
   read.clear();
   write.clear();
-
 }; /** end DependencyCleanUp() */
 
 
@@ -646,6 +673,11 @@ Scheduler::Scheduler() : timeline_tag( 500 )
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler()\n" );
 #endif
+  /** MPI support (use a private COMM_WORLD) */
+  mpi::Comm_dup( MPI_COMM_WORLD, &comm );
+  int size; mpi::Comm_size( comm, &size );
+  listener_tasklist.resize( size );
+  /** Set now as the begining of the time table */
   timeline_beg = omp_get_wtime();
 };
 
@@ -663,14 +695,14 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
   printf( "Scheduler::Init()\n" );
 #endif
 
-  /** adjust the number of active works */
+  /** Adjust the number of active works. */
   n_worker = user_n_worker;
-
-  /** reset task counter */
+  /** Reset task counter. */
   n_task = 0;
-
-	/** termination flag */
+	/** Reset async distributed consensus variables. */
 	do_terminate = false;
+  has_ibarrier = false;
+  ibarrier_consensus = 0;
 
 #ifdef USE_PTHREAD_RUNTIME
   if ( user_n_nested_worker > 1 )
@@ -734,20 +766,66 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
 #endif
 };
 
+void Scheduler::MessageDependencyAnalysis( 
+    int key, int p, ReadWriteType type, Task *task )
+{
+  int size; mpi::Comm_size( comm, &size );
+
+  auto it = msg_dependencies.find( key );
+
+  if ( it == msg_dependencies.end() )
+  {
+    //printf( "Create msg ReadWrite object %d\n", key ); fflush( stdout );
+    msg_dependencies[ key ] = vector<ReadWrite>( size );
+  }
+  //printf( "Add rank %d to object %d\n", p, key ); fflush( stdout );
+  msg_dependencies[ key ][ p ].DependencyAnalysis( type, task );
+};
+
 
 void Scheduler::NewTask( Task *task )
 {
+  //printf( "tasklist.size() %lu beg\n", tasklist.size() ); fflush( stdout );
   tasklist_lock.Acquire();
   {
     if ( rt.IsInEpochSession() ) 
     {
       nested_tasklist.push_back( task );
     }
-    else                                
-      tasklist.push_back( task );
+    else tasklist.push_back( task );
+  }
+  tasklist_lock.Release();
+  //printf( "tasklist.size() %lu end\n", tasklist.size() ); fflush( stdout );
+};
+
+void Scheduler::NewMessageTask( MessageTask *task )
+{
+  tasklist_lock.Acquire();
+  {
+    task->comm = comm;
+    /** Counted toward termination criteria. */
+    tasklist.push_back( task );
+    //printf( "NewMessageTask src %d tar %d key %d tasklist.size() %lu\n",
+    //    task->src, task->tar, task->key, tasklist.size() );
   }
   tasklist_lock.Release();
 };
+
+void Scheduler::NewListenerTask( ListenerTask *task )
+{
+  tasklist_lock.Acquire();
+  {
+    task->comm = comm;
+    listener_tasklist[ task->src ][ task->key ] = task;
+    /** Counted toward termination criteria. */
+    tasklist.push_back( task );
+    //printf( "NewListenerTask src %d tar %d key %d listener_tasklist[].size() %lu\n",
+    //    task->src, task->tar, task->key, listener_tasklist[ task->src ].size() );
+  }
+  tasklist_lock.Release();
+};
+
+
 
 void Scheduler::Finalize()
 {
@@ -762,28 +840,24 @@ void Scheduler::Finalize()
 #else
 #endif
 
-  /** print out statistics of this epoch */
+  /** Print out statistics of this epoch */
   if ( REPORT_RUNTIME_STATUS ) Summary();
 
-  /** reset remaining time */
-  for ( int i = 0; i < n_worker; i ++ )
-  {
-    time_remaining[ i ] = 0.0;
-  }
-
-  /** reset tasklist */
-  for ( auto it = tasklist.begin(); it != tasklist.end(); it ++ )
-  {
-    delete *it; 
-  }
+  /** Reset remaining time */
+  for ( int i = 0; i < n_worker; i ++ ) time_remaining[ i ] = 0.0;
+  /** Reset tasklist */
+  for ( auto task : tasklist ) delete task; 
   tasklist.clear();
-
-  /** reset nested_tasklist */
-  for ( auto it = nested_tasklist.begin(); it != nested_tasklist.end(); it ++ )
-  {
-    delete *it; 
-  }
+  /** Reset nested_tasklist */
+  for ( auto task : nested_tasklist ) delete task; 
   nested_tasklist.clear();
+  //printf( "Begin Scheduler::Finalize() [cleanup listener_tasklist]\n" );
+  /** Reset listener_tasklist  */
+  for ( auto p : listener_tasklist ) p.clear();
+  //printf( "End   Scheduler::Finalize() [cleanup listener_tasklist]\n" );
+  
+  /** Clean up all message dependencies. */
+  msg_dependencies.clear();
 
 }; /** end Scheduler::Finalize() */
 
@@ -808,17 +882,17 @@ void Scheduler::ReportRemainingTime()
  */ 
 void Scheduler::DependencyAdd( Task *source, Task *target )
 {
-  /** avoid self-loop */
+  /** Avoid self-loop */
   if ( source == target ) return;
 
-  /** update the source list */
+  /** Update the source list */
   source->task_lock.Acquire();
   {
     source->out.push_back( target );
   }
   source->task_lock.Release();
 
-  /** update the target list */
+  /** Update the target list */
   target->task_lock.Acquire();
   {
     target->in.push_back( source );
@@ -842,25 +916,20 @@ Task *Scheduler::TryStealFromQueue( size_t target )
     if ( ready_queue[ target ].size() ) 
     {
       target_task = ready_queue[ target ].back();
-      if ( target_task ) 
+      assert( target_task );
+      if ( target_task->stealable )
       {
-        if ( target_task->stealable )
-        {
-          ready_queue[ target ].pop_back();
-          time_remaining[ target ] -= target_task->cost;
-        }
-        else
-        {
-          target_task = NULL;
-        }
+        ready_queue[ target ].pop_back();
+        time_remaining[ target ] -= target_task->cost;
       }
+      else target_task = NULL;
     }
   }
   ready_queue_lock[ target ].Release();
 
   return target_task;
 
-}; /** end Scheduler::TryDispatchFromQueue() */
+}; /** end Scheduler::TryStealFromQueue() */
 
 
 
@@ -873,19 +942,22 @@ Task *Scheduler::TryDispatchFromNestedQueue()
 {
   Task *nested_task = NULL;
 
+  /** Early return if no available task. */
+  if ( !nested_queue.size() ) return nested_task;
+
   nested_queue_lock.Acquire();
   { /** begin critical session "nested_queue" */
     if ( nested_queue.size() )
     {
-      /** fetch the first task in the queue */
+      /** Fetch the first task in the queue */
       nested_task = nested_queue.front();
-      /** remove the task from the queue */
+      /** Remove the task from the queue */
       nested_queue.pop_front();
     }
-  } /**   end critical session "nested_queue" */
+  } /** end critical session "nested_queue" */
   nested_queue_lock.Release();
 
-  /** notice that this can be a NULL pointer */
+  /** Notice that this can be a NULL pointer */
   return nested_task;
 
 }; /** end Scheduler::TryDispatchFromNestedQueue() */
@@ -909,6 +981,35 @@ void Scheduler::UnsetBackGroundTask()
 	this->bgtask = NULL;
 };
 
+bool Scheduler::IsTimeToExit( int tid )
+{
+  /** In the case that do_terminate has been set */
+  if ( do_terminate ) return true;
+  //printf( "worker %d has do_terminate = true, scheduler->n_task = %d, tasklist.size() %lu\n", 
+	//		me->tid, scheduler->n_task, scheduler->tasklist.size() ); fflush( stdout );
+
+  if ( n_task >= tasklist.size() )
+  {
+		/** Set the termination flag to true */
+	  do_terminate = true;
+    /** Sanity check: no nested tasks should left */
+    if ( nested_queue.size() )
+    {
+      printf( "bug nested_queue.size() %lu\n", nested_queue.size() ); 
+      fflush( stdout );
+    }
+    /** Sanity check: no task should left */
+    if ( ready_queue[ tid ].size() )
+    {
+      auto *task = ready_queue[ tid ].front();
+      printf( "taskid %d, %s, tasklist.size() %lu  left\n", 
+          task->taskid, task->name.data(), tasklist.size() ); fflush( stdout );
+    }
+    return true;
+  }
+
+  return false;
+};
 
 
 /**
@@ -958,6 +1059,95 @@ void Scheduler::UnsetBackGroundTask()
 //
 //}; // end DependencyAnalysis()
 
+Task *Scheduler::TryDispatch( int tid )
+{
+  size_t batch_size = 0;
+  Task *batch = NULL;
+  /** Enter critical section */
+  ready_queue_lock[ tid ].Acquire();
+  {
+    if ( ready_queue[ tid ].size() )
+    {
+      /** Pop the front task */
+      batch = ready_queue[ tid ].front();
+      ready_queue[ tid ].pop_front();
+      batch_size ++;
+
+      /** Create a batched job if there is not enough flops */
+      Task *task = batch;
+      while ( ready_queue[ tid ].size() && batch_size < MAX_BATCH_SIZE + 1 )
+      {
+        task->next = ready_queue[ tid ].front();
+        ready_queue[ tid ].pop_front();
+        batch_size ++;
+        task = task->next;
+      }
+    }
+    else
+    {
+      /** Reset my workload counter */
+      time_remaining[ tid ] = 0.0;
+    }
+
+    /** Try to prefetch the next task */
+    //if ( ready_queue[ tid ].size() ) nexttask = ready_queue[ tid ].front();
+  }
+  ready_queue_lock[ tid ].Release();
+
+  return batch;
+};
+
+Task *Scheduler::TryDispatchFromMPIQueue()
+{
+  Task *batch = NULL;
+  mpi_queue_lock.Acquire();
+  {
+    if ( mpi_queue.size() )
+    {
+      batch = mpi_queue.front();
+      mpi_queue.pop_front();
+    }
+  }
+  mpi_queue_lock.Release();
+  return batch;
+};
+
+bool Scheduler::ConsumeTasks( Worker *me, Task *batch, bool is_nested )
+{
+  /** Early return */
+  if ( !batch ) return false;
+
+  /** Update status */
+  batch->SetBatchStatus( RUNNING );
+
+  if ( me->Execute( batch ) )
+  {
+    Task *task = batch;
+    while ( task )
+    {
+      task->DependenciesUpdate();
+      if ( !is_nested )
+      {
+        ready_queue_lock[ me->tid ].Acquire();
+        {
+          time_remaining[ me->tid ] -= task->cost;
+          if ( time_remaining[ me->tid ] < 0.0 )
+            time_remaining[ me->tid ] = 0.0;
+        }
+        ready_queue_lock[ me->tid ].Release();
+        n_task_lock.Acquire();
+        {
+          n_task ++;
+        }
+        n_task_lock.Release();
+      }
+      /**  Move to the next task in te batch */
+      task = task->next;
+    }
+  }
+  return true;
+};
+
 
 void* Scheduler::EntryPoint( void* arg )
 {
@@ -971,248 +1161,221 @@ void* Scheduler::EntryPoint( void* arg )
 #endif
 
 	/** if there is a background task, tid = 1 is assigned to it */
-  if ( me->tid < rt.n_background_worker )
-	{
-		auto *bgtask = scheduler->GetBackGroundTask();
-		if ( bgtask ) 
+  //if ( me->tid < rt.n_background_worker )
+	//{
+	//	auto *bgtask = scheduler->GetBackGroundTask();
+	//	if ( bgtask ) 
+  //  {
+	//		/** only use 1 thread */
+  //    omp_set_num_threads( 1 );
+
+  //    /** update my termination time to infinite */
+  //    scheduler->ready_queue_lock[ me->tid ].Acquire();
+  //    {
+  //      scheduler->time_remaining[ me->tid ] = 999999.9;
+  //    }
+  //    scheduler->ready_queue_lock[ me->tid ].Release();
+
+  //    //printf( "Enter background task\n" ); fflush( stdout );
+  //    me->Execute( bgtask );
+  //    //printf( "Exit  background task\n" ); fflush( stdout );
+  //  }
+	//}
+
+
+  /** Prepare listeners */
+  if ( me->tid == 1 )
+  {
+    /** Update my termination time to infinite */
+    scheduler->ready_queue_lock[ me->tid ].Acquire();
     {
-			/** only use 1 thread */
-      omp_set_num_threads( 1 );
-
-      /** update my termination time to infinite */
-      scheduler->ready_queue_lock[ me->tid ].Acquire();
-      {
-        scheduler->time_remaining[ me->tid ] = 999999.9;
-      }
-      scheduler->ready_queue_lock[ me->tid ].Release();
-
-      //printf( "Enter background task\n" ); fflush( stdout );
-      me->Execute( bgtask );
-      //printf( "Exit  background task\n" ); fflush( stdout );
+      scheduler->time_remaining[ me->tid ] = numeric_limits<float>::max();
     }
-	}
+    scheduler->ready_queue_lock[ me->tid ].Release();
+    /** Enter listening mode */
+    scheduler->Listen( me );
+  }
 
-  /** start to consume all tasks in this epoch session */
+
+
+
+
+
+
+
+  /** Start to consume all tasks in this epoch session */
   while ( 1 )
   {
-    size_t batch_size = 0;
     Task *batch = NULL;
     Task *nexttask = NULL;
 
-
     if ( me->tid == 0 && scheduler->mpi_queue.size() )
     {
-      scheduler->mpi_queue_lock.Acquire();
-      {
-        if ( scheduler->mpi_queue.size() )
-        {
-          /** pop the front task */
-          batch = scheduler->mpi_queue.front();
-          scheduler->mpi_queue.pop_front();
-          batch_size ++;
-        }
-      }
-      scheduler->mpi_queue_lock.Release();
+      batch = scheduler->TryDispatchFromMPIQueue();
     }
     else
     {
-      scheduler->ready_queue_lock[ me->tid ].Acquire();
-      {
-        if ( scheduler->ready_queue[ me->tid ].size() )
-        {
-          /** pop the front task */
-          batch = scheduler->ready_queue[ me->tid ].front();
-          scheduler->ready_queue[ me->tid ].pop_front();
-          batch_size ++;
-
-          /** create a batched job if there is not enough flops */
-          if ( me->GetDevice() && batch->cost < 0.5 )
-          {
-            Task *task = batch;
-            while ( scheduler->ready_queue[ me->tid ].size() && 
-                batch_size < MAX_BATCH_SIZE + 1 )
-            {
-              task->next = scheduler->ready_queue[ me->tid ].front();
-              scheduler->ready_queue[ me->tid ].pop_front();
-              batch_size ++;
-              task = task->next;
-            }
-          }
-        }
-        else
-        {
-          /** reset my workload counter */
-          scheduler->time_remaining[ me->tid ] = 0.0;
-        }
-
-        if ( scheduler->ready_queue[ me->tid ].size() )
-        {
-          /** try to prefetch the next task */
-          nexttask = scheduler->ready_queue[ me->tid ].front();
-        }
-      }
-      scheduler->ready_queue_lock[ me->tid ].Release();
+      batch = scheduler->TryDispatch( me->tid );
     }
 
     if ( nexttask ) nexttask->Prefetch( me );
 
 
-    /** if there is some jobs to do */
-    if ( batch )
+    /** If there is some jobs to do */
+    if ( scheduler->ConsumeTasks( me, batch, false /** !is_nested */ ) )
     {
-      /** reset the idle counter */
+      /** Reset the idle counter */
       idle = 0;
-      batch->SetStatus( RUNNING );
-
-      if ( me->Execute( batch ) )
-      {
-        Task *task = batch;
-        while ( task )
-        {
-          scheduler->ready_queue_lock[ me->tid ].Acquire();
-          {
-            scheduler->time_remaining[ me->tid ] -= task->cost;
-            if ( scheduler->time_remaining[ me->tid ] < 0.0 )
-              scheduler->time_remaining[ me->tid ] = 0.0;
-          }
-          scheduler->ready_queue_lock[ me->tid ].Release();
-
-          task->DependenciesUpdate();
-          scheduler->n_task_lock.Acquire();
-          {
-            scheduler->n_task ++;
-          }
-          scheduler->n_task_lock.Release();
-          /** 
-           *  Move to the next task in te batch 
-           */
-          task = task->next;
-        }
-      }
     }
-    else /** no task in my ready_queue. steal from others. */
+    else /** No task in my ready_queue. Steal from others. */
     {
-      /** increase the idle counter */
+      /** Increase the idle counter */
       idle ++;
-
-      /** first try to consume tasks in the nested queue */
-      if ( scheduler->nested_queue.size() )
-      {
-        /** try to get a nested task; (can be a NULL pointer) */
-        Task *nested_task = scheduler->TryDispatchFromNestedQueue();
-
-        if ( nested_task )
-        {
-          /** reset the idle counter */
-          idle = 0;
-
-          nested_task->SetStatus( RUNNING );
-
-          if ( me->Execute( nested_task ) )
-          {
-            nested_task->DependenciesUpdate();
-          }
-        }
-      }
-
-      /** 
-       *  Try to steal from others 
-       */
-      if ( idle > 10 )
-      {
-        int max_remaining_task = 0;
-        float max_remaining_time = 0.0;
-        int target = -1;
-
-        /** 
-         *  Decide which target to steal
-         */
-        for ( int p = 0; p < scheduler->n_worker; p ++ )
-        {
-          /**
-           *  Update the target if it has the maximum amount of 
-           *  remaining tasks. 
-           */ 
-          if ( scheduler->ready_queue[ p ].size() > max_remaining_task )
-          {
-            max_remaining_task = scheduler->ready_queue[ p ].size();
-            target = p;
-          }
-        }
-
-
-        /**
-         *  If there is a target, and it is not myself
-         */ 
-        if ( target >= 0 && target != me->tid )
-        {
-          Task *target_task = scheduler->TryStealFromQueue( target );
-
-          /** if successfully steal a job */
-          if ( target_task )
-          {
-            if ( target_task->GetStatus() != QUEUED )
-            {
-              printf( "bug in stolen job\n" ); exit( 1 );
-            }
-
-            idle = 0;
-            target_task->SetStatus( RUNNING );
-            if ( me->Execute( target_task ) )
-            {
-              target_task->DependenciesUpdate();
-              scheduler->n_task_lock.Acquire();
-              {
-                scheduler->n_task ++;
-              }
-              scheduler->n_task_lock.Release();
-            }
-          }
-        }
-      } /** end if ( idle > 10 ) */
+      /** Try to get a nested task; (can be a NULL pointer) */
+      Task *nested_task = scheduler->TryDispatchFromNestedQueue();
+      /** Reset the idle counter if there is executable nested tasks */
+      if ( scheduler->ConsumeTasks( me, nested_task, true ) ) idle = 0;
     }
 
-    if ( scheduler->n_task >= scheduler->tasklist.size() )
+    /** Try to steal from others */
+    if ( idle > 10 )
     {
-			/** set the termination flag to true */
-		  scheduler->do_terminate = true;
+      int max_remaining_task = 0;
+      float max_remaining_time = 0.0;
+      int target = -1;
 
-      if ( scheduler->nested_queue.size() != 0 )
+      /** Decide which target to steal */
+      for ( int p = 0; p < scheduler->n_worker; p ++ )
       {
-        printf( "bug nested_queue.size() %lu\n", scheduler->nested_queue.size() ); 
-        fflush( stdout );
+        /** Update the target if it has the maximum amount of remaining tasks. */ 
+        if ( scheduler->ready_queue[ p ].size() > max_remaining_task )
+        {
+          max_remaining_task = scheduler->ready_queue[ p ].size();
+          target = p;
+        }
       }
 
-      /** sanity check: no task should left */
-      if ( scheduler->ready_queue[ me->tid ].size() == 0 )
+      /** If there is a target to steal, and it is not myself */ 
+      if ( target >= 0 && target != me->tid )
       {
-        break;
+        Task *target_task = scheduler->TryStealFromQueue( target );
+        /** Reset the idle counter if there is executable nested tasks */
+        if ( scheduler->ConsumeTasks( me, target_task, false ) ) idle = 0;
       }
-      else
-      {
-        auto *task = scheduler->ready_queue[ me->tid ].front();
-        printf( "taskid %d, %s, tasklist.size() %lu  left\n", 
-            task->taskid, task->name.data(),
-            scheduler->tasklist.size() ); fflush( stdout );
-      }
-    }
-    else
-    {
-			if ( scheduler->do_terminate == true )
-			{
-        //printf( "worker %d has do_terminate = true, scheduler->n_task = %d, tasklist.size() %lu\n", 
-				//		me->tid, scheduler->n_task, scheduler->tasklist.size() ); fflush( stdout );
-				break;
-			}
+    } /** end if ( idle > 10 ) */
 
-      //printf( "worker %d\n", me->tid ); fflush( stdout );
-      //#pragma omp barrier
-      //if ( me->tid  == 0 ) printf( "\nnext\n" ); fflush( stdout );
-    }
+    /** Check if is time to terminate. */
+    if ( scheduler->IsTimeToExit( me->tid ) ) break;
   }
 
   return NULL;
 };
+
+
+/** Listen asynchronous incoming MPI messages */
+void Scheduler::Listen( Worker *worker )
+{
+  int size; mpi::Comm_size( comm, &size );
+  int rank; mpi::Comm_rank( comm, &rank );
+
+  /** Buffer for recv_sizes, recv_skels, recv_buffs */
+  vector<size_t> recv_sizes;
+  vector<size_t> recv_skels;
+
+  /** Iprobe flag and recv status */
+  int probe_flag = 0;
+  mpi::Status status;
+
+  /** Keep probing for messages */
+  while ( 1 ) 
+  {
+    ListenerTask *task = NULL;
+
+    /** Only one thread will probe and recv message at a time */
+    #pragma omp critical
+    {
+      mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &probe_flag, &status );
+
+      /** If receive any message, then handle it */
+      if ( probe_flag )
+      {
+        /** Info from mpi::Status */
+        int recv_src = status.MPI_SOURCE;
+        int recv_tag = status.MPI_TAG;
+        int recv_key = 3 * ( recv_tag / 3 );
+        int recv_cnt;
+   
+        if ( recv_key < 300 )
+        {
+          printf( "rank %d Iprobe src %d tag %d\n", rank, recv_src, recv_tag ); 
+          fflush( stdout );
+        }
+
+        /** Check if there is a corresponding task */
+        auto it = listener_tasklist[ recv_src ].find( recv_key );
+        if ( it != listener_tasklist[ recv_src ].end() )
+        {
+          task = it->second;
+          if ( task->GetStatus() == NOTREADY )
+          {
+            //printf( "rank %d Find a task src %d tag %d\n", rank, recv_src, recv_tag ); 
+            //fflush( stdout );
+            task->SetStatus( QUEUED );
+            task->Listen();
+          }
+          else
+          {
+            printf( "rank %d Find a QUEUED task src %d tag %d\n", rank, recv_src, recv_tag ); 
+            fflush( stdout );
+            task = NULL;
+            probe_flag = false;
+          }
+        }
+        else 
+        {
+          //printf( "rank %d not match task src %d tag %d\n", rank, recv_src, recv_tag ); 
+          //fflush( stdout );
+          probe_flag = false;
+        }
+      }
+    }
+
+    /** Execute tasks and update dependencies */
+    ConsumeTasks( worker, task, false );
+
+    /** Check if is time to terminate */
+
+    /** Nonblocking consensus for termination */
+    if ( do_terminate ) 
+    {
+      /** 
+       *  While do_terminate = true, there is at lease one worker
+       *  can terminate. We use an ibarrier to make sure global concensus.
+       */
+      #pragma omp critical
+      {
+        /** Only the first worker will issue an Ibarrier. */
+        if ( !has_ibarrier ) 
+        {
+          mpi::Ibarrier( comm, &ibarrier_request );
+          has_ibarrier = true;
+        }
+
+        /** Test global consensus on "terminate_request". */
+        if ( !ibarrier_consensus )
+        {
+          mpi::Test( &ibarrier_request, &ibarrier_consensus, 
+              MPI_STATUS_IGNORE );
+        }
+      }
+
+      /** If terminate_request has been tested = true, then exit! */
+      if ( ibarrier_consensus ) break;
+    }
+  }
+
+};
+
 
 
 void Scheduler::Summary()
@@ -1481,6 +1644,13 @@ hmlp::Device *hmlp_get_device( int i )
 bool hmlp_is_in_epoch_session()
 {
   return hmlp::rt.IsInEpochSession();
+};
+
+void hmlp_msg_dependency_analysis( 
+    int key, int p, hmlp::ReadWriteType type, hmlp::Task *task )
+{
+  hmlp::rt.scheduler->MessageDependencyAnalysis(
+      key, p, type, task );
 };
 
 void hmlp_set_num_background_worker( int n_background_worker )

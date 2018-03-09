@@ -30,7 +30,7 @@
 #include <hbw_allocator.h>
 #endif
 
-/** use hmlp::Data<T> for a concrete dense submatrix */
+/** Use hmlp::Data<T> for a concrete dense submatrix */
 #include <containers/data.hpp>
 
 using namespace std;
@@ -59,52 +59,38 @@ class VirtualMatrix
 
     VirtualMatrix() {};
 
-    VirtualMatrix( std::size_t m, std::size_t n )
+    VirtualMatrix( size_t m, size_t n )
     {
       this->m = m;
       this->n = n;
     };
 
     /** ESSENTIAL: return number of coumns */
-    virtual std::size_t row() { return m; };
+    virtual size_t row() { return m; };
 
     /** ESSENTIAL: return number of rows */
-    virtual std::size_t col() { return n; };
+    virtual size_t col() { return n; };
 
     /** ESSENTIAL: this is an abstract function  */
-    virtual T operator()( std::size_t i, std::size_t j ) = 0; 
+    virtual T operator()( size_t i, size_t j ) = 0; 
 
     /** ESSENTIAL: return a submatrix */
     virtual Data<T> operator()
-		  ( std::vector<size_t> &imap, std::vector<size_t> &jmap )
+		  ( const vector<size_t> &I, const vector<size_t> &J )
     {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-      #pragma omp parallel for
-      for ( size_t j = 0; j < jmap.size(); j ++ )
-        for ( size_t i = 0; i < imap.size(); i ++ )
-          submatrix[ j * imap.size() + i ] = 
-            (*this)( imap[ i ], jmap[ j ] );
-      return submatrix;
+      Data<T> KIJ( I.size(), J.size() );
+      for ( size_t j = 0; j < J.size(); j ++ )
+        for ( size_t i = 0; i < I.size(); i ++ )
+          KIJ[ j * I.size() + i ] = (*this)( I[ i ], J[ j ] );
+      return KIJ;
     };
 
-    virtual Data<T> operator()
-		  ( std::vector<int> &imap, std::vector<int> &jmap )
-    {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-      #pragma omp parallel for
-      for ( size_t j = 0; j < jmap.size(); j ++ )
-        for ( size_t i = 0; i < imap.size(); i ++ )
-          submatrix[ j * imap.size() + i ] = 
-            (*this)( imap[ i ], jmap[ j ] );
-      return submatrix;
-    };
-
-    virtual Data<T> PairwiseDistances( vector<size_t> &I, vector<size_t> &J )
+    virtual Data<T> PairwiseDistances( const vector<size_t> &I, const vector<size_t> &J )
     {
       return (*this)( I, J );
     };
 
-		virtual Data<T> Diagonal( std::vector<size_t> &I )
+		virtual Data<T> Diagonal( const vector<size_t> &I )
 		{
 			Data<T> DII( I.size(), 1, 0.0 );
 			for ( size_t i = 0; i < I.size(); i ++ ) 
@@ -112,18 +98,17 @@ class VirtualMatrix
 			return DII;
 		};
 
-
-    virtual std::pair<T, size_t> ImportantSample( size_t j )
+    virtual pair<T, size_t> ImportantSample( size_t j )
     {
       size_t i = std::rand() % m;
-      std::pair<T, size_t> sample( (*this)( i, j ), i );
+      pair<T, size_t> sample( (*this)( i, j ), i );
       return sample; 
     }; /** end ImportantSample() */
 
-    virtual std::pair<T, int> ImportantSample( int j )
+    virtual pair<T, int> ImportantSample( int j )
     {
       int i = std::rand() % m;
-      std::pair<T, int> sample( (*this)( i, j ), i );
+      pair<T, int> sample( (*this)( i, j ), i );
       return sample; 
     }; /** end ImportantSample() */
 
@@ -143,7 +128,7 @@ class VirtualMatrix
     {
     };
 
-    virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
+    virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
     {
     }; /** end Redistribute() */
 
@@ -161,9 +146,9 @@ class VirtualMatrix
 
   private:
 
-    std::size_t m;
+    size_t m = 0;
 
-    std::size_t n;
+    size_t n = 0;
 
 }; /** end class VirtualMatrix */
 

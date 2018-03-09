@@ -22,46 +22,57 @@ ulimit -Sc unlimited
 
 ## all SPD matrix files stored in dense column major format
 declare -a filearray=(
-"/workspace/chenhan/data/K02N65536.bin"
+"/work/02794/ych/data/K02N65536.bin"
 )
+#declare -a filearray=(
+#"/scratch/02794/ych/K01N262144.bin"
+#)
 
 ## data files stored in dense d-by-N format
 #points="/work/02794/ych/data/X2DN1048576.points.bin"
-points="/work/02794/ych/data/X3DN2097152.points.bin"
+#points="/work/02794/ych/data/X3DN2097152.points.bin"
+points="/work/02794/ych/data/covtype.100k.trn.X.bin"
 #points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
 #points="/work/02794/ych/data/covtype.100k.trn.X.bin"
 #points="/work/02794/ych/data/covtype.n500000.d54.trn.X.bin"
 ## data dimension
-d=3
+d=54
 ## Gaussian kernel bandwidth
-h=0.07
+h=1.0
 
 
 ## problem size
-#n=100000
+#n=65536
+#n=147456
+#n=262144
+n=100000
 #n=1048576
-n=2097152
+#n=2097152
 ## maximum leaf node size
-m=1024
+m=128
 ## maximum off-diagonal ranks
-s=1024
+s=256
 ## number of neighbors
-k=512
+k=128
 ## number of right hand sides
-nrhs=1
+nrhs=128
 ## user tolerance
 stol=1E-5
 ## user computation budget
-budget=0.005
+budget=0.05
 ## distance type (geometry, kernel, angle)
-#distance="angle"
-distance="geometry"
-## spdmatrix type (testsuit, dense, kernel, userdefine)
+#distance="kernel"
+distance="angle"
+#distance="geometry"
+## spdmatrix type (testsuit, dense, ooc, kernel, userdefine)
+#matrixtype="dense"
+#matrixtype="ooc"
 matrixtype="kernel"
 #matrixtype="testsuit"
 #matrixtype="pvfmm"
 ## kernelmatrix type (gaussian, laplace)
 kerneltype="gaussian"
+#kerneltype="laplace"
 
 
 
@@ -69,7 +80,7 @@ kerneltype="gaussian"
 mpiexec="ibrun tacc_affinity"
 #mpiexec="prun"
 executable="./test_mpigofmm.x"
-#executable="test_gofmm.x"
+#executable="./test_gofmm.x"
 
 
 echo "@PRIM"
@@ -111,6 +122,16 @@ if [[ "$matrixtype" == "testsuit" ]] ; then
 fi
 
 if [[ "$matrixtype" == "dense" ]] ; then
+	for filename in "${filearray[@]}"
+	do
+		echo $filename
+		$mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $filename; status=$?
+		echo "@STATUS"
+		echo $status
+	done
+fi
+
+if [[ "$matrixtype" == "ooc" ]] ; then
 	for filename in "${filearray[@]}"
 	do
 		echo $filename

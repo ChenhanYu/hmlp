@@ -22,6 +22,12 @@
 #ifndef GOFMM_HPP
 #define GOFMM_HPP
 
+
+/** Use STL future, thread, chrono */
+#include <future>
+#include <thread>
+#include <chrono>
+
 /** stl and omp */
 #include <set>
 #include <vector>
@@ -258,7 +264,7 @@ class NodeData : public hfamily::Factor<T>
     /** whether the coefficient mathx has been computed */
     bool hasproj = false;
 
-    /** my skeletons */
+    /** Skeleton gids */
     vector<size_t> skels;
 
     /** (buffer) nsamples row gids */
@@ -291,26 +297,26 @@ class NodeData : public hfamily::Factor<T>
     map<size_t, T> pool;
     multimap<T, size_t> ordered_pool;
 
-    /** skeleton weights and potentials */
+    /** Skeleton weights and potentials */
     Data<T> w_skel;
     Data<T> u_skel;
 
-    /** permuted weights and potentials (buffer) */
+    /** Permuted weights and potentials (buffer) */
     Data<T> w_leaf;
     Data<T> u_leaf[ 20 ];
 
-    /** hierarchical tree view of w<RIDS> and u<RIDS> */
+    /** Hierarchical tree view of w<RIDS> and u<RIDS> */
     View<T> w_view;
     View<T> u_view;
 
-    /** cached Kab */
+    /** Cached Kab */
     Data<size_t> Nearbmap;
     Data<T> NearKab;
     Data<T> FarKab;
 
-
-
-
+    /** Interaction list (in morton) per MPI rank */
+    set<int> NearDependents;
+    set<int> FarDependents;
 
 
     /** Kij evaluation counter counters */
@@ -527,26 +533,26 @@ class Summary
 
     deque<Statistic> merge_neighbors_time;
 
-    std::deque<hmlp::Statistic> kij_skel;
+    deque<Statistic> kij_skel;
 
-    std::deque<hmlp::Statistic> kij_skel_time;
+    deque<Statistic> kij_skel_time;
 
-    std::deque<hmlp::Statistic> id_time;
+    deque<Statistic> id_time;
 
-    std::deque<hmlp::Statistic> skeletonize;
+    deque<Statistic> skeletonize;
 
     /** n2s */
-    deque<hmlp::Statistic> updateweight;
+    deque<Statistic> updateweight;
 
     /** s2s */
-    deque<hmlp::Statistic> s2s_kij_t;
-    deque<hmlp::Statistic> s2s_t;
-    deque<hmlp::Statistic> s2s_gfp;
+    deque<Statistic> s2s_kij_t;
+    deque<Statistic> s2s_t;
+    deque<Statistic> s2s_gfp;
 
     /** s2n */
-    deque<hmlp::Statistic> s2n_kij_t;
-    deque<hmlp::Statistic> s2n_t;
-    deque<hmlp::Statistic> s2n_gfp;
+    deque<Statistic> s2n_kij_t;
+    deque<Statistic> s2n_t;
+    deque<Statistic> s2n_gfp;
 
 
     void operator() ( NODE *node )
@@ -1676,8 +1682,8 @@ void BuildNeighbors( NODE *node, size_t nsamples )
      *  if additional 100 neighbors are requested, return sneighbors 100-200 
 		 */ 
     snids = std::map<size_t, T>(); 
-    std::vector<std::pair<T, size_t>> tmp( k / 2 * n ); 
-    std::set<size_t> nodeIdx( gids.begin() , gids.end() );    
+    vector<pair<T, size_t>> tmp( k / 2 * n ); 
+    set<size_t> nodeIdx( gids.begin() , gids.end() );    
     /** Allocate array for sorting */
     for ( size_t ii = ( k + 1 ) / 2; ii < k; ii ++ )
     {
@@ -1686,7 +1692,7 @@ void BuildNeighbors( NODE *node, size_t nsamples )
         tmp[ ( ii - ( k + 1 ) / 2 ) * n + jj ] = NN( ii, gids[ jj ] );
       }
     }
-    std::sort( tmp.begin() , tmp.end() );
+    sort( tmp.begin() , tmp.end() );
     int i = 0;
     while ( snids.size() < nsamples && i <  (k-1) * n / 2 )
     {
@@ -2251,7 +2257,25 @@ class GetSkeletonMatrixTask : public Task
 
     void Execute( Worker* user_worker )
     {
-      GetSkeletonMatrix<NODE, T>( arg );
+      //GetSkeletonMatrix<NODE, T>( arg );
+
+      /** Create a promise and get its future */
+      promise<bool> done;
+      auto future = done.get_future();
+
+      thread t( [&done] ( NODE *arg ) -> void {
+          GetSkeletonMatrix<NODE, T>( arg ); 
+          done.set_value( true );
+      }, arg );
+      
+      /** Polling the future status */
+      while ( future.wait_for( chrono::seconds( 0 ) ) != future_status::ready ) 
+      {
+        if ( !this->ContextSwitchToNextTask( user_worker ) ) break;
+      }
+      
+      /** Make sure the task is completed */
+      t.join();
     };
 
 }; /** end class GetSkeletonMatrixTask */ 
@@ -2938,11 +2962,9 @@ void UpdateWeights( NODE *node )
                                   WR( false, w_rskel );
       /** P = [ PL, PR ] */
       P.Partition1x2( PL, PR, lskel.size(), LEFT );
-
       /** W  = PL * WL */
       gemm::xgemm<GEMM_NB>( (T)1.0, PL, WL, (T)0.0, W );
       W.DependencyCleanUp();
-
       /** W += PR * WR */
       gemm::xgemm<GEMM_NB>( (T)1.0, PR, WR, (T)1.0, W );
       //W.DependencyCleanUp();
@@ -2971,7 +2993,7 @@ void UpdateWeights( NODE *node )
  *
  */ 
 template<typename NODE, typename T>
-class UpdateWeightsTask : public hmlp::Task
+class UpdateWeightsTask : public Task
 {
   public:
 
@@ -2981,14 +3003,9 @@ class UpdateWeightsTask : public hmlp::Task
     {
       arg = user_arg;
       name = string( "n2s" );
-      {
-        //label = std::to_string( arg->treelist_id );
-        ostringstream ss;
-        ss << arg->treelist_id;
-        label = ss.str();
-      }
+      label = to_string( arg->treelist_id );
 
-      /** compute flops and mops */
+      /** Compute flops and mops */
       double flops, mops;
       auto &gids = arg->gids;
       auto &skels = arg->data.skels;
@@ -3012,13 +3029,11 @@ class UpdateWeightsTask : public hmlp::Task
         mops  = 2.0 * ( m * n + m * k + k * n );
       }
 
-      /** setup the event */
+      /** Setup the event */
       event.Set( label + name, flops, mops );
-
-      /** assume computation bound */
+      /** Assume computation bound */
       cost = flops / 1E+9;
-
-      /** high priority */
+      /** "HIGH" priority (critical path) */
       priority = true;
     };
 
@@ -3146,17 +3161,21 @@ void SkeletonsToSkeletons( NODE *node )
   {
     auto &bmap = (*it)->data.skels;
     auto &w_skel = (*it)->data.w_skel;
-    assert( w_skel.col() == u_skel.col() );
+    assert( w_skel.col() == nrhs );
+    assert( w_skel.row() == bmap.size() );
+    assert( w_skel.size() == nrhs * bmap.size() );
 
     if ( FarKab.size() ) /** Kab is cached */
     {
       //if ( node->treelist_id > 6 )
       if ( 1 )
       {
+        assert( FarKab.row() == amap.size() );
+        assert( u_skel.row() * offset <= FarKab.size() );
 
         //printf( "%8lu s2s %8lu w_skel[%lu %lu]\n", 
         //    node->morton, (*it)->morton, w_skel.row(), w_skel.col() );
-        fflush( stdout );
+        //fflush( stdout );
         xgemm
         (
           "N", "N",
@@ -3165,6 +3184,7 @@ void SkeletonsToSkeletons( NODE *node )
                w_skel.data(),          w_skel.row(),
           1.0, u_skel.data(),          u_skel.row()
         );
+
       }
       else
       {
@@ -3237,7 +3257,7 @@ class SkeletonsToSkeletonsTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
@@ -3268,20 +3288,12 @@ class SkeletonsToSkeletonsTask : public Task
         mops  += 2.0 * ( m * n + n * k + k * n );
       }
 
-      /** setup the event */
+      /** Setup the event */
       event.Set( label + name, flops, mops );
-
-      /** assume computation bound */
+      /** Assume computation bound */
       cost = flops / 1E+9;
-
-      /** high priority */
+      /** High priority */
       priority = true;
-    };
-
-    void Prefetch( Worker* user_worker )
-    {
-      auto &u_skel = arg->data.u_skel;
-      __builtin_prefetch( u_skel.data() );
     };
 
     void GetEventRecord()
@@ -3291,17 +3303,16 @@ class SkeletonsToSkeletonsTask : public Task
 
     void DependencyAnalysis()
     {
+      for ( auto p : arg->data.FarDependents )
+        hmlp_msg_dependency_analysis( 306, p, R, this );
+
       set<NODE*> *FarNodes;
       FarNodes = &arg->NNFarNodes;
-
-      if ( FarNodes->size() )
+      for ( auto it : *FarNodes )
       {
-        arg->DependencyAnalysis( W, this );
-        for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
-        {
-          (*it)->DependencyAnalysis( R, this );
-        }
+        it->DependencyAnalysis( R, this );
       }
+      arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
     };
 
@@ -3321,7 +3332,9 @@ template<bool NNPRUNE, typename NODE, typename T>
 void SkeletonsToNodes( NODE *node )
 {
 #ifdef DEBUG_SPDASKIT
-  printf( "%lu Skel2Node u_skel.row() %lu\n", node->treelist_id, node->data.u_skel.row() ); fflush( stdout );
+  printf( "%lu Skel2Node u_skel.row() %lu\n", 
+      node->treelist_id, node->data.u_skel.row() ); 
+  fflush( stdout );
 #endif
 
   double beg, kij_s2n_time = 0.0, u_leaf_time, before_writeback_time, after_writeback_time;
@@ -3455,12 +3468,7 @@ class SkeletonsToNodesTask : public Task
     {
       arg = user_arg;
       name = string( "s2n" );
-      {
-        //label = std::to_string( arg->treelist_id );
-        ostringstream ss;
-        ss << arg->treelist_id;
-        label = ss.str();
-      }
+      label = to_string( arg->treelist_id );
 
       //--------------------------------------
       double flops = 0.0, mops = 0.0;
@@ -3494,13 +3502,11 @@ class SkeletonsToNodesTask : public Task
         }
       }
 
-      /** setup the event */
+      /** Setup the event */
       event.Set( label + name, flops, mops );
-
-      /** asuume computation bound */
+      /** Asuume computation bound */
       cost = flops / 1E+9;
-
-      /** low priority */
+      /** "HIGH" priority (critical path) */
       priority = true;
     };
 
@@ -3576,7 +3582,7 @@ class SkeletonsToNodesTask : public Task
     void Execute( Worker* user_worker )
     {
 #ifdef HMLP_USE_CUDA 
-      hmlp::Device *device = NULL;
+      Device *device = NULL;
       if ( user_worker ) device = user_worker->GetDevice();
       if ( device ) gpu::SkeletonsToNodes<NNPRUNE, NODE, T>( device, arg );
       else               SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
@@ -3607,7 +3613,7 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
 
   size_t nrhs = w.col();
 
-  std::set<NODE*> *NearNodes;
+  set<NODE*> *NearNodes;
   if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
   else           NearNodes = &node->NearNodes;
 
@@ -3827,7 +3833,7 @@ class LeavesToLeavesTask : public Task
 
 
 template<typename NODE>
-void PrintSet( std::set<NODE*> &set )
+void PrintSet( set<NODE*> &set )
 {
   for ( auto it = set.begin(); it != set.end(); it ++ )
   {
@@ -3958,6 +3964,7 @@ multimap<size_t, size_t> NearNodeBallots( NODE *node )
       if ( neighbor_gid >= 0 && neighbor_gid < NN.col() )
       {
         size_t neighbor_morton = setup.morton[ neighbor_gid ];
+        size_t weighted_ballot = 1.0 / ( value + 1E-3 );
         //printf( "gid %lu i %lu neighbor_gid %lu morton %lu\n", gids[ j ], i, 
         //    neighbor_gid, neighbor_morton );
 
@@ -3965,11 +3972,13 @@ multimap<size_t, size_t> NearNodeBallots( NODE *node )
         {
           if ( ballot.find( neighbor_morton ) != ballot.end() )
           {
-            ballot[ neighbor_morton ] ++;
+            //ballot[ neighbor_morton ] ++;
+            ballot[ neighbor_morton ] += weighted_ballot;
           }
           else
           {
-            ballot[ neighbor_morton ] = 1;
+            //ballot[ neighbor_morton ] = 1;
+            ballot[ neighbor_morton ] = weighted_ballot;
           }
         }
         else
@@ -5460,7 +5469,7 @@ tree::Tree<
 ( 
   Data<T> *X,
   SPDMATRIX &K, 
-  Data<pair<T, std::size_t>> &NN,
+  Data<pair<T, size_t>> &NN,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
 	Configuration<T> &config
@@ -6062,8 +6071,8 @@ typedef hmlp::tree::Tree<sSetup_t, hmlp::gofmm::NodeData<float >, 2, float > sTr
  *  arguments are replaced by pass-by-pointer. There implementaion
  *  can be found at hmlp/package/$HMLP_ARCH/gofmm.gpp
  **/
-hmlp::Data<double> Evaluate( dTree_t *tree, hmlp::Data<double> *weights );
-hmlp::Data<float>  Evaluate( dTree_t *tree, hmlp::Data<float > *weights );
+Data<double> Evaluate( dTree_t *tree, hmlp::Data<double> *weights );
+Data<float>  Evaluate( dTree_t *tree, hmlp::Data<float > *weights );
 
 dTree_t *Compress( dSPDMatrix_t *K, double stol, double budget );
 sTree_t *Compress( sSPDMatrix_t *K,  float stol,  float budget );
