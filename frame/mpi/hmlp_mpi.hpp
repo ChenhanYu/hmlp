@@ -152,9 +152,7 @@ namespace hmlp
 namespace mpi
 {
 
-/**
- *  MPI 1.0 functionality
- */ 
+/** MPI 1.0 functionality */ 
 
 
 #ifdef HMLP_USE_MPI
@@ -164,7 +162,7 @@ typedef MPI_Comm Comm;
 typedef MPI_Datatype Datatype;
 typedef MPI_Op Op;
 #else
-/** if there is no generic MPI support, use the following definition */
+/** If there is no generic MPI support, use the following definition */
 typedef struct 
 {
   int count;
@@ -265,22 +263,15 @@ int Alltoallv(
     void *recvbuf, int *recvcounts, int *rdispls, Datatype recvtype, Comm comm );
 
 
-/**
- *  MPI 2.0 and 3.0 functionality
- */ 
-
+/** MPI 2.0 and 3.0 functionality */ 
 int Init_thread( int *argc, char ***argv, int required, int *provided );
-
 int Probe( int source, int tag, Comm comm, Status *status );
 int Iprobe( int source, int tag, Comm comm, int *flag, Status *status );
 
 
 
-
-
-/** 
- *  HMLP MPI extension
- */ 
+/** HMLP MPI extension */ 
+void PrintProgress( const char *s, mpi::Comm comm );
 
 class MPIObject
 {
@@ -293,20 +284,11 @@ class MPIObject
 			mpi::Comm_dup( comm, &sendcomm );
     };
 
-    mpi::Comm GetComm()
-    {
-      return comm;
-    };
+    mpi::Comm GetComm() { return comm; };
 
-		mpi::Comm GetRecvComm()
-		{
-			return recvcomm;
-		};
+		mpi::Comm GetRecvComm() { return recvcomm; };
 
-		mpi::Comm GetSendComm()
-		{
-			return sendcomm;
-		};
+		mpi::Comm GetSendComm() { return sendcomm; };
 
     int Comm_size()
     {
@@ -330,11 +312,9 @@ class MPIObject
   private:
 
     mpi::Comm comm = MPI_COMM_WORLD;
-
-		/** this communicator is duplicated from comm */
+		/** This communicator is duplicated from comm */
 		mpi::Comm recvcomm;
-
-		/** this communicator is duplicated from comm */
+		/** This communicator is duplicated from comm */
 		mpi::Comm sendcomm;
 
 }; /** end class MPIObject */
@@ -344,9 +324,7 @@ class MPIObject
 
 
 
-/**
- *  Type insensitive interface
- */ 
+/** Type insensitive interface */ 
 
 template<typename T>
 struct NumberIntPair { T val; int key; };

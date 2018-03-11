@@ -90,6 +90,8 @@
 #define OMPRECTASK 0
 #define OMPDAGTASK 0
 
+using namespace std;
+using namespace hmlp;
 
 /**
  *  @breif GOFMM relies on an arbitrary distance metric that
@@ -99,16 +101,7 @@
  *         arbitrary distances defined in the Gram vector space
  *         i.e. "KERNEL_DISTANCE" or "ANGLE_DISTANCE"
  */ 
-typedef enum 
-{
-  GEOMETRY_DISTANCE,
-  KERNEL_DISTANCE,
-  ANGLE_DISTANCE
-} DistanceMetric;
-
-
-using namespace std;
-using namespace hmlp;
+typedef enum { GEOMETRY_DISTANCE, KERNEL_DISTANCE, ANGLE_DISTANCE } DistanceMetric;
 
 
 namespace hmlp
@@ -1931,13 +1924,20 @@ void RowSamples( NODE *node, size_t nsamples )
       pnids.clear();
       snids.clear();
 
-      for ( size_t j = 0; j < gids.size(); j ++ )
+      for ( auto gid : gids )
         for ( size_t i = 0; i < NN.row() / 2; i ++ )
-          pnids.insert( NN( i, gids[ j ] ).second );
+          pnids.insert( NN( i, gid ).second );
 
-      /** remove self on-diagonal indices */
-      for ( size_t j = 0; j < gids.size(); j ++ )
-        pnids.erase( gids[ j ] );
+
+
+      //for ( size_t j = 0; j < gids.size(); j ++ )
+      //  for ( size_t i = 0; i < NN.row() / 2; i ++ )
+      //    pnids.insert( NN( i, gids[ j ] ).second );
+
+      /** Remove self on-diagonal indices */
+      for ( auto gid : gids ) pnids.erase( gid );
+      //for ( size_t j = 0; j < gids.size(); j ++ )
+      //  pnids.erase( gids[ j ] );
 
       vector<pair<T, size_t>> tmp( knum * gids.size() );
 
@@ -1945,23 +1945,23 @@ void RowSamples( NODE *node, size_t nsamples )
         for ( size_t i = kbeg; i < kend; i ++ )
           tmp[ j * knum + ( i - kbeg ) ] = NN( i, gids[ j ] );
 
-      /** create a sorted list */
-      std::sort( tmp.begin(), tmp.end() );
+      /** Create a sorted list */
+      sort( tmp.begin(), tmp.end() );
     
       for ( auto it = tmp.begin(); it != tmp.end(); it ++ )
       {
-        /** create a single query */
+        /** Create a single query */
         vector<size_t> sample_query( 1, (*it).second );
 				vector<size_t> validation = 
 					node->setup->ContainAny( sample_query, node->morton );
 
         if ( !pnids.count( (*it).second ) && !validation[ 0 ] )
         {
-          /** duplication is handled by std::map */
+          /** Duplication is handled by std::map */
           auto ret = snids.insert( pair<size_t, T>( (*it).second, (*it).first ) );
         }
 
-        /** while we have enough samples, then exit */
+        /** While we have enough samples, then exit */
         if ( snids.size() >= nsamples ) break;
       }
     }
@@ -1972,15 +1972,10 @@ void RowSamples( NODE *node, size_t nsamples )
       auto &lpnids = node->lchild->data.pnids;
       auto &rpnids = node->rchild->data.pnids;
 
-      /** 
-       *  merge children's sampling neighbors...    
-       *  start with left sampling neighbor list 
-       */
+      /** Merge left children's sampling neighbors */
       snids = lsnids;
 
-      /**
-       *  Add right sampling neighbor list. If duplicate update distace if nec.
-       */
+      /** Merge right child's sample neighbors and update duplicate. */
       for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
       {
         auto ret = snids.insert( *it );
@@ -1991,15 +1986,18 @@ void RowSamples( NODE *node, size_t nsamples )
         }
       }
 
-      /** remove on-diagonal indicies */
-      for ( size_t i = 0; i < gids.size(); i ++ ) 
-        snids.erase( gids[ i ] );
+      /** Remove on-diagonal indicies (gids) */
+      for ( auto gid : gids ) snids.erase( gid );
+      //for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
 
-      /**remove direct evaluation indices */
-      for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ )
-        snids.erase( *it );
-      for ( auto it = rpnids.begin(); it != rpnids.end(); it ++ )
-        snids.erase( *it );
+      /** Remove direct evaluation indices */
+      for ( auto lpnid : lpnids ) snids.erase( lpnid );
+      for ( auto rpnid : lpnids ) snids.erase( rpnid );
+
+      //for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ )
+      //  snids.erase( *it );
+      //for ( auto it = rpnids.begin(); it != rpnids.end(); it ++ )
+      //  snids.erase( *it );
     }
 
     /** create an order snids by flipping the std::map */
@@ -2075,7 +2073,7 @@ void RowSamples( NODE *node, size_t nsamples )
 
 
 
-      /** uniform samples */
+      /** Uniform samples */
       if ( amap.size() < nsamples )
       {
         while ( amap.size() < nsamples )
@@ -2094,7 +2092,7 @@ void RowSamples( NODE *node, size_t nsamples )
            *  check duplication using std::find, but check whether the sample
            *  belongs to the diagonal block using Morton ID.
            */ 
-          if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
+          if ( find( amap.begin(), amap.end(), sample ) == amap.end() &&
               !validation[ 0 ] )
           {
             amap.push_back( sample );
@@ -2355,7 +2353,7 @@ void Skeletonize2( NODE *node )
   /** account for uniform sampling */
   scaled_stol *= std::sqrt( (T)q / N );
 
-  hmlp::lowrank::id<ADAPTIVE, LEVELRESTRICTION>
+  lowrank::id<ADAPTIVE, LEVELRESTRICTION>
   ( 
     KIJ.row(), KIJ.col(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
     KIJ, skels, proj, jpvt
@@ -2378,17 +2376,17 @@ void Skeletonize2( NODE *node )
     data.isskel = true;
   }
   
-  /** relabel skeletions with the real lids */
+  /** Relabel skeletions with the real lids */
   for ( size_t i = 0; i < skels.size(); i ++ )
   {
     skels[ i ] = candidate_cols[ skels[ i ] ];
   }
 
-  /** update pruning neighbor list */
+  /** Update pruning neighbor list */
   data.pnids.clear();
-  for ( size_t j = 0 ; j < skels.size() ; j ++ )
+  for ( auto skel : skels )
     for ( size_t i = 0; i < NN.row() / 2; i ++ )
-      data.pnids.insert( NN( i, skels[ j ] ).second );
+      data.pnids.insert( NN( i, skel ).second );
 
 }; /** end Skeletonize2() */
 
@@ -5773,9 +5771,9 @@ tree::Tree<
  *  @brielf A simple template for the compress routine.
  */ 
 template<typename T, typename SPDMATRIX>
-hmlp::tree::Tree<
-  hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-  hmlp::gofmm::NodeData<T>,
+tree::Tree<
+  gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
+  gofmm::NodeData<T>,
   2,
   T> 
 *Compress( SPDMATRIX &K, T stol, T budget, size_t m, size_t k, size_t s )
@@ -5817,9 +5815,9 @@ hmlp::tree::Tree<
  *  @brielf A simple template for the compress routine.
  */ 
 template<typename T, typename SPDMATRIX>
-hmlp::tree::Tree<
-  hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-  hmlp::gofmm::NodeData<T>,
+tree::Tree<
+  gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
+  gofmm::NodeData<T>,
   2,
   T> 
 *Compress( SPDMATRIX &K, T stol, T budget )
@@ -5828,8 +5826,8 @@ hmlp::tree::Tree<
   const bool LEVELRESTRICTION = false;
   using SPLITTER     = centersplit<SPDMATRIX, 2, T>;
   using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T>;
-  hmlp::Data<T> *X = NULL;
-  hmlp::Data<std::pair<T, std::size_t>> NN;
+  Data<T> *X = NULL;
+  Data<pair<T, std::size_t>> NN;
 	/** GOFMM tree splitter */
   SPLITTER splitter;
   splitter.Kptr = &K;
@@ -5881,9 +5879,9 @@ hmlp::tree::Tree<
  *
  */ 
 template<typename T>
-hmlp::tree::Tree<
-  hmlp::gofmm::Setup<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
-  hmlp::gofmm::NodeData<T>,
+tree::Tree<
+  gofmm::Setup<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
+  gofmm::NodeData<T>,
   2,
   T>
 *Compress( SPDMatrix<T> &K, T stol, T budget )

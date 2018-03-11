@@ -61,6 +61,11 @@ class VirtualMatrix
 
     VirtualMatrix( size_t m, size_t n )
     {
+      resize( m, n );
+    };
+
+    virtual void resize( size_t m, size_t n )
+    {
       this->m = m;
       this->n = n;
     };
@@ -112,36 +117,36 @@ class VirtualMatrix
       return sample; 
     }; /** end ImportantSample() */
 
-    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
-    {
-    };
+    //virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
+    //{
+    //};
 
-    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
-    {
-    };
+    //virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
+    //{
+    //};
 
-    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
-    {
-    };
+    //virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
+    //{
+    //};
 
-    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
-    {
-    };
+    //virtual void RequestColumns( vector<vector<size_t>> requ_cids )
+    //{
+    //};
 
-    virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
-    {
-    }; /** end Redistribute() */
+    //virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
+    //{
+    //}; /** end Redistribute() */
 
-    virtual void RedistributeWithPartner( 
-        std::vector<size_t> &gids,
-        std::vector<size_t> &lhs, 
-        std::vector<size_t> &rhs, mpi::Comm comm )
-    {
-    };
+    //virtual void RedistributeWithPartner( 
+    //    std::vector<size_t> &gids,
+    //    std::vector<size_t> &lhs, 
+    //    std::vector<size_t> &rhs, mpi::Comm comm )
+    //{
+    //};
 
-    virtual void BackGroundProcess( bool *do_terminate )
-		{
-		};
+    //virtual void BackGroundProcess( bool *do_terminate )
+		//{
+		//};
 
 
   private:

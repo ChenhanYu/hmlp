@@ -331,6 +331,19 @@ int Iprobe( int source, int tag, Comm comm, int *flag, Status *status )
 }; /** end Iprobe() */
 
 
+/** HMLP MPI extension */
+void PrintProgress( const char *s, mpi::Comm comm )
+{
+  int rank; mpi::Comm_rank( comm, &rank );
+  if ( !rank ) 
+  {
+    printf( "%s\n", s ); fflush( stdout );
+  }
+  mpi::Barrier( comm );
+};
+
+
+
 
 }; /** end namespace mpi */
 }; /** end namespace hmlp */

@@ -595,9 +595,7 @@ class Node : public ReadWrite
         {
           int nchild = split[ i ].size();
 
-          /**
-           *  TODO: need a better way
-           */ 
+          /** TODO: need a better way */ 
           kids[ i ]->Resize( nchild );
           for ( int j = 0; j < nchild; j ++ )
           {
@@ -699,10 +697,9 @@ class Node : public ReadWrite
     /** Level in the tree */
     size_t l;
 
-    // Morton id
-    size_t morton;
-
-    size_t offset;
+    /** Morton ID and offset */
+    size_t morton = 0;
+    size_t offset = 0;
 
 
 
@@ -710,7 +707,6 @@ class Node : public ReadWrite
     size_t treelist_id; 
 
     vector<size_t> gids;
-
     vector<size_t> lids;
 
     /** These two prunning lists are used when no NN pruning. */
@@ -728,7 +724,6 @@ class Node : public ReadWrite
     set<Node*>  NNFarNodes;
     set<Node*>  ProposedNNFarNodes;
     set<size_t> NNFarNodeMortonIDs;
-
 
     /** Only leaf nodes will have this list. */
     set<size_t> NNNearIDs;
@@ -864,9 +859,7 @@ class Tree
     size_t depth;
 
 
-    /**
-     *  Mutex for getting exclusive right to modify treelist and morton2node.
-     */ 
+    /** Mutex for exclusive right to modify treelist and morton2node. */ 
     Lock lock;
 
     /**
@@ -884,7 +877,7 @@ class Tree
     Tree() : n( 0 ), m( 0 ), depth( 0 )
     {};
 
-    /** deconstructor */
+    /** Destructor */
     ~Tree()
     {
       //printf( "~Tree() shared treelist.size() %lu treequeue.size() %lu\n",

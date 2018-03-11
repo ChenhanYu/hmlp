@@ -30,11 +30,15 @@
 #include <hbw_allocator.h>
 #endif
 
+/** BLAS/LAPACK support */
 #include <hmlp_blas_lapack.h>
-
-/** kernel matrix uses VirtualMatrix<T> as base */
+/** KernelMatrix uses VirtualMatrix<T> as base */
 #include <containers/VirtualMatrix.hpp>
+/** For GOFMM compatability */
+#include <containers/SPDMatrix.hpp>
 
+using namespace std;
+using namespace hmlp;
 
 namespace hmlp
 {
@@ -50,7 +54,9 @@ template<typename T, class Allocator = std::allocator<T> >
 /**
  *  @brief
  */ 
-class KernelMatrix : public VirtualMatrix<T, Allocator>, ReadWrite
+class KernelMatrix : public VirtualMatrix<T, Allocator>, 
+                     public SPDMatrixMPISupport<T>,
+                     public ReadWrite
 {
   public:
 

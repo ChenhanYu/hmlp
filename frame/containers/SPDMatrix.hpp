@@ -1,6 +1,11 @@
+
+#ifndef SPDMATRIX_HPP
+#define SPDMATRIX_HPP
+
 #include<containers/data.hpp>
 
 using namespace std;
+using namespace hmlp;
 
 namespace hmlp
 {
@@ -89,3 +94,6 @@ class OOCSPDMatrix : public OOCData<T>, public SPDMatrixMPISupport<T>
 }; /** end class OOCSPDMatrix */
 
 }; /** end namespace hmlp */
+
+
+#endif /** define SPDMATRIX_HPP */

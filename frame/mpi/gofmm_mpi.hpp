@@ -299,10 +299,10 @@ class NodeData : public hfamily::Factor<T>
     Data<T> proj;
 
     /** sampling neighbors ids */
-    map<std::size_t, T> snids; 
+    map<size_t, T> snids; 
 
     /* pruning neighbors ids */
-    unordered_set<std::size_t> pnids; 
+    unordered_set<size_t> pnids; 
 
     /** skeleton weights and potentials */
     Data<T> w_skel;
@@ -2536,23 +2536,23 @@ class FindNearNodesTask : public hmlp::Task
 template<size_t LEVELOFFSET=4, typename NODE>
 void FindFarNodes( size_t morton, size_t l, NODE *target )
 {
-  /**
-   *  Return while reaching the leaf level
-   */ 
+  /** Return while reaching the leaf level. */ 
   if ( l > target->l ) return;
 
-  /** Compute the correct shift*/
+  /** Compute the correct shift. */
   size_t shift = ( 1 << LEVELOFFSET ) - l + LEVELOFFSET;
-  /** set the node Morton ID */
+  /** Set the node Morton ID */
   size_t node_morton = ( morton << shift ) + l;
 
   bool prunable = true;
   auto & NearMortonIDs = target->NNNearNodeMortonIDs;
 
-  for ( auto it  = NearMortonIDs.begin(); 
-             it != NearMortonIDs.end(); it ++ )
+  //for ( auto it  = NearMortonIDs.begin(); 
+  //           it != NearMortonIDs.end(); it ++ )
+
+  for ( auto it : NearMortonIDs )
   {
-    if ( tree::IsMyParent( *it, node_morton ) ) prunable = false;
+    if ( tree::IsMyParent( it, node_morton ) ) prunable = false;
   }
 
   if ( prunable )
@@ -3705,7 +3705,6 @@ void MergeFarNodes( NODE *node )
       if ( rNNFarNodes.count( *it ) ) 
       {
         pNNFarNodes.insert( *it );
-        //node->NNFarNodes.insert( (*node->morton2node)[ *it ] );
       }
     }
     /** Far( lchild ) \= Far( parent ); Far( rchild ) \= Far( parent ) */
@@ -3714,8 +3713,6 @@ void MergeFarNodes( NODE *node )
     {
       lNNFarNodes.erase( *it ); 
       rNNFarNodes.erase( *it );
-      //lchild->NNFarNodes.erase( (*node->morton2node)[ *it ] );
-      //rchild->NNFarNodes.erase( (*node->morton2node)[ *it ] );
     }
   }
 
@@ -3782,9 +3779,7 @@ class MergeFarNodesTask : public Task
 template<bool SYMMETRIC, typename NODE, typename T>
 void DistMergeFarNodes( NODE *node )
 {
-  /**
-   *  MPI
-   */ 
+  /** MPI */ 
   mpi::Status status;
   mpi::Comm comm = node->GetComm();
   int comm_size = node->GetCommSize();
@@ -4163,10 +4158,10 @@ void DistRowSamples( NODE *node, size_t nsamples )
   /** amap contains nsamples of row gids of K */
   vector<size_t> &I = node->data.candidate_rows;
 
-  /** clean up candidates from previous iteration */
+  /** Clean up candidates from previous iteration */
 	I.clear();
 
-  /** fill-on snids first */
+  /** Fill-on snids first */
 	if ( rank == 0 ) 
   {
     /** reserve space */
@@ -4198,13 +4193,12 @@ void DistRowSamples( NODE *node, size_t nsamples )
 		{
   	  for ( size_t i = 0; i < nsamples; i ++ )
       {
-			  //candidates[ i ] = rand() % K.col();
         auto important_sample = K.ImportantSample( 0 );
         candidates[ i ] =  important_sample.second;
       }
 		}
 
-		/** bcast candidates */
+		/** Bcast candidates */
 		mpi::Bcast( candidates.data(), candidates.size(), 0, comm );
 
 		/** validation */
@@ -4212,8 +4206,7 @@ void DistRowSamples( NODE *node, size_t nsamples )
 	  vector<size_t> validation = node->setup->ContainAny( candidates, node->morton );
 
 		/** reduce validation */
-		mpi::Reduce( validation.data(), vconsensus.data(), nsamples,
-				MPI_SUM, 0, comm );
+		mpi::Reduce( validation.data(), vconsensus.data(), nsamples, MPI_SUM, 0, comm );
 
 	  if ( rank == 0 )
 		{
@@ -4225,7 +4218,7 @@ void DistRowSamples( NODE *node, size_t nsamples )
 					I.resize( nsamples );
 					break;
 				}
-				/** push the candidate to I after validation */
+				/** Push the candidate to I after validation */
 				if ( !vconsensus[ i ] )
 				{
 					if ( find( I.begin(), I.end(), candidates[ i ] ) == I.end() )
@@ -4233,11 +4226,11 @@ void DistRowSamples( NODE *node, size_t nsamples )
 				}
 			};
 
-			/** update n_required */
+			/** Update n_required */
 	    n_required = nsamples - I.size();
 		}
 
-	  /** bcast the termination criteria */
+	  /** Bcast the termination criteria */
 	  mpi::Bcast( &n_required, 1, 0, comm );
 	}
 
@@ -4413,13 +4406,13 @@ void DistRowSamples( NODE *node, size_t nsamples )
 template<typename NODE, typename T>
 void ParallelGetSkeletonMatrix( NODE *node )
 {
-	/** early return */
+	/** Early return */
 	if ( !node->parent ) return;
 
-  /** gather shared data and create reference */
+  /** Gather shared data and create reference */
   auto &K = *(node->setup->K);
 
-  /** gather per node data and create reference */
+  /** Gather per node data and create reference */
   auto &data = node->data;
   auto &candidate_rows = data.candidate_rows;
   auto &candidate_cols = data.candidate_cols;
@@ -4508,7 +4501,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
 
       for ( size_t i = 0; i < recv_rsdist.size(); i ++ )
       {
-        std::pair<size_t, T> query( recv_rsnids[ i ], recv_rsdist[ i ] );
+        pair<size_t, T> query( recv_rsnids[ i ], recv_rsdist[ i ] );
         auto ret = snids.insert( query );
         if ( !ret.second )
         {
@@ -4517,20 +4510,21 @@ void ParallelGetSkeletonMatrix( NODE *node )
         }
       }
 
-      /** remove gids from snids */
-      auto &gids = node->gids;
-      for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
+      /** Remove gids, lpnids and rpnids from snids */
+      for ( auto gid : node->gids ) snids.erase( gid );
 
-      /** remove lpnids and rpnids from snids  */
-      for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ )
-        snids.erase( *it );
-      for ( size_t i = 0; i < recv_rpnids.size(); i ++ )
-        snids.erase( recv_rpnids[ i ] );
+      //for ( size_t i = 0; i < gids.size(); i ++ ) snids.erase( gids[ i ] );
+
+      /** Remove lpnids and rpnids from snids  */
+      for ( auto lpnid : lpnids ) snids.erase( lpnid );
+      //for ( auto it = lpnids.begin(); it != lpnids.end(); it ++ ) snids.erase( *it );
+      for ( auto rpnid : recv_rpnids ) snids.erase( rpnid );
+      //for ( size_t i = 0; i < recv_rpnids.size(); i ++ ) snids.erase( recv_rpnids[ i ] );
     }
 
     if ( rank == size / 2 )
     {
-      /** send rskel to rank-0 */
+      /** Send rskel to rank-0 */
       mpi::SendVector( child->data.skels, 0, 10, comm );
 		  //printf( "rank %d level %lu SendColumnn\n", global_rank, node->l ); fflush( stdout );
       K.SendColumns( child->data.skels, 0, comm );
@@ -4609,9 +4603,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
     else
     {
       auto Ksamples = K( candidate_rows, candidate_cols );
-      /**
-       *  Compute G * KIJ
-       */
+      /** Compute G * KIJ */
       KIJ.resize( over_size_rank, candidate_cols.size() );
       Data<T> G( over_size_rank, nsamples ); G.randn( 0, 1 );
 
@@ -4643,23 +4635,16 @@ class ParallelGetSkeletonMatrixTask : public Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "par-gskm" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-
-      /** we don't know the exact cost here */
+      name = string( "par-gskm" );
+      label = to_string( arg->treelist_id );
+      /** We don't know the exact cost here */
       cost = 5.0;
-
-      /** high priority */
+      /** "High" priority */
       priority = true;
     };
 
-    void GetEventRecord()
-    {
-    };
+    void GetEventRecord() {};
 
 
     void DependencyAnalysis()
@@ -4752,7 +4737,7 @@ void DistSkeletonize( NODE *node )
     KIJ, skels, proj, jpvt
   );
 
-  /** free KIJ for spaces */
+  /** Free KIJ for spaces */
   KIJ.resize( 0, 0 );
 
   /** depending on the flag, decide isskel or not */
@@ -4769,7 +4754,7 @@ void DistSkeletonize( NODE *node )
     data.isskel = true;
   }
   
-  /** relabel skeletions with the real lids */
+  /** Relabel skeletions with the real gids */
   for ( size_t i = 0; i < skels.size(); i ++ )
   {
     skels[ i ] = candidate_cols[ skels[ i ] ];
@@ -4790,17 +4775,12 @@ class SkeletonizeTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "Skel" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-
-      /** we don't know the exact cost here */
+      name = string( "Skel" );
+      label = to_string( arg->treelist_id );
+      /** We don't know the exact cost here */
       cost = 5.0;
-
-      /** high priority */
+      /** "High" priority */
       priority = true;
     };
 
@@ -4827,8 +4807,7 @@ class SkeletonizeTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-      /** try to enqueue if there is no dependency */
+      arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
     };
 
@@ -4838,15 +4817,18 @@ class SkeletonizeTask : public hmlp::Task
 
       DistSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
 
+      /** If neighbors were provided, then update the estimated prunning list. */
       if ( arg->setup->NN )
       {
         auto &skels = arg->data.skels;
         auto &pnids = arg->data.pnids;
         auto &NN = *(arg->setup->NN);
         pnids.clear();
-        for ( size_t j = 0; j < skels.size(); j ++ )
+
+        for ( auto skel : skels )
+          //for ( size_t i = 0; i < NN.row() / 2; i ++ )
           for ( size_t i = 0; i < NN.row(); i ++ )
-            pnids.insert( NN( i, skels[ j ] ).second );
+            pnids.insert( NN( i, skel ).second );
       }
 
 
@@ -4870,17 +4852,13 @@ class DistSkeletonizeTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "DistSkel" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
+      name = string( "DistSkel" );
+      label = to_string( arg->treelist_id );
 
-      /** we don't know the exact cost here */
+      /** We don't know the exact cost here */
       cost = 5.0;
-
-      /** high priority */
+      /** "High" priority */
       priority = true;
     };
 
@@ -4911,7 +4889,6 @@ class DistSkeletonizeTask : public hmlp::Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
-      /** try to enqueue if there is no dependency */
       this->TryEnqueue();
     };
 
@@ -4935,8 +4912,6 @@ class DistSkeletonizeTask : public hmlp::Task
 			/** Bcast isskel to every MPI processes in the same comm */
 			int isskel = arg->data.isskel;
 			mpi::Bcast( &isskel, 1, 0, comm );
-
-			/** update data.isskel */
 			arg->data.isskel = isskel;
 
       /** Bcast skels and proj to every MPI processes in the same comm */
@@ -4946,29 +4921,28 @@ class DistSkeletonizeTask : public hmlp::Task
       if ( skels.size() != nskels ) skels.resize( nskels );
       mpi::Bcast( skels.data(), skels.size(), 0, comm );
 
-      //auto &proj  = arg->data.proj;
-      //size_t nrow  = proj.row();
-      //size_t ncol  = proj.col();
-      //mpi::Bcast( &nrow, 1, 0, comm );
-      //mpi::Bcast( &ncol, 1, 0, comm );
-      //if ( proj.row() != nrow || proj.col() != ncol ) proj.resize( nrow, ncol );
-      //mpi::Bcast( proj.data(), proj.size(), 0, comm );
 
+      /** If neighbors were provided, then update the estimated prunning list. */
       if ( arg->setup->NN )
       {
         auto &pnids = arg->data.pnids;
         auto &NN = *(arg->setup->NN);
 
-        /** create the column distribution using cids */
+        /** Create the column distribution using cids */
         vector<size_t> cids;
         for ( size_t j = 0; j < skels.size(); j ++ )
-          if ( NN.HasColumn( skels[ j ] ) ) cids.push_back( j );
+        {
+          if ( NN.HasColumn( skels[ j ] ) ) 
+          {
+            cids.push_back( j );
+          }
+        }
 
-        /** create a k-by-nskels distributed matrix */
+        /** Create a k-by-nskels distributed matrix */
         DistData<STAR, CIDS, size_t> X_cids( NN.row(), nskels, cids, comm );
         DistData<CIRC, CIRC, size_t> X_circ( NN.row(), nskels,    0, comm );
 
-        /** redistribute from <STAR, CIDS> to <CIRC, CIRC> on rank-0 */
+        /** Redistribute from <STAR, CIDS> to <CIRC, CIRC> on rank-0 */
         X_circ = X_cids;
 
         if ( arg->GetCommRank() == 0 )
@@ -5363,6 +5337,7 @@ mpitree::Tree<
   double beg, omptask45_time, omptask_time, ref_time;
   double time_ratio, compress_time = 0.0, other_time = 0.0;
   double ann_time, tree_time, skel_time, mergefarnodes_time, cachefarnodes_time;
+  double local_skel_time, dist_skel_time; 
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
   double exchange_neighbor_time, symmetrize_time;
 
@@ -5377,11 +5352,11 @@ mpitree::Tree<
   }
   hmlp_set_num_background_worker( num_background_worker );
 
-	if ( rank == 0 )
-	{
+  if ( rank == 0 )
+  {
     printf( "Use %d/%d threads as background workers ...\n", 
-				num_background_worker, omp_get_max_threads() ); fflush( stdout );
-	}
+        num_background_worker, omp_get_max_threads() ); fflush( stdout );
+  }
 
 
 
@@ -5398,10 +5373,7 @@ mpitree::Tree<
   rkdt.setup.splitter = rkdtsplitter;
   pair<T, size_t> initNN( numeric_limits<T>::max(), n );
 
-  if ( rank == 0 ) 
-	{
-		printf( "NeighborSearch ...\n" ); fflush( stdout );
-	}
+  mpi::PrintProgress( "NeighborSearch ...\n", MPI_COMM_WORLD );
   beg = omp_get_wtime();
   if ( NN_cblk.row() != k )
   {
@@ -5411,10 +5383,7 @@ mpitree::Tree<
   }
   else
   {
-		if ( rank == 0 )
-		{
-      printf( "not performed (precomputed or k=0) ...\n" ); fflush( stdout );
-		}
+    mpi::PrintProgress( "Not performed (precomputed or k=0) ...\n", MPI_COMM_WORLD );
   }
   ann_time = omp_get_wtime() - beg;
 
@@ -5446,11 +5415,11 @@ mpitree::Tree<
 
 
 
-  /** initialize metric ball tree using approximate center split */
+  /** Initialize metric ball tree using approximate center split */
   auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
 	auto &tree = *tree_ptr;
 
-	/** global configuration for the metric tree */
+	/** Global configuration for the metric tree */
   tree.setup.X_cblk = X_cblk;
   tree.setup.K = &K;
 	tree.setup.metric = metric; 
@@ -5462,56 +5431,32 @@ mpitree::Tree<
   tree.setup.budget = budget;
   tree.setup.stol = stol;
 
-	/** metric ball tree partitioning */
-	if ( rank == 0  )
-	{
-    printf( "TreePartitioning ...\n" ); fflush( stdout );
-	}
+	/** Metric ball tree partitioning */
+  mpi::PrintProgress( "TreePartitioning ...\n", tree.comm ); 
   mpi::Barrier( tree.comm );
   beg = omp_get_wtime();
   tree.TreePartition( n );
   mpi::Barrier( tree.comm );
   tree_time = omp_get_wtime() - beg;
-	if ( rank == 0 )
-	{
-    printf( "end TreePartitioning ...\n" ); fflush( stdout );
-	}
+  mpi::PrintProgress( "End TreePartitioning ...\n", tree.comm ); 
   mpi::Barrier( tree.comm );
 
-  /** 
-   *  Now redistribute K. 
-   *
-   */
+  /** Now redistribute K. */
   K.Redistribute( true, tree.treelist[ 0 ]->gids );
-  if ( rank == 0 )
-  {
-    printf( "Finish redistribute K\n" ); fflush( stdout );
-  }
+  mpi::PrintProgress( "Finish redistribute K\n", tree.comm );
 
-
-
-  /** 
-   *  Now redistribute NN according to gids i.e.
-   *  NN[ *, CIDS ] = NN[ *, CBLK ];
-   */
+  /** Redistribute neighbors i.e. NN[ *, CIDS ] = NN[ *, CBLK ]; */
   DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, tree.comm );
   NN = NN_cblk;
   tree.setup.NN = &NN;
   beg = omp_get_wtime();
   ExchangeNeighbors<T>( tree );
   exchange_neighbor_time = omp_get_wtime() - beg;
-  if ( rank == 0 )
-  {
-    printf( "Finish redistribute neighbors\n" ); fflush( stdout );
-  }
+  mpi::PrintProgress( "Finish redistribute neighbors\n", tree.comm );
 
-
+  /** Construct near interaction lists */
   FindNearNodes<NODE>( tree );
-  if ( rank == 0 )
-  {
-    printf( "Finish NearSamplesTask\n" ); 
-    fflush( stdout );
-  }
+  mpi::PrintProgress( "Finish FindNearNodes\n", tree.comm );
 
 
   /**
@@ -5529,11 +5474,7 @@ mpitree::Tree<
   BuildInteractionListPerRank( tree, true );
   mpi::Barrier( tree.comm );
   symmetrize_time - omp_get_wtime() - beg;
-  if ( rank == 0 )
-  {
-    printf( "Finish SymmetrizeNearInteractions() ...\n" ); 
-    fflush( stdout );
-  }
+  mpi::PrintProgress( "Finish SymmetrizeNearInteractions() ...\n", tree.comm ); 
 
   /**
    *  TODO: need send and recv interaction lists for each rank
@@ -5561,11 +5502,8 @@ mpitree::Tree<
   tree.LocaTraverseUp( seqMERGEtask );
   hmlp_run();
   mpi::Barrier( tree.comm );
-  if ( rank == 0 )
-  {
-    printf( "Finish local MergeFarNodesTask\n" ); 
-    fflush( stdout );
-  }
+  mpi::PrintProgress( "Finish local MergeFarNodesTask\n", tree.comm ); 
+
 
   tree.DependencyCleanUp();
   tree.DistTraverseUp( mpiMERGEtask );
@@ -5605,7 +5543,7 @@ mpitree::Tree<
     fflush( stdout );
   }
 
-  /** skeletonization */
+  /** Skeletonization */
 	mpi::Barrier( tree.comm );
 	if ( rank == 0 )
 	{
@@ -5621,23 +5559,23 @@ mpitree::Tree<
   mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
   mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
   tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
-  hmlp_run();
-  mpi::Barrier( tree.comm );
-  if ( rank == 0 )
-  {
-    printf( "Finish Local Skeletonization\n" ); 
-    fflush( stdout );
-  }
-  tree.DependencyCleanUp();
+  //hmlp_run();
+  //mpi::Barrier( tree.comm );
+  //if ( rank == 0 )
+  //{
+  //  printf( "Finish Local Skeletonization\n" ); 
+  //  fflush( stdout );
+  //}
+  //tree.DependencyCleanUp();
 
   tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-  hmlp_run();
-  mpi::Barrier( tree.comm );
-  if ( rank == 0 )
-  {
-    printf( "Finish Distributed Skeletonization\n" ); fflush( stdout );
-  }
-  tree.DependencyCleanUp();
+  //hmlp_run();
+  //mpi::Barrier( tree.comm );
+  //if ( rank == 0 )
+  //{
+  //  printf( "Finish Distributed Skeletonization\n" ); fflush( stdout );
+  //}
+  //tree.DependencyCleanUp();
 
   /** Compute the coefficient matrix of ID */
   gofmm::InterpolateTask<NODE, T> seqPROJtask;
@@ -5647,12 +5585,7 @@ mpitree::Tree<
   hmlp_run();
   mpi::Barrier( tree.comm );
   skel_time = omp_get_wtime() - beg;
-  if ( rank == 0 )
-  {
-    printf( "Finish Interpolation\n" ); 
-    fflush( stdout );
-  }
-
+  mpi::PrintProgress( "Finish Interpolation\n", tree.comm ); 
 
 
   /** Exchange {skels} and {params(skels)}  */
@@ -5715,10 +5648,10 @@ mpitree::Tree<
 
 
 
-  /** cleanup all w/r dependencies on tree nodes */
+  /** Cleanup all w/r dependencies on tree nodes */
   tree_ptr->DependencyCleanUp();
 
-  /** global barrier to make sure all processes have completed */
+  /** Global barrier to make sure all processes have completed */
   mpi::Barrier( tree.comm );
 
 

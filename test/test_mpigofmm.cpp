@@ -55,6 +55,8 @@
 #include <containers/VirtualMatrix.hpp>
 /** use an implicit PVFMM kernel matrix */
 #include <containers/PVFMMKernelMatrix.hpp>
+/** Use an implicit Gauss-Newton (multilevel perceptron) matrix */
+#include <containers/MLPGaussNewton.hpp>
 
 
 #include <mpi/DistData.hpp>
@@ -624,23 +626,46 @@ int main( int argc, char *argv[] )
 
 
 
-  /** create a random spd matrix, which is diagonal-dominant */
+  /** Create a random spd matrix, which is diagonal-dominant */
   if ( !spdmatrix_type.compare( "pvfmm" ) )
   {
     using T = double;
     {
-      /** no geometric coordinates provided */
+      /** No geometric coordinates provided */
       DistData<STAR, CBLK, T> *X = NULL;
-      /** dense spd matrix format */
+      /** Dense spd matrix format */
       PVFMMKernelMatrix<T> K( n, n );
-      /** (optional) provide neighbors, leave uninitialized otherwise */
+      /** (Optional) provide neighbors, leave uninitialized otherwise */
       DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
-      /** routine */
+      /** Routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     }
 	}
 
+
+  if ( !spdmatrix_type.compare( "mlp" ) )
+  {
+    using T = float;
+    {
+      /** No geometric coordinates provided */
+      DistData<STAR, CBLK, T> *X = NULL;
+      /** Multilevel perceptron Gauss-Newton */
+      MLPGaussNewton<T> K;
+
+      /** Create an input layer */
+      Layer<INPUT, T> layer_input();
+      /** Create FC layers */
+      Layer<FC, T> layer_fc0();
+
+
+
+
+
+      /** (Optional) provide neighbors, leave uninitialized otherwise */
+      DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
+    }
+  }
 
 
 

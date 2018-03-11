@@ -27,15 +27,18 @@
 #include <pvfmm/kernel_matrix.hpp>
 
 
-/** Inherit VirtualMatrix.hpp */
 #include <containers/Cache.hpp>
+/** PVFMMKernelMatrix<T> uses VirtualMatrix<T> as base */
 #include <containers/VirtualMatrix.hpp>
+/** For GOFMM compatability */
+#include <containers/SPDMatrix.hpp>
 
 namespace hmlp
 {
 
 template <typename T> 
-class PVFMMKernelMatrix : public VirtualMatrix<T>
+class PVFMMKernelMatrix : public VirtualMatrix<T>,
+                          public SPDMatrixMPISupport<T>
 {
 
   public:
