@@ -64,16 +64,18 @@ budget=0.05
 #distance="kernel"
 distance="angle"
 #distance="geometry"
-## spdmatrix type (testsuit, dense, ooc, kernel, userdefine)
+## spdmatrix type (testsuit, dense, ooc, mlp, kernel, userdefine)
 #matrixtype="dense"
 #matrixtype="ooc"
-matrixtype="kernel"
+matrixtype="mlp"
+#matrixtype="kernel"
 #matrixtype="testsuit"
 #matrixtype="pvfmm"
 ## kernelmatrix type (gaussian, laplace)
 kerneltype="gaussian"
 #kerneltype="laplace"
-
+## hidden layer configuration (512-512-512)
+hiddenlayer="512-512-512"
 
 
 # ======= Do not change anything below this line ========
@@ -139,6 +141,12 @@ if [[ "$matrixtype" == "ooc" ]] ; then
 		echo "@STATUS"
 		echo $status
 	done
+fi
+
+if [[ "$matrixtype" == "mlp" ]] ; then
+  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $hiddenlayer $points $d $h; status=$?
+  echo "@STATUS"
+  echo $status
 fi
 
 if [[ "$matrixtype" == "kernel" ]] ; then

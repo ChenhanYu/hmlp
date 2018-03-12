@@ -149,24 +149,19 @@ class Data : public ReadWrite, public vector<T, Allocator>
     /** Default constructor */
     Data() : m( 0 ), n( 0 ) {};
 
-    Data( size_t m, size_t n ) 
-    : 
-    vector<T, Allocator>( m * n )
+    Data( size_t m, size_t n ) : vector<T, Allocator>( m * n )
     { 
       this->m = m;
       this->n = n;
     };
 
-    Data( size_t m, size_t n, T initT ) 
-    : 
-    vector<T, Allocator>( m * n, initT )
+    Data( size_t m, size_t n, T initT ) : vector<T, Allocator>( m * n, initT )
     { 
       this->m = m;
       this->n = n;
     };
 
-    Data( size_t m, size_t n, string &filename ) 
-      : vector<T, Allocator>( m * n )
+    Data( size_t m, size_t n, string &filename ) : vector<T, Allocator>( m * n )
     {
       this->m = m;
       this->n = n;
@@ -192,7 +187,7 @@ class Data : public ReadWrite, public vector<T, Allocator>
       vector<T, Allocator>::reserve( m * n );
     };
 
-    void read( std::size_t m, std::size_t n, string &filename )
+    void read( size_t m, size_t n, string &filename )
     {
       assert( this->m == m );
       assert( this->n == n );

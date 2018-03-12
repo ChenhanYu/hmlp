@@ -50,6 +50,8 @@
 #include <containers/KernelMatrix.hpp>
 /** use an implicit matrix */
 #include <containers/VirtualMatrix.hpp>
+/** Use an implicit Gauss-Newton (multilevel perceptron) matrix */
+#include <containers/MLPGaussNewton.hpp>
 
 
 #ifdef HMLP_USE_CUDA
@@ -332,104 +334,12 @@ int main( int argc, char *argv[] )
   size_t n, m, d, k, s, nrhs;
   double stol, budget;
 
-//	/** (optional) */
-//  size_t nnz; 
-//	std::string distance_type;
-//	std::string spdmatrix_type;
-//  std::string user_matrix_filename;
-//  std::string user_points_filename;
-//
-//  /** (optional) set the default Gaussian kernel bandwidth */
-//  float h = 1.0;
-//
-//  /** number of columns and rows, i.e. problem size */
-//  sscanf( argv[ 1 ], "%lu", &n );
-//
-//  /** on-diagonal block size, such that the tree has log(n/m) levels */
-//  sscanf( argv[ 2 ], "%lu", &m );
-//
-//  /** number of neighbors to use */
-//  sscanf( argv[ 3 ], "%lu", &k );
-//
-//  /** maximum off-diagonal ranks */
-//  sscanf( argv[ 4 ], "%lu", &s );
-//
-//  /** number of right hand sides */
-//  sscanf( argv[ 5 ], "%lu", &nrhs );
-//
-//  /** desired approximation accuracy */
-//  sscanf( argv[ 6 ], "%lf", &stol );
-//
-//  /** the maximum percentage of direct matrix-multiplication */
-//  sscanf( argv[ 7 ], "%lf", &budget );
-//
-//	/** specify distance type */
-//	distance_type = argv[ 8 ];
-//
-//	if ( !distance_type.compare( "geometry" ) )
-//	{
-//    metric = GEOMETRY_DISTANCE;
-//	}
-//	else if ( !distance_type.compare( "kernel" ) )
-//	{
-//    metric = KERNEL_DISTANCE;
-//	}
-//	else if ( !distance_type.compare( "angle" ) )
-//	{
-//    metric = ANGLE_DISTANCE;
-//	}
-//	else
-//	{
-//		printf( "%s is not supported\n", argv[ 9 ] );
-//		exit( 1 );
-//	}
-//
-//
-//	/** specify what kind of spdmatrix is used */
-//  spdmatrix_type = argv[ 9 ];
-//
-//	if ( !spdmatrix_type.compare( "testsuit" ) )
-//	{
-//		/** do nothing */
-//	}
-//	else if ( !spdmatrix_type.compare( "userdefine" ) )
-//	{
-//		/** do nothing */
-//	}
-//	else if ( !spdmatrix_type.compare( "dense" ) )
-//	{
-//    /** (optional) provide the path to the matrix file */
-//    user_matrix_filename = argv[ 10 ];
-//    if ( argc > 11 ) 
-//    {
-//      /** (optional) provide the path to the data file */
-//      user_points_filename = argv[ 11 ];
-//		  /** dimension of the data set */
-//      sscanf( argv[ 12 ], "%lu", &d );
-//    }
-//	}
-//	else if ( !spdmatrix_type.compare( "kernel" ) )
-//	{
-//    user_points_filename = argv[ 10 ];
-//		/** number of attributes (dimensions) */
-//    sscanf( argv[ 11 ], "%lu", &d );
-//		/** (optional) provide Gaussian kernel bandwidth */
-//    if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
-//	}
-//	else
-//	{
-//		printf( "%s is not supported\n", argv[ 9 ] );
-//		exit( 1 );
-//	}
-
-
-
-
   /** (Optional) */
   size_t nnz; 
   string distance_type;
   string spdmatrix_type;
   string kernelmatrix_type;
+  string hidden_layers;
   string user_matrix_filename;
   string user_points_filename;
 
@@ -505,6 +415,13 @@ int main( int argc, char *argv[] )
       sscanf( argv[ 12 ], "%lu", &d );
     }
   }
+  else if ( !spdmatrix_type.compare( "mlp" ) )
+  {
+    hidden_layers = argv[ 10 ];
+    user_points_filename = argv[ 11 ];
+    /** Number of attributes (dimensions) */
+    sscanf( argv[ 12 ], "%lu", &d );
+  }
   else if ( !spdmatrix_type.compare( "kernel" ) )
   {
     kernelmatrix_type = argv[ 10 ];
@@ -531,9 +448,9 @@ int main( int argc, char *argv[] )
 
   /** Message Passing Interface */
   int size = -1, rank = -1;
-  hmlp::mpi::Init( &argc, &argv );
-  hmlp::mpi::Comm_size( MPI_COMM_WORLD, &size );
-  hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
+  mpi::Init( &argc, &argv );
+  mpi::Comm_size( MPI_COMM_WORLD, &size );
+  mpi::Comm_rank( MPI_COMM_WORLD, &rank );
   printf( "size %d rank %d\n", size, rank );
 
   /** HMLP API call to initialize the runtime */
@@ -574,19 +491,19 @@ int main( int argc, char *argv[] )
   {
     using T = double;
     {
-      /** read the coordinates from the file */
-      hmlp::Data<T> X( d, n, user_points_filename );
+      /** Read the coordinates from the file. */
+      Data<T> X( d, n, user_points_filename );
 
-      /** setup the kernel object as Gaussian */
+      /** Set the kernel object as Gaussian. */
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
 
-      /** spd kernel matrix format (implicitly create) */
-      hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
+      /** SPD kernel matrix format (implicitly create) */
+      KernelMatrix<T> K( n, n, d, kernel, X );
 
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
+      /** (Optional) provide neighbors, leave uninitialized otherwise */
+      Data<pair<T, size_t>> NN;
 
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
@@ -631,9 +548,9 @@ int main( int argc, char *argv[] )
     using T = double;
     {
       /** no geometric coordinates provided */
-      hmlp::Data<T> *X = NULL;
+      Data<T> *X = NULL;
       /** dense spd matrix format */
-      hmlp::gofmm::SPDMatrix<T> K;
+      gofmm::SPDMatrix<T> K;
       K.resize( n, n );
       /** random spd initialization */
       K.randspd<USE_LOWRANK>( 0.0, 1.0 );
@@ -684,6 +601,36 @@ int main( int argc, char *argv[] )
 //      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
 //    }
 //  }
+
+
+
+
+  if ( !spdmatrix_type.compare( "mlp" ) )
+  {
+    using T = double;
+    {
+      /** Read the coordinates from the file. */
+      Data<T> X( d, n, user_points_filename );
+      /** Multilevel perceptron Gauss-Newton */
+      MLPGaussNewton<T> K;
+      /** Create an input layer */
+      Layer<INPUT, T> layer_input( d, n );
+      /** Create FC layers */
+      Layer<FC, T> layer_fc0( 256, n, layer_input );
+      Layer<FC, T> layer_fc1( 256, n, layer_fc0 );
+      Layer<FC, T> layer_fc2( 256, n, layer_fc1 );
+      /** Insert layers into  */
+      K.AppendInputLayer( layer_input );
+      K.AppendFCLayer( layer_fc0 );
+      K.AppendFCLayer( layer_fc1 );
+      K.AppendFCLayer( layer_fc2 );
+      /** Feed forward and compute all products */
+      K.Update( X );
+    }
+  }
+
+
+
 
 
   /** HMLP API call to terminate the runtime */

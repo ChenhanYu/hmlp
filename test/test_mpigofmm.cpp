@@ -357,6 +357,7 @@ int main( int argc, char *argv[] )
   string distance_type;
   string spdmatrix_type;
   string kernelmatrix_type;
+  string hidden_layers;
   string user_matrix_filename;
   string user_points_filename;
 
@@ -432,6 +433,13 @@ int main( int argc, char *argv[] )
       /** Dimension of the data set */
       sscanf( argv[ 12 ], "%lu", &d );
     }
+  }
+  else if ( !spdmatrix_type.compare( "mlp" ) )
+  {
+    hidden_layers = argv[ 10 ];
+    user_points_filename = argv[ 11 ];
+    /** Number of attributes (dimensions) */
+    sscanf( argv[ 12 ], "%lu", &d );
   }
   else if ( !spdmatrix_type.compare( "kernel" ) )
   {
@@ -646,21 +654,25 @@ int main( int argc, char *argv[] )
 
   if ( !spdmatrix_type.compare( "mlp" ) )
   {
-    using T = float;
+    using T = double;
     {
-      /** No geometric coordinates provided */
-      DistData<STAR, CBLK, T> *X = NULL;
+      /** Read the coordinates from the file. */
+      Data<T> X( d, n, user_points_filename );
       /** Multilevel perceptron Gauss-Newton */
       MLPGaussNewton<T> K;
-
       /** Create an input layer */
-      Layer<INPUT, T> layer_input();
+      Layer<INPUT, T> layer_input( d, n );
       /** Create FC layers */
-      Layer<FC, T> layer_fc0();
-
-
-
-
+      Layer<FC, T> layer_fc0( 256, n, layer_input );
+      Layer<FC, T> layer_fc1( 256, n, layer_fc0 );
+      Layer<FC, T> layer_fc2( 256, n, layer_fc1 );
+      /** Insert layers into  */
+      K.AppendInputLayer( layer_input );
+      K.AppendFCLayer( layer_fc0 );
+      K.AppendFCLayer( layer_fc1 );
+      K.AppendFCLayer( layer_fc2 );
+      /** Feed forward and compute all products */
+      K.Update( X );
 
       /** (Optional) provide neighbors, leave uninitialized otherwise */
       DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );

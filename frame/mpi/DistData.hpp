@@ -211,8 +211,6 @@ template<Distribution_t ROWDIST, Distribution_t COLDIST, class T, class Allocato
 class DistData : public DistDataBase<T, Allocator>
 {
   public:
-
-
   private:
 };
 
