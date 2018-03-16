@@ -1605,117 +1605,131 @@ class DistSkeletonsToSkeletonsTask : public Task
 }; /** end class DistSkeletonsToSkeletonsTask */
 
 
-template<typename NODE, typename T>
-void S2S( NODE *node, int p, Lock *lock )
-{
-  if ( !node->parent || !node->data.isskel ) return;
-  if ( !node->DistFar[ p ].size() ) return;
-
-  auto &K = *node->setup->K;
-  auto &I = node->data.skels;
-  size_t nrhs = node->setup->w->col();
-
-  /** Temporary buffer */
-  Data<T> u( I.size(), nrhs, 0.0 );
-
-  for ( auto it : node->DistFar[ p ] )
-  {
-    auto *src = (*node->morton2node)[ it ];
-    auto &J = src->data.skels;
-    auto &w = src->data.w_skel;
-    auto KIJ = K( I, J );
-    assert( w.col() == nrhs );
-    assert( w.row() == J.size() );
-    xgemm
-    (
-      "N", "N", u.row(), u.col(), w.row(),
-      1.0, KIJ.data(), KIJ.row(),
-             w.data(),   w.row(),
-      1.0,   u.data(),   u.row()
-    );
-  }
-
-  lock->Acquire();
-  {
-    auto &u_skel = node->data.u_skel;
-    for ( int i = 0; i < u.size(); i ++ ) u_skel[ i ] += u[ i ];
-  }
-  lock->Release();
-};
-
-
-template<typename NODE, typename T>
-class S2STask : public Task
+template<typename NODE, typename LETNODE, typename T>
+class S2STask2 : public Task
 {
   public:
 
     NODE *arg = NULL;
+
+    vector<LETNODE*> Sources;
 
     int p = 0;
 
     Lock *lock = NULL;
 
-    void Set( NODE *user_arg, int user_p, Lock *user_lock )
+    void Set( NODE *user_arg, vector<LETNODE*> user_src, int user_p, Lock *user_lock )
     {
+      assert( user_arg && user_lock );
       arg = user_arg;
+      Sources = user_src;
       p = user_p;
       lock = user_lock;
+      name = string( "S2S" );
+      label = to_string( arg->treelist_id );
 
       /** Compute FLOPS and MOPS */
       double flops = 0.0, mops = 0.0;
       size_t nrhs = arg->setup->w->col();
       size_t m = arg->data.skels.size();
-      for ( auto it : arg->DistFar[ p ] )
+      for ( auto src : Sources )
       {
-        auto *tar = (*arg->morton2node)[ it ];
-        size_t k = tar->data.skels.size();
+        size_t k = src->data.skels.size();
         flops += 2 * m * k * nrhs;
         mops  += 2 * ( m * k + ( m + k ) * nrhs );
+        flops += 2 * m * nrhs;
+        flops += m * k * ( 2 * 6 + 100 );
       }
       /** Setup the event */
       event.Set( label + name, flops, mops );
       /** Assume computation bound */
       cost = flops / 1E+9;
+      /** Assume computation bound */
+      if ( arg->treelist_id == 0 ) priority = true;
     };
 
     void DependencyAnalysis()
     {
       int rank; mpi::Comm_rank( MPI_COMM_WORLD, &rank );
-
       if ( p == rank )
       {
-        for ( auto it : arg->DistFar[ p ] )
-        {
-          auto *tar = (*arg->morton2node)[ it ];
-          tar->DependencyAnalysis( R, this );
-        }
+        for ( auto src : Sources ) src->DependencyAnalysis( R, this );
       }
       else hmlp_msg_dependency_analysis( 306, p, R, this );
-
       this->TryEnqueue();
     };
 
     void Execute( Worker* user_worker )
     {
-      S2S<NODE, T>( arg, p, lock );
+      auto *node = arg;
+      if ( !node->parent || !node->data.isskel ) return;
+      size_t nrhs = node->setup->w->col();
+      auto &K = *node->setup->K;
+      auto &I = node->data.skels;
+
+      /** Temporary buffer */
+      Data<T> u( I.size(), nrhs, 0.0 );
+
+      for ( auto src : Sources )
+      {
+        auto &J = src->data.skels;
+        auto &w = src->data.w_skel;
+        bool is_cached = true;
+
+        auto &KIJ = node->DistFar[ p ][ src->morton ];
+        if ( KIJ.row() != I.size() || KIJ.col() != J.size() ) 
+        {
+          //printf( "KIJ %lu %lu I %lu J %lu\n", KIJ.row(), KIJ.col(), I.size(), J.size() );
+          KIJ = K( I, J );
+          is_cached = false;
+        }
+
+        assert( w.col() == nrhs );
+        assert( w.row() == J.size() );
+        xgemm
+        (
+          "N", "N", u.row(), u.col(), w.row(),
+          1.0, KIJ.data(), KIJ.row(),
+                 w.data(),   w.row(),
+          1.0,   u.data(),   u.row()
+        );
+
+        /** Free KIJ, if !is_cached. */
+        if ( !is_cached ) 
+        {
+          KIJ.resize( 0, 0 );
+          KIJ.shrink_to_fit();
+        }
+      }
+
+      lock->Acquire();
+      {
+        auto &u_skel = node->data.u_skel;
+        for ( int i = 0; i < u.size(); i ++ ) 
+          u_skel[ i ] += u[ i ];
+      }
+      lock->Release();
     };
 }; 
 
-
-template<typename NODE, typename T>
-class S2SReduceTask : public Task
+template<typename NODE, typename LETNODE, typename T>
+class S2SReduceTask2 : public Task
 {
   public:
 
     NODE *arg = NULL;
 
-    vector<S2STask<NODE, T>*> subtasks;
+    vector<S2STask2<NODE, LETNODE, T>*> subtasks;
 
     Lock lock;
+
+    const size_t batch_size = 2;
 
     void Set( NODE *user_arg )
     {
       arg = user_arg;
+      name = string( "S2SR" );
+      label = to_string( arg->treelist_id );
 
       /** Reset u_skel */
       if ( arg ) 
@@ -1726,15 +1740,38 @@ class S2SReduceTask : public Task
         arg->data.u_skel.resize( I.size(), nrhs, 0 );
       }
 
+      /** Create subtasks */
       int size; mpi::Comm_size( MPI_COMM_WORLD, &size );
-
       for ( int p = 0; p < size; p ++ )
       {
-        subtasks.push_back( new S2STask<NODE, T>() );
-        subtasks[ p ]->Submit();
-        subtasks[ p ]->Set( user_arg, p, &lock );
-        subtasks[ p ]->DependencyAnalysis();
+        vector<LETNODE*> Sources;
+        for ( auto &it : arg->DistFar[ p ] )
+        {
+          Sources.push_back( (*arg->morton2node)[ it.first ] );
+          if ( Sources.size() == batch_size )
+          {
+            subtasks.push_back( new S2STask2<NODE, LETNODE, T>() );
+            subtasks.back()->Submit();
+            subtasks.back()->Set( user_arg, Sources, p, &lock );
+            subtasks.back()->DependencyAnalysis();
+            Sources.clear();
+          }
+        }
+        if ( Sources.size() )
+        {
+          subtasks.push_back( new S2STask2<NODE, LETNODE, T>() );
+          subtasks.back()->Submit();
+          subtasks.back()->Set( user_arg, Sources, p, &lock );
+          subtasks.back()->DependencyAnalysis();
+          Sources.clear();
+        }
       }
+      /** Compute FLOPS and MOPS. */
+      double flops = 0, mops = 0;
+      /** Setup the event */
+      event.Set( label + name, flops, mops );
+      /** Assume computation bound */
+      priority = true;
     };
 
     void DependencyAnalysis()
@@ -1745,11 +1782,16 @@ class S2SReduceTask : public Task
       this->TryEnqueue();
     };
 
-    void Execute( Worker* user_worker )
-    {
-      /** Place holder */
-    };
+    void Execute( Worker* user_worker ) { /** Place holder */ };
 };
+
+
+
+
+
+
+
+
 
 
 
@@ -1948,8 +1990,8 @@ class DistSkeletonsToNodesTask : public Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = string( "DistS2N" );
-      label = to_string( arg->treelist_id );
+      name = string( "PS2N" );
+      label = to_string( arg->l );
 
       double flops = 0.0, mops = 0.0;
       auto &gids = arg->gids;
@@ -2038,143 +2080,194 @@ class DistSkeletonsToNodesTask : public Task
 }; /** end class DistSkeletonsToNodesTask */
 
 
-template<typename NODE, typename T>
-void L2L( NODE *node, int p, Lock *lock )
-{
-  if ( !node->DistNear[ p ].size() ) return;
-
-  auto &K = *node->setup->K;
-  auto &I = node->gids;
-  size_t nrhs = node->setup->w->col();
-
-  /** Temporary buffer */
-  Data<T> u( I.size(), nrhs, 0.0 );
-
-  for ( auto it : node->DistNear[ p ] )
-  {
-    auto *src = (*node->morton2node)[ it ];
-    auto &J = src->gids;
-    auto KIJ = K( I, J );
-    /** Get W view of this treenode. (available for non-LET nodes) */
-    View<T> &W = src->data.w_view;
-    auto &w = src->data.w_leaf;
-
-    if ( W.col() == nrhs )
-    {
-      assert( W.row() == J.size() );
-      xgemm
-      (
-        "N", "N", u.row(), u.col(), W.row(),
-        1.0, KIJ.data(), KIJ.row(),
-               W.data(),   W.ld(),
-        1.0,   u.data(),   u.row()
-      );
-    }
-    else
-    {
-      xgemm
-      (
-        "N", "N", u.row(), u.col(), w.row(),
-        1.0, KIJ.data(), KIJ.row(),
-               w.data(),   w.row(),
-        1.0,   u.data(),   u.row()
-      );
-    }
-  }
-
-  lock->Acquire();
-  {
-    /** Get U view of this treenode. */
-    View<T> &U = node->data.u_view;
-    for ( int j = 0; j < u.col(); j ++ )
-      for ( int i = 0; i < u.row(); i ++ ) 
-        U( i, j ) += u( i, j );
-  }
-  lock->Release();
-};
-
 
 template<typename NODE, typename T>
-class L2LTask : public Task
+class L2LTask2 : public Task
 {
   public:
 
     NODE *arg = NULL;
 
+    /** A list of source node pointers */
+    vector<NODE*> Sources;
+
+
+
     int p = 0;
 
+    /** Write lock */
     Lock *lock = NULL;
 
-    void Set( NODE *user_arg, int user_p, Lock *user_lock )
+    void Set( NODE *user_arg, vector<NODE*> user_src, int user_p, Lock *user_lock )
     {
       arg = user_arg;
+      Sources = user_src;
       p = user_p;
       lock = user_lock;
+      name = string( "L2L" );
+      label = to_string( arg->treelist_id );
 
-      /** Compute FLOPS and MOPS */
+      /** Compute FLOPS and MOPS. */
       double flops = 0.0, mops = 0.0;
       size_t nrhs = arg->setup->w->col();
       size_t m = arg->gids.size();
-      for ( auto it : arg->DistNear[ p ] )
+      for ( auto src : Sources )
       {
-        auto *tar = (*arg->morton2node)[ it ];
-        size_t k = tar->gids.size();
+        size_t k = src->gids.size();
         flops += 2 * m * k * nrhs;
         mops  += 2 * ( m * k + ( m + k ) * nrhs );
+        flops += 2 * m * nrhs;
+        flops += m * k * ( 2 * 6 + 100 );
       }
       /** Setup the event */
       event.Set( label + name, flops, mops );
       /** Assume computation bound */
       cost = flops / 1E+9;
+      /** "LOW" priority */
+      priority = false;
     };
 
     void DependencyAnalysis()
     {
       int rank; mpi::Comm_rank( MPI_COMM_WORLD, &rank );
-
-      if ( p == rank )
+      if ( p == rank ) 
       {
-        for ( auto it : arg->DistNear[ p ] )
-        {
-          auto *tar = (*arg->morton2node)[ it ];
-          tar->DependencyAnalysis( R, this );
-        }
+        for ( auto src : Sources ) src->DependencyAnalysis( R, this );
       }
       else hmlp_msg_dependency_analysis( 300, p, R, this );
-
       this->TryEnqueue();
     };
 
     void Execute( Worker* user_worker )
     {
-      L2L<NODE, T>( arg, p, lock );
+      auto *node = arg;
+      size_t nrhs = node->setup->w->col();
+      auto &K = *node->setup->K;
+      auto &I = node->gids;
+
+      double beg = omp_get_wtime();
+      /** Temporary buffer */
+      Data<T> u( I.size(), nrhs, 0.0 );
+      size_t k;
+
+      for ( auto src : Sources )
+      {
+        /** Get W view of this treenode. (available for non-LET nodes) */
+        View<T> &W = src->data.w_view;
+        Data<T> &w = src->data.w_leaf;
+        
+        bool is_cached = true;
+        auto &J = src->gids;
+        auto &KIJ = node->DistNear[ p ][ src->morton ];
+        if ( KIJ.row() != I.size() || KIJ.col() != J.size() ) 
+        {
+          KIJ = K( I, J );
+          is_cached = false;
+        }
+
+        if ( W.col() == nrhs && W.row() == J.size() )
+        {
+          k += W.row();
+          xgemm
+          (
+            "N", "N", u.row(), u.col(), W.row(),
+            1.0, KIJ.data(), KIJ.row(),
+                   W.data(),   W.ld(),
+            1.0,   u.data(),   u.row()
+          );
+        }
+        else
+        {
+          k += w.row();
+          xgemm
+          (
+            "N", "N", u.row(), u.col(), w.row(),
+            1.0, KIJ.data(), KIJ.row(),
+                   w.data(),   w.row(),
+            1.0,   u.data(),   u.row()
+          );
+        }
+
+        /** Free KIJ, if !is_cached. */
+        if ( !is_cached ) 
+        {
+          KIJ.resize( 0, 0 );
+          KIJ.shrink_to_fit();
+        }
+      }
+
+      double lock_beg = omp_get_wtime();
+      lock->Acquire();
+      {
+        /** Get U view of this treenode. */
+        View<T> &U = node->data.u_view;
+        for ( int j = 0; j < u.col(); j ++ )
+          for ( int i = 0; i < u.row(); i ++ )
+            U( i, j ) += u( i, j );
+      }
+      lock->Release();
+      double lock_time = omp_get_wtime() - lock_beg;
+
+      double gemm_time = omp_get_wtime() - beg;
+      double GFLOPS = 2.0 * u.row() * u.col() * k / ( 1E+9 * gemm_time );
+      //printf( "GEMM %4lu %4lu %4lu %lf GFLOPS, lock(%lf/%lf)\n", 
+      //    u.row(), u.col(), k, GFLOPS, lock_time, gemm_time ); fflush( stdout );
     };
-}; 
+};
+
+
+
 
 template<typename NODE, typename T>
-class L2LReduceTask : public Task
+class L2LReduceTask2 : public Task
 {
   public:
 
     NODE *arg = NULL;
 
-    vector<L2LTask<NODE, T>*> subtasks;
+    vector<L2LTask2<NODE, T>*> subtasks;
 
     Lock lock;
+
+    const size_t batch_size = 2;
 
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-
+      name = string( "L2LR" );
+      label = to_string( arg->treelist_id );
+      /** Create subtasks */
       int size; mpi::Comm_size( MPI_COMM_WORLD, &size );
-
       for ( int p = 0; p < size; p ++ )
       {
-        subtasks.push_back( new L2LTask<NODE, T>() );
-        subtasks[ p ]->Submit();
-        subtasks[ p ]->Set( user_arg, p, &lock );
-        subtasks[ p ]->DependencyAnalysis();
+        vector<NODE*> Sources;
+        for ( auto &it : arg->DistNear[ p ] )
+        {
+          Sources.push_back( (*arg->morton2node)[ it.first ] );
+          if ( Sources.size() == batch_size )
+          {
+            subtasks.push_back( new L2LTask2<NODE, T>() );
+            subtasks.back()->Submit();
+            subtasks.back()->Set( user_arg, Sources, p, &lock );
+            subtasks.back()->DependencyAnalysis();
+            Sources.clear();
+          }
+        }
+        if ( Sources.size() )
+        {
+          subtasks.push_back( new L2LTask2<NODE, T>() );
+          subtasks.back()->Submit();
+          subtasks.back()->Set( user_arg, Sources, p, &lock );
+          subtasks.back()->DependencyAnalysis();
+          Sources.clear();
+        }
       }
+      /** Compute FLOPS and MOPS */
+      double flops = 0, mops = 0;
+      /** Setup the event */
+      event.Set( label + name, flops, mops );
+      /** "LOW" priority (critical path) */
+      priority = false;
     };
 
     void DependencyAnalysis()
@@ -2184,8 +2277,26 @@ class L2LReduceTask : public Task
       this->TryEnqueue();
     };
 
-    void Execute( Worker* user_worker ) { /** Place holder */ };
+    void Execute( Worker* user_worker ) {};
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2827,7 +2938,7 @@ void SymmetrizeFarInteractions( TREE & tree )
  *    RecvNNNear[ rank ][ remote morton ] = offset in rbuff
  *
  */ 
-template<typename TREE>
+template<typename T, typename TREE>
 void BuildInteractionListPerRank( TREE &tree, bool is_near )
 {
   /** MPI */
@@ -2863,7 +2974,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
             list[ dest ].insert( node->morton );
             node->data.NearDependents.insert( dest );
           }
-          node->DistNear[ dest ].insert( *it );
+          node->DistNear[ dest ][ *it ] = Data<T>();
         }
       } /** end pramga omp for */
 
@@ -2945,7 +3056,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
             //node->data.FarDependents.insert( tree.FarRecvFrom.data() + dest );
             node->data.FarDependents.insert( dest );
           }
-          node->DistFar[ dest ].insert( *it );
+          node->DistFar[ dest ][ *it ] = Data<T>();
         }
       }
 
@@ -2969,7 +3080,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
               //node->data.FarDependents.insert( tree.FarRecvFrom.data() + dest );
               node->data.FarDependents.insert( dest );
             }
-            node->DistFar[ dest ].insert( *it );
+            node->DistFar[ dest ][ *it ]  = Data<T>();
           }
         }
       }
@@ -3034,6 +3145,8 @@ void PackNear( TREE &tree, string option, int p,
     vector<size_t> &sendskels, 
     vector<T> &sendbuffs )
 {
+  vector<size_t> offsets( 1, 0 );
+
   for ( auto it : tree.NearSentToRank[ p ] )
   {
     auto *node = tree.morton2node[ it ];
@@ -3046,21 +3159,42 @@ void PackNear( TREE &tree, string option, int p,
     else
     {
       auto &w_view = node->data.w_view;
-      auto  w_leaf = w_view.toData();
-      //printf( "%d send w_leaf to %d [%lu %lu]\n", comm_rank, p, w_leaf.row(), w_leaf.col() );
+      //auto  w_leaf = w_view.toData();
+      ////printf( "%d send w_leaf to %d [%lu %lu]\n", comm_rank, p, w_leaf.row(), w_leaf.col() );
 
-      if ( !w_leaf.size() )
-      {
-        printf( "send w_leaf to %d [%lu %lu] gids %lu\n", 
-            p, w_leaf.row(), w_leaf.col(), gids.size() );
-        fflush( stdout );
-      }
+      //if ( !w_leaf.size() )
+      //{
+      //  printf( "send w_leaf to %d [%lu %lu] gids %lu\n", 
+      //      p, w_leaf.row(), w_leaf.col(), gids.size() );
+      //  fflush( stdout );
+      //}
 
-      sendsizes.push_back( w_leaf.size() );
-      sendbuffs.insert( sendbuffs.end(), w_leaf.begin(), w_leaf.end() );
-      //printf( "Exchange leafweights not yet implemented\n" );
+      //sendsizes.push_back( w_leaf.size() );
+      //sendbuffs.insert( sendbuffs.end(), w_leaf.begin(), w_leaf.end() );
+
+
+      sendsizes.push_back( gids.size() * w_view.col() );
+      offsets.push_back( sendsizes.back() + offsets.back() );
     }
   }
+
+  if ( offsets.size() ) sendbuffs.resize( offsets.back() );
+
+  if ( !option.compare( string( "leafweights" ) ) )
+  {
+    #pragma omp parallel for
+    for ( size_t i = 0; i < tree.NearSentToRank[ p ].size(); i ++ )
+    {
+      auto *node = tree.morton2node[ tree.NearSentToRank[ p ][ i ] ];
+      auto &gids = node->gids;
+      auto &w_view = node->data.w_view;
+      auto  w_leaf = w_view.toData();
+      size_t offset = offsets[ i ];
+      for ( size_t j = 0; j < w_leaf.size(); j ++ ) 
+        sendbuffs[ offset + j ] = w_leaf[ j ];
+    }
+  }
+
 };
 
 
@@ -3191,6 +3325,10 @@ class PackNearTask : public SendTask<T, TREE>
 
     void DependencyAnalysis()
     {
+      option = "leafweights";
+      PackNear( *this->arg, option, this->tar,
+          this->send_sizes, this->send_skels, this->send_buffs );
+
       TREE &tree = *(this->arg);
       for ( auto it : tree.NearSentToRank[ this->tar ] )
       {
@@ -3202,10 +3340,12 @@ class PackNearTask : public SendTask<T, TREE>
 
     void Execute( Worker *user_worker ) 
     {
+      double beg = omp_get_wtime();
+
       mpi::Request req1, req2, req3;
-      option = "leafweights";
-      PackNear( *this->arg, option, this->tar,
-          this->send_sizes, this->send_skels, this->send_buffs );
+      //option = "leafweights";
+      //PackNear( *this->arg, option, this->tar,
+      //    this->send_sizes, this->send_skels, this->send_buffs );
 
       //printf( "Beg PackNear src %d, tar %d, key %d send_sizes %lu send_skels %lu send_buff %lu\n", 
       //    this->src, this->tar, this->key, 
@@ -3220,6 +3360,10 @@ class PackNearTask : public SendTask<T, TREE>
       mpi::Isend( this->send_buffs.data(), this->send_buffs.size(),
           this->tar, this->key + 2, this->comm, &req3 ); 
       //printf( "End PackNear src %d\n", this->src ); fflush( stdout );
+      double pack_time = omp_get_wtime() - beg;
+      //printf( "PackNear src %d, tar %d, key %d time %lfs\n",  
+      //    this->src, this->tar, this->key, pack_time ); fflush( stdout );
+     
     };
 };
 
@@ -3260,9 +3404,13 @@ class UnpackLeafTask : public RecvTask<T, TREE>
     void Execute( Worker *user_worker ) 
     {
       //printf( "Begin UnpackLeaf src %d\n", this->src ); fflush( stdout );
+      double beg = omp_get_wtime();
       option = "leafweights";
       UnpackLeaf( *this->arg, option, this->src,
           this->recv_sizes, this->recv_skels, this->recv_buffs );
+      double unpack_time = omp_get_wtime() - beg;
+      //printf( "UnpackNear src %d tar %d key %d time %lfs\n",
+      //    this->src, this->tar, this->key, unpack_time ); fflush( stdout );
 
       //printf( "Beg UnpackNear src %d, tar %d, key %d recv_sizes %lu recv_skels %lu recv_buff %lu\n", 
       //    this->src, this->tar, this->key, 
@@ -3293,6 +3441,8 @@ class PackFarTask : public SendTask<T, TREE>
 
     void Execute( Worker *user_worker ) 
     {
+      double beg = omp_get_wtime();
+
       mpi::Request req1, req2, req3;
       option = "skelweights";
       PackFar( *this->arg, option, this->tar,
@@ -3309,6 +3459,10 @@ class PackFarTask : public SendTask<T, TREE>
           this->tar, this->key + 1, this->comm, &req2 ); 
       mpi::Isend( this->send_buffs.data(), this->send_buffs.size(),
           this->tar, this->key + 2, this->comm, &req3 ); 
+
+      double pack_time = omp_get_wtime() - beg;
+      //printf( "PackFar src %d, tar %d, key %d time %lfs\n",  
+      //    this->src, this->tar, this->key, pack_time ); fflush( stdout );
     };
 };
 
@@ -3343,9 +3497,14 @@ class UnpackFarTask : public RecvTask<T, TREE>
       //printf( "End UnpackFar src %d, tar %d, key %d\n", 
       //    this->src, this->tar, this->key );
       //fflush( stdout );
+      double beg = omp_get_wtime();
       option = "skelweights";
       UnpackFar( *this->arg, option, this->src,
           this->recv_sizes, this->recv_skels, this->recv_buffs );
+      double unpack_time = omp_get_wtime() - beg;
+      //printf( "UnpackFar src %d tar %d key %d time %lfs\n",
+      //    this->src, this->tar, this->key, unpack_time ); fflush( stdout );
+
       //printf( "End UnpackFar src %d, tar %d, key %d recv_sizes %lu recv_skels %lu recv_buff %lu\n", 
       //    this->src, this->tar, this->key, 
       //    this->recv_sizes.size(), this->recv_skels.size(), this->recv_buffs.size() ); 
@@ -3415,7 +3574,10 @@ void ExchangeLET( TREE &tree, string option )
   }
   else
   {
+    double beg = omp_get_wtime();
     mpi::AlltoallVector( sendbuffs, recvbuffs, tree.comm );
+    double a2av_time = omp_get_wtime() - beg;
+    if ( comm_rank == 0 ) printf( "a2av_time %lfs\n", a2av_time );
   }
 
 
@@ -3958,97 +4120,45 @@ class DistMergeFarNodesTask : public Task
  *
  */ 
 template<bool NNPRUNE, typename NODE>
-class CacheFarNodesTask : public hmlp::Task
+class CacheFarNodesTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
-      /** this task contains MPI routines */
-      //this->has_mpi_routines = true;
-
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "cachef" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-
-      /** we don't know the exact cost here */
+      name = string( "FKIJ" );
+      label = to_string( arg->treelist_id );
+      /** Compute FLOPS and MOPS. */
+      double flops = 0, mops = 0;
+      /** We don't know the exact cost here. */
       cost = 5.0;
-
-      /** high priority */
-      priority = true;
-    };
-
-    void GetEventRecord()
-    {
     };
 
     void DependencyAnalysis()
     {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+      arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
     };
 
     void Execute( Worker* user_worker )
     {
-      int comm_size; mpi::Comm_size( MPI_COMM_WORLD, &comm_size );
-      int comm_rank; mpi::Comm_rank( MPI_COMM_WORLD, &comm_rank );
-
-
       auto *node = arg;
-      auto &data = node->data;
       auto &K = *node->setup->K;
-      vector<size_t> &I = data.skels, J;
 
-      if ( NNPRUNE )
+      for ( int p = 0; p < node->DistFar.size(); p ++ )
       {
-        /** Examine that NNFarNodes == NNFarNodeMortonIDs */
-        assert( node->NNFarNodes.size() == node->NNFarNodeMortonIDs.size() );
-
-        /** Examine that NNFarNodes == NNFarNodeMortonIDs */
-        for ( auto it  = node->NNFarNodes.begin(); 
-                   it != node->NNFarNodes.end(); it ++ )
+        for ( auto &it : node->DistFar[ p ] )
         {
-          assert( node->NNFarNodeMortonIDs.count( (*it)->morton ) );
-
-          if ( !(*it)->data.skels.size() )
-          {
-            printf( "rank %d node %8lu l %lu far %8lu has zero skeletons\n",
-                comm_rank,
-                node->morton, node->l, (*it)->morton ); fflush( stdout );
-          }
-          J.insert( J.end(), (*it)->data.skels.begin(), (*it)->data.skels.end() );
-        }
-
-        //auto &FarNodes = node->NNFarNodeMortonIDs;
-        //for ( auto it = FarNodes.begin(); it != FarNodes.end(); it ++ )
-        //{
-        //  assert( node->NNFarNodes.count( (*node->morton2node)[ *it ] ) );
-        //  assert( (*node->morton2node).count( *it ) );
-        //  auto *tar = (*node->morton2node)[ *it ];
-        //  if ( !tar->data.skels.size() )
-        //  {
-        //    printf( "rank %d node %8lu l %lu far %8lu has zero skeletons\n",
-        //        comm_rank,
-        //        node->morton, node->l, tar->morton ); fflush( stdout );
-        //  }
-        //  J.insert( J.end(), tar->data.skels.begin(), tar->data.skels.end() );
-        //}
-      }
-      else
-      {
-        auto &FarNodes = node->FarNodes;
-        for ( auto it = FarNodes.begin(); it != FarNodes.end(); it ++ )
-        {
-          J.insert( J.end(), (*it)->data.skels.begin(), (*it)->data.skels.end() );
+          auto *src = (*node->morton2node)[ it.first ];
+          auto &I = node->data.skels;
+          auto &J = src->data.skels;
+          it.second = K( I, J );
+          //printf( "Cache I %lu J %lu\n", I.size(), J.size() ); fflush( stdout );
         }
       }
-      data.FarKab = K( I, J );
-      //printf( "cache farnode %lu-by-%lu\n", amap.size(), bmap.size() ); fflush( stdout );
     };
 
 }; /** end class CacheFarNodesTask */
@@ -4062,29 +4172,19 @@ class CacheFarNodesTask : public hmlp::Task
  *
  */ 
 template<bool NNPRUNE, typename NODE>
-class CacheNearNodesTask : public hmlp::Task
+class CacheNearNodesTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
-      /** this task contains MPI routines */
-      //this->has_mpi_routines = true;
-
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "cachen" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-
-      /** we don't know the exact cost here */
+      name = string( "NKIJ" );
+      label = to_string( arg->treelist_id );
+      /** We don't know the exact cost here */
       cost = 5.0;
-
-      /** high priority */
-      priority = true;
     };
 
     void DependencyAnalysis()
@@ -4096,38 +4196,18 @@ class CacheNearNodesTask : public hmlp::Task
     void Execute( Worker* user_worker )
     {
       auto *node = arg;
-      auto &data = node->data;
       auto &K = *node->setup->K;
-      assert( node->isleaf );
 
-      vector<size_t> &I = node->gids, J;
-
-      if ( NNPRUNE )
+      for ( int p = 0; p < node->DistNear.size(); p ++ )
       {
-        assert( node->NNNearNodes.size() == node->NNNearNodeMortonIDs.size() );
-
-
-        for ( auto it  = node->NNNearNodes.begin(); 
-                   it != node->NNNearNodes.end(); it ++ )
+        for ( auto &it : node->DistNear[ p ] )
         {
-          assert( (*it)->gids.size() );
-          J.insert( J.end(), (*it)->gids.begin(), (*it)->gids.end() );
+          auto *src = (*node->morton2node)[ it.first ];
+          auto &I = node->gids;
+          auto &J = src->gids;
+          it.second = K( I, J );
+          //printf( "Cache I %lu J %lu\n", I.size(), J.size() ); fflush( stdout );
         }
-
-
-        //auto &NearMorton = node->NNNearNodeMortonIDs;
-        //for ( auto it = NearMorton.begin(); it != NearMorton.end(); it ++ )
-        //{
-        //  assert( (*node->morton2node).count( *it ) );
-        //  auto *tar = (*node->morton2node)[ *it ];
-        //  assert( tar->gids.size() );
-        //  J.insert( J.end(), tar->gids.begin(), tar->gids.end() );
-        //}
-        data.NearKab = K( I, J );
-      }
-      else
-      {
-        data.NearKab = K( I, I );
       }
     };
 
@@ -4739,6 +4819,7 @@ void DistSkeletonize( NODE *node )
 
   /** Free KIJ for spaces */
   KIJ.resize( 0, 0 );
+  KIJ.shrink_to_fit();
 
   /** depending on the flag, decide isskel or not */
   if ( LEVELRESTRICTION )
@@ -4776,7 +4857,7 @@ class SkeletonizeTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = string( "Skel" );
+      name = string( "SK" );
       label = to_string( arg->treelist_id );
       /** We don't know the exact cost here */
       cost = 5.0;
@@ -4853,7 +4934,7 @@ class DistSkeletonizeTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = string( "DistSkel" );
+      name = string( "PSK" );
       label = to_string( arg->treelist_id );
 
       /** We don't know the exact cost here */
@@ -4972,12 +5053,9 @@ class InterpolateTask : public Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "it" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
+      name = string( "PROJ" );
+      label = to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
     };
@@ -5077,12 +5155,6 @@ DistData<RIDS, STAR, T> Evaluate
 
   /** Clean up all r/w dependencies left on tree nodes */
   tree.DependencyCleanUp();
-  hmlp_redistribute_workers( omp_get_max_threads(), 0, 1 ); 
-  //hmlp_redistribute_workers( 4, 0, 17 );
-  //hmlp_redistribute_workers( 
-  //  hmlp_read_nway_from_env( "HMLP_NORMAL_WORKER" ),
-  //  hmlp_read_nway_from_env( "HMLP_SERVER_WORKER" ),
-  //  hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
   /** n-by-nrhs, initialize potentials */
   size_t n    = weights.row();
@@ -5114,12 +5186,15 @@ DistData<RIDS, STAR, T> Evaluate
     mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
     /** L2L (sum of direct evaluations) */
     mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
-    mpigofmm::L2LReduceTask<NODE, T> seqL2LReducetask;
+    //mpigofmm::L2LReduceTask<NODE, T> seqL2LReducetask;
+    mpigofmm::L2LReduceTask2<NODE, T> seqL2LReducetask2;
     /** S2S (sum of low-rank approximation) */
     gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T>           seqS2Stask;
     mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
-    mpigofmm::S2SReduceTask<NODE, T>    seqS2SReducetask;
-    mpigofmm::S2SReduceTask<MPINODE, T> mpiS2SReducetask;
+    //mpigofmm::S2SReduceTask<NODE, T>    seqS2SReducetask;
+    //mpigofmm::S2SReduceTask<MPINODE, T> mpiS2SReducetask;
+    mpigofmm::S2SReduceTask2<NODE, NODE, T>    seqS2SReducetask2;
+    mpigofmm::S2SReduceTask2<MPINODE, NODE, T> mpiS2SReducetask2;
     /** Telescope (downward traversal) */
     gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T>           seqS2Ntask;
     mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
@@ -5150,8 +5225,7 @@ DistData<RIDS, STAR, T> Evaluate
       /** Stage 3: L2L */
       beg = omp_get_wtime();
       tree.DependencyCleanUp();
-      //tree.LocaTraverseLeafs( seqL2Ltask );
-      tree.LocaTraverseLeafs( seqL2LReducetask );
+      tree.LocaTraverseLeafs( seqL2LReducetask2 );
       hmlp_run();
       mpi::Barrier( tree.comm );
       direct_evaluation_time = omp_get_wtime() - beg;
@@ -5159,8 +5233,8 @@ DistData<RIDS, STAR, T> Evaluate
       /** Stage 4: S2S and downward telescoping */
       beg = omp_get_wtime();
       tree.DependencyCleanUp();
-      tree.LocaTraverseUnOrdered( seqS2SReducetask );
-      tree.DistTraverseUnOrdered( mpiS2SReducetask );
+      tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
+      tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
       tree.DistTraverseDown( mpiS2Ntask );
       tree.LocaTraverseDown( seqS2Ntask );
       hmlp_run();
@@ -5183,6 +5257,7 @@ DistData<RIDS, STAR, T> Evaluate
       tree.DependencyCleanUp();
       tree.DistTraverseDown( mpiVIEWtask );
       tree.LocaTraverseDown( seqVIEWtask );
+      AsyncExchangeLET<T>( tree, string( "leafweights" ) );
       //hmlp_run();
       //mpi::Barrier( tree.comm );
 
@@ -5191,16 +5266,15 @@ DistData<RIDS, STAR, T> Evaluate
       tree.DistTraverseUp( mpiN2Stask );
 
       /** Stage 2: LET exchange */
-      AsyncExchangeLET<T>( tree, string( "leafweights" ) );
+      //AsyncExchangeLET<T>( tree, string( "leafweights" ) );
       AsyncExchangeLET<T>( tree, string( "skelweights" ) );
 
       /** Stage 3: L2L */
-      //tree.LocaTraverseLeafs( seqL2Ltask );
-      tree.LocaTraverseLeafs( seqL2LReducetask );
+      tree.LocaTraverseLeafs( seqL2LReducetask2 );
 
       /** Stage 4: S2S, S2N */
-      tree.LocaTraverseUnOrdered( seqS2SReducetask );
-      tree.DistTraverseUnOrdered( mpiS2SReducetask );
+      tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
+      tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
       tree.DistTraverseDown( mpiS2Ntask );
       tree.LocaTraverseDown( seqS2Ntask );
       hmlp_run();
@@ -5336,34 +5410,13 @@ mpitree::Tree<
   /** all timers */
   double beg, omptask45_time, omptask_time, ref_time;
   double time_ratio, compress_time = 0.0, other_time = 0.0;
-  double ann_time, tree_time, skel_time, mergefarnodes_time, cachefarnodes_time;
-  double local_skel_time, dist_skel_time; 
+  double ann_time, tree_time, skel_time, mpi_skel_time, mergefarnodes_time, cachefarnodes_time;
+  double local_skel_time, dist_skel_time, let_time; 
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
   double exchange_neighbor_time, symmetrize_time;
 
-
-  /** the following tasks require background tasks */
-  //int num_background_worker = omp_get_max_threads() / 4 + 1;
-  int num_background_worker = 0;
-  if ( omp_get_max_threads() < 2 )
-  {
-    printf( "(ERROR!) Distributed GOFMM requires at least 'TWO' threads per MPI process\n" );
-    exit( 1 );
-  }
-  hmlp_set_num_background_worker( num_background_worker );
-
-  if ( rank == 0 )
-  {
-    printf( "Use %d/%d threads as background workers ...\n", 
-        num_background_worker, omp_get_max_threads() ); fflush( stdout );
-  }
-
-
-
-
-
   /** Iterative all nearnest-neighbor (ANN) */
-  const size_t n_iter = 10;
+  const size_t n_iter = 3;
   const bool SORTED = false;
   /** Do not change anything below this line */
   mpitree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
@@ -5402,18 +5455,6 @@ mpitree::Tree<
   //}
 
 
-  //hmlp_redistribute_workers( 4, 0, 17 );
-  //hmlp_redistribute_workers( 1, 0, omp_get_max_threads() );
-  //hmlp_redistribute_workers( 2, 0, 10 );
-
-
-
-
-
-
-
-
-
 
   /** Initialize metric ball tree using approximate center split */
   auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
@@ -5439,7 +5480,6 @@ mpitree::Tree<
   mpi::Barrier( tree.comm );
   tree_time = omp_get_wtime() - beg;
   mpi::PrintProgress( "End TreePartitioning ...\n", tree.comm ); 
-  mpi::Barrier( tree.comm );
 
   /** Now redistribute K. */
   K.Redistribute( true, tree.treelist[ 0 ]->gids );
@@ -5452,13 +5492,9 @@ mpitree::Tree<
   beg = omp_get_wtime();
   ExchangeNeighbors<T>( tree );
   exchange_neighbor_time = omp_get_wtime() - beg;
-  mpi::PrintProgress( "Finish redistribute neighbors\n", tree.comm );
+  mpi::PrintProgress( "Finish redistribute neighbors ...\n", tree.comm );
 
   /** Construct near interaction lists */
-  FindNearNodes<NODE>( tree );
-  mpi::PrintProgress( "Finish FindNearNodes\n", tree.comm );
-
-
   /**
    *  Symmetrize near interaction list:
    *
@@ -5469,29 +5505,16 @@ mpitree::Tree<
    *      near( beta ) += alpha;
    */
   beg = omp_get_wtime();
+  FindNearNodes<NODE>( tree );
+  mpi::PrintProgress( "Finish FindNearNodes ...\n", tree.comm );
   SymmetrizeNearInteractions<NODE>( tree );
   mpi::Barrier( tree.comm );
-  BuildInteractionListPerRank( tree, true );
+  BuildInteractionListPerRank<T>( tree, true );
   mpi::Barrier( tree.comm );
+  /** Exchange {leafs} and {paramsleafs)}  */
+  ExchangeLET<T>( tree, string( "leafgids" ) );
   symmetrize_time - omp_get_wtime() - beg;
-  mpi::PrintProgress( "Finish SymmetrizeNearInteractions() ...\n", tree.comm ); 
-
-  /**
-   *  TODO: need send and recv interaction lists for each rank
-   *
-   *  SendNNNear[ rank ][ local  morton ]
-   *  RecvNNNear[ rank ][ remote morton ]
-   *
-   *  for each leaf alpha and beta in Near(alpha)
-   *    SendNNNear[ rank(beta) ] += Morton(alpha)
-   *
-   *  Alltoallv( SendNNNear, rbuff );
-   *
-   *  for each rank
-   *    RecvNNNear[ rank ][ remote morton ] = offset in rbuff
-   *
-   */ 
-
+  mpi::PrintProgress( "Finish SymmetrizeNearInteractions ...\n", tree.comm ); 
 
 
   /** Merge FarNodes */
@@ -5502,23 +5525,12 @@ mpitree::Tree<
   tree.LocaTraverseUp( seqMERGEtask );
   hmlp_run();
   mpi::Barrier( tree.comm );
-  mpi::PrintProgress( "Finish local MergeFarNodesTask\n", tree.comm ); 
-
-
   tree.DependencyCleanUp();
   tree.DistTraverseUp( mpiMERGEtask );
   hmlp_run();
   mpi::Barrier( tree.comm );
   mergefarnodes_time += omp_get_wtime() - beg;
-  if ( rank == 0 )
-  {
-    printf( "Finish MergeFarNodesTask ...\n" ); 
-    fflush( stdout );
-  }
-  tree.DependencyCleanUp();
-
-
-
+  mpi::PrintProgress( "Finish MergeFarNodes ...\n", tree.comm ); 
 
   /**
    *  Symmetrize far interaction list:
@@ -5528,29 +5540,16 @@ mpitree::Tree<
    *  Alltoallv( sbuff, rbuff );
    *  for each pair( beta, alpha ) in rbuff
    *      Far( beta ) += alpha;
-   *
-   *      
    */
   beg = omp_get_wtime();
   SymmetrizeFarInteractions<NODE>( tree );
   mpi::Barrier( tree.comm );
-  BuildInteractionListPerRank( tree, false );
+  BuildInteractionListPerRank<T>( tree, false );
   mpi::Barrier( tree.comm );
   symmetrize_time += omp_get_wtime() - beg;
-  if ( rank == 0 )
-  {
-    printf( "Finish SymmetrizeFarInteractions()\n" ); 
-    fflush( stdout );
-  }
+  mpi::PrintProgress( "Finish SymmetrizeFarInteractions ...\n", tree.comm ); 
 
   /** Skeletonization */
-	mpi::Barrier( tree.comm );
-	if ( rank == 0 )
-	{
-		printf( "Skeletonization (HMLP Runtime) ...\n" ); 
-    fflush( stdout );
-	}
-
 	beg = omp_get_wtime();
   tree.DependencyCleanUp();
   /** Gather sample rows and skeleton columns, then ID */
@@ -5559,44 +5558,41 @@ mpitree::Tree<
   mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
   mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
   tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
-  //hmlp_run();
-  //mpi::Barrier( tree.comm );
-  //if ( rank == 0 )
-  //{
-  //  printf( "Finish Local Skeletonization\n" ); 
-  //  fflush( stdout );
-  //}
-  //tree.DependencyCleanUp();
-
-  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-  //hmlp_run();
-  //mpi::Barrier( tree.comm );
-  //if ( rank == 0 )
-  //{
-  //  printf( "Finish Distributed Skeletonization\n" ); fflush( stdout );
-  //}
-  //tree.DependencyCleanUp();
-
+  //tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
   /** Compute the coefficient matrix of ID */
   gofmm::InterpolateTask<NODE, T> seqPROJtask;
   mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
   tree.LocaTraverseUnOrdered( seqPROJtask );
-  tree.DistTraverseUnOrdered( mpiPROJtask );
+  //tree.DistTraverseUnOrdered( mpiPROJtask );
+
+  /** Cache near KIJ interactions */
+  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+  //tree.LocaTraverseLeafs( seqNEARKIJtask );
+
   hmlp_run();
   mpi::Barrier( tree.comm );
   skel_time = omp_get_wtime() - beg;
-  mpi::PrintProgress( "Finish Interpolation\n", tree.comm ); 
+  mpi::PrintProgress( "Finish skeletonization and interpolation ...\n", tree.comm ); 
+
+
+
+	beg = omp_get_wtime();
+  tree.DependencyCleanUp();
+  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+  tree.DistTraverseUnOrdered( mpiPROJtask );
+  hmlp_run();
+  mpi::Barrier( tree.comm );
+  mpi_skel_time = omp_get_wtime() - beg;
+
 
 
   /** Exchange {skels} and {params(skels)}  */
   ExchangeLET<T>( tree, string( "skelgids" ) );
-  ExchangeLET<T>( tree, string( "leafgids" ) );
   
-
   beg = omp_get_wtime();
   tree.DependencyCleanUp();
   /** Cache near KIJ interactions */
-  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+  //mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
   //tree.LocaTraverseLeafs( seqNEARKIJtask );
   /** Cache far KIJ interactions */
   mpigofmm::CacheFarNodesTask<NNPRUNE,    NODE> seqFARKIJtask;
@@ -5620,6 +5616,7 @@ mpitree::Tree<
     compress_time += exchange_neighbor_time;
     compress_time += symmetrize_time;
     compress_time += skel_time;
+    compress_time += mpi_skel_time;
     compress_time += mergefarnodes_time;
     compress_time += cachefarnodes_time;
     time_ratio = 100.0 / compress_time;
@@ -5632,6 +5629,7 @@ mpitree::Tree<
     printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
     printf( "Symmetrize ---------------------------- %5.2lfs (%5.1lf%%)\n", symmetrize_time, symmetrize_time * time_ratio );
     printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
+    printf( "Skeletonization (MPI            ) ----- %5.2lfs (%5.1lf%%)\n", mpi_skel_time, mpi_skel_time * time_ratio );
     printf( "Cache KIJ ----------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
     printf( "========================================================\n");
     printf( "Compress (%4.2lf not compressed) -------- %5.2lfs (%5.1lf%%)\n", 

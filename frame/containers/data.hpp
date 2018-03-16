@@ -61,6 +61,8 @@
 
 #include <hmlp_util.hpp>
 
+//#include <mpi.h>
+
 
 /** -lmemkind */
 #ifdef HMLP_MIC_AVX512
@@ -875,6 +877,17 @@ class OOCData : public ReadWrite
 #endif
       assert( mmappedData != MAP_FAILED );
 
+
+      /** Use MPI I/O */
+      //MPI_File_open( MPI_COMM_WORLD, filename.data(), MPI_MODE_RDONLY, 
+      //    MPI_INFO_NULL, &fh );
+
+     
+
+
+
+
+
       cout << filename << endl;
     };
 
@@ -884,6 +897,11 @@ class OOCData : public ReadWrite
       int rc = munmap( mmappedData, m * n * sizeof(T) );
       assert( rc == 0 );
       close( fd );
+
+
+      //MPI_File_close( &fh );
+
+
       printf( "finish readmatrix %s\n", filename.data() );
     };
 
@@ -892,6 +910,12 @@ class OOCData : public ReadWrite
     inline T operator()( TINDEX i, TINDEX j )
     {
       return mmappedData[ j * m + i ];
+
+      //T ret;
+      //MPI_Status status;
+      //MPI_Offset offset = j * m + i;
+      //MPI_File_read_at( fh, offset * sizeof(T), &ret, 1, MPI_FLOAT, &status );
+      //return ret;
     };
 
     template<typename TINDEX>
@@ -927,10 +951,12 @@ class OOCData : public ReadWrite
 
     string filename;
 
-    /** Use mmp */
-    T *mmappedData;
+    /** Use mmap */
+    T *mmappedData = NULL;
 
     int fd;
+
+    //MPI_File fh;
 
 }; /** end class OOCData */
 

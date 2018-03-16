@@ -1184,7 +1184,7 @@ void* Scheduler::EntryPoint( void* arg )
 
 
   /** Prepare listeners */
-  if ( me->tid == 1 )
+  if ( me->tid >= 2 && me->tid <= 5 )
   {
     /** Update my termination time to infinite */
     scheduler->ready_queue_lock[ me->tid ].Acquire();
@@ -1340,8 +1340,19 @@ void Scheduler::Listen( Worker *worker )
       }
     }
 
-    /** Execute tasks and update dependencies */
-    ConsumeTasks( worker, task, false );
+    //ConsumeTasks( worker, task, false );
+
+    if ( probe_flag )
+    {
+      /** Execute tasks and update dependencies */
+      ConsumeTasks( worker, task, false );
+    }
+    else
+    {
+      /** Steal a task from worker#0 */
+      Task *target_task = TryStealFromQueue( 0 );
+      ConsumeTasks( worker, target_task, false );
+    }
 
     /** Check if is time to terminate */
 
@@ -1412,12 +1423,13 @@ void Scheduler::Summary()
 
 
 #ifdef DUMP_ANALYSIS_DATA
-  std::deque<std::tuple<bool, double, size_t>> timeline;
+  deque<tuple<bool, double, size_t>> timeline;
 
   if ( tasklist.size() )
   {
-    std::string filename = std::string( "timeline" ) + 
-	  std::to_string( tasklist.size() ) + std::string( ".m" ); 
+    string filename = string( "timeline" ) + 
+	  to_string( tasklist.size() ) + string( "_rank") + 
+    to_string( rank) + string( ".m" ); 
     FILE *pFile = fopen( filename.data(), "w" );
 
     fprintf( pFile, "figure('Position',[100,100,800,800]);" );
@@ -1431,17 +1443,17 @@ void Scheduler::Summary()
     for ( size_t i = 0; i < tasklist.size(); i ++ )
     {
       auto &event = tasklist[ i ]->event;
-      timeline.push_back( std::make_tuple( true,  event.GetBegin(), i ) );
-      timeline.push_back( std::make_tuple( false, event.GetEnd(),   i ) );
+      timeline.push_back( make_tuple(  true, event.GetBegin(), i ) );
+      timeline.push_back( make_tuple( false, event.GetEnd(),   i ) );
     }
 
-    std::sort( timeline.begin(), timeline.end(), EventLess );
+    sort( timeline.begin(), timeline.end(), EventLess );
 
     for ( size_t i = 0; i < timeline.size(); i ++ )
     {
       auto &data = timeline[ i ];
-      auto &event = tasklist[ std::get<2>( data ) ]->event;  
-      event.Timeline( std::get<0>( data ), i + timeline_tag );
+      auto &event = tasklist[ get<2>( data ) ]->event;  
+      //event.Timeline( get<0>( data ), i + timeline_tag );
       event.MatlabTimeline( pFile );
     }
 

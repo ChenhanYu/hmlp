@@ -606,7 +606,7 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     /** Constructor for inner node (gids and n unassigned) */
     Node( SETUP *setup, size_t n, size_t l, 
         Node *parent,
-        map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
+        unordered_map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
         Lock *treelock, mpi::Comm comm ) 
     /** Inherits the constructor from tree::Node */
       : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, 
@@ -627,7 +627,7 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
      */
     Node( SETUP *setup, size_t n, size_t l, std::vector<size_t> &gids, 
         Node *parent, 
-        map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
+        unordered_map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
         Lock *treelock, mpi::Comm comm ) 
     /** 
      *  Inherits the constructor from tree::Node
@@ -1128,8 +1128,11 @@ class Tree
         {
           printf( "Iteration #%lu\n", t ); fflush( stdout );
         }
-        DependencyCleanUp();
 
+
+
+        double beg = omp_get_wtime();
+        DependencyCleanUp();
         /** Tree partitioning */
         DistSplitTask<MPINODE> mpisplittask;
         DistTraverseDown( mpisplittask );
@@ -1140,6 +1143,9 @@ class Tree
         /** queries computed in CIDS distribution  */
         DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
             this->treelist[ 0 ]->gids, initNN, comm );
+
+        double mpi_time = omp_get_wtime() - beg;
+        beg = omp_get_wtime();
 
         /** 
          *  Notice that setup.NN has type Data<pair<T, size_t>>,
@@ -1153,6 +1159,10 @@ class Tree
         LocaTraverseLeafs( dummy );
         hmlp_run();
 	  	  MPI_Barrier( comm );
+
+
+        double seq_time = omp_get_wtime() - beg;
+        beg = omp_get_wtime();
 
         //size_t count = 0;
         //for ( auto neig : Q_cids )
@@ -1171,14 +1181,17 @@ class Tree
         {
           /** Queries computed in CBLK distribution */
           DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->n, comm );
-
           /** Redistribute from CIDS to CBLK */
           Q_cblk = Q_cids;
-
           /** Merge Q_cblk into NN (sort and remove duplication) */
           assert( Q_cblk.col_owned() == NN.col_owned() );
           MergeNeighbors( k, NN.col_owned(), NN, Q_cblk );
         }
+
+        double mer_time = omp_get_wtime() - beg;
+
+        if ( rank == 0 )
+        printf( "%lfs %lfs %lfs\n", mpi_time, seq_time, mer_time ); fflush( stdout );
       }
 
       return NN;

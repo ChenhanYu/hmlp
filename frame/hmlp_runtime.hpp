@@ -331,10 +331,17 @@ class SendTask : public MessageTask
     void Set( ARG *user_arg, int src, int tar, int key )
     {
       name = string( "Send" );
+      label = to_string( tar );
       this->arg = user_arg;
       this->src = src;
       this->tar = tar;
       this->key = key;
+      /** Compute FLOPS and MOPS */
+      double flops = 0, mops = 0;
+      /** Setup the event */
+      event.Set( label + name, flops, mops );
+      /** "HIGH" priority */
+      priority = true;
     };
 };
 
@@ -353,10 +360,15 @@ class RecvTask : public ListenerTask
     void Set( ARG *user_arg, int src, int tar, int key )
     {
       name = string( "Listener" );
+      label = to_string( src );
       this->arg = user_arg;
       this->src = src;
       this->tar = tar;
       this->key = key;
+      /** Compute FLOPS and MOPS */
+      double flops = 0, mops = 0;
+      /** Setup the event */
+      event.Set( label + name, flops, mops );
     };
 
     void Listen()

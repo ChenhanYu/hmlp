@@ -387,7 +387,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 
       /** There should be no NAN or INF value. */
-      assert( !KIJ.HasIllegalValue() );
+      //assert( !KIJ.HasIllegalValue() );
 
 
       /** return submatrix KIJ */

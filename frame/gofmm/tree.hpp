@@ -496,7 +496,7 @@ class Node : public ReadWrite
   public:
 
     Node( SETUP* setup, size_t n, size_t l, 
-        Node *parent, map<size_t, Node*> *morton2node, Lock *treelock )
+        Node *parent, unordered_map<size_t, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
       this->n = n;
@@ -515,7 +515,7 @@ class Node : public ReadWrite
     };
 
     Node( SETUP *setup, int n, int l, vector<size_t> gids, vector<size_t> lids,
-      Node *parent, map<size_t, Node*> *morton2node, Lock *treelock )
+      Node *parent, unordered_map<size_t, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
       this->n = n;
@@ -731,8 +731,9 @@ class Node : public ReadWrite
     set<Node*>  ProposedNNNearNodes;
     set<size_t> NNNearNodeMortonIDs;
 
-    vector<set<size_t>> DistFar;
-    vector<set<size_t>> DistNear;
+    /** DistFar[ p ] contains a pair of gid and cached KIJ received from p. */
+    vector<map<size_t, Data<T>>> DistFar;
+    vector<map<size_t, Data<T>>> DistNear;
 
 
 
@@ -746,7 +747,7 @@ class Node : public ReadWrite
     Node *rchild  = NULL;
     Node *sibling = NULL;
     Node *parent  = NULL;
-    map<size_t, Node*> *morton2node = NULL;
+    unordered_map<size_t, Node*> *morton2node = NULL;
 
     bool isleaf;
 
@@ -871,7 +872,7 @@ class Tree
      *  Map MortonID to tree nodes. When distributed tree inherit Tree,
      *  morton2node will also contain distributed and LET node.
      */
-    map<size_t, NODE*> morton2node;
+    unordered_map<size_t, NODE*> morton2node;
 
     /** constructor */
     Tree() : n( 0 ), m( 0 ), depth( 0 )

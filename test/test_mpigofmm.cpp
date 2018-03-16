@@ -530,7 +530,7 @@ int main( int argc, char *argv[] )
   /** Generate a kernel matrix from the coordinates */
   if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
   {
-    using T = double;
+    using T = float;
     {
       /** read the coordinates from the file */
       DistData<STAR, CBLK, T> X( d, n, CommGOFMM, user_points_filename );

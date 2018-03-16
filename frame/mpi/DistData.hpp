@@ -902,7 +902,7 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
     vector<size_t> cids_from_other_ranks;
 
     /** Use hash table: cid2col[ cid ] = local column index */
-    map<size_t, size_t> cid2col;
+    unordered_map<size_t, size_t> cid2col;
 
 }; /** end class DistData<STAR, CIDS, T> */
 
@@ -1086,7 +1086,7 @@ class DistData<STAR, USER, T> : public DistDataBase<T>
 
 
     /** Use hash table: cid2col[ cid ] = local column index */
-    map<size_t, size_t> cid2col;
+    unordered_map<size_t, size_t> cid2col;
 
 }; /** end class DistData<STAR, USER, T> */
 

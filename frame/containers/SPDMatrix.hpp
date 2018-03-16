@@ -73,14 +73,17 @@ class OOCSPDMatrix : public OOCData<T>, public SPDMatrixMPISupport<T>
     :
     OOCData<T>( m, n, filename ), SPDMatrixMPISupport<T>()
     {
+      assert( m == n );
+      D.resize( n );
+      for ( size_t i = 0; i < n; i ++ ) D[ i ] = (*this)( i, i );
     };
 
     /** Need additional support for diagonal evaluation */
     Data<T> Diagonal( const vector<size_t> &I )
     {
       Data<T> DII( I.size(), 1 );
-      for ( size_t i = 0; i < I.size(); i ++ )
-        DII[ i ] = (*this)( I[ i ], I[ i ] );
+      for ( auto i = 0; i < I.size(); i ++ ) DII[ i ] = D[ I[ i ] ];
+        //DII[ i ] = (*this)( I[ i ], I[ i ] );
       return DII;
     };
 
@@ -90,6 +93,10 @@ class OOCSPDMatrix : public OOCData<T>, public SPDMatrixMPISupport<T>
     {
       return (*this)( I, J );
     };
+
+ private:
+
+    vector<T> D;
 
 }; /** end class OOCSPDMatrix */
 

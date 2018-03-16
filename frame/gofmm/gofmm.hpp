@@ -2255,25 +2255,25 @@ class GetSkeletonMatrixTask : public Task
 
     void Execute( Worker* user_worker )
     {
-      //GetSkeletonMatrix<NODE, T>( arg );
+      GetSkeletonMatrix<NODE, T>( arg );
 
-      /** Create a promise and get its future */
-      promise<bool> done;
-      auto future = done.get_future();
+      ///** Create a promise and get its future */
+      //promise<bool> done;
+      //auto future = done.get_future();
 
-      thread t( [&done] ( NODE *arg ) -> void {
-          GetSkeletonMatrix<NODE, T>( arg ); 
-          done.set_value( true );
-      }, arg );
-      
-      /** Polling the future status */
-      while ( future.wait_for( chrono::seconds( 0 ) ) != future_status::ready ) 
-      {
-        if ( !this->ContextSwitchToNextTask( user_worker ) ) break;
-      }
-      
-      /** Make sure the task is completed */
-      t.join();
+      //thread t( [&done] ( NODE *arg ) -> void {
+      //    GetSkeletonMatrix<NODE, T>( arg ); 
+      //    done.set_value( true );
+      //}, arg );
+      //
+      ///** Polling the future status */
+      //while ( future.wait_for( chrono::seconds( 0 ) ) != future_status::ready ) 
+      //{
+      //  if ( !this->ContextSwitchToNextTask( user_worker ) ) break;
+      //}
+      //
+      ///** Make sure the task is completed */
+      //t.join();
     };
 
 }; /** end class GetSkeletonMatrixTask */ 

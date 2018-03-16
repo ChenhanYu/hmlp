@@ -117,7 +117,7 @@ export HMLP_USE_MAGMA=false
 export HMLP_MAGMA_DIR=/users/chenhan/Projects/magma-2.2.0
 
 ## Output google site data
-export HMLP_ANALYSIS_DATA=false
+export HMLP_ANALYSIS_DATA=true
 
 ## Build a independent sandbox
 export HMLP_BUILD_SANDBOX=true
