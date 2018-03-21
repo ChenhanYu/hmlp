@@ -996,7 +996,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 template<typename NODE, typename T>
 void FindNeighbors( NODE *node, DistanceMetric metric )
 {
-  /** NN has type DistData<STAR, CIDS, T> */
+  /** NN has type DistData<STAR, CIDS, T>. */
   auto &NN   = *(node->setup->NN);
   auto &gids = node->gids;
 
@@ -1041,7 +1041,7 @@ void FindNeighbors( NODE *node, DistanceMetric metric )
       auto &K = *(node->setup->K);
       KII = K( gids, gids );
 
-      /** get digaonal entries */
+      /** Get digaonal entries */
       Data<T> DII( gids.size(), (size_t)1 );
       for ( size_t i = 0; i < gids.size(); i ++ ) DII[ i ] = KII( i, i );
 
@@ -1144,25 +1144,25 @@ class NeighborsTask : public Task
 
     void Execute( Worker* user_worker )
     {
-      //FindNeighbors<NODE, T>( arg, metric );
+      FindNeighbors<NODE, T>( arg, metric );
 
-      /** Create a promise and get its future */
-      promise<bool> done;
-      auto future = done.get_future();
+      ///** Create a promise and get its future */
+      //promise<bool> done;
+      //auto future = done.get_future();
 
-      thread t( [&done] ( NODE *arg, DistanceMetric metric ) -> void {
-          FindNeighbors<NODE, T>( arg, metric ); 
-          done.set_value( true );
-      }, arg, metric );
-      
-      /** Polling the future status */
-      while ( future.wait_for( chrono::seconds( 0 ) ) != future_status::ready ) 
-      {
-        if ( !this->ContextSwitchToNextTask( user_worker ) ) break;
-      }
-      
-      /** Make sure the task is completed */
-      t.join();
+      //thread t( [&done] ( NODE *arg, DistanceMetric metric ) -> void {
+      //    FindNeighbors<NODE, T>( arg, metric ); 
+      //    done.set_value( true );
+      //}, arg, metric );
+      //
+      ///** Polling the future status */
+      //while ( future.wait_for( chrono::seconds( 0 ) ) != future_status::ready ) 
+      //{
+      //  if ( !this->ContextSwitchToNextTask( user_worker ) ) break;
+      //}
+      //
+      ///** Make sure the task is completed */
+      //t.join();
     };
 
 }; /** end class NeighborsTask */
@@ -1638,7 +1638,7 @@ class S2STask2 : public Task
         flops += 2 * m * k * nrhs;
         mops  += 2 * ( m * k + ( m + k ) * nrhs );
         flops += 2 * m * nrhs;
-        flops += m * k * ( 2 * 6 + 100 );
+        flops += m * k * ( 2 * 18 + 100 );
       }
       /** Setup the event */
       event.Set( label + name, flops, mops );
@@ -2117,7 +2117,7 @@ class L2LTask2 : public Task
         flops += 2 * m * k * nrhs;
         mops  += 2 * ( m * k + ( m + k ) * nrhs );
         flops += 2 * m * nrhs;
-        flops += m * k * ( 2 * 6 + 100 );
+        flops += m * k * ( 2 * 18 + 100 );
       }
       /** Setup the event */
       event.Set( label + name, flops, mops );
@@ -2644,7 +2644,7 @@ class FindNearNodesTask : public hmlp::Task
 
 
 
-template<size_t LEVELOFFSET=4, typename NODE>
+template<size_t LEVELOFFSET=5, typename NODE>
 void FindFarNodes( size_t morton, size_t l, NODE *target )
 {
   /** Return while reaching the leaf level. */ 
@@ -5151,6 +5151,7 @@ DistData<RIDS, STAR, T> Evaluate
   /** All timers */
   double beg, time_ratio, evaluation_time = 0.0;
   double direct_evaluation_time = 0.0, computeall_time, telescope_time, let_exchange_time, async_time;
+  double overhead_time;
   double forward_permute_time, backward_permute_time;
 
   /** Clean up all r/w dependencies left on tree nodes */
@@ -5202,45 +5203,45 @@ DistData<RIDS, STAR, T> Evaluate
     /** Global barrier and timer */
     mpi::Barrier( tree.comm );
 
-    {
-      /** Stage 1: TreeView and upward telescoping */
-      beg = omp_get_wtime();
-      tree.DependencyCleanUp();
-      tree.DistTraverseDown( mpiVIEWtask );
-      tree.LocaTraverseDown( seqVIEWtask );
-      tree.LocaTraverseUp( seqN2Stask );
-      tree.DistTraverseUp( mpiN2Stask );
-      hmlp_run();
-      mpi::Barrier( tree.comm );
-      telescope_time = omp_get_wtime() - beg;
+    //{
+    //  /** Stage 1: TreeView and upward telescoping */
+    //  beg = omp_get_wtime();
+    //  tree.DependencyCleanUp();
+    //  tree.DistTraverseDown( mpiVIEWtask );
+    //  tree.LocaTraverseDown( seqVIEWtask );
+    //  tree.LocaTraverseUp( seqN2Stask );
+    //  tree.DistTraverseUp( mpiN2Stask );
+    //  hmlp_run();
+    //  mpi::Barrier( tree.comm );
+    //  telescope_time = omp_get_wtime() - beg;
 
-      /** Stage 2: LET exchange */
-      beg = omp_get_wtime();
-      ExchangeLET<T>( tree, string( "skelweights" ) );
-      mpi::Barrier( tree.comm );
-      ExchangeLET<T>( tree, string( "leafweights" ) );
-      mpi::Barrier( tree.comm );
-      let_exchange_time = omp_get_wtime() - beg;
+    //  /** Stage 2: LET exchange */
+    //  beg = omp_get_wtime();
+    //  ExchangeLET<T>( tree, string( "skelweights" ) );
+    //  mpi::Barrier( tree.comm );
+    //  ExchangeLET<T>( tree, string( "leafweights" ) );
+    //  mpi::Barrier( tree.comm );
+    //  let_exchange_time = omp_get_wtime() - beg;
 
-      /** Stage 3: L2L */
-      beg = omp_get_wtime();
-      tree.DependencyCleanUp();
-      tree.LocaTraverseLeafs( seqL2LReducetask2 );
-      hmlp_run();
-      mpi::Barrier( tree.comm );
-      direct_evaluation_time = omp_get_wtime() - beg;
+    //  /** Stage 3: L2L */
+    //  beg = omp_get_wtime();
+    //  tree.DependencyCleanUp();
+    //  tree.LocaTraverseLeafs( seqL2LReducetask2 );
+    //  hmlp_run();
+    //  mpi::Barrier( tree.comm );
+    //  direct_evaluation_time = omp_get_wtime() - beg;
 
-      /** Stage 4: S2S and downward telescoping */
-      beg = omp_get_wtime();
-      tree.DependencyCleanUp();
-      tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
-      tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
-      tree.DistTraverseDown( mpiS2Ntask );
-      tree.LocaTraverseDown( seqS2Ntask );
-      hmlp_run();
-      mpi::Barrier( tree.comm );
-      computeall_time = omp_get_wtime() - beg;
-    }
+    //  /** Stage 4: S2S and downward telescoping */
+    //  beg = omp_get_wtime();
+    //  tree.DependencyCleanUp();
+    //  tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
+    //  tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
+    //  tree.DistTraverseDown( mpiS2Ntask );
+    //  tree.LocaTraverseDown( seqS2Ntask );
+    //  hmlp_run();
+    //  mpi::Barrier( tree.comm );
+    //  computeall_time = omp_get_wtime() - beg;
+    //}
 
     if ( rank == 0 && REPORT_EVALUATE_STATUS )
     {
@@ -5257,6 +5258,13 @@ DistData<RIDS, STAR, T> Evaluate
       tree.DependencyCleanUp();
       tree.DistTraverseDown( mpiVIEWtask );
       tree.LocaTraverseDown( seqVIEWtask );
+      hmlp_run();
+      mpi::Barrier( tree.comm );
+
+
+
+
+      tree.DependencyCleanUp();
       AsyncExchangeLET<T>( tree, string( "leafweights" ) );
       //hmlp_run();
       //mpi::Barrier( tree.comm );
@@ -5277,6 +5285,7 @@ DistData<RIDS, STAR, T> Evaluate
       tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
       tree.DistTraverseDown( mpiS2Ntask );
       tree.LocaTraverseDown( seqS2Ntask );
+      overhead_time = omp_get_wtime() - beg;
       hmlp_run();
       mpi::Barrier( tree.comm );
       async_time = omp_get_wtime() - beg;
@@ -5319,8 +5328,8 @@ DistData<RIDS, STAR, T> Evaluate
     printf( "========================================================\n");
     printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
         evaluation_time, evaluation_time * time_ratio );
-    printf( "Evaluate (Async) ---------------------- %5.2lfs\n", 
-        async_time );
+    printf( "Evaluate (Async) ---------------------- %5.2lfs (%5.2lfs)\n", 
+        async_time, overhead_time );
     printf( "========================================================\n\n");
   }
 

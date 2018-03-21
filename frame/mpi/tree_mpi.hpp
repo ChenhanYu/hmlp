@@ -424,19 +424,20 @@ class DistSplitTask : public hmlp::Task
     {
 			//printf( "in DependencyAnalysis level %lu\n", arg->l );
 
-      arg->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+      arg->DependencyAnalysis( R, this );
+
       if ( !arg->isleaf )
       {
         if ( arg->GetCommSize() > 1 )
         {
 					assert( arg->child );
-          arg->child->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+          arg->child->DependencyAnalysis( RW, this );
         }
         else
         {
 					assert( arg->lchild && arg->rchild );
-          arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-          arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+          arg->lchild->DependencyAnalysis( RW, this );
+          arg->rchild->DependencyAnalysis( RW, this );
         }
       }
       this->TryEnqueue();
@@ -1092,15 +1093,12 @@ class Tree
     {
       /** Get the problem size from setup->K->row() */
       this->n = n;
-
       /** k-by-N, column major */
       DistData<STAR, CBLK, pair<T, size_t>> NN( k, n, initNN, comm );
-
       /** Use leaf size = 4 * k  */
       this->setup.m = 4 * k;
       if ( this->setup.m < 512 ) this->setup.m = 512;
       this->m = this->setup.m;
-
       /** Local problem size (assuming Round-Robin) */
       num_points_owned = ( n - 1 ) / size + 1;
 
@@ -1115,62 +1113,44 @@ class Tree
       for ( size_t i = 0; i < num_points_owned; i ++ )
         gids[ i ] = i * size + rank;
 
-      /** Allocate distributed tree nodes in advance */
+      /** Allocate distributed tree nodes in advance. */
       AllocateNodes( gids );
 
-      auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
-      bgtask->SetAsBackGround();
+      /** Metric tree partitioning */
+      DistSplitTask<MPINODE> mpisplittask;
+      tree::SplitTask<NODE>  seqsplittask;
+      DependencyCleanUp();
+      DistTraverseDown( mpisplittask );
+      LocaTraverseDown( seqsplittask );
+      hmlp_run();
+	  	MPI_Barrier( comm );
+
+
+
 
       for ( size_t t = 0; t < n_tree; t ++ )
       {
         mpi::Barrier( comm );
-        if ( rank == 0 )
-        {
-          printf( "Iteration #%lu\n", t ); fflush( stdout );
-        }
+        if ( rank == 0 ) printf( "Iteration #%lu\n", t );
 
-
-
-        double beg = omp_get_wtime();
-        DependencyCleanUp();
-        /** Tree partitioning */
-        DistSplitTask<MPINODE> mpisplittask;
-        DistTraverseDown( mpisplittask );
-        hmlp_run();
-	  	  MPI_Barrier( comm );
-			  this->setup.K->Redistribute( false, this->treelist[ 0 ]->gids );
-
-        /** queries computed in CIDS distribution  */
+        /** Query neighbors computed in CIDS distribution.  */
         DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
             this->treelist[ 0 ]->gids, initNN, comm );
-
-        double mpi_time = omp_get_wtime() - beg;
-        beg = omp_get_wtime();
-
-        /** 
-         *  Notice that setup.NN has type Data<pair<T, size_t>>,
-         *  but that is fine because DistData inherits Data
-         */
+        /** Pass in neighbor pointer. */
         this->setup.NN = &Q_cids;
-
-			  DependencyCleanUp();
-        tree::SplitTask<NODE> splittask;
-        LocaTraverseDown( splittask );
+        /** Overlap */
+        if ( t != n_tree - 1 )
+        {
+          DependencyCleanUp();
+          DistTraverseDown( mpisplittask );
+          hmlp_run();
+	  	    MPI_Barrier( comm );
+        }
+        DependencyCleanUp();
         LocaTraverseLeafs( dummy );
+        LocaTraverseDown( seqsplittask );
         hmlp_run();
 	  	  MPI_Barrier( comm );
-
-
-        double seq_time = omp_get_wtime() - beg;
-        beg = omp_get_wtime();
-
-        //size_t count = 0;
-        //for ( auto neig : Q_cids )
-        //{
-        //  if ( neig.second == this->n ) count ++;
-        //}
-        //printf( "rank %d missed neighbors %lu/%lu\n", rank, count, Q_cids.size() ); 
-        //fflush( stdout );
 
         if ( t == 0 )
         {
@@ -1188,10 +1168,10 @@ class Tree
           MergeNeighbors( k, NN.col_owned(), NN, Q_cblk );
         }
 
-        double mer_time = omp_get_wtime() - beg;
+        //double mer_time = omp_get_wtime() - beg;
 
-        if ( rank == 0 )
-        printf( "%lfs %lfs %lfs\n", mpi_time, seq_time, mer_time ); fflush( stdout );
+        //if ( rank == 0 )
+        //printf( "%lfs %lfs %lfs\n", mpi_time, seq_time, mer_time ); fflush( stdout );
       }
 
       return NN;
@@ -1364,7 +1344,7 @@ class Tree
     /**
      *  @brief Distributed Morton ID
      */ 
-    template<size_t LEVELOFFSET=4>
+    template<size_t LEVELOFFSET=5>
     void Morton( MPINODE *node, size_t morton )
     {
       /**
@@ -1489,7 +1469,7 @@ class Tree
      *
      *
      */ 
-    template<size_t LEVELOFFSET=4>
+    template<size_t LEVELOFFSET=5>
     int Morton2Rank( size_t it )
     {
       size_t filter = ( 1 << LEVELOFFSET ) - 1;

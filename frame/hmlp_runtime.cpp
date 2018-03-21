@@ -1184,7 +1184,7 @@ void* Scheduler::EntryPoint( void* arg )
 
 
   /** Prepare listeners */
-  if ( me->tid >= 2 && me->tid <= 5 )
+  if ( ( me->tid % 2 ) && true )
   {
     /** Update my termination time to infinite */
     scheduler->ready_queue_lock[ me->tid ].Acquire();
@@ -1349,9 +1349,10 @@ void Scheduler::Listen( Worker *worker )
     }
     else
     {
-      /** Steal a task from worker#0 */
-      Task *target_task = TryStealFromQueue( 0 );
-      ConsumeTasks( worker, target_task, false );
+      /** Steal a task from worker->tid -1. */
+      Task *target_task = TryStealFromQueue( worker->tid - 1 );
+
+      if ( target_task ) ConsumeTasks( worker, target_task, false );
     }
 
     /** Check if is time to terminate */

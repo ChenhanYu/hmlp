@@ -68,7 +68,7 @@ namespace tree
  *         me = 00000 001 (level 1)
  *         it = 00000 011 (level 3) is not my parent
  */ 
-template<size_t LEVELOFFSET=4>
+template<size_t LEVELOFFSET=5>
 bool IsMyParent( size_t me, size_t it )
 {
   size_t filter = ( 1 << LEVELOFFSET ) - 1;
@@ -921,7 +921,7 @@ class Tree
     }; /** end Offset() */
 
 
-    template<size_t LEVELOFFSET=4>
+    template<size_t LEVELOFFSET=5>
     void Morton( NODE *node, size_t morton )
     {
       if ( node )
@@ -961,7 +961,7 @@ class Tree
      *  @TODO: used in FindNearNode, problematic in distributed version
      *
      */ 
-    template<size_t LEVELOFFSET=4>
+    template<size_t LEVELOFFSET=5>
     NODE *Morton2Node( size_t me )
     {
       assert( N_CHILDREN == 2 );
