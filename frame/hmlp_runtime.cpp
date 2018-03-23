@@ -29,7 +29,7 @@
 #include <magma_lapack.h>
 #endif
 
-#define MAX_BATCH_SIZE 4
+#define MAX_BATCH_SIZE 0
 
 #define REPORT_RUNTIME_STATUS 1
 // #define DEBUG_RUNTIME 1
@@ -846,14 +846,26 @@ void Scheduler::Finalize()
   /** Reset remaining time */
   for ( int i = 0; i < n_worker; i ++ ) time_remaining[ i ] = 0.0;
   /** Reset tasklist */
-  for ( auto task : tasklist ) delete task; 
-  tasklist.clear();
+  try
+  {
+    for ( auto task : tasklist ) delete task; 
+    tasklist.clear();
+  }
+  catch ( exception & e ) { cout << e.what() << endl; };
   /** Reset nested_tasklist */
-  for ( auto task : nested_tasklist ) delete task; 
-  nested_tasklist.clear();
+  try
+  {
+    for ( auto task : nested_tasklist ) delete task; 
+    nested_tasklist.clear();
+  }
+  catch ( exception & e ) { cout << e.what() << endl; };
   //printf( "Begin Scheduler::Finalize() [cleanup listener_tasklist]\n" );
   /** Reset listener_tasklist  */
-  for ( auto p : listener_tasklist ) p.clear();
+  try
+  {
+    for ( auto p : listener_tasklist ) p.clear();
+  }
+  catch ( exception & e ) { cout << e.what() << endl; };
   //printf( "End   Scheduler::Finalize() [cleanup listener_tasklist]\n" );
   
   /** Clean up all message dependencies. */
@@ -1556,18 +1568,14 @@ void RunTime::ExecuteNestedTasksWhileWaiting( Task *waiting_task )
   {
     while ( waiting_task->GetStatus() != DONE )
     {
-      /** first try to consume tasks in the nested queue */
-      if ( this->scheduler->nested_queue.size() )
-      {
-        /** try to get a nested task; (can be a NULL pointer) */
-        Task *nested_task = this->scheduler->TryDispatchFromNestedQueue();
+      /** try to get a nested task; (can be a NULL pointer) */
+      Task *nested_task = this->scheduler->TryDispatchFromNestedQueue();
 
-        if ( nested_task )
-        {
-          nested_task->SetStatus( RUNNING );
-          nested_task->Execute( NULL );
-          nested_task->DependenciesUpdate();
-        }
+      if ( nested_task )
+      {
+        nested_task->SetStatus( RUNNING );
+        nested_task->Execute( NULL );
+        nested_task->DependenciesUpdate();
       }
     }
   }
@@ -1657,6 +1665,11 @@ hmlp::Device *hmlp_get_device( int i )
 bool hmlp_is_in_epoch_session()
 {
   return hmlp::rt.IsInEpochSession();
+};
+
+bool hmlp_is_nested_queue_empty()
+{
+  return !hmlp::rt.scheduler->nested_queue.size();
 };
 
 void hmlp_msg_dependency_analysis( 

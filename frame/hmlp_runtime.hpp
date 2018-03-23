@@ -826,6 +826,8 @@ hmlp::Device *hmlp_get_device( int i );
 
 bool hmlp_is_in_epoch_session();
 
+bool hmlp_is_nested_queue_empty();
+
 void hmlp_set_num_background_worker( int n_background_worker );
 
 void hmlp_msg_dependency_analysis( 

@@ -5203,45 +5203,45 @@ DistData<RIDS, STAR, T> Evaluate
     /** Global barrier and timer */
     mpi::Barrier( tree.comm );
 
-    //{
-    //  /** Stage 1: TreeView and upward telescoping */
-    //  beg = omp_get_wtime();
-    //  tree.DependencyCleanUp();
-    //  tree.DistTraverseDown( mpiVIEWtask );
-    //  tree.LocaTraverseDown( seqVIEWtask );
-    //  tree.LocaTraverseUp( seqN2Stask );
-    //  tree.DistTraverseUp( mpiN2Stask );
-    //  hmlp_run();
-    //  mpi::Barrier( tree.comm );
-    //  telescope_time = omp_get_wtime() - beg;
+    {
+      /** Stage 1: TreeView and upward telescoping */
+      beg = omp_get_wtime();
+      tree.DependencyCleanUp();
+      tree.DistTraverseDown( mpiVIEWtask );
+      tree.LocaTraverseDown( seqVIEWtask );
+      tree.LocaTraverseUp( seqN2Stask );
+      tree.DistTraverseUp( mpiN2Stask );
+      hmlp_run();
+      mpi::Barrier( tree.comm );
+      telescope_time = omp_get_wtime() - beg;
 
-    //  /** Stage 2: LET exchange */
-    //  beg = omp_get_wtime();
-    //  ExchangeLET<T>( tree, string( "skelweights" ) );
-    //  mpi::Barrier( tree.comm );
-    //  ExchangeLET<T>( tree, string( "leafweights" ) );
-    //  mpi::Barrier( tree.comm );
-    //  let_exchange_time = omp_get_wtime() - beg;
+      /** Stage 2: LET exchange */
+      beg = omp_get_wtime();
+      ExchangeLET<T>( tree, string( "skelweights" ) );
+      mpi::Barrier( tree.comm );
+      ExchangeLET<T>( tree, string( "leafweights" ) );
+      mpi::Barrier( tree.comm );
+      let_exchange_time = omp_get_wtime() - beg;
 
-    //  /** Stage 3: L2L */
-    //  beg = omp_get_wtime();
-    //  tree.DependencyCleanUp();
-    //  tree.LocaTraverseLeafs( seqL2LReducetask2 );
-    //  hmlp_run();
-    //  mpi::Barrier( tree.comm );
-    //  direct_evaluation_time = omp_get_wtime() - beg;
+      /** Stage 3: L2L */
+      beg = omp_get_wtime();
+      tree.DependencyCleanUp();
+      tree.LocaTraverseLeafs( seqL2LReducetask2 );
+      hmlp_run();
+      mpi::Barrier( tree.comm );
+      direct_evaluation_time = omp_get_wtime() - beg;
 
-    //  /** Stage 4: S2S and downward telescoping */
-    //  beg = omp_get_wtime();
-    //  tree.DependencyCleanUp();
-    //  tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
-    //  tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
-    //  tree.DistTraverseDown( mpiS2Ntask );
-    //  tree.LocaTraverseDown( seqS2Ntask );
-    //  hmlp_run();
-    //  mpi::Barrier( tree.comm );
-    //  computeall_time = omp_get_wtime() - beg;
-    //}
+      /** Stage 4: S2S and downward telescoping */
+      beg = omp_get_wtime();
+      tree.DependencyCleanUp();
+      tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
+      tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
+      tree.DistTraverseDown( mpiS2Ntask );
+      tree.LocaTraverseDown( seqS2Ntask );
+      hmlp_run();
+      mpi::Barrier( tree.comm );
+      computeall_time = omp_get_wtime() - beg;
+    }
 
     if ( rank == 0 && REPORT_EVALUATE_STATUS )
     {
@@ -5576,7 +5576,7 @@ mpitree::Tree<
 
   /** Cache near KIJ interactions */
   mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-  //tree.LocaTraverseLeafs( seqNEARKIJtask );
+  tree.LocaTraverseLeafs( seqNEARKIJtask );
 
   hmlp_run();
   mpi::Barrier( tree.comm );
@@ -5606,8 +5606,8 @@ mpitree::Tree<
   /** Cache far KIJ interactions */
   mpigofmm::CacheFarNodesTask<NNPRUNE,    NODE> seqFARKIJtask;
   mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-  //tree.LocaTraverseUnOrdered( seqFARKIJtask );
-  //tree.DistTraverseUnOrdered( mpiFARKIJtask );
+  tree.LocaTraverseUnOrdered( seqFARKIJtask );
+  tree.DistTraverseUnOrdered( mpiFARKIJtask );
   cachefarnodes_time = omp_get_wtime() - beg;
   hmlp_run();
   mpi::Barrier( tree.comm );

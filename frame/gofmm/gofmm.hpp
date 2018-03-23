@@ -2176,7 +2176,9 @@ void GetSkeletonMatrix( NODE *node )
   //if ( candidate_rows.size() <= over_size_rank )
   if ( 1 )
   {
+    //printf( "Get KIJ treelist_id %lu I %lu J %lu\n", node->treelist_id, candidate_rows.size(), candidate_cols.size() ); fflush( stdout );
     KIJ = K( candidate_rows, candidate_cols );
+    //printf( "End KIJ treelist_id %lu I %lu J %lu\n", node->treelist_id, candidate_rows.size(), candidate_cols.size() ); fflush( stdout );
   }
   else
   {

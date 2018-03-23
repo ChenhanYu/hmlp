@@ -861,34 +861,11 @@ class OOCData : public ReadWrite
 {
   public:
 
+    OOCData() {};
+
     OOCData( size_t m, size_t n, string filename )
     {
-      this->m = m;
-      this->n = n;
-      this->filename = filename;
-
-      /** Open the file */
-      fd = open( filename.data(), O_RDONLY, 0 ); 
-      assert( fd != -1 );
-#ifdef __APPLE__
-      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE, fd, 0 );
-#else /** Assume Linux */
-      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
-#endif
-      assert( mmappedData != MAP_FAILED );
-
-
-      /** Use MPI I/O */
-      //MPI_File_open( MPI_COMM_WORLD, filename.data(), MPI_MODE_RDONLY, 
-      //    MPI_INFO_NULL, &fh );
-
-     
-
-
-
-
-
-      cout << filename << endl;
+      Set( m, n, filename );
     };
 
     ~OOCData()
@@ -897,29 +874,37 @@ class OOCData : public ReadWrite
       int rc = munmap( mmappedData, m * n * sizeof(T) );
       assert( rc == 0 );
       close( fd );
-
-
-      //MPI_File_close( &fh );
-
-
       printf( "finish readmatrix %s\n", filename.data() );
     };
 
-
-    template<typename TINDEX>
-    inline T operator()( TINDEX i, TINDEX j )
+    void Set( size_t m, size_t n, string filename )
     {
-      return mmappedData[ j * m + i ];
-
-      //T ret;
-      //MPI_Status status;
-      //MPI_Offset offset = j * m + i;
-      //MPI_File_read_at( fh, offset * sizeof(T), &ret, 1, MPI_FLOAT, &status );
-      //return ret;
+      this->m = m;
+      this->n = n;
+      this->filename = filename;
+      /** Open the file */
+      fd = open( filename.data(), O_RDONLY, 0 ); 
+      assert( fd != -1 );
+#ifdef __APPLE__
+      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), 
+          PROT_READ, MAP_PRIVATE, fd, 0 );
+#else /** Assume Linux */
+      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), 
+          PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
+#endif
+      assert( mmappedData != MAP_FAILED );
+      cout << filename << endl;
     };
 
     template<typename TINDEX>
-    inline Data<T> operator()( const vector<TINDEX> &I, const vector<TINDEX> &J )
+    T operator()( TINDEX i, TINDEX j )
+    {
+      assert( i < m && j < n );
+      return mmappedData[ j * m + i ];
+    };
+
+    template<typename TINDEX>
+    Data<T> operator()( const vector<TINDEX> &I, const vector<TINDEX> &J )
     {
       Data<T> KIJ( I.size(), J.size() );
       for ( int j = 0; j < J.size(); j ++ )
@@ -954,9 +939,7 @@ class OOCData : public ReadWrite
     /** Use mmap */
     T *mmappedData = NULL;
 
-    int fd;
-
-    //MPI_File fh;
+    int fd = -1;
 
 }; /** end class OOCData */
 
