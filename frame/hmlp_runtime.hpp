@@ -268,6 +268,8 @@ class Task
     /** If true, then this is an MPI task */
     bool has_mpi_routines = false;
 
+    int created_by = 0;
+
   private:
 
     volatile TaskStatus status;
@@ -586,9 +588,10 @@ void RecuTaskExecute( ARG *arg, TASK& dummy, Args&... dummyargs )
   /** create the first normal task is it is not a NULLTask */
   if ( !std::is_same<NULLTASK, TASK>::value )
   {
-    auto task = new TASK();
+    auto *task = new TASK();
     task->Set( arg );
     task->Execute( NULL );
+    delete task;
   }
 
   /** now recurs to Args&... args, types are deduced automatically */
@@ -685,9 +688,11 @@ class Scheduler
     Lock ready_queue_lock[ MAX_WORKER ];
 
     /** The ready queue for nested tasks */
-    deque<Task*> nested_queue;
+    deque<Task*> nested_queue[ MAX_WORKER ];
+    //deque<Task*> nested_queue;
     deque<Task*> nested_tasklist;
-    Lock nested_queue_lock;
+    Lock nested_queue_lock[ MAX_WORKER ];
+    //Lock nested_queue_lock;
 
     /** The ready queue for MPI tasks */
     deque<Task*> mpi_queue;
@@ -826,7 +831,7 @@ hmlp::Device *hmlp_get_device( int i );
 
 bool hmlp_is_in_epoch_session();
 
-bool hmlp_is_nested_queue_empty();
+//bool hmlp_is_nested_queue_empty();
 
 void hmlp_set_num_background_worker( int n_background_worker );
 

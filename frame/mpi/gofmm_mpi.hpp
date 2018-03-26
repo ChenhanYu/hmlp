@@ -5203,45 +5203,45 @@ DistData<RIDS, STAR, T> Evaluate
     /** Global barrier and timer */
     mpi::Barrier( tree.comm );
 
-    {
-      /** Stage 1: TreeView and upward telescoping */
-      beg = omp_get_wtime();
-      tree.DependencyCleanUp();
-      tree.DistTraverseDown( mpiVIEWtask );
-      tree.LocaTraverseDown( seqVIEWtask );
-      tree.LocaTraverseUp( seqN2Stask );
-      tree.DistTraverseUp( mpiN2Stask );
-      hmlp_run();
-      mpi::Barrier( tree.comm );
-      telescope_time = omp_get_wtime() - beg;
+    //{
+    //  /** Stage 1: TreeView and upward telescoping */
+    //  beg = omp_get_wtime();
+    //  tree.DependencyCleanUp();
+    //  tree.DistTraverseDown( mpiVIEWtask );
+    //  tree.LocaTraverseDown( seqVIEWtask );
+    //  tree.LocaTraverseUp( seqN2Stask );
+    //  tree.DistTraverseUp( mpiN2Stask );
+    //  hmlp_run();
+    //  mpi::Barrier( tree.comm );
+    //  telescope_time = omp_get_wtime() - beg;
 
-      /** Stage 2: LET exchange */
-      beg = omp_get_wtime();
-      ExchangeLET<T>( tree, string( "skelweights" ) );
-      mpi::Barrier( tree.comm );
-      ExchangeLET<T>( tree, string( "leafweights" ) );
-      mpi::Barrier( tree.comm );
-      let_exchange_time = omp_get_wtime() - beg;
+    //  /** Stage 2: LET exchange */
+    //  beg = omp_get_wtime();
+    //  ExchangeLET<T>( tree, string( "skelweights" ) );
+    //  mpi::Barrier( tree.comm );
+    //  ExchangeLET<T>( tree, string( "leafweights" ) );
+    //  mpi::Barrier( tree.comm );
+    //  let_exchange_time = omp_get_wtime() - beg;
 
-      /** Stage 3: L2L */
-      beg = omp_get_wtime();
-      tree.DependencyCleanUp();
-      tree.LocaTraverseLeafs( seqL2LReducetask2 );
-      hmlp_run();
-      mpi::Barrier( tree.comm );
-      direct_evaluation_time = omp_get_wtime() - beg;
+    //  /** Stage 3: L2L */
+    //  beg = omp_get_wtime();
+    //  tree.DependencyCleanUp();
+    //  tree.LocaTraverseLeafs( seqL2LReducetask2 );
+    //  hmlp_run();
+    //  mpi::Barrier( tree.comm );
+    //  direct_evaluation_time = omp_get_wtime() - beg;
 
-      /** Stage 4: S2S and downward telescoping */
-      beg = omp_get_wtime();
-      tree.DependencyCleanUp();
-      tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
-      tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
-      tree.DistTraverseDown( mpiS2Ntask );
-      tree.LocaTraverseDown( seqS2Ntask );
-      hmlp_run();
-      mpi::Barrier( tree.comm );
-      computeall_time = omp_get_wtime() - beg;
-    }
+    //  /** Stage 4: S2S and downward telescoping */
+    //  beg = omp_get_wtime();
+    //  tree.DependencyCleanUp();
+    //  tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
+    //  tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
+    //  tree.DistTraverseDown( mpiS2Ntask );
+    //  tree.LocaTraverseDown( seqS2Ntask );
+    //  hmlp_run();
+    //  mpi::Barrier( tree.comm );
+    //  computeall_time = omp_get_wtime() - beg;
+    //}
 
     if ( rank == 0 && REPORT_EVALUATE_STATUS )
     {
@@ -5448,6 +5448,7 @@ mpitree::Tree<
     mpi::PrintProgress( "Not performed (precomputed or k=0) ...\n", MPI_COMM_WORLD );
   }
   ann_time = omp_get_wtime() - beg;
+  printf( "ann_time %lf\n", ann_time );
 
   /** check illegle values in NN */
   //for ( size_t j = 0; j < NN.col(); j ++ )
@@ -5489,6 +5490,7 @@ mpitree::Tree<
   mpi::Barrier( tree.comm );
   tree_time = omp_get_wtime() - beg;
   mpi::PrintProgress( "End TreePartitioning ...\n", tree.comm ); 
+  printf( "tree_time %lf\n", tree_time );
 
   /** Now redistribute K. */
   K.Redistribute( true, tree.treelist[ 0 ]->gids );
@@ -5576,7 +5578,7 @@ mpitree::Tree<
 
   /** Cache near KIJ interactions */
   mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-  tree.LocaTraverseLeafs( seqNEARKIJtask );
+  //tree.LocaTraverseLeafs( seqNEARKIJtask );
 
   hmlp_run();
   mpi::Barrier( tree.comm );
@@ -5587,7 +5589,7 @@ mpitree::Tree<
 
 	beg = omp_get_wtime();
   tree.DependencyCleanUp();
-  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+  tree.DistTraverseUp<false>( mpiGETMTXtask, mpiSKELtask );
   tree.DistTraverseUnOrdered( mpiPROJtask );
   hmlp_run();
   mpi::Barrier( tree.comm );
@@ -5606,8 +5608,8 @@ mpitree::Tree<
   /** Cache far KIJ interactions */
   mpigofmm::CacheFarNodesTask<NNPRUNE,    NODE> seqFARKIJtask;
   mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-  tree.LocaTraverseUnOrdered( seqFARKIJtask );
-  tree.DistTraverseUnOrdered( mpiFARKIJtask );
+  //tree.LocaTraverseUnOrdered( seqFARKIJtask );
+  //tree.DistTraverseUnOrdered( mpiFARKIJtask );
   cachefarnodes_time = omp_get_wtime() - beg;
   hmlp_run();
   mpi::Barrier( tree.comm );
@@ -5702,7 +5704,7 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
 		/** client thread */
     #pragma omp section
 		{
-			Kab = K( I, J );
+			Kab = K( J, I );
 			do_terminate = true;
 		}
 		/** server thread */
@@ -5713,6 +5715,7 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
 
 	}; /** end omp parallel sections */
 
+  Kab.resize( I.size(), J.size() );
 
   auto loc_exact = potentials;
   auto glb_exact = potentials;
@@ -5734,7 +5737,7 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
   auto nrm2 = hmlp_norm( glb_exact.row(),  glb_exact.col(), 
                          glb_exact.data(), glb_exact.row() ); 
 
-  //printf( "potential %E exact %E\n", potentials[ 0 ], glb_exact[ 0 ] ); fflush( stdout );
+  printf( "potential %E exact %E\n", potentials[ 0 ], glb_exact[ 0 ] ); fflush( stdout );
 
   for ( size_t j = 0; j < potentials.col(); j ++ )
   {
@@ -5744,10 +5747,10 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
   auto err = hmlp_norm(  potentials.row(), potentials.col(), 
                         potentials.data(), potentials.row() ); 
 
-  //printf( "potentials %E err %E nrm2 %E\n", potentials[ 0 ], err, nrm2 ); fflush( stdout );
+  printf( "potentials %E err %E nrm2 %E\n", potentials[ 0 ], err, nrm2 ); fflush( stdout );
 
-
-  return err / nrm2;
+  if ( nrm2 == 0 ) return nrm2;
+  else return err / nrm2;
 }; /** end ComputeError() */
 
 

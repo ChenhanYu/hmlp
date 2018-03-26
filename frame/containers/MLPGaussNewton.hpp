@@ -38,10 +38,8 @@ class LayerBase
 
     /** The input and output types are subjected to change. */
     virtual void Forward() = 0;
-    virtual void TemporaryForward() = 0;
 
     virtual Data<T> & GetValues() = 0;
-    virtual Data<T> & GetTemporaryValues() = 0;
 
   private:
 
@@ -68,25 +66,19 @@ class Layer<INPUT, T> : public LayerBase<T>
 
     void Forward() { /** NOP */ };
 
-    void TemporaryForward() { /** NOP */ };
 
     void SetValues( const Data<T> &user_x )
     {
-      assert( user_x.row() = x.row() && user_x.col() == x.col() );
+      //assert( user_x.row() == x.row() && user_x.col() == x.col() );
       x = user_x;
     };
 
     Data<T> & GetValues() { return x; };
 
-    void SetTemporaryValues( const Data<T> &user_tmp ) { tmp = user_tmp; };
-
-    Data<T> & GetTemporaryValues() { return tmp; };
-
   private:
 
     Data<T> x;
 
-    Data<T> tmp;
 };
 
 
@@ -101,8 +93,9 @@ class Layer<FC, T> : public LayerBase<T>
     {
       x.resize( N, B );
       w.resize( N, prev.NeuronSize() );
-      /** Initialize w as normal( 0, 1 ) */
-      w.randn( 0.0, 1.0 );
+      /** Initialize w as normal( 0, 0.1 ) */
+      w.randn( 0.0, 0.1 );
+      mpi::Bcast( w.data(), w.size(), 0, MPI_COMM_WORLD );
     };
 
     size_t ParameterSize() { return w.size(); };
@@ -114,44 +107,84 @@ class Layer<FC, T> : public LayerBase<T>
       Data<T> &B = prev.GetValues();
       Data<T> &C = x;
       /** C = AB^{T} */
-      gemm::xgemm( HMLP_OP_N, HMLP_OP_N, (T)1.0, A, B, (T)0.0, C );
+      //gemm::xgemm( HMLP_OP_N, HMLP_OP_N, (T)1.0, A, B, (T)0.0, C );
+      xgemm( "N", "N", C.row(), C.col(), B.row(), 
+          1.0, A.data(), A.row(), 
+               B.data(), B.row(), 
+          0.0, C.data(), C.row() );
       /** RELU activation function */
-      for ( auto c : C ) c = std::max( c, (T)0 );
+      nnz = 0;
+      for ( auto &c : C ) 
+      {
+        c = std::max( c, (T)0 );
+        if ( c ) nnz ++;
+      }
+      printf( "Layer report: %8lu/%8lu nnz\n", nnz, C.size() );
     };
 
-    void TemporaryForward()
-    {
-      Data<T> &A = w;
-      Data<T> &B = prev.GetTemporaryValues();
-      Data<T> &C = tmp;
-      tmp.resize( A.row(), B.col() );
-      gemm::xgemm( HMLP_OP_N, HMLP_OP_N, (T)1.0, A, B, (T)0.0, C );
-      /** RELU activation function */
-      for ( auto c : C ) c = std::max( c, (T)0 );
-    };
 
     /** The tuple contains ( lid in I, idi of W, idj of W ) */
-    Data<T> ForwardPerturbation
-    ( 
-      const vector<tuple<size_t, size_t, size_t>> &Perturbation 
-    )
+    Data<T> PerturbedGradient( bool use_reduced_format, size_t i, size_t j )
     {
-      /** B-by-#perburation */
-      Data<T> C( this->BatchSize(), Perturbation.size() );
+      assert( i < w.row() && j < w.col() );
+      Data<T> &B = prev.GetValues();
+      if ( use_reduced_format )
+      {
+        Data<T> G( 1, this->BatchSize(), 0 );
+        for ( size_t b = 0; b < this->BatchSize(); b ++ ) 
+        {
+          if ( x( i, b ) ) G[ b ] = B( j, b );
+        }
+        return G;
+      }
+      else
+      {
+        Data<T> G( this->NeuronSize(), this->BatchSize(), 0 );
+        for ( size_t b = 0; b < this->BatchSize(); b ++ ) 
+        {
+          if ( x( i, b ) ) G( i, b ) = B( j, b );
+        }
+        return G;
+      }
+    };
 
-      /** Severin: C( :, j ) = delta * prev.x( get<2>( Perturbation[ j ] ), :  ) */
+    Data<T> Gradient( Data<T> &B )
+    {
+      Data<T> &A = w;
+      Data<T> G( this->NeuronSize(), this->BatchSize(), 0 );
+      //gemm::xgemm( HMLP_OP_N, HMLP_OP_N, (T)1.0, A, B, (T)0.0, G );
+      xgemm( "N", "N", G.row(), G.col(), B.row(), 
+          1.0, A.data(), A.row(), 
+               B.data(), B.row(), 
+          0.0, G.data(), G.row() );
+      /** RELU gradient */
+      for ( size_t i = 0; i < x.size(); i ++ ) 
+      {
+        if ( !x[ i ] ) G[ i ] = 0;
+      }
+      return G;
+    };
 
-
-      return C;
+    Data<T> Gradient( Data<T> &B, size_t q )
+    {
+      Data<T> &A = w;
+      Data<T> G( this->NeuronSize(), this->BatchSize(), 0 );
+      /** RELU gradient */
+      for ( size_t j = 0; j < x.col(); j ++ )
+      {
+        for ( size_t i = 0; i < x.row(); i ++ )
+        {
+          if ( x( i, j ) ) G( i, j ) = w( i, q ) * B[ j ];
+        }
+      }
+      return G;
     };
 
     Data<T> & GetValues() { return x; };
 
     Data<T> & GetParameters() { return w; };
 
-    void SetTemporaryValues( const Data<T> &user_tmp ) { tmp = user_tmp; };
-
-    Data<T> & GetTemporaryValues() { return tmp; };
+    size_t NumberNonZeros() { return nnz; };
 
   private:
 
@@ -165,7 +198,8 @@ class Layer<FC, T> : public LayerBase<T>
 
     LayerBase<T> &prev;
 
-    Data<T> tmp;
+    size_t nnz = 0;
+
 };
 
 
@@ -175,7 +209,10 @@ class MLPGaussNewton : public VirtualMatrix<T>,
 {
   public:
 
-    MLPGaussNewton() {};
+    MLPGaussNewton() 
+    {
+      filename = string( "/scratch/02794/ych/data/tmp/MLPGaussNewton.bin" );
+    };
 
     void AppendInputLayer( Layer<INPUT, T> &layer )
     {
@@ -193,24 +230,127 @@ class MLPGaussNewton : public VirtualMatrix<T>,
 
     void Update( const Data<T> &data )
     {
+      int comm_rank; mpi::Comm_rank( MPI_COMM_WORLD, &comm_rank );
+      int comm_size; mpi::Comm_size( MPI_COMM_WORLD, &comm_size );
+
+      in->SetValues( data );
       /** Feed forward */
       for ( auto layer : net ) layer->Forward();
-      /** Compute product for fast perturbation */
-      int q = net.size();
-      product.resize( q );
 
-      /** The product of the last layer is I. */
-      for ( int i = 0; i < q; i ++ )
-      {
-        size_t N = net[ i ]->NeuronSize();
-        Data<T> identity( N, N, 0 );
-        for ( size_t k = 0; k < N; k ++ ) identity( k, k ) = 1;
-        net[ i ]->SetTemporaryValues( identity );
-        /** (RELU(Wq-1)*...*RELU(Wi+2))*RELU(Wi+1) */
-        for ( int j = i + 1; j < q; j ++ ) net[ j ]->TemporaryForward();
-        product[ i ] = net.back()->GetTemporaryValues();
-      }
+      //fd = open( filename.data(), O_RDWR | O_CREAT, 0 );
+      //assert( fd != -1 );
+
+      //uint64_t data_size = this->col();
+      //data_size *= in->BatchSize();
+      //data_size *= sizeof(T);
+
+      //if ( comm_rank == 0 )
+      //{
+      //  if ( lseek( fd, data_size - 1, SEEK_SET ) == -1 ) printf( "lseek failure\n" );
+      //  if ( write( fd, "", 1 ) == -1 ) printf( "write failure\n" );
+      //}
+      //mpi::Barrier( MPI_COMM_WORLD );
+
+      //mmappedData = (T*)mmap(0, data_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0 );
+      //if ( mmappedData == MAP_FAILED ) printf( "mmap failure\n" );
+
+      //#pragma omp parallel for
+      //for ( size_t j = comm_rank; j < this->col(); j += comm_size )
+      //{
+      //  Data<T> Jj = Jacobian( vector<size_t>( 1, j ) );
+      //  uint64_t offj = (uint64_t)Jj.size() * (uint64_t)j;
+      //  for ( size_t i = 0; i < Jj.size(); i ++ ) mmappedData[ offj + i ] = Jj[ i ];
+      //}
+      //mpi::Barrier( MPI_COMM_WORLD );
     };
+
+    void WriteJacobianToFiles( string filename )
+    {
+      int comm_rank; mpi::Comm_rank( MPI_COMM_WORLD, &comm_rank );
+      int comm_size; mpi::Comm_size( MPI_COMM_WORLD, &comm_size );
+
+      uint64_t nb = 2048;
+      uint64_t nf = ( net.back()->NumberNonZeros() - 1 ) / nb + 1; 
+      uint64_t data_size = (uint64_t)this->col() * nb * sizeof(float);
+
+      vector<int> fd( nf );
+      vector<float*> mappedData( nf );
+
+      if ( comm_rank == 0 )
+      {
+        for ( size_t f = 0; f < nf; f ++ )
+        {
+          string filepath = filename + to_string( f * nb );
+          fd[ f ] = open( filepath.data(), O_RDWR | O_CREAT, 0 );
+          assert( fd[ f ] != -1 );
+        }
+      }
+      mpi::Barrier( MPI_COMM_WORLD );
+      if ( comm_rank > 0 )
+      {
+        for ( size_t f = 0; f < nf; f ++ )
+        {
+          string filepath = filename + to_string( f * nb );
+          fd[ f ] = open( filepath.data(), O_RDWR, 0 );
+          assert( fd[ f ] != -1 );
+        }
+      }
+      if ( comm_rank == 0 )
+      {
+        for ( size_t f = 0; f < nf; f ++ )
+        {
+          if ( lseek( fd[ f ], data_size - 1, SEEK_SET ) == -1 ) printf( "lseek failure\n" );
+          if ( write( fd[ f ], "", 1 ) == -1 ) printf( "write failure\n" );
+        }
+      }
+      mpi::Barrier( MPI_COMM_WORLD );
+      for ( size_t f = 0; f < nf; f ++ )
+      {
+        mappedData[ f ] = (float*)mmap( 0, data_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd[ f ], 0 );
+        if ( mappedData[ f ] == MAP_FAILED ) printf( "mmap failure\n" );
+      }
+      mpi::Barrier( MPI_COMM_WORLD );
+
+      size_t zero_columns = 0;
+
+      #pragma omp parallel for schedule(dynamic)
+      for ( size_t j = comm_rank; j < this->col(); j += comm_size )
+      {
+        if ( j % 5000 == 0 ) printf( "%8lu columns computed (rank %3d)\n", j, comm_rank ); 
+        Data<T> Jj = Jacobian( vector<size_t>( 1, j ) );
+        uint64_t offj = (uint64_t)nb * (uint64_t)j;
+        size_t nnz = 0;
+        for ( size_t i = 0; i < Jj.size(); i ++ ) 
+        {
+          if ( i < Jj.size() )
+          {
+            mappedData[ i / nb ][ offj + ( i % nb ) ] = (float)Jj[ i ];
+            if ( Jj[ i ] ) nnz ++;
+          }
+          else
+          {
+            mappedData[ i / nb ][ offj + ( i % nb ) ] = 0;
+          }
+        }
+        if ( !nnz )
+        {
+          #pragma omp atomic update 
+          zero_columns ++;
+        }
+      }
+      mpi::Barrier( MPI_COMM_WORLD );
+      printf( "zero column %lu\n", zero_columns );
+
+      for ( size_t f = 0; f < nf; f ++ )
+      {
+        int rc = munmap( mappedData[ f ], data_size );
+        assert( rc == 0 );
+        close( fd[ f ] );
+      }
+      mpi::Barrier( MPI_COMM_WORLD );
+    };
+
+
 
     /** ESSENTIAL: this is an abstract function  */
     virtual T operator()( size_t i, size_t j )
@@ -228,8 +368,26 @@ class MLPGaussNewton : public VirtualMatrix<T>,
       Data<T> KIJ( I.size(), J.size() );
       Data<T> A = Jacobian( I );
       Data<T> B = Jacobian( J );
+      
+      //size_t d = net.back()->NeuronSize() * net.back()->BatchSize();
+      //Data<T> A( d, I.size() );
+      //Data<T> B( d, J.size() );
+      //for ( size_t j = 0; j < I.size(); j ++ )
+      //{
+      //  uint64_t offj = (uint64_t)d * (uint64_t)j;
+      //  for ( size_t i = 0; i < d; i ++ ) A( i, j ) = mmappedData[ offj + i ];
+      //}
+      //for ( size_t j = 0; j < J.size(); j ++ )
+      //{
+      //  uint64_t offj = (uint64_t)d * (uint64_t)j;
+      //  for ( size_t i = 0; i < d; i ++ ) B( i, j ) = mmappedData[ offj + i ];
+      //}
+
       /** KIJ = A^{T}B */
-      gemm::xgemm( HMLP_OP_T, HMLP_OP_N, (T)1.0, A, B, (T)0.0, KIJ );
+      xgemm( "T", "N", KIJ.row(), KIJ.col(), B.row(), 
+          1.0, A.data(), A.row(), 
+               B.data(), B.row(), 
+          0.0, KIJ.data(), KIJ.row() );
       return KIJ;
     };
 
@@ -252,62 +410,139 @@ class MLPGaussNewton : public VirtualMatrix<T>,
     /** [ #W1, #W1+#W1, ..., #W1+...+#Wq-1], sorted q numbers */
     vector<size_t> index_range;
 
+    Data<T> Jcache;
+
+    vector<size_t> all_rows;
+
+    string filename;
+
+    /** Use mmap */
+    T *mmappedData = NULL;
+
+    int fd = -1;
+
+
+
     /** [ RELU(Wq-1)*...*RELU(W1), ..., RELU(Wq-1), I ], q products */
-    vector<Data<T>> product;
+    //vector<Data<T>> product;
 
     /** Convert global parameter index to local layer index. */
-    vector<vector<tuple<size_t, size_t, size_t>>> Index2Layer( const vector<size_t> &I )
-    {
-      size_t n_layer = net.size();
-      vector<vector<tuple<size_t, size_t, size_t>>> ret( n_layer );
+    //vector<vector<tuple<size_t, size_t, size_t>>> Index2Layer( const vector<size_t> &I )
+    //{
+    //  size_t n_layer = net.size();
+    //  vector<vector<tuple<size_t, size_t, size_t>>> ret( n_layer );
 
+    //  for ( size_t i = 0; i < I.size(); i ++ )
+    //  {
+    //    auto upper = upper_bound( index_range.begin(), index_range.end(), I[ i ] );
+    //    assert( upper != index_range.end() );
+    //    size_t layer = distance( index_range.begin(), upper );
+
+    //    /** Compute local index within the layer */
+    //    size_t lid = I[ i ];
+    //    if ( layer ) lid -= index_range[ layer - 1 ];
+    //    Data<T> &w = net[ layer ]->GetParameters();
+    //    size_t lidi = lid % w.row();
+    //    size_t lidj = lid / w.row();
+    //    ret[ layer ].push_back( make_tuple( i, lidi, lidj ) );
+    //  }
+
+    //  return ret;
+    //};
+
+    vector<tuple<size_t, size_t, size_t>> Index2Layer( const vector<size_t> &I )
+    {
+      vector<tuple<size_t, size_t, size_t>> ret( I.size() );
       for ( size_t i = 0; i < I.size(); i ++ )
       {
         auto upper = upper_bound( index_range.begin(), index_range.end(), I[ i ] );
         assert( upper != index_range.end() );
         size_t layer = distance( index_range.begin(), upper );
-
         /** Compute local index within the layer */
         size_t lid = I[ i ];
         if ( layer ) lid -= index_range[ layer - 1 ];
         Data<T> &w = net[ layer ]->GetParameters();
         size_t lidi = lid % w.row();
         size_t lidj = lid / w.row();
-        ret[ layer ].push_back( make_tuple( i, lidi, lidj ) );
+        ret[ i ] = make_tuple( layer, lidi, lidj );
       }
-
       return ret;
     };
-
 
     Data<T> Jacobian( const vector<size_t> &I )
     {
       size_t B = net.back()->BatchSize();
       size_t N = net.back()->NeuronSize();
+      size_t nnz = net.back()->NumberNonZeros();
 
-      Data<T> J( N * B, I.size(), 0 );
-      Data<T> JN( N, I.size(), 0 );
-      Data<T> JB( B, I.size(), 0 );
+      //Data<T> J( N * B, I.size(), 0 );
+      Data<T> J( nnz, I.size(), 0 );
 
       /** Iatl[ q ] contains all indices of layer q. */
       auto Iatl = Index2Layer( I );
+      //printf( "Index2Layer\n" ); fflush( stdout );
 
-      /** Compute Jacobian perburbation for each layer. */
-      for ( size_t q = 0; q < Iatl.size(); q ++ )
+      //#pragma omp parallel for 
+      for ( size_t b = 0; b < Iatl.size(); b ++ )
       {
-        /** B-by-Iatl[ q ].size() */
-        Data<T> JBq = net[ q ]->ForwardPerturbation( Iatl[ q ] );
-        /** Compute the rest of the feed forward network. */  
-        for ( size_t j = 0; j < Iatl[ q ].size(); j ++ )
+        size_t l = get<0>( Iatl[ b ] );
+        size_t i = get<1>( Iatl[ b ] );
+        size_t j = get<2>( Iatl[ b ] );
+
+        Data<T> Jbuff, tmp;
+        
+        if ( l == net.size() - 1 )
         {
-          size_t lid  = get<0>( Iatl[ q ][ j ] );
-          size_t lidi = get<1>( Iatl[ q ][ j ] );
-          for ( size_t b = 0; b < B; b ++ ) JB( b, lid ) = JBq( b, j );
-          for ( size_t i = 0; i < N; i ++ ) JN( i, lid ) = product[ q ]( i, lidi );
+          Jbuff = net[ l ]->PerturbedGradient( false, i, j );
         }
+        else
+        {
+          Jbuff = net[ l + 0 ]->PerturbedGradient(  true, i, j );
+          tmp   = net[ l + 1 ]->Gradient( Jbuff, i );
+          Jbuff = tmp;
+          for ( size_t layer = l + 2; layer < net.size(); layer ++ )
+          {
+            Data<T> tmp = net[ layer ]->Gradient( Jbuff );
+            Jbuff = tmp;
+          }
+        }
+        
+        //for ( size_t layer = l + 1; layer < net.size(); layer ++ )
+        //{
+        //  Data<T> tmp = net[ layer ]->Gradient( Jbuff );
+        //  Jbuff = tmp;
+        //}
+        
+        assert( Jbuff.size() == N * B );
+        size_t count = 0;
+        for ( size_t q = 0; q < N * B; q ++ ) 
+        {
+          auto &lastx = net.back()->GetValues();
+          if ( lastx[ q ] ) 
+          {
+            J( count, b ) = Jbuff[ q ];
+            count ++;
+          }
+        }
+        assert( count == nnz );
       }
 
-      /** Severin: compute J from JN and JB */
+      ///** Compute Jacobian perburbation for each layer. */
+      //for ( size_t q = 0; q < Iatl.size(); q ++ )
+      //{
+      //  /** B-by-Iatl[ q ].size() */
+      //  Data<T> JBq = net[ q ]->ForwardPerturbation( Iatl[ q ] );
+      //  /** Compute the rest of the feed forward network. */  
+      //  for ( size_t j = 0; j < Iatl[ q ].size(); j ++ )
+      //  {
+      //    size_t lid  = get<0>( Iatl[ q ][ j ] );
+      //    size_t lidi = get<1>( Iatl[ q ][ j ] );
+      //    for ( size_t b = 0; b < B; b ++ ) JB( b, lid ) = JBq( b, j );
+      //    for ( size_t i = 0; i < N; i ++ ) JN( i, lid ) = product[ q ]( i, lidi );
+      //  }
+      //}
+
+      ///** Severin: compute J from JN and JB */
 
       return J;
     }

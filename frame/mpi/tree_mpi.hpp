@@ -1120,7 +1120,7 @@ class Tree
       DistSplitTask<MPINODE> mpisplittask;
       tree::SplitTask<NODE>  seqsplittask;
       DependencyCleanUp();
-      DistTraverseDown( mpisplittask );
+      DistTraverseDown<false>( mpisplittask );
       LocaTraverseDown( seqsplittask );
       hmlp_run();
 	  	MPI_Barrier( comm );
@@ -1142,7 +1142,7 @@ class Tree
         if ( t != n_tree - 1 )
         {
           DependencyCleanUp();
-          DistTraverseDown( mpisplittask );
+          DistTraverseDown<false>( mpisplittask );
           hmlp_run();
 	  	    MPI_Barrier( comm );
         }
@@ -1239,7 +1239,7 @@ class Tree
       //    hmlp_read_nway_from_env( "HMLP_NESTED_WORKER" ) );
 
       DistSplitTask<MPINODE> mpiSPLITtask;
-      DistTraverseDown( mpiSPLITtask );
+      DistTraverseDown<false>( mpiSPLITtask );
 
       /** need to redistribute  */
       hmlp_run();
@@ -1525,13 +1525,14 @@ class Tree
     }; /** end LocaTraverseUp() */
 
 
-    template<typename TASK, typename... Args>
+    template<bool USE_RUN_TIME=true, typename TASK, typename... Args>
     void DistTraverseUp( TASK &dummy, Args&... args )
     {
       MPINODE *node = mpitreelists.back();
       while ( node )
       {
-        RecuTaskSubmit( node, dummy, args... );
+        if ( USE_RUN_TIME ) RecuTaskSubmit(  node, dummy, args... );
+        else                RecuTaskExecute( node, dummy, args... );
         /** move to its parent */
         node = (MPINODE*)node->parent;
       }
@@ -1565,14 +1566,15 @@ class Tree
     }; /** end LocaTraverseDown() */
 
 
-    template<typename TASK, typename... Args>
+    template<bool USE_RUN_TIME=true, typename TASK, typename... Args>
     void DistTraverseDown( TASK &dummy, Args&... args )
     {
       auto *node = mpitreelists.front();
       while ( node )
       {
 				//printf( "now at level %lu\n", node->l ); fflush( stdout );
-        RecuTaskSubmit( node, dummy, args... );
+        if ( USE_RUN_TIME ) RecuTaskSubmit(  node, dummy, args... );
+        else                RecuTaskExecute( node, dummy, args... );
 				//printf( "RecuTaskSubmit at level %lu\n", node->l ); fflush( stdout );
 
         /** 

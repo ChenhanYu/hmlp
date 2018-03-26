@@ -32,20 +32,20 @@ class CovTask : public Task
 
     Data<T> *KIJ = NULL;
 
-    Lock *lock = NULL;
 
+    int *count = NULL;
 
     void Set( vector<OOCData<T>> *user_arg, 
         const vector<size_t> user_ids, 
         const vector<size_t> user_I, 
-        const vector<size_t> user_J, Data<T> *user_KIJ, Lock *user_lock )
+        const vector<size_t> user_J, Data<T> *user_KIJ, int *user_count )
     {
       arg  = user_arg;
       ids  = user_ids;
       I    = user_I;
       J    = user_J;
       KIJ  = user_KIJ;
-      lock = user_lock;
+      count = user_count;
     };
 
     /** Directly enqueue. */
@@ -56,7 +56,7 @@ class CovTask : public Task
       try
       {
         Data<T> C( I.size(), J.size(), 0 );
-        assert( arg && KIJ && lock );
+        assert( arg && KIJ );
         assert( KIJ->row() == I.size() && KIJ->col() == J.size() );
 
         for ( auto id : ids )
@@ -83,14 +83,11 @@ class CovTask : public Task
               1.0, C.data(), C.row() );
         }
      
-        lock->Acquire();
-        {
-          assert( KIJ->row() == I.size() && KIJ->col() == J.size() );
-          for ( size_t j = 0; j < J.size(); j ++ )
-            for ( size_t i = 0; i < I.size(); i ++ )
-              (*KIJ)( i, j ) += C( i, j );
-        }
-        lock->Release();
+        assert( KIJ->row() == I.size() && KIJ->col() == J.size() );
+        for ( size_t j = 0; j < J.size(); j ++ )
+          for ( size_t i = 0; i < I.size(); i ++ )
+            #pragma omp atomic update
+            (*KIJ)( i, j ) += C( i, j );
       }
       catch ( exception & e )
       {
@@ -108,7 +105,7 @@ class CovReduceTask : public Task
 
     vector<CovTask<T>*> subtasks;
 
-    Lock lock;
+    int count = 0;
 
     const size_t batch_size = 32;
 
@@ -118,6 +115,7 @@ class CovReduceTask : public Task
     {
       name = string( "CovReduce" );
       vector<size_t> ids;
+
       /** Create subtasks for each OOCData<T> */
       for ( size_t i = 0; i < arg->size(); i ++ )
       {
@@ -126,7 +124,7 @@ class CovReduceTask : public Task
         {
           subtasks.push_back( new CovTask<T>() );
           subtasks.back()->Submit();
-          subtasks.back()->Set( arg, ids, I, J, KIJ, &lock );
+          subtasks.back()->Set( arg, ids, I, J, KIJ, &count );
           ids.clear();
         }
       }      
@@ -134,7 +132,7 @@ class CovReduceTask : public Task
       {
         subtasks.push_back( new CovTask<T>() );
         subtasks.back()->Submit();
-        subtasks.back()->Set( arg, ids, I, J, KIJ, &lock );
+        subtasks.back()->Set( arg, ids, I, J, KIJ, &count );
         ids.clear();
       }
     };
@@ -146,10 +144,9 @@ class CovReduceTask : public Task
         Scheduler::DependencyAdd( task, this );
         task->DependencyAnalysis();
       }
-      this->TryEnqueue();
     };
 
-    void Execute( Worker* user_worker ) { /** Place holder. */ };
+    void Execute( Worker* user_worker ) {};
 };
   
   
@@ -159,10 +156,11 @@ class OOCCovMatrix : public VirtualMatrix<T>,
 {
   public:
 
-    OOCCovMatrix( size_t d, size_t n, string filename )
+    OOCCovMatrix( size_t d, size_t n, size_t nb, string filename )
     :
     VirtualMatrix<T>( d, d )
     {
+      this->nb = nb;
       for ( int i = 0; i < n; i += nb )
       {
         int ib = min( nb, n - i );
@@ -172,14 +170,18 @@ class OOCCovMatrix : public VirtualMatrix<T>,
         //X.Set( ib, d, filename + to_string( i ) );
       }
 
-      D.resize( d );
+      int comm_rank; mpi::Comm_rank( MPI_COMM_WORLD, &comm_rank );
+      int comm_size; mpi::Comm_size( MPI_COMM_WORLD, &comm_size );
+
+      D.resize( d, 0 );
       #pragma omp parallel for
-      for ( size_t i = 0; i < d; i ++ ) 
+      for ( size_t i = comm_rank; i < d; i += comm_size ) 
       {
         D[ i ] = (*this)( i, i );
         if ( D[ i ] <= 0 ) D[ i ] = 1.0;
       }
-      //for ( size_t i = 0; i < d; i ++ ) D[ i ] = 10000; 
+      auto Dsend = D;
+      mpi::Allreduce( Dsend.data(), D.data(), D.size(), MPI_SUM, MPI_COMM_WORLD );
       printf( "Finish diagonal\n" ); fflush( stdout );
     };
 
@@ -213,7 +215,10 @@ class OOCCovMatrix : public VirtualMatrix<T>,
       for ( auto &i : I ) assert( i < this->row() ); 
       for ( auto &j : J ) assert( j < this->col() ); 
 
-      //if ( hmlp_is_in_epoch_session() && hmlp_is_nested_queue_empty() )
+      double beg = omp_get_wtime();
+      double ooc_time = 0;
+
+      //if ( hmlp_is_in_epoch_session() )
       if ( 0 )
       {
         auto *task = new CovReduceTask<T>();
@@ -229,6 +234,8 @@ class OOCCovMatrix : public VirtualMatrix<T>,
           Data<T> A( X.row(), I.size() );
           Data<T> B( X.row(), J.size() );
 
+          double ooc_beg = omp_get_wtime();
+
           for ( size_t j = 0; j < I.size(); j ++ )
             for ( size_t i = 0; i < X.row(); i ++ )
               A( i, j ) = X( i, I[ j ] );
@@ -237,6 +244,10 @@ class OOCCovMatrix : public VirtualMatrix<T>,
             for ( size_t i = 0; i < X.row(); i ++ )
               B( i, j ) = X( i, J[ j ] );
 
+          ooc_time += omp_get_wtime() - ooc_beg;
+
+          assert( !A.HasIllegalValue() );
+          assert( !B.HasIllegalValue() );
           //printf( "I %lu J %lu X.row() %lu X.col() %lu\n", I[ 0 ], J[ 0 ], X.row(), X.col() );
           //for ( size_t i = 0; i < all_rows.size(); i ++ ) all_rows[ i ] = i;
           //auto A = X( all_rows, I );
@@ -244,12 +255,24 @@ class OOCCovMatrix : public VirtualMatrix<T>,
           //auto B = X( all_rows, J );
           //printf( "I %lu J %lu X.row() %lu X.col() %lu Finish B\n", I[ 0 ], J[ 0 ], X.row(), X.col() );
           //gemm::xgemm( HMLP_OP_T, HMLP_OP_N, (T)1.0, A, B, (T)1.0, KIJ );
-          xgemm( "T", "N", I.size(), J.size(), X.row(),
-              1.0, A.data(), A.row(), 
-                   B.data(), B.row(), 
-              1.0, KIJ.data(), KIJ.row() );
+          {
+            xgemm( "T", "N", I.size(), J.size(), X.row(),
+                1.0, A.data(), A.row(), 
+                     B.data(), B.row(), 
+                1.0, KIJ.data(), KIJ.row() );
+          }
         }
       }
+      //assert( !KIJ.HasIllegalValue() );
+
+      double KIJ_time = omp_get_wtime() - beg;
+
+      if ( !reported && I.size() >= 512 && J.size() >= 512  )
+      {
+        printf( "KIJ %lu %lu in %lfs ooc %lfs\n", I.size(), J.size(), KIJ_time, ooc_time );
+        reported = true;
+      }
+
 
       return KIJ;
     };
@@ -263,7 +286,15 @@ class OOCCovMatrix : public VirtualMatrix<T>,
       return (*this)( I, J );
     };
 
+    template<typename TINDEX>
+    double flops( TINDEX na, TINDEX nb ) 
+    {
+      return 0.0;
+    };
+
   private:
+
+    bool reported = false;
 
     size_t n_samples = 0;
 
@@ -273,7 +304,6 @@ class OOCCovMatrix : public VirtualMatrix<T>,
 
     /** n_samples / nb files, each with n_samples */
     vector<OOCData<T>> Samples;
-    //OOCData<T> X;
 
 }; /** end class OOCCovMatrix */
 }; /** end namespace hmlp */

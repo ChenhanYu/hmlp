@@ -181,24 +181,24 @@ void test_gofmm
   }
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    //size_t gid = tree.treelist[ 0 ]->gids[ i ];
+    size_t tar = i * 500;
 
-    hmlp::Data<T> potentials( (size_t)1, nrhs );
+    Data<T> potentials( (size_t)1, nrhs );
  
-    if ( rank == ( i % size ) )
+    if ( rank == ( tar % size ) )
     {
       for ( size_t p = 0; p < potentials.col(); p ++ )
       {
-        potentials[ p ] = u_rblk( i , p );
+        potentials[ p ] = u_rblk( tar , p );
       }
     }
 
     /** bcast potentials to all MPI processes */
-    mpi::Bcast( potentials.data(), nrhs, i % size, CommGOFMM );
+    mpi::Bcast( potentials.data(), nrhs, tar % size, CommGOFMM );
 
     if ( potentials.HasIllegalValue() )
     {
-      printf( "potential %lu has illegal value %E\n", i, potentials[ 0 ] ); fflush( stdout );
+      printf( "potential %lu has illegal value %E\n", tar, potentials[ 0 ] ); fflush( stdout );
     }
 
 
@@ -212,13 +212,13 @@ void test_gofmm
     T nonnerr = 0.0;
 
     //auto fmmerr = ComputeError( tree, i, potentials );
-    auto fmmerr = mpigofmm::ComputeError( tree, i, potentials, CommGOFMM );
+    auto fmmerr = mpigofmm::ComputeError( tree, tar, potentials, CommGOFMM );
 
     /** only print 10 values. */
     if ( i < 10 && rank == 0 )
     {
       printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-          i, nnerr, nonnerr, fmmerr );
+          tar, nnerr, nonnerr, fmmerr );
     }
     nnerr_avg += nnerr;
     nonnerr_avg += nonnerr;
@@ -354,7 +354,7 @@ int main( int argc, char *argv[] )
   double stol, budget;
 
   /** (Optional) */
-  size_t nnz; 
+  size_t nnz, nb; 
   string distance_type;
   string spdmatrix_type;
   string kernelmatrix_type;
@@ -448,6 +448,8 @@ int main( int argc, char *argv[] )
     user_points_filename = argv[ 11 ];
     /** Number of attributes (dimensions) */
     sscanf( argv[ 12 ], "%lu", &d );
+    /** Block size (in dimensions) per file */
+    sscanf( argv[ 13 ], "%lu", &nb );
   }
   else if ( !spdmatrix_type.compare( "kernel" ) )
   {
@@ -671,19 +673,25 @@ int main( int argc, char *argv[] )
       /** Create an input layer */
       Layer<INPUT, T> layer_input( d, n );
       /** Create FC layers */
-      Layer<FC, T> layer_fc0( 256, n, layer_input );
+      Layer<FC, T> layer_fc0( 512, n, layer_input );
       Layer<FC, T> layer_fc1( 256, n, layer_fc0 );
-      Layer<FC, T> layer_fc2( 256, n, layer_fc1 );
+      Layer<FC, T> layer_fc2( 100, n, layer_fc1 );
+      Layer<FC, T> layer_fc3(  10, n, layer_fc2 );
       /** Insert layers into  */
       K.AppendInputLayer( layer_input );
       K.AppendFCLayer( layer_fc0 );
       K.AppendFCLayer( layer_fc1 );
       K.AppendFCLayer( layer_fc2 );
+      K.AppendFCLayer( layer_fc3 );
       /** Feed forward and compute all products */
       K.Update( X );
+      K.WriteJacobianToFiles( string( "/scratch/02794/ych/data/MLPMNIST10/MLPMNIST" ) );
 
-      /** (Optional) provide neighbors, leave uninitialized otherwise */
-      DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
+      ///** (Optional) provide neighbors, leave uninitialized otherwise */
+      //DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
+      ///** Routine */
+      //test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      //  ( NULL, K, NN, metric, K.col(), m, k, s, stol, budget, nrhs, CommGOFMM );
     }
   }
 
@@ -693,7 +701,7 @@ int main( int argc, char *argv[] )
     {
       /** No geometric coordinates provided */
       DistData<STAR, CBLK, T> *X = NULL;
-      OOCCovMatrix<T> K( n, d, user_points_filename );
+      OOCCovMatrix<T> K( n, d, nb, user_points_filename );
       /** (optional) provide neighbors, leave uninitialized otherwise */
       DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
       /** Routine */

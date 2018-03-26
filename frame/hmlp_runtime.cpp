@@ -338,6 +338,8 @@ Task::Task()
 {
   /** Whether this is a nested task? */
   is_created_in_epoch_session = rt.IsInEpochSession();
+  /** Which thread creates me? */
+  created_by = omp_get_thread_num();
   status = ALLOCATED;
   status = NOTREADY;
 };
@@ -512,19 +514,30 @@ void Task::Enqueue( size_t tid )
     return;
   }
 
-  /** dispatch to nested queue if in the epoch session */
+  /** Dispatch to nested queue if in the epoch session */
   if ( is_created_in_epoch_session )
   {
-    rt.scheduler->nested_queue_lock.Acquire();
+    rt.scheduler->nested_queue_lock[ created_by ].Acquire();
     {
-      /** change status */
+      /** Change status. */
       status = QUEUED;
       if ( priority )
-        rt.scheduler->nested_queue.push_front( this );
+        rt.scheduler->nested_queue[ created_by ].push_front( this );
       else
-        rt.scheduler->nested_queue.push_back( this );
+        rt.scheduler->nested_queue[ created_by ].push_back( this );
     }
-    rt.scheduler->nested_queue_lock.Release();
+    rt.scheduler->nested_queue_lock[ created_by ].Release();
+
+    //rt.scheduler->nested_queue_lock.Acquire();
+    //{
+    //  /** Change status. */
+    //  status = QUEUED;
+    //  if ( priority )
+    //    rt.scheduler->nested_queue.push_front( this );
+    //  else
+    //    rt.scheduler->nested_queue.push_back( this );
+    //}
+    //rt.scheduler->nested_queue_lock.Release();
 
     /** finish and return without further going down */
     return;
@@ -744,9 +757,8 @@ void Scheduler::Init( int user_n_worker, int user_n_nested_worker )
   #pragma omp parallel for num_threads( n_worker )
   for ( int i = 0; i < n_worker; i ++ )
   {
-    /** setup nested thread number */
+    /** Setup nested thread number. */
     omp_set_num_threads( user_n_nested_worker );
-
     rt.workers[ i ].tid = i;
     rt.workers[ i ].scheduler = this;
     EntryPoint( (void*)&(rt.workers[ i ]) );
@@ -954,20 +966,50 @@ Task *Scheduler::TryDispatchFromNestedQueue()
 {
   Task *nested_task = NULL;
 
-  /** Early return if no available task. */
-  if ( !nested_queue.size() ) return nested_task;
+  int max_remaining_task = 0;
+  int target = -1;
 
-  nested_queue_lock.Acquire();
-  { /** begin critical session "nested_queue" */
-    if ( nested_queue.size() )
+  /** Decide which target to steal */
+  for ( int p = 0; p < n_worker; p ++ )
+  {
+    /** Update the target if it has the maximum amount of remaining tasks. */ 
+    if ( nested_queue[ p ].size() > max_remaining_task )
     {
-      /** Fetch the first task in the queue */
-      nested_task = nested_queue.front();
-      /** Remove the task from the queue */
-      nested_queue.pop_front();
+      max_remaining_task = nested_queue[ p ].size();
+      target = p;
     }
-  } /** end critical session "nested_queue" */
-  nested_queue_lock.Release();
+  }
+
+  /** Early return if no available task. */
+  if ( target < 0 ) return nested_task;
+  /** Dispatch a nested task from target's nested_queue. */
+  nested_queue_lock[ target ].Acquire();
+  {
+    if ( nested_queue[ target ].size() )
+    {
+      /** Fetch the first task in the queue. */
+      nested_task = nested_queue[ target ].front();
+      /** Remove the task from the queue. */
+      nested_queue[ target ].pop_front();
+    }
+  }
+  nested_queue_lock[ target ].Release();
+  
+
+  ///** Early return if no available task. */
+  //if ( !nested_queue.size() ) return nested_task;
+
+  //nested_queue_lock.Acquire();
+  //{ /** begin critical session "nested_queue" */
+  //  if ( nested_queue.size() )
+  //  {
+  //    /** Fetch the first task in the queue */
+  //    nested_task = nested_queue.front();
+  //    /** Remove the task from the queue */
+  //    nested_queue.pop_front();
+  //  }
+  //} /** end critical session "nested_queue" */
+  //nested_queue_lock.Release();
 
   /** Notice that this can be a NULL pointer */
   return nested_task;
@@ -1005,11 +1047,11 @@ bool Scheduler::IsTimeToExit( int tid )
 		/** Set the termination flag to true */
 	  do_terminate = true;
     /** Sanity check: no nested tasks should left */
-    if ( nested_queue.size() )
-    {
-      printf( "bug nested_queue.size() %lu\n", nested_queue.size() ); 
-      fflush( stdout );
-    }
+    //if ( nested_queue.size() )
+    //{
+    //  printf( "bug nested_queue.size() %lu\n", nested_queue.size() ); 
+    //  fflush( stdout );
+    //}
     /** Sanity check: no task should left */
     if ( ready_queue[ tid ].size() )
     {
@@ -1667,10 +1709,10 @@ bool hmlp_is_in_epoch_session()
   return hmlp::rt.IsInEpochSession();
 };
 
-bool hmlp_is_nested_queue_empty()
-{
-  return !hmlp::rt.scheduler->nested_queue.size();
-};
+//bool hmlp_is_nested_queue_empty()
+//{
+//  return !hmlp::rt.scheduler->nested_queue.size();
+//};
 
 void hmlp_msg_dependency_analysis( 
     int key, int p, hmlp::ReadWriteType type, hmlp::Task *task )

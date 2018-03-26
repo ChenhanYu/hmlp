@@ -52,6 +52,8 @@
 #include <containers/VirtualMatrix.hpp>
 /** Use an implicit Gauss-Newton (multilevel perceptron) matrix */
 #include <containers/MLPGaussNewton.hpp>
+/** Use an OOC covariance matrix. */
+#include <containers/OOCCovMatrix.hpp>
 
 
 #ifdef HMLP_USE_CUDA
@@ -335,7 +337,7 @@ int main( int argc, char *argv[] )
   double stol, budget;
 
   /** (Optional) */
-  size_t nnz; 
+  size_t nnz, nb; 
   string distance_type;
   string spdmatrix_type;
   string kernelmatrix_type;
@@ -421,6 +423,15 @@ int main( int argc, char *argv[] )
     user_points_filename = argv[ 11 ];
     /** Number of attributes (dimensions) */
     sscanf( argv[ 12 ], "%lu", &d );
+  }
+  else if ( !spdmatrix_type.compare( "cov" ) )
+  {
+    kernelmatrix_type = argv[ 10 ];
+    user_points_filename = argv[ 11 ];
+    /** Number of attributes (dimensions) */
+    sscanf( argv[ 12 ], "%lu", &d );
+    /** Block size (in dimensions) per file */
+    sscanf( argv[ 13 ], "%lu", &nb );
   }
   else if ( !spdmatrix_type.compare( "kernel" ) )
   {
@@ -630,6 +641,20 @@ int main( int argc, char *argv[] )
   }
 
 
+  if ( !spdmatrix_type.compare( "cov" ) )
+  {
+    using T = float;
+    {
+      /** No geometric coordinates provided */
+      Data<T> *X = NULL;
+      OOCCovMatrix<T> K( n, d, nb, user_points_filename );
+      /** (optional) provide neighbors, leave uninitialized otherwise */
+      hmlp::Data<std::pair<T, std::size_t>> NN;
+      /** Routine */
+      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+    }
+  }
 
 
 
