@@ -5578,7 +5578,7 @@ mpitree::Tree<
 
   /** Cache near KIJ interactions */
   mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-  //tree.LocaTraverseLeafs( seqNEARKIJtask );
+  tree.LocaTraverseLeafs( seqNEARKIJtask );
 
   hmlp_run();
   mpi::Barrier( tree.comm );
@@ -5608,8 +5608,8 @@ mpitree::Tree<
   /** Cache far KIJ interactions */
   mpigofmm::CacheFarNodesTask<NNPRUNE,    NODE> seqFARKIJtask;
   mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-  //tree.LocaTraverseUnOrdered( seqFARKIJtask );
-  //tree.DistTraverseUnOrdered( mpiFARKIJtask );
+  tree.LocaTraverseUnOrdered( seqFARKIJtask );
+  tree.DistTraverseUnOrdered( mpiFARKIJtask );
   cachefarnodes_time = omp_get_wtime() - beg;
   hmlp_run();
   mpi::Barrier( tree.comm );
