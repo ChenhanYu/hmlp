@@ -389,32 +389,25 @@ class BackGroundTask : public hmlp::Task
 
 
 template<typename NODE>
-class DistSplitTask : public hmlp::Task
+class DistSplitTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "DistSplit" );
-      {
-        //label = std::to_string( arg->treelist_id );
-        std::ostringstream ss;
-        ss << arg->treelist_id;
-        label = ss.str();
-      }
+      name = string( "DistSplit" );
+      label = to_string( arg->treelist_id );
 
       double flops = 6.0 * arg->n;
-      double mops = 6.0 * arg->n;
+      double  mops = 6.0 * arg->n;
 
-      /** setup the event */
+      /** Setup the event */
       event.Set( label + name, flops, mops );
-
-      /** asuume computation bound */
+      /** Asuume computation bound */
       cost = mops / 1E+9;
-
       /** "HIGH" priority */
       priority = true;
     };
@@ -422,8 +415,6 @@ class DistSplitTask : public hmlp::Task
 
     void DependencyAnalysis()
     {
-			//printf( "in DependencyAnalysis level %lu\n", arg->l );
-
       arg->DependencyAnalysis( R, this );
 
       if ( !arg->isleaf )
@@ -661,17 +652,14 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
      */ 
     void Split()
     {
-      /** assertion */
       assert( N_CHILDREN == 2 );
 
-
-      /** reduce to get the total size of gids */
+      /** Reduce to get the total size of gids */
       int num_points_total = 0;
       int num_points_owned = (this->gids).size();
 
       /** n = sum( num_points_owned ) over all MPI processes in comm */
-      mpi::Allreduce( &num_points_owned, &num_points_total, 
-          1, MPI_SUM, comm );
+      mpi::Allreduce( &num_points_owned, &num_points_total, 1, MPI_SUM, comm );
       this->n = num_points_total;
 
 
@@ -694,16 +682,16 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
       {
 				//printf( "Split(): n %lu  \n", this->n ); fflush( stdout );
 
-        /** the local communicator of this node contains at least 2 processes */
+        /** The local communicator of this node contains at least 2 processes. */
         assert( size > 1 );
 
-        /** distributed split */
+        /** Distributed splitter */
         auto split = this->setup->splitter( this->gids, comm );
 
 				//printf( "Finish Split(): n %lu  \n", this->n ); fflush( stdout );
 
 
-        /** get partner rank */
+        /** Get partner rank */
         int partner_rank = 0;
         int sent_size = 0; 
         int recv_size = 0;
@@ -750,19 +738,19 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
             &recv_size, 1, MPI_INT, partner_rank, 10,
             comm, &status );
 
-        //printf( "rank %d kept_size %lu sent_size %d recv_size %d\n", 
-        //    rank, kept_gids.size(), sent_size, recv_size ); fflush( stdout );
+        printf( "rank %d kept_size %lu sent_size %d recv_size %d\n", 
+            rank, kept_gids.size(), sent_size, recv_size ); fflush( stdout );
 
         /** resize recv_gids */
         recv_gids.resize( recv_size );
 
-        /** exchange recv_gids.size() */
+        /** Exchange recv_gids.size() */
         mpi::Sendrecv( 
             sent_gids.data(), sent_size, MPI_INT, partner_rank, 20,
             recv_gids.data(), recv_size, MPI_INT, partner_rank, 20,
             comm, &status );
 
-        /** enlarge kept_gids */
+        /** Enlarge kept_gids */
         kept_gids.reserve( kept_gids.size() + recv_gids.size() );
         for ( size_t i = 0; i < recv_gids.size(); i ++ )
           kept_gids.push_back( recv_gids[ i ] );
@@ -1078,6 +1066,28 @@ class Tree
           local_tree_root );
 
     };
+
+
+
+
+    vector<size_t> GetPermutation()
+    {
+      vector<size_t> perm_loc, perm_glb;
+      perm_loc = tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::GetPermutation();
+      mpi::GatherVector( perm_loc, perm_glb, 0, comm );
+
+      //if ( rank == 0 )
+      //{
+      //  /** Sanity check using an 0:N-1 table. */
+      //  vector<bool> Table( this->n, false );
+      //  for ( size_t i = 0; i < perm_glb.size(); i ++ )
+      //    Table[ perm_glb[ i ] ] = true;
+      //  for ( size_t i = 0; i < Table.size(); i ++ ) assert( Table[ i ] );
+      //}
+
+      return perm_glb;
+    }; /** end GetTreePermutation() */
+
 
 
 

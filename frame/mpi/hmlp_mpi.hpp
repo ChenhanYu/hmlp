@@ -1,6 +1,10 @@
 #ifndef HMLP_RUNTIME_MPI_HPP
 #define HMLP_RUNTIME_MPI_HPP
 
+#include <vector>
+
+using namespace std;
+
 
 #ifdef HMLP_USE_MPI
 /** use vender mpi.h */
@@ -240,6 +244,14 @@ int Bcast( void *buffer, int count, Datatype datatype,
 int Reduce( void *sendbuf, void *recvbuf, int count,
     Datatype datatype, Op op, int root, Comm comm );
 
+int Gather( const void *sendbuf, int sendcount, Datatype sendtype,
+    void *recvbuf, int recvcount, Datatype recvtype,
+    int root, Comm comm );
+
+int Gatherv( void *sendbuf, int sendcount, Datatype sendtype,
+    void *recvbuf, const int *recvcounts, const int *displs,
+    Datatype recvtype, int root, Comm comm );
+
 int Scan( void *sendbuf, void *recvbuf, int count,
     Datatype datatype, Op op, Comm comm );
 
@@ -422,6 +434,32 @@ int Reduce( T *sendbuf, T *recvbuf, int count,
 }; /** end Reduce() */
 
 
+
+template<typename TSEND, typename TRECV>
+int Gather( const TSEND *sendbuf, int sendcount,
+    TRECV *recvbuf, int recvcount,
+    int root, Comm comm )
+{
+  Datatype sendtype = GetMPIDatatype<TSEND>();
+  Datatype recvtype = GetMPIDatatype<TRECV>();
+  return Gather( sendbuf, sendcount, sendtype,
+      recvbuf, recvcount, recvtype, root, comm );
+};
+
+
+template<typename TSEND, typename TRECV>
+int Gatherv( 
+    TSEND *sendbuf, int sendcount,
+    TRECV *recvbuf, const int *recvcounts, const int *displs,
+    int root, Comm comm )
+{
+  Datatype sendtype = GetMPIDatatype<TSEND>();
+  Datatype recvtype = GetMPIDatatype<TRECV>();
+  return Gatherv( sendbuf, sendcount, sendtype,
+      recvbuf, recvcounts, displs, recvtype, root, comm );
+}; /** end Gatherv() */
+
+
 template<typename T>
 int Allreduce( T* sendbuf, T* recvbuf, int count, Op op, Comm comm )
 {
@@ -575,6 +613,32 @@ int ExchangeVector(
 }; /** end ExchangeVector() */
 
 
+template<typename T>
+int GatherVector( vector<T> &sendvector, vector<T> &recvvector, int root, Comm comm )
+{
+  int size = 0; Comm_size( comm, &size );
+  int rank = 0; Comm_rank( comm, &rank );
+
+  Datatype datatype = GetMPIDatatype<T>();
+  int send_size = sendvector.size();
+  vector<int> recv_sizes( size, 0 );
+  vector<int> rdispls( size + 1, 0 );
+
+  /** Use typeless Gather() for counting. */
+  Gather( &send_size, 1, recv_sizes.data(), 1, root, comm );
+  /** Accumulate received displs. */
+  for ( int i = 1; i < size + 1; i ++ ) 
+    rdispls[ i ] = rdispls[ i - 1 ] + recv_sizes[ i - 1 ];
+  /** Resize recvvector to fit. */
+  recvvector.resize( rdispls[ size ] );
+  /** Gather vectors. */
+  return Gatherv( sendvector.data(), send_size,
+      recvvector.data(), recv_sizes.data(), rdispls.data(), root, comm );
+}; /** end GatherVector() */
+
+
+
+
 
 #ifdef HMLP_MIC_AVX512
 /** use hbw::allocator for Intel Xeon Phi */
@@ -587,10 +651,8 @@ int AlltoallVector(
     std::vector<std::vector<T, Allocator>> &sendvector, 
     std::vector<std::vector<T, Allocator>> &recvvector, Comm comm )
 {
-  int size = 0;
-  int rank = 0;
-  Comm_size( comm, &size );
-  Comm_rank( comm, &rank );
+  int size = 0; Comm_size( comm, &size );
+  int rank = 0; Comm_rank( comm, &rank );
 
   assert( sendvector.size() == size );
   assert( recvvector.size() == size );

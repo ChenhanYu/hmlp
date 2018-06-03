@@ -737,7 +737,7 @@ template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 {
 
-  /** shared-memory operator */
+  /** Shared-memory operator */
   inline vector<vector<size_t> > operator()
   ( 
     vector<size_t>& gids, vector<size_t>& lids
@@ -746,18 +746,18 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     return gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator() ( gids, lids );
   };
 
-  /** distributed operator */
+  /** Distributed operator */
   inline vector<vector<size_t> > operator()
   (
     vector<size_t>& gids,
     mpi::Comm comm
   ) const 
   {
-    /** all assertions */
+    /** All assertions */
     assert( N_SPLIT == 2 );
     assert( this->Kptr );
 
-    /** declaration */
+    /** Declaration */
     int size, rank, global_rank, global_size;
     mpi::Comm_size( comm, &size );
     mpi::Comm_rank( comm, &rank );
@@ -775,12 +775,10 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 
 
 
-    /** reduce to get the total size of gids */
+    /** Reduce to get the total size of gids. */
     int n = 0;
     int num_points_owned = gids.size();
     vector<T> temp( gids.size(), 0.0 );
-
-    //printf( "rank %d before Allreduce\n", global_rank ); fflush( stdout );
 
     /** n = sum( num_points_owned ) over all MPI processes in comm */
     mpi::Allreduce( &num_points_owned, &n, 1, MPI_INT, MPI_SUM, comm );
@@ -850,6 +848,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     if ( this->metric == GEOMETRY_DISTANCE )
     {
       KIPQ = K.PairwiseDistances( gids, PQ );
+      assert( !KIPQ.HasIllegalValue() );
     }
 
     for ( size_t i = 0; i < gids.size(); i ++ )
@@ -860,6 +859,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 
     /** Compute all2leftright (projection i.e. dip - diq) */
     temp = gofmm::AllToLeftRight( this->metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
+
 
     /** parallel median select */
     /** compute all2leftright (projection i.e. dip - diq) */
@@ -901,13 +901,13 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
     mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
 
-    //mpi::Barrier( comm );
+    mpi::Barrier( comm );
     //if ( rank == 0 )
     //{
-    //  printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
-    //      global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
-    //      nlhs, nmid, nrhs ); fflush( stdout );
-    //  fflush( stdout );
+      printf( "rank %d [ %d %d %d ] global [ %d %d %d ] median %E\n",
+          global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
+          nlhs, nmid, nrhs, median ); fflush( stdout );
+      fflush( stdout );
     //}
 
 
@@ -936,10 +936,10 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
       int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
 
 
-      //printf( "rank %d [ %d %d ] [ %d %d ]\n",
-      //  global_rank, 
-			//	nlhs_required_owned, nlhs_required,
-			//	nrhs_required_owned, nrhs_required ); fflush( stdout );
+      printf( "rank %d [ %d %d ] [ %d %d ]\n",
+        global_rank, 
+				nlhs_required_owned, nlhs_required,
+				nrhs_required_owned, nrhs_required ); fflush( stdout );
 
 
       assert( nlhs_required_owned >= 0 );
@@ -1056,6 +1056,12 @@ void FindNeighbors( NODE *node, DistanceMetric metric )
       exit( 1 );
     }
   }
+
+  /** Sanity check: distance must be >= 0. */
+  for ( auto &kij: KII ) kij = std::min( kij, T(0) );
+
+
+
 
   //printf( "KII.row() %lu KII.col() %lu, NN.row() %lu\n", 
   //    KII.row(), KII.col(), NN.row() ); fflush( stdout );
@@ -3137,6 +3143,70 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
   }
 
 }; /** BuildInteractionListPerRank() */
+
+
+template<typename TREE>
+pair<double, double> NonCompressedRatio( TREE &tree )
+{
+  /** Tree MPI communicator */
+  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
+
+  /** Use double for accumulation. */
+  double ratio_n = 0.0;
+  double ratio_f = 0.0;
+
+
+  /** Traverse all nodes in the local tree. */
+  for ( auto &tar : tree.treelist )
+  {
+    if ( tar->isleaf )
+    {
+      for ( auto nearID : tar->NNNearNodeMortonIDs )
+      {
+        auto *src = tree.morton2node[ nearID ];
+        assert( src );
+        double m = tar->gids.size(); 
+        double n = src->gids.size();
+        double N = tree.n;
+        ratio_n += ( m / N ) * ( n / N );
+      }
+    }
+
+    for ( auto farID : tar->NNFarNodeMortonIDs )
+    {
+      auto *src = tree.morton2node[ farID ];
+      assert( src );
+      double m = tar->data.skels.size(); 
+      double n = src->data.skels.size(); 
+      double N = tree.n;
+      ratio_f += ( m / N ) * ( n / N );
+    }
+  }
+
+  /** Traverse all nodes in the distributed tree. */
+  for ( auto &tar : tree.mpitreelists )
+  {
+    if ( !tar->child || tar->GetCommRank() ) continue;
+    for ( auto farID : tar->NNFarNodeMortonIDs )
+    {
+      auto *src = tree.morton2node[ farID ];
+      assert( src );
+      double m = tar->data.skels.size(); 
+      double n = src->data.skels.size(); 
+      double N = tree.n;
+      ratio_f += ( m / N ) * ( n / N );
+    }
+  }
+
+  /** Allreduce total evaluations from all MPI processes. */
+  pair<double, double> ret( 0, 0 );
+  mpi::Allreduce( &ratio_n, &(ret.first),  1, MPI_SUM, tree.comm );
+  mpi::Allreduce( &ratio_f, &(ret.second), 1, MPI_SUM, tree.comm );
+
+  return ret;
+};
+
 
 
 template<typename T, typename TREE>
@@ -5425,7 +5495,7 @@ mpitree::Tree<
   double exchange_neighbor_time, symmetrize_time;
 
   /** Iterative all nearnest-neighbor (ANN) */
-  const size_t n_iter = 3;
+  const size_t n_iter = 20;
   const bool SORTED = false;
   /** Do not change anything below this line */
   mpitree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
@@ -5450,23 +5520,20 @@ mpitree::Tree<
   ann_time = omp_get_wtime() - beg;
   printf( "ann_time %lf\n", ann_time );
 
-  /** check illegle values in NN */
-  //for ( size_t j = 0; j < NN.col(); j ++ )
-  //{
-  //  for ( size_t i = 0; i < NN.row(); i ++ )
-  //  {
-  //    size_t neighbor_gid = NN( i, j ).second;
-  //    if ( neighbor_gid < 0 || neighbor_gid >= n )
-  //    {
-  //      printf( "NN( %lu, %lu ) has illegle values %lu\n", i, j, neighbor_gid );
-  //      break;
-  //    }
-  //  }
-  //}
+  /** Check illegle values in neighbor pairs. */
+  for ( auto &neig : NN_cblk )
+  {
+    if ( neig.second < 0 || neig.second >= n )
+    {
+      printf( "Illegle neighbor values %lu\n", neig.second );
+      break;
+    }
+  }
 
 
 
-  /** Initialize metric ball tree using approximate center split */
+
+  /** Initialize metric ball tree using approximate center split. */
   auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
 	auto &tree = *tree_ptr;
 
@@ -5491,6 +5558,16 @@ mpitree::Tree<
   tree_time = omp_get_wtime() - beg;
   mpi::PrintProgress( "End TreePartitioning ...\n", tree.comm ); 
   printf( "tree_time %lf\n", tree_time );
+
+  /** Get tree permutataion. */
+  vector<size_t> perm = tree.GetPermutation();
+  if ( rank == 0 )
+  {
+    ofstream perm_file( "perm.txt" );
+    for ( auto &id : perm ) perm_file << id << " ";
+    perm_file.close();
+  }
+
 
   /** Now redistribute K. */
   K.Redistribute( true, tree.treelist[ 0 ]->gids );
@@ -5578,7 +5655,7 @@ mpitree::Tree<
 
   /** Cache near KIJ interactions */
   mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-  tree.LocaTraverseLeafs( seqNEARKIJtask );
+  //tree.LocaTraverseLeafs( seqNEARKIJtask );
 
   hmlp_run();
   mpi::Barrier( tree.comm );
@@ -5608,8 +5685,8 @@ mpitree::Tree<
   /** Cache far KIJ interactions */
   mpigofmm::CacheFarNodesTask<NNPRUNE,    NODE> seqFARKIJtask;
   mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-  tree.LocaTraverseUnOrdered( seqFARKIJtask );
-  tree.DistTraverseUnOrdered( mpiFARKIJtask );
+  //tree.LocaTraverseUnOrdered( seqFARKIJtask );
+  //tree.DistTraverseUnOrdered( mpiFARKIJtask );
   cachefarnodes_time = omp_get_wtime() - beg;
   hmlp_run();
   mpi::Barrier( tree.comm );
@@ -5617,7 +5694,9 @@ mpitree::Tree<
 
 
 
-  /** Compute the ratio of exact evaluation */
+  /** Compute the ratio of exact evaluation. */
+  auto ratio = NonCompressedRatio( tree );
+
   double exact_ratio = (double) m / n; 
 
   if ( rank == 0 && REPORT_COMPRESS_STATUS )
@@ -5643,8 +5722,8 @@ mpitree::Tree<
     printf( "Skeletonization (MPI            ) ----- %5.2lfs (%5.1lf%%)\n", mpi_skel_time, mpi_skel_time * time_ratio );
     printf( "Cache KIJ ----------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
     printf( "========================================================\n");
-    printf( "Compress (%4.2lf not compressed) -------- %5.2lfs (%5.1lf%%)\n", 
-        exact_ratio, compress_time, compress_time * time_ratio );
+    printf( "%5.3lf%% and %5.3lf%% uncompressed--------- %5.2lfs (%5.1lf%%)\n", 
+        100 * ratio.first, 100 * ratio.second, compress_time, compress_time * time_ratio );
     printf( "========================================================\n\n");
   }
 
@@ -5679,11 +5758,13 @@ mpitree::Tree<
  *  @brief Here MPI_Allreduce is required.
  */ 
 template<typename TREE, typename T>
-T ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
+pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
 {
   int comm_rank; mpi::Comm_rank( comm, &comm_rank );
   int comm_size; mpi::Comm_size( comm, &comm_size );
 
+  /** ( sum of square errors, square 2-norm of true values ) */
+  pair<T, T> ret( 0, 0 );
 
   auto &K = *tree.setup.K;
   auto &w = *tree.setup.w;
@@ -5691,7 +5772,7 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
   auto  I = vector<size_t>( 1, gid );
   auto &J = tree.treelist[ 0 ]->gids;
 
-  /** Bcast */
+  /** Bcast gid and its parameter to all MPI processes. */
   K.BcastColumns( I, gid % comm_size, comm );
 
 	Data<T> Kab;
@@ -5729,28 +5810,46 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm comm )
     0.0, loc_exact.data(), loc_exact.row()
   );          
 
-  /** Allreduce K( gid, : ) * w( : ) */
+  /** Allreduce u( gid, : ) = K( gid, CBLK ) * w( RBLK, : ) */
   mpi::Allreduce( 
       loc_exact.data(), glb_exact.data(), 
       loc_exact.size(), MPI_SUM, comm );
 
-  auto nrm2 = hmlp_norm( glb_exact.row(),  glb_exact.col(), 
-                         glb_exact.data(), glb_exact.row() ); 
 
-  printf( "potential %E exact %E\n", potentials[ 0 ], glb_exact[ 0 ] ); fflush( stdout );
-
-  for ( size_t j = 0; j < potentials.col(); j ++ )
+  for ( uint64_t j = 0; j < w.col(); j ++ )
   {
-    potentials( (size_t)0, j ) -= glb_exact( (size_t)0, j );
+    T exac = glb_exact[ j ];
+    T pred = potentials[ j ];
+    /** Accumulate SSE and sqaure 2-norm. */
+    ret.first  += ( pred - exac ) * ( pred - exac );
+    ret.second += exac * exac;
   }
 
-  auto err = hmlp_norm(  potentials.row(), potentials.col(), 
-                        potentials.data(), potentials.row() ); 
 
-  printf( "potentials %E err %E nrm2 %E\n", potentials[ 0 ], err, nrm2 ); fflush( stdout );
 
-  if ( nrm2 == 0 ) return nrm2;
-  else return err / nrm2;
+
+
+
+
+
+  //auto nrm2 = hmlp_norm( glb_exact.row(),  glb_exact.col(), 
+  //                       glb_exact.data(), glb_exact.row() ); 
+
+  ////printf( "potential %E exact %E\n", potentials[ 0 ], glb_exact[ 0 ] ); fflush( stdout );
+
+  //for ( size_t j = 0; j < potentials.col(); j ++ )
+  //{
+  //  potentials( (size_t)0, j ) -= glb_exact( (size_t)0, j );
+  //}
+
+  //auto err = hmlp_norm(  potentials.row(), potentials.col(), 
+  //                      potentials.data(), potentials.row() ); 
+
+  ////printf( "potentials %E err %E nrm2 %E\n", potentials[ 0 ], err, nrm2 ); fflush( stdout );
+
+
+  return ret;
+
 }; /** end ComputeError() */
 
 

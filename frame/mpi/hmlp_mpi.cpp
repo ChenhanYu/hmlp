@@ -217,6 +217,39 @@ int Reduce( void *sendbuf, void *recvbuf, int count,
 #endif
 };
 
+
+
+int Gather( const void *sendbuf, int sendcount, Datatype sendtype,
+    void *recvbuf, int recvcount, Datatype recvtype,
+    int root, Comm comm )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Gather( sendbuf, sendcount, sendtype,
+      recvbuf, recvcount, recvtype, root, comm );
+#else
+  return 0;
+#endif
+};
+
+
+
+int Gatherv( void *sendbuf, int sendcount, Datatype sendtype,
+             void *recvbuf, const int *recvcounts, const int *displs,
+             Datatype recvtype, int root, Comm comm )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Gatherv( sendbuf, sendcount, sendtype,
+      recvbuf, recvcounts, displs, recvtype, root, comm );
+#else
+  return 0;
+#endif
+};
+
+
+
+
+
+
 int Scan( void *sendbuf, void *recvbuf, int count,
     Datatype datatype, Op op, Comm comm )
 {

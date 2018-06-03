@@ -135,7 +135,7 @@ void test_gofmm
   DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, CommGOFMM );
   
   /** Initialization */
-  w_rids.rand();
+  w_rids.randn();
   //auto &gids = tree.treelist[ 0 ]->gids;
   //for ( int j = 0; j < nrhs; j ++ )
   //  for ( int i = 0; i < gids.size(); i ++ )
@@ -167,11 +167,16 @@ void test_gofmm
 
 
 
-  /** examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
+  /** Examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
   std::size_t ntest = 100;
   T nnerr_avg = 0.0;
   T nonnerr_avg = 0.0;
   T fmmerr_avg = 0.0;
+
+
+  T sse_2norm = 0.0;
+  T ssv_2norm = 0.0;
+
 
   if ( rank == 0 )
   {
@@ -201,34 +206,29 @@ void test_gofmm
       printf( "potential %lu has illegal value %E\n", tar, potentials[ 0 ] ); fflush( stdout );
     }
 
+    auto sse_ssv = mpigofmm::ComputeError( tree, tar, potentials, CommGOFMM );
+    /** Compute element-wise 2-norm error. */
+    auto fmmerr  = sqrt( sse_ssv.first / sse_ssv.second ); 
+    /** Accumulate element-wise 2-norm error. */
+    fmmerr_avg += fmmerr;
+    /** Accumulate SSE and SSV. */
+    sse_2norm += sse_ssv.first;
+    ssv_2norm += sse_ssv.second;
 
-    /** ASKIT treecode with NN pruning */
-    //Evaluate<false, true>( tree, i, potentials );
-    //auto nnerr = ComputeError( tree, i, potentials );
-    T nnerr = 0.0;
-    /** ASKIT treecode without NN pruning */
-    //Evaluate<false, false>( tree, i, potentials );
-    //auto nonnerr = ComputeError( tree, i, potentials );
-    T nonnerr = 0.0;
-
-    //auto fmmerr = ComputeError( tree, i, potentials );
-    auto fmmerr = mpigofmm::ComputeError( tree, tar, potentials, CommGOFMM );
-
-    /** only print 10 values. */
+    /** Only print 10 values. */
     if ( i < 10 && rank == 0 )
     {
       printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-          tar, nnerr, nonnerr, fmmerr );
+          tar, 0.0, 0.0, fmmerr );
     }
-    nnerr_avg += nnerr;
-    nonnerr_avg += nonnerr;
-    fmmerr_avg += fmmerr;
   }
   if ( rank == 0 )
   {
     printf( "========================================================\n");
-    printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+    printf( "Elementwise ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
         nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
+    printf( "F-norm      ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+        0.0, 0.0, sqrt( sse_2norm / ssv_2norm ) );
     printf( "========================================================\n");
   }
   // ------------------------------------------------------------------------

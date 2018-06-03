@@ -5017,6 +5017,8 @@ double DrawInteraction( TREE &tree )
 }; /** end DrawInteration() */
 
 
+
+
 /**
  *  @breif This is a fake evaluation setup aimming to figure out
  *         which tree node will prun which points. The result
@@ -5949,7 +5951,7 @@ void ComputeError( NODE *node, hmlp::Data<T> potentials )
  *  @brief 
  */ 
 template<typename TREE, typename T>
-T ComputeError( TREE &tree, size_t gid, hmlp::Data<T> potentials )
+T ComputeError( TREE &tree, size_t gid, Data<T> potentials )
 {
   auto &K = *tree.setup.K;
   auto &w = *tree.setup.w;

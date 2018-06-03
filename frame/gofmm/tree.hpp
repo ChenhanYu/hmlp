@@ -576,7 +576,8 @@ class Node : public ReadWrite
         {
           if ( !has_uneven_split )
           {
-            printf( "\n\nWARNING! uneven split. Using random split instead\n\n" );
+            printf( "\n\nWARNING! uneven split. Using random split instead %lu %lu\n\n",
+                split[ 0 ].size(), split[ 1 ].size() );
             has_uneven_split = true;
           }
           //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", 
@@ -1118,6 +1119,28 @@ class Tree
       //printf( "alloc %5.3lfs split %5.3lfs morton %5.3lfs permute %5.3lfs\n", 
       //  alloc_time, split_time, morton_time, permute_time );
     };
+
+
+
+    vector<size_t> GetPermutation()
+    {
+      int n_nodes = 1 << this->depth;
+      auto level_beg = this->treelist.begin() + n_nodes - 1;
+
+      vector<size_t> perm;
+
+      for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+      {
+        auto *node = *(level_beg + node_ind);
+        auto gids = node->gids;
+        perm.insert( perm.end(), gids.begin(), gids.end() );
+      }
+
+      return perm;
+    }; /** end GetTreePermutation() */
+
+
+
 
 
     /**
