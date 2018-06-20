@@ -259,6 +259,9 @@ class Setup : public mpitree::Setup<SPLITTER, T>
     /** use ULV or Sherman-Morrison-Woodbury */
     bool do_ulv_factorization = true;
 
+
+  private:
+
 }; /** end class Setup */
 
 

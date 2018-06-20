@@ -183,7 +183,7 @@ void test_gofmm
   printf( "========================================================\n");
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    hmlp::Data<T> potentials;
+    Data<T> potentials;
     /** ASKIT treecode with NN pruning */
     Evaluate<false, true>( tree, i, potentials );
     auto nnerr = ComputeError( tree, i, potentials );
@@ -219,18 +219,18 @@ void test_gofmm
 
 
   /** Factorization */
-  const bool do_ulv_factorization = true;
   T lambda = 5.0;
   if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
     printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
         lambda, fmmerr_avg / ntest );
-  hmlp::hfamily::Factorize<NODE, T>( do_ulv_factorization, tree, lambda ); 
+  //hmlp::hfamily::Factorize<NODE, T>( do_ulv_factorization, tree, lambda ); 
+  hfamily::Factorize( tree, lambda ); 
 
   /** compute error */
-  hmlp::hfamily::ComputeError<NODE>( tree, lambda, w, u );
+  hfamily::ComputeError( tree, lambda, w, u );
 
   //#ifdef DUMP_ANALYSIS_DATA
-  hmlp::gofmm::Summary<NODE> summary;
+  gofmm::Summary<NODE> summary;
   tree.Summary( summary );
   summary.Print();
 

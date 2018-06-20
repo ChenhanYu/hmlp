@@ -5186,7 +5186,7 @@ template<
   bool     CACHE = true, 
   typename TREE, 
   typename T>
-hmlp::Data<T> Evaluate
+Data<T> Evaluate
 ( 
   TREE &tree,
   hmlp::Data<T> &weights

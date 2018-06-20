@@ -5,7 +5,7 @@
 #include <mpi/hmlp_mpi.hpp>
 
 using namespace std;
-
+using namespace hmlp;
 
 namespace hmlp
 {
@@ -1303,9 +1303,9 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
   private:
 
     /** owned row gids */
-    std::vector<size_t> rids;
+    vector<size_t> rids;
 
-    std::map<size_t, size_t> rid2row;
+    map<size_t, size_t> rid2row;
 
 
 }; /** end class DistData<RIDS, STAR, T> */

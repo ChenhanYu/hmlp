@@ -26,9 +26,13 @@
 
 #include <containers/data.hpp>
 
+using namespace std;
+
+
 namespace hmlp
 {
 
+typedef enum { TRANSPOSE, NOTRANSPOSE } TransposeType;
 /** 1x2, 2x1, 1x3, 3x1 */
 typedef enum { LEFT, RIGHT, BOTTOM, TOP } SideType;
 /** 2x2, 3x3 */
@@ -122,6 +126,24 @@ class View : public ReadWrite
         offset = j * ld() + i;
       }
       return *( data() + offset );
+    };
+
+    void CopyValuesFrom( View<T> & A )
+    {
+      if ( !m || !n ) return;
+      assert( A.row() == m && A.col() == n );
+      for ( size_t j = 0; j < n; j ++ )
+        for ( size_t i = 0; i < m; i ++ )
+          (*this)( i, j ) = A( i, j );
+    };
+
+    void CopyValuesFrom( Data<T> & A )
+    {
+      if ( !m || !n ) return;
+      assert( A.row() == m && A.col() == n );
+      for ( size_t j = 0; j < n; j ++ )
+        for ( size_t i = 0; i < m; i ++ )
+          (*this)( i, j ) = A( i, j );
     };
 
     /** Return a data copy of the subview */
@@ -236,11 +258,11 @@ class View : public ReadWrite
       /** setup A11 */
       A11.Set(     mb,     nb, offm     , offn     , this->base );
       /** setup A12 */
-      A12.Set(     mb, n - nb, offm     , offn + nb, this->baes );
+      A12.Set(     mb, n - nb, offm     , offn + nb, this->base );
       /** setup A21 */
       A21.Set( m - mb,     nb, offm + mb, offn     , this->base );
       /** setup A22 */
-      A21.Set( m - mb, n - nb, offm + mb, offn + nb, this->base );
+      A22.Set( m - mb, n - nb, offm + mb, offn + nb, this->base );
 
     };
 

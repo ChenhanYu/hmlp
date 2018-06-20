@@ -47,6 +47,10 @@
 
 /** GOFMM templates */
 #include <mpi/gofmm_mpi.hpp>
+/** INV-GOFMM templates */
+#include <mpi/igofmm_mpi.hpp>
+
+
 /**  */
 #include <containers/SPDMatrix.hpp>
 /** use an implicit kernel matrix (only coordinates are stored) */
@@ -234,23 +238,12 @@ void test_gofmm
   // ------------------------------------------------------------------------
 
 
-//  /** Factorization */
-//  const bool do_ulv_factorization = true;
-//  T lambda = 10.0;
-//  if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
-//    printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
-//        lambda, fmmerr_avg / ntest );
-//  hmlp::hfamily::Factorize<NODE, T>( do_ulv_factorization, tree, lambda ); 
-//
-//  /** compute error */
-//  hmlp::hfamily::ComputeError<NODE>( tree, lambda, w, u );
-//
-//  //#ifdef DUMP_ANALYSIS_DATA
-//  hmlp::gofmm::Summary<NODE> summary;
-//  tree.Summary( summary );
-//  summary.Print();
+  /** Factorization */
+  T lambda = 10.0;
+  mpigofmm::DistFactorize( tree, lambda ); 
+  mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
 
-	/** delete tree_ptr */
+	/** Delete tree_ptr. */
   delete tree_ptr;
 
 }; /** end test_gofmm() */
@@ -540,7 +533,7 @@ int main( int argc, char *argv[] )
   /** Generate a kernel matrix from the coordinates */
   if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
   {
-    using T = float;
+    using T = double;
     {
       /** read the coordinates from the file */
       DistData<STAR, CBLK, T> X( d, n, CommGOFMM, user_points_filename );

@@ -774,16 +774,50 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 
 
-    hmlp::mpi::Comm GetComm() { return comm; };
+    mpi::Comm GetComm() { return comm; };
 
     int GetCommSize() { return size; };
     
     int GetCommRank() { return rank; };
 
+    /** Support dependency analysis. */
+    void DependOnChildren( Task *task )
+    {
+      this->DependencyAnalysis( RW, task );
+      if ( size < 2 )
+      {
+        if ( this->lchild ) this->lchild->DependencyAnalysis( R, task );
+        if ( this->rchild ) this->rchild->DependencyAnalysis( R, task );
+      }
+      else
+      {
+        if ( child ) child->DependencyAnalysis( R, task );
+      }
+      /** Try to enqueue if there is no dependency. */
+      task->TryEnqueue();
+    };
+
+    void DependOnParent( Task *task )
+    {
+      this->DependencyAnalysis( R, task );
+      if ( size < 2 )
+      {
+        if ( this->lchild ) this->lchild->DependencyAnalysis( RW, task );
+        if ( this->rchild ) this->rchild->DependencyAnalysis( RW, task );
+      }
+      else
+      {
+        if ( child ) child->DependencyAnalysis( RW, task );
+      }
+      /** Try to enqueue if there is no dependency. */
+      task->TryEnqueue();
+    };
+
+
     void Print()
     {
       int global_rank = 0;
-      hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
+      mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
       //printf( "grank %d l %lu lrank %d offset %lu n %lu\n", 
       //    global_rank, this->l, this->rank, this->offset, this->n );
       //hmlp_print_binary( this->morton );
@@ -794,10 +828,10 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
   private:
 
     /** initialize with all processes */
-    hmlp::mpi::Comm comm = MPI_COMM_WORLD;
+    mpi::Comm comm = MPI_COMM_WORLD;
 
     /** mpi status */
-    hmlp::mpi::Status status;
+    mpi::Status status;
 
     /** subcommunicator size */
     int size = 1;

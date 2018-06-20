@@ -1,203 +1,294 @@
 #ifndef IGOFMM_HPP
 #define IGOFMM_HPP
 
+#include <hmlp_mpi.hpp>
 #include <gofmm/igofmm.hpp>
+
+using namespace std;
+using namespace hmlp;
 
 
 namespace hmlp
 {
-namespace gofmm
+namespace mpigofmm
 {
 
-template<typename T>
-class DistFactor : public Factor<T>
+//template<typename T>
+//class DistFactor : public Factor<T>
+//{
+//  public:
+//  private:
+//}; /** end class DistFactor */
+
+
+template<typename NODE, typename T>
+class DistSetupFactorTask : public Task
 {
   public:
 
+    NODE *arg = NULL;
 
-
-
-    /**
-     *  @brief Distributed factorization has two different implementations:
-     *         ULV or SMW. ULV requires O( N ) work, however, the 
-     *         parallelism diminishes because Ul and Ur have size 2s-by-s.
-     *         In this case, only rank 0 and size / 2 in each communicator
-     *         will participate in the factorization.
-     *         On the other hand, SMW takes O( NlogN ) work, but the sizes
-     *         of Ul and Ur are N-by-s. All MPI ranks will join the 
-     *         factorization while creating the reduced system. 
-     */ 
-    template<bool SYMMETRIC>
-    void Factorize
-    ( 
-      /** Ul,  nl-by-sl */
-      hmlp::Data<T> &Ul, 
-      /** Ur,  nr-by-sr */
-      hmlp::Data<T> &Ur, 
-      /** Vl,  nl-by-sr */
-      hmlp::Data<T> &Vl,
-      /** Vr,  nr-by-sr */
-      hmlp::Data<T> &Vr
-    )
+    void Set( NODE *user_arg )
     {
-      /**
-       *  leaf nodes will always be factorized using non-distributed Factor
-       */ 
-      assert( !isleaf );
+      arg = user_arg;
+      name = string( "PSF" );
+      label = to_string( arg->treelist_id );
 
-      /** even SYMMETRIC this routine uses LU factorization */
-      if ( this->IsSymmetric() )
+      /** We don't know the exact cost here */
+      cost = 5.0;
+      /** "High" priority */
+      priority = true;
+    };
+
+    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+
+    void Execute( Worker *user_worker )
+    {
+      auto *myself = arg;
+      NODE *parent = (NODE*)myself->parent;
+      auto *lchild = myself->lchild;
+      auto *rchild = myself->rchild;
+      auto *xchild = myself->child;
+
+      mpi::Comm comm = myself->GetComm();
+      int rank = myself->GetCommRank();
+      int size = myself->GetCommSize();
+
+      size_t n, nl, nr, s, sl, sr;
+      bool issymmetric, do_ulv_factorization, isleft;
+  
+      issymmetric = myself->setup->issymmetric;
+      do_ulv_factorization = myself->setup->do_ulv_factorization;
+      isleft = false;
+      n  = myself->n;
+      nl = 0;
+      nr = 0;
+      /** TODO: may need to BCAST s from 0. */
+      s  = myself->data.skels.size();
+      sl = 0;
+      sr = 0;
+
+
+      if ( myself->GetCommSize() == 1 )
       {
-        /** the skeleton matrix Crl should be provided */
-        assert( Crl.row() == sr ); assert( Crl.col() == sl );
+        if ( !myself->isleaf )
+        {
+          nl = lchild->n;
+          nr = rchild->n;
+          sl = lchild->data.skels.size();
+          sr = rchild->data.skels.size();
+        }
+      }
+      else /** */
+      {
+        if ( myself->GetCommRank() < myself->GetCommSize() / 2 )
+        {
+          nl = xchild->n;
+          sl = xchild->data.s;
+        }
+        else
+        {
+          nr = xchild->n;
+          sr = xchild->data.s;
+        }
+        mpi::Bcast( &nl, 1,        0, comm );
+        mpi::Bcast( &nr, 1, size / 2, comm );
+        mpi::Bcast( &sl, 1,        0, comm );
+        mpi::Bcast( &sr, 1, size / 2, comm );
+      }
+
+      if ( parent )
+      {
+        if ( parent->GetCommRank() < parent->GetCommSize() / 2 ) isleft = true;
+      }
+
+      myself->data.SetupFactor
+      (
+        issymmetric, do_ulv_factorization,
+        isleft, myself->isleaf, !myself->l,
+        n, nl, nr,
+        s, sl, sr 
+      );
+
+    };
+};
+
+
+
+template<typename NODE, typename T>
+class DistFactorizeTask : public Task
+{
+  public:
+
+    NODE *arg = NULL;
+
+    void Set( NODE *user_arg )
+    {
+      arg = user_arg;
+      name = string( "PULVF" );
+      label = to_string( arg->treelist_id );
+
+      /** We don't know the exact cost here */
+      cost = 5.0;
+      /** "High" priority */
+      priority = true;
+    };
+
+
+    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+
+
+    void Execute( Worker *user_worker )
+    {
+      auto *myself = arg;
+      NODE *parent = (NODE*)myself->parent;
+      auto *lchild = myself->lchild;
+      auto *rchild = myself->rchild;
+      auto *xchild = myself->child;
+
+      mpi::Status status;
+      mpi::Comm comm = myself->GetComm();
+      int rank = myself->GetCommRank();
+      int size = myself->GetCommSize();
+
+      auto &data = myself->data;
+      auto &setup = myself->setup;
+      auto &K = *setup->K;
+      auto &proj = data.proj;
+
+      if ( myself->GetCommSize() == 1 )
+      {
+        hfamily::Factorize<NODE, T>( myself );
       }
       else
       {
-        /** both skeleton matrices Crl and Clr should be provided */
-        assert( Clr.row() == sl ); assert( Clr.col() == sr );
-        assert( Crl.row() == sr ); assert( Crl.col() == sl );
-      }
-
-      /** 
-       *  clean up and begin with Z = eye( sl + sr ) =     | sl  sr
-       *                                                ------------
-       *                                                sl | Zrl Ztr
-       *                                                sr | Zbl Zbr 
-       */
-      Z.resize( 0, 0 );
-      Z.resize( sl + sr, sl + sr, 0.0 );
-      for ( size_t i = 0; i < sl + sr; i ++ ) Z( i, i ) = 1.0;
-
-
-      /**
-       *  While doing ULV factorization, 
-       *
-       */ 
-      if ( this->DoULVFactorization() )
-      {
-        /**
-         *  Z = I + UR * C * VR' = [                 I  URl * Clr * VRr'
-         *                            URr * Crl * VRl'                 I ]
-         **/
-        if ( this->IsSymmetric() ) /** Cholesky */
+        if ( myself->GetCommRank() == 0 )
         {
-          /** Zbl = URr * Crl * VRl' */
-          hmlp::Data<T> Zbl = Crl;
+          /** Recv Ur from my sibling.*/
+          auto &Ul = xchild->data.U;
+          Data<T> Ur( data.sr, data.s );
+          mpi::RecvVector( Ur, size / 2,  0, comm, &status );
+          /** TODO: implement symmetric ULV factorization. */
+          Data<T> Vl, Vr;
+          /** Recv Zr from my sibing. */
+          auto &Zl = xchild->data.Zbr;
+          Data<T> Zr( data.sr, data.sr );
+          mpi::RecvVector( Zr, size / 2, 10, comm, &status );
+          View<T> Zrv( Zr );
 
-          /** trmm */
-          xtrmm
-          ( 
-            "Right", "Upper", "Transpose", "Non-unit",
-            Zbl.row(), Zbl.col(),
-            1.0,  Ul.data(),  Ul.row(),
-                 Zbl.data(), Zbl.row()
-          );
+          /** Get the skeleton rows and columns. */
+          auto &amap = xchild->data.skels;
+          vector<size_t> bmap( data.sr );
+          mpi::RecvVector( bmap, size / 2, 20, comm, &status );
+          myself->data.Crl = K( bmap, amap );
 
-          /** trmm */
-          xtrmm
-          ( 
-            "Left", "Upper", "Non-transpose", "Non-unit",
-            Zbl.row(), Zbl.col(),
-            1.0,  Ur.data(),  Ur.row(),
-                 Zbl.data(), Zbl.row()
-          );
-          //printf( "Ur.row() %lu Zbl.row() %lu Zbl.col() %lu\n",
-          //    Ur.row(), Zbl.row(), Zbl.col() );
-
-          /** Zbl */
-          for ( size_t j = 0; j < sl; j ++ )
+          if ( parent )
           {
-            for ( size_t i = 0; i < sr; i ++ )
-            {
-              Z( sl + i,      j ) = Zbl( i, j );
-              Z(      j, sl + i ) = Zbl( i, j );
-            }
+            data.Telescope( false, data.U, proj, Ul, Ur );
+            data.Orthogonalization();
           }
-
-          /** LL' = potrf( Z ) */
-          xpotrf( "Lower", Z.row(), Z.data(), Z.row() );
+          data.PartialFactorize( Zl, Zrv, Ul, Ur, Vl, Vr );
         }
-        else /** TODO: no LU implementation for ULV */
+
+        if ( myself->GetCommRank() == myself->GetCommSize() / 2 )
         {
-          printf( "no unsymmetric ULV implementation\n" );
-          exit( 1 );
-          /** pivoting row indices */
-          ipiv.resize( Z.row(), 0 );
+          /** Send Ur to my sibling. */
+          auto &Ur = xchild->data.U;
+          mpi::SendVector( Ur, 0,  0, comm );
+          /** Send Zr to my sibing. */
+          auto  Zr = xchild->data.Zbr.toData();
+          mpi::SendVector( Zr, 0, 10, comm );
+          /** Evluate the skeleton rows and columns. */
+          auto &bmap = xchild->data.skels;
+          mpi::SendVector( bmap, 0, 20, comm );
         }
       }
-      else /** Sherman-Morrison-Woodbury */
-      {
+    };
+};
 
 
 
-      }
+template<typename NODE, typename T>
+class DistFactorTreeViewTask : public Task
+{
+  public:
 
+    NODE *arg = NULL;
 
-
-
-
-    }; /** end Factorize() */
-
-    /**
-     *  @brief b - U * inv( Z ) * C * V' * b 
-     */
-    template<bool TRANS>
-    void Solve( hmlp::View<T> &bl, hmlp::View<T> &br ) 
+    void Set( NODE *user_arg )
     {
-      size_t nrhs = bl.col();
+      arg = user_arg;
+      name = string( "PTV" );
+      label = to_string( arg->treelist_id );
 
+      /** We don't know the exact cost here */
+      cost = 5.0;
+      /** "High" priority */
+      priority = true;
+    };
 
+    void DependencyAnalysis() { arg->DependOnParent( this ); };
 
-
-
-    }; /** end Solve() */
-
-
-    /**
-     *  @brief here x is the return value
-     */ 
-    void ULVForwardSolve( hmlp::View<T> &x )
+    void Execute( Worker *user_worker )
     {
+    };
+};
 
-    }; /** end ULVForwardSolve() */
 
 
 
-    void ULVBackwardSolve( hmlp::View<T> &x )
+template<typename NODE, typename T>
+class DistULVForwardSolveTask : public Task
+{
+  public:
+
+    NODE *arg = NULL;
+
+    void Set( NODE *user_arg )
     {
-      /** get the view of right hand sides */
-      auto &b = bview;
+      arg = user_arg;
+      name = string( "PULVS1" );
+      label = to_string( arg->treelist_id );
 
-    }; /** end ULVBackwardSolve() */
+      /** We don't know the exact cost here */
+      cost = 5.0;
+      /** "High" priority */
+      priority = true;
+    };
 
+    void DependencyAnalysis() { arg->DependOnChildren( this ); };
 
-
-
-    /** RIGHT: V = [ P(:, 0:st-1) * Vl , P(:,st:st+sb-1) * Vr ] 
-     *  LEFT:  U = [ Ul * P(:, 0:st-1)'; Ur * P(:,st:st+sb-1) ] */
-    void Telescope
-    ( 
-      bool DO_INVERSE,
-      /** n-by-s */
-      hmlp::Data<T> &Pa,
-      /** s-by-(sl+sr) */
-      hmlp::Data<T> &Palr,
-      /** nl-by-sl */
-      hmlp::Data<T> &Pl,
-      /** nr-by-sr */
-      hmlp::Data<T> &Pr
-    ) 
+    void Execute( Worker *user_worker )
     {
-    }; /** end Telescope() */
+    };
+};
 
 
+template<typename NODE, typename T>
+class DistULVBackwardSolveTask : public Task
+{
+  public:
 
+    NODE *arg = NULL;
 
-  private:
+    void Set( NODE *user_arg )
+    {
+      arg = user_arg;
+      name = string( "PULVS2" );
+      label = to_string( arg->treelist_id );
 
-}; /** end class DistFactor */
+      /** We don't know the exact cost here */
+      cost = 5.0;
+      /** "High" priority */
+      priority = true;
+    };
 
+    void DependencyAnalysis() { arg->DependOnParent( this ); };
 
+    void Execute( Worker *user_worker )
+    {
+    };
+};
 
 
 
@@ -208,60 +299,145 @@ class DistFactor : public Factor<T>
 /**
  *  @biref Top level factorization routine.
  */ 
-template<typename NODE, typename T, typename TREE>
-void DistFactorize( bool do_ulv_factorization, TREE &tree, T lambda )
+template<typename T, typename TREE>
+void DistFactorize( TREE &tree, T lambda )
 {
-  const bool AUTO_DEPENDENCY = true;
-  const bool USE_RUNTIME = true;
-
-
-  using NULLTASK           = hmlp::NULLTask<NODE>;
-  using MPINULLTASK        = hmlp::NULLTask<MPINODE>;
-
-
-  /** all task instances */
-  NULLTASK nulltask;
-  MPINULLTASK mpinulltask;
-  SetupFactorTask<NODE, T> setupfactortask; 
-  DistFactorizeTask<MPINODE, T> distfactorizetask;
-  FactorizeTask<NODE, T> factorizetask; 
+  using NODE    = typename TREE::NODE;
+  using MPINODE = typename TREE::MPINODE;
 
   /** setup the regularization parameter lambda */
   tree.setup.lambda = lambda;
-
   /** setup the symmetric type */
   tree.setup.issymmetric = true;
-
   /** setup factorization type */
-  tree.setup.do_ulv_factorization = do_ulv_factorization;
+  tree.setup.do_ulv_factorization = true;
+
+  /** Traverse the tree upward to prepare thr ULV factorization. */
+  hfamily::SetupFactorTask<NODE, T> seqSETUPFACTORtask; 
+  DistSetupFactorTask<MPINODE, T> parSETUPFACTORtask;
+
+  tree.DependencyCleanUp();
+  tree.LocaTraverseUp( seqSETUPFACTORtask );
+  tree.DistTraverseUp( parSETUPFACTORtask );
+  hmlp_run();
+  printf( "Finish SETUPFACTOR\n" ); fflush( stdout );
+
+  hfamily::FactorizeTask<   NODE, T> seqFACTORIZEtask; 
+  DistFactorizeTask<MPINODE, T> parFACTORIZEtask; 
+  tree.DependencyCleanUp();
+  tree.LocaTraverseUp( seqFACTORIZEtask );
+  tree.DistTraverseUp( parFACTORIZEtask );
+  hmlp_run();
+  printf( "Finish FACTORIZE\n" ); fflush( stdout );
+
+}; /** end DistFactorize() */
+
+
+template<typename T, typename TREE>
+void DistSolve( TREE &tree, Data<T> &input )
+{
+  using NODE    = typename TREE::NODE;
+  using MPINODE = typename TREE::MPINODE;
+
+  /** Attach the pointer to the tree structure. */
+  tree.setup.input  = &input;
+
+  /** clean up all dependencies on tree nodes */
+  hfamily::TreeViewTask<NODE> seqTREEVIEWtask;
+  DistFactorTreeViewTask<MPINODE, T>   parTREEVIEWtask;
+  hfamily::ULVForwardSolveTask<NODE, T> seqFORWARDtask;
+  DistULVForwardSolveTask<MPINODE, T>   parFORWARDtask;
+  hfamily::ULVBackwardSolveTask<NODE, T> seqBACKWARDtask;
+  DistULVBackwardSolveTask<MPINODE, T>   parBACKWARDtask;
+
+  tree.DependencyCleanUp();
+  tree.DistTraverseDown( parTREEVIEWtask );
+  tree.LocaTraverseDown( seqTREEVIEWtask );
+  tree.LocaTraverseUp( seqFORWARDtask );
+  tree.DistTraverseUp( parFORWARDtask );
+  tree.DistTraverseDown( parBACKWARDtask );
+  tree.LocaTraverseDown( seqBACKWARDtask );
+  hmlp_run();
+
+}; /** end DistSolve() */
+
+
+/**
+ *  @brief Compute the average 2-norm error. That is given
+ *         lambda and weights, 
+ */ 
+template<typename TREE, typename T>
+void ComputeError( TREE &tree, T lambda, 
+    Data<T> weights, 
+    Data<T> potentials )
+{
+  using NODE    = typename TREE::NODE;
+  using MPINODE = typename TREE::MPINODE;
+
+  size_t n    = weights.row();
+  size_t nrhs = weights.col();
+
+  printf( "Shift lambda\n" ); fflush( stdout );
+  /** shift lambda and make it a column vector */
+  Data<T> rhs( n, nrhs );
+  for ( size_t j = 0; j < nrhs; j ++ )
+    for ( size_t i = 0; i < n; i ++ )
+      rhs( i, j ) = potentials( i, j ) + lambda * weights( i, j );
+
+  /** Solver */
+  DistSolve( tree, rhs );
+  printf( "Finish distributed solve\n" ); fflush( stdout );
+
+
+  /** Compute relative error = sqrt( err / nrm2 ) for each rhs. */
+  printf( "========================================================\n" );
+  printf( "Inverse accuracy report\n" );
+  printf( "========================================================\n" );
+  printf( "#rhs,  max err,        @,  min err,        @,  relative \n" );
+  printf( "========================================================\n" );
+  size_t ntest = 10;
+  T total_err  = 0.0;
+  for ( size_t j = 0; j < std::min( nrhs, ntest ); j ++ )
+  {
+    /** Counters */
+    T nrm2 = 0.0, err2 = 0.0;
+    T max2 = 0.0, min2 = std::numeric_limits<T>::max(); 
+    /** indecies */
+    size_t maxi = 0, mini = 0;
+
+    for ( size_t i = 0; i < n; i ++ )
+    {
+      T sse = rhs( i, j ) - weights( i, j );
+      assert( rhs( i, j ) == rhs( i, j ) );
+      sse = sse * sse;
+
+      nrm2 += weights( i, j ) * weights( i, j );
+      err2 += sse;
+
+      //printf( "%lu %3.1E\n", i, sse );
+
+
+      if ( sse > max2 ) { max2 = sse; maxi = i; }
+      if ( sse < min2 ) { min2 = sse; mini = i; }
+    }
+    total_err += std::sqrt( err2 / nrm2 );
+
+    printf( "%4lu,  %3.1E,  %7lu,  %3.1E,  %7lu,   %3.1E\n", 
+        j, std::sqrt( max2 ), maxi, std::sqrt( min2 ), mini, 
+        std::sqrt( err2 / nrm2 ) );
+  }
+  printf( "========================================================\n" );
+  printf( "                             avg over %2lu rhs,   %3.1E \n",
+      std::min( nrhs, ntest ), total_err / std::min( nrhs, ntest ) );
+  printf( "========================================================\n\n" );
 
 
 
 
-
-  /** setup  */
-  //tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( setupfactortask );
-  //tree.template ParTraverseUp<true>( );
-  
-  
-  if ( USE_RUNTIME ) hmlp_run();
-  //printf( "Execute setupfactortask\n" ); fflush( stdout );
-
-  /** factorization */
-  tree.template TraverseUp<AUTO_DEPENDENCY, USE_RUNTIME>( factorizetask );
-  //printf( "Create factorizetask\n" ); fflush( stdout );
-  if ( USE_RUNTIME ) hmlp_run();
-  //printf( "Execute factorizetask\n" ); fflush( stdout );
-
-}; /** end Factorize() */
+};
 
 
-
-
-
-
-
-}; /** end namespace gofmm */
+}; /** end namespace mpigofmm */
 }; /** end namespace hmlp */
 
 #endif /** define IGOFMM_HPP */
