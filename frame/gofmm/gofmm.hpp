@@ -174,53 +174,45 @@ class Configuration
 
 
 
-/**
- *  @brief These are data that shared by the whole local tree.
- *
- */ 
+/** @brief These are data that shared by the whole local tree. */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
 class Setup : public tree::Setup<SPLITTER, T>
 {
   public:
 
-		//void BackGroundProcess( bool *do_terminate )
-		//{
-		//	K->BackGroundProcess( do_terminate );
-		//};
-
-    /** Number of neighbors */
+    /** Number of neighbors. */
     size_t k = 32;
 
-    /** Maximum rank */
+    /** Maximum rank. */
     size_t s = 64;
 
-    /** User specific relative error */
+    /** User specific relative error. */
     T stol = 1E-3;
 
-    /** User specific budget for the amount of direct evaluation */ 
+    /** User specific budget for the amount of direct evaluation. */ 
     double budget = 0.0;
 
-		/** (default) distance type */
+		/** (Default) distance type. */
 		DistanceMetric metric = ANGLE_DISTANCE;
 
-    /** The SPDMATRIX (accessed with gids: dense, CSC or OOC) */
+    /** The SPDMATRIX (accessed with gids: dense, CSC or OOC). */
     SPDMATRIX *K = NULL;
 
-    /** rhs-by-n, weights and potentials */
+    /** rhs-by-n, weights and potentials. */
     Data<T> *w = NULL;
     Data<T> *u = NULL;
 
-    /** Buffer space, either dimension needs to be n  */
+    /** Buffer space, either dimension needs to be n. */
     Data<T> *input = NULL;
     Data<T> *output = NULL;
 
-    /** Regularization */
+    /** Regularization for factorization. */
     T lambda = 0.0;
 
-    /** whether the matrix is symmetric */
+    /** Whether the matrix is symmetric. */
     bool issymmetric = true;
 
-    /** use ULV or Sherman-Morrison-Woodbury */
+    /** Use ULV or Sherman-Morrison-Woodbury */
     bool do_ulv_factorization = true;
 
 }; /** end class Setup */
@@ -238,48 +230,46 @@ class NodeData : public Factor<T>
 
     NodeData() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
 
-    /** the omp (or pthread) lock */
+    /** The OpenMP (or pthread) lock that grants exclusive right. */
     Lock lock;
 
-    /** whether the node can be compressed */
+    /** Whether the node can be compressed (with skel and proj). */
     bool isskel = false;
 
-    /** whether the coefficient mathx has been computed */
+    /** Whether the coefficient mathx has been computed. */
     bool hasproj = false;
 
-    /** Skeleton gids */
+    /** Skeleton gids (subset of gids). */
     vector<size_t> skels;
 
-    /** (buffer) nsamples row gids */
+    /** (Buffer) nsamples row gids, and sl + sr skeleton columns of children. */
     vector<size_t> candidate_rows;
-
-    /** (buffer) sl+sr column gids of children */
     vector<size_t> candidate_cols;
 
-    /** (buffer) nsamples-by-(sl+sr) submatrix of K */
+    /** (Buffer) nsamples-by-(sl+sr) submatrix of K */
     Data<T> KIJ; 
 
-    /** 2s, pivoting order of GEQP3 */
+    /** 2s, pivoting order of GEQP3 (or GEQP4). */
     vector<int> jpvt;
 
-    /** s-by-2s */
+    /** s-by-2s, interpolative coefficients. */
     Data<T> proj;
 
-    /** sampling neighbors ids */
+    /** Sampling neighbors gids. */
     map<size_t, T> snids; 
 
-    /* pruning neighbors ids */
+    /* Pruning neighbors ids. */
     unordered_set<size_t> pnids; 
 
-    /** Skeleton weights and potentials */
+    /** (Buffer) skeleton weights and potentials. */
     Data<T> w_skel;
     Data<T> u_skel;
 
-    /** Permuted weights and potentials (buffer) */
+    /** (Buffer) permuted weights and potentials. */
     Data<T> w_leaf;
     Data<T> u_leaf[ 20 ];
 
-    /** Hierarchical tree view of w<RIDS> and u<RIDS> */
+    /** Hierarchical tree view of w<RIDS, STAR> and u<RIDS, STAR>. */
     View<T> w_view;
     View<T> u_view;
 
@@ -333,12 +323,10 @@ class TreeViewTask : public Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
-      name = string( "TreeView" );
       arg = user_arg;
+      name = string( "TreeView" );
+      label = to_string( arg->treelist_id );
       cost = 1.0;
-      ss << arg->treelist_id;
-      label = ss.str();
     };
 
     void GetEventRecord()
@@ -655,7 +643,7 @@ vector<T> AllToFarthest
 )
 {
   /** distances from I to P */
-  std::vector<T> I2P( KIP.row(), 0.0 );
+  vector<T> I2P( KIP.row(), 0.0 );
 
   switch ( metric )
   {
@@ -764,18 +752,16 @@ vector<T> AllToLeftRight
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct centersplit
 {
-  /** closure */
+  /** Closure */
   SPDMATRIX *Kptr = NULL;
-
-  /** (default) using angle distance from the Gram vector space */
+  /** (Default) use angle distance from the Gram vector space. */
   DistanceMetric metric = ANGLE_DISTANCE;
-
-  /** number samples to approximate centroid */
+  /** Number samples to approximate centroid. */
   size_t n_centroid_samples = 1;
   
 
 	/** overload the operator */
-  vector<vector<size_t> > operator()
+  vector<vector<size_t>> operator()
   ( 
     vector<size_t>& gids, vector<size_t>& lids
   ) const 
@@ -1179,25 +1165,20 @@ class KNNTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
    
-	  /** (default) using angle distance from the Gram vector space */
+	  /** (Default) using angle distance from the Gram vector space */
 	  DistanceMetric metric = ANGLE_DISTANCE;
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "nn" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
+      name = string( "nn" );
+      label = to_string( arg->treelist_id );
       // TODO: Need an accurate cost model.
       cost = 1.0;
-
       /** use the same distance as the tree */
       metric = arg->setup->metric;
-
 
       //--------------------------------------
       double flops, mops;
@@ -1371,9 +1352,7 @@ class KNNTask : public Task
 
 
 
-/**
- *  @brief This is the ANN routine design for CSC matrices.
- */ 
+/** @brief This is the ANN routine design for CSC matrices. */ 
 template<bool DOAPPROXIMATE, bool SORTED, typename T, typename CSCMATRIX>
 Data<pair<T, size_t>> SparsePattern( size_t n, size_t k, CSCMATRIX &K )
 {
