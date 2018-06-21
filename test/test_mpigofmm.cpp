@@ -20,10 +20,7 @@
 
 
 
-
-/** MPI support */
-#include <hmlp_mpi.hpp>
-
+/** Use STL, and OpenMP. */
 #include <tuple>
 #include <cmath>
 #include <algorithm>
@@ -45,29 +42,31 @@
 #endif
 
 
+/** MPI support */
+#include <hmlp_mpi.hpp>
 /** GOFMM templates */
-#include <mpi/gofmm_mpi.hpp>
+#include <gofmm_mpi.hpp>
 /** INV-GOFMM templates */
-#include <mpi/igofmm_mpi.hpp>
+#include <igofmm_mpi.hpp>
 
 
-/**  */
+/** Use dense SPD matrices. */
 #include <containers/SPDMatrix.hpp>
-/** use an implicit kernel matrix (only coordinates are stored) */
+/** use implicit kernel matrices (only coordinates are stored). */
 #include <containers/KernelMatrix.hpp>
-/** use an implicit matrix */
+/** use implicit matrices */
 #include <containers/VirtualMatrix.hpp>
-/** use an implicit PVFMM kernel matrix */
+/** use implicit PVFMM kernel matrices. */
 #include <containers/PVFMMKernelMatrix.hpp>
-/** Use an implicit Gauss-Newton (multilevel perceptron) matrix */
+/** Use implicit Gauss-Newton (multilevel perceptron) matrices. */
 #include <containers/MLPGaussNewton.hpp>
-/** Use an OOC covariance matrix. */
+/** Use an OOC covariance matrices. */
 #include <containers/OOCCovMatrix.hpp>
 
-#include <mpi/DistData.hpp>
+#include <containers/DistData.hpp>
 #include <containers/DistKernelMatrix.hpp>
 #include <containers/DistKernelMatrix_ver2.hpp>
-#include <containers/DistSPDMatrix.hpp>
+//#include <containers/DistSPDMatrix.hpp>
 
 
 
@@ -487,7 +486,7 @@ int main( int argc, char *argv[] )
     using T = float;
     {
       /** Dense spd matrix format */
-      gofmm::SPDMatrix<T> K;
+      SPDMatrix<T> K;
       K.resize( n, n );
       K.read( n, n, user_matrix_filename );
 
@@ -601,7 +600,7 @@ int main( int argc, char *argv[] )
 			/** no geometric coordinates provided */
 			DistData<STAR, CBLK, T> *X = NULL;
 			/** dense spd matrix format */
-			gofmm::SPDMatrix<T> K;
+		  SPDMatrix<T> K;
 			K.resize( n, n );
 			/** random spd initialization */
 			K.randspd<USE_LOWRANK>( 0.0, 1.0 );

@@ -684,6 +684,36 @@ class Node : public ReadWrite
     };
 
 
+    /** Support dependency analysis. */
+    void DependOnChildren( Task *task )
+    {
+      if ( this->lchild ) this->lchild->DependencyAnalysis( R, task );
+      if ( this->rchild ) this->rchild->DependencyAnalysis( R, task );
+      this->DependencyAnalysis( RW, task );
+      /** Try to enqueue if there is no dependency. */
+      task->TryEnqueue();
+    };
+
+    void DependOnParent( Task *task )
+    {
+      this->DependencyAnalysis( R, task );
+      if ( this->lchild ) this->lchild->DependencyAnalysis( RW, task );
+      if ( this->rchild ) this->rchild->DependencyAnalysis( RW, task );
+      /** Try to enqueue if there is no dependency. */
+      task->TryEnqueue();
+    };
+
+    void DependOnNoOne( Task *task )
+    {
+      this->DependencyAnalysis( RW, task );
+      /** Try to enqueue if there is no dependency. */
+      task->TryEnqueue();
+    };
+
+
+
+
+
     /** This is the call back pointer to the shared data. */
     SETUP *setup = NULL;
 

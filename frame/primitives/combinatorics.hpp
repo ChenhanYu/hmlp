@@ -1,11 +1,16 @@
 #ifndef COMBINATORICS_HPP
 #define COMBINATORICS_HPP
 
+/** Use STL, and vector. */
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
 
-#include <mpi/hmlp_mpi.hpp>
+/** Use MPI support. */
+#include <hmlp_mpi.hpp>
+
+using namespace std;
+
 
 namespace hmlp
 {

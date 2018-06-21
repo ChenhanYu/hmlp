@@ -28,10 +28,10 @@
 #include <cstdint>
 
 
-#include <mpi/hmlp_mpi.hpp>
-#include <mpi/DistData.hpp>
+#include <hmlp_mpi.hpp>
+#include <containers/DistData.hpp>
 
-#include <gofmm/tree.hpp>
+#include <tree.hpp>
 
 using namespace std;
 using namespace hmlp;
@@ -363,30 +363,30 @@ void MergeNeighbors
 
 
 
-template<typename BACKGROUND>
-class BackGroundTask : public hmlp::Task
-{
-	public:
-
-		BACKGROUND *bg = NULL;
-
-		BackGroundTask( BACKGROUND *user_bg ) : hmlp::Task()
-		{
-			bg = user_bg;
-			name = std::string( "BackGround" );
-      /** asuume computation bound */
-      cost = 9999.9;
-			/** high priority */
-      priority = true;
-		};
-
-    void Execute( Worker* user_worker )
-    {
-      bg->BackGroundProcess( &(user_worker->scheduler->do_terminate) );
-    };
-
-}; /** end class BusyGroundTask */
-
+//template<typename BACKGROUND>
+//class BackGroundTask : public hmlp::Task
+//{
+//	public:
+//
+//		BACKGROUND *bg = NULL;
+//
+//		BackGroundTask( BACKGROUND *user_bg ) : hmlp::Task()
+//		{
+//			bg = user_bg;
+//			name = std::string( "BackGround" );
+//      /** asuume computation bound */
+//      cost = 9999.9;
+//			/** high priority */
+//      priority = true;
+//		};
+//
+//    void Execute( Worker* user_worker )
+//    {
+//      bg->BackGroundProcess( &(user_worker->scheduler->do_terminate) );
+//    };
+//
+//}; /** end class BusyGroundTask */
+//
 
 template<typename NODE>
 class DistSplitTask : public Task
@@ -598,7 +598,7 @@ class Node : public tree::Node<SETUP, NODEDATA>
     /** Deduce data type from SETUP. */
     typedef typename SETUP::T T;
 
-    static const int N_CHILDREN = tree::Node<SETUP, NODEDATA>::N_CHILDREN;
+    static const int N_CHILDREN = 2;
 
     /** Inherit all parameters from tree::Node */
 
@@ -821,7 +821,6 @@ class Node : public tree::Node<SETUP, NODEDATA>
       task->TryEnqueue();
     };
 
-
     void Print()
     {
       int global_rank = 0;
@@ -931,7 +930,7 @@ class Tree
     typedef Node<SETUP, NODEDATA> MPINODE;
 
     /** define our tree node type as NODE */
-    typedef LetNode<SETUP, NODEDATA> LETNODE;
+    //typedef LetNode<SETUP, NODEDATA> LETNODE;
 
 
     /** 
@@ -943,7 +942,7 @@ class Tree
     vector<MPINODE*> mpitreelists;
 
     /** local essential tree nodes (this is not thread-safe) */
-    std::map<size_t, LETNODE*> lettreelist;
+    //std::map<size_t, LETNODE*> lettreelist;
 
 
     /** Default constructor */ 
@@ -1004,13 +1003,13 @@ class Tree
       }
       mpitreelists.clear();
 
-      /** free all local essential tree nodes */
-      if ( lettreelist.size() )
-      {
-        for ( size_t i = 0; i < lettreelist.size(); i ++ )
-          if ( lettreelist[ i ] ) delete lettreelist[ i ];
-      }
-      lettreelist.clear();
+      ///** free all local essential tree nodes */
+      //if ( lettreelist.size() )
+      //{
+      //  for ( size_t i = 0; i < lettreelist.size(); i ++ )
+      //    if ( lettreelist[ i ] ) delete lettreelist[ i ];
+      //}
+      //lettreelist.clear();
 
     }; /** end CleanUp() */
 
@@ -1283,8 +1282,8 @@ class Tree
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
 
-      auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
-      bgtask->SetAsBackGround();
+      //auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
+      //bgtask->SetAsBackGround();
 
       DependencyCleanUp();
       //hmlp_redistribute_workers( 

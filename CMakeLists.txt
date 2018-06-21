@@ -328,7 +328,7 @@ set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS} -std=c++11")
 
 # Headers
 # ---------------------------
-include_directories ("include" "frame" "frame/mpi")
+include_directories ("include" "frame" "frame/containers" "frame/mpi" "frame/gofmm")
 include_directories ("kernel/reference" "kernel/${HMLP_ARCH}")
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")

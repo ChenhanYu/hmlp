@@ -2,14 +2,13 @@
 #define DISTDATA_HPP
 
 #include <containers/data.hpp>
-#include <mpi/hmlp_mpi.hpp>
+#include <hmlp_mpi.hpp>
 
 using namespace std;
 using namespace hmlp;
 
 namespace hmlp
 {
-
 namespace mpi
 {
 /**
@@ -20,8 +19,8 @@ namespace mpi
 template<typename T>
 int AlltoallData(
     size_t m,
-    vector<hmlp::Data<T>> &sendvector, 
-    vector<hmlp::Data<T>> &recvvector, mpi::Comm comm )
+    vector<Data<T>> &sendvector, 
+    vector<Data<T>> &recvvector, mpi::Comm comm )
 {
   int size = 0;
   int rank = 0;

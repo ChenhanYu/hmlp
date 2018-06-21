@@ -18,14 +18,10 @@
  *
  **/  
 
-
-
-
-
 #ifndef DATA_HPP
 #define DATA_HPP
 
-/** mmap */
+/** Use mmap as simple out-of-core solution. */
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -33,14 +29,12 @@
 #include <fcntl.h>
 #include <math.h>
 
-/** stl */
+/** Use STL and inherit vector<T>. */
 #include <cassert>
 #include <typeinfo>
-
 #include <algorithm>
 #include <random>
 #include <chrono>
-
 #include <set>
 #include <unordered_set>
 #include <map>
@@ -55,13 +49,10 @@
 #include <fstream>
 #include <sstream>
 
-/** hmlp */
+/** Use HMLP support. */
 #include <hmlp_device.hpp>
 #include <hmlp_runtime.hpp>
-
 #include <hmlp_util.hpp>
-
-//#include <mpi.h>
 
 
 /** -lmemkind */
@@ -834,19 +825,17 @@ class CSC : public ReadWrite
 
   private:
 
-    std::size_t m;
+    size_t m;
 
-    std::size_t n;
+    size_t n;
 
-    std::size_t nnz;
+    size_t nnz;
 
-    std::vector<T, Allocator> val;
+    vector<T, Allocator> val;
 
-    //std::vector<std::size_t, Allocator> row_ind;
-    std::vector<std::size_t> row_ind;
+    vector<size_t> row_ind;
    
-    //std::vector<std::size_t, Allocator> col_ptr;
-    std::vector<std::size_t> col_ptr;
+    vector<size_t> col_ptr;
 
 }; // end class CSC
 
@@ -951,4 +940,4 @@ class OOCData : public ReadWrite
 
 }; /** end namespace hmlp */
 
-#endif //define DATA_HPP
+#endif /** define DATA_HPP */

@@ -39,7 +39,8 @@ class SPDMatrixMPISupport
  *         support two interfaces for data fetching.
  */ 
 template<typename T>
-class SPDMatrix : public Data<T>, SPDMatrixMPISupport<T>
+class SPDMatrix : public Data<T>, 
+                  public SPDMatrixMPISupport<T>
 {
   public:
 
@@ -73,7 +74,7 @@ class SPDMatrix : public Data<T>, SPDMatrixMPISupport<T>
     Data<T> PairwiseDistances( const vector<size_t> &I, 
                                const vector<size_t> &J )
     {
-      return (*this)( I, J )
+      return (*this)( I, J );
     };
 
 }; /** end class SPDMatrix */

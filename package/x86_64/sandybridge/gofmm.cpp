@@ -23,6 +23,9 @@
 
 #include <gofmm/gofmm.hpp>
 
+using namespace std;
+using namespace hmlp;
+
 
 namespace hmlp
 {
@@ -31,19 +34,15 @@ namespace gofmm
 
 
 
-/**
- *  Evaluate routines with different interfaces
- **/ 
-hmlp::Data<double> Evaluate( dTree_t *tree, hmlp::Data<double> *weights )
+/** Evaluate routines with different interfaces **/ 
+Data<double> Evaluate( dTree_t *tree, Data<double> *weights )
 {
-  return Evaluate<true, false, true, true, true, dTree_t, double> 
-		( *tree, *weights );
+  return Evaluate<true, false, true, true, dTree_t, double>( *tree, *weights );
 };
 
-hmlp::Data<float>  Evaluate( sTree_t *tree, hmlp::Data<float> *weights )
+Data<float>  Evaluate( sTree_t *tree, Data<float> *weights )
 {
-  return Evaluate<true, false, true, true, true, sTree_t, float> 
-		( *tree, *weights );
+  return Evaluate<true, false, true, true, sTree_t, float> ( *tree, *weights );
 };
 
 
@@ -70,20 +69,15 @@ sTree_t *Compress( sSPDMatrix_t *K,  float stol,  float budget, size_t m, size_t
 /**
  *  ComputeError routines with different interfaces
  **/ 
-double ComputeError( dTree_t *tree, size_t gid, hmlp::Data<double> *potentials )
+double ComputeError( dTree_t *tree, size_t gid, Data<double> *potentials )
 {
   return ComputeError( *tree, gid, *potentials );
 };
 
-float  ComputeError( sTree_t *tree, size_t gid, hmlp::Data<float > *potentials )
+float  ComputeError( sTree_t *tree, size_t gid, Data<float > *potentials )
 {
   return ComputeError( *tree, gid, *potentials );
 };
-
-
-
-
-
 
 
 

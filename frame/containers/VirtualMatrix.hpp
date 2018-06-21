@@ -18,9 +18,6 @@
  *
  **/  
 
-
-
-
 #ifndef VIRTUALMATRIX_HPP
 #define VIRTUALMATRIX_HPP
 
@@ -90,7 +87,8 @@ class VirtualMatrix
       return KIJ;
     };
 
-    virtual Data<T> PairwiseDistances( const vector<size_t> &I, const vector<size_t> &J )
+    virtual Data<T> PairwiseDistances( const vector<size_t> &I, 
+                                       const vector<size_t> &J )
     {
       return (*this)( I, J );
     };
@@ -116,38 +114,6 @@ class VirtualMatrix
       pair<T, int> sample( (*this)( i, j ), i );
       return sample; 
     }; /** end ImportantSample() */
-
-    //virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
-    //{
-    //};
-
-    //virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
-    //{
-    //};
-
-    //virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
-    //{
-    //};
-
-    //virtual void RequestColumns( vector<vector<size_t>> requ_cids )
-    //{
-    //};
-
-    //virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
-    //{
-    //}; /** end Redistribute() */
-
-    //virtual void RedistributeWithPartner( 
-    //    std::vector<size_t> &gids,
-    //    std::vector<size_t> &lhs, 
-    //    std::vector<size_t> &rhs, mpi::Comm comm )
-    //{
-    //};
-
-    //virtual void BackGroundProcess( bool *do_terminate )
-		//{
-		//};
-
 
   private:
 

@@ -27,8 +27,8 @@
 #include <hmlp_blas_lapack.h>
 #include <hmlp_runtime.hpp>
 
-/** Matrix view */
-#include <containers/view.hpp>
+/** Use matrix view to employ SuperMatrix style task parallelism. */
+#include <containers/View.hpp>
 
 using namespace std;
 using namespace hmlp;

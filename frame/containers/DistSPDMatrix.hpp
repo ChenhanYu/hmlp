@@ -1,7 +1,7 @@
 #ifndef DISTSPDMATRIX_HPP
 #define DISTSPDMATRIX_HPP
 
-#include <mpi/DistData.hpp>
+#include <containers/DistData.hpp>
 #include <containers/DistVirtualMatrix.hpp>
 
 

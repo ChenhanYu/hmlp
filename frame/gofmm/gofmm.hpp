@@ -28,7 +28,6 @@
 #include <thread>
 #include <chrono>
 
-/** stl and omp */
 #include <set>
 #include <vector>
 #include <map>
@@ -48,17 +47,20 @@
 #include <omp.h>
 #include <time.h>
 
-/** hmlp */
+/** Use HMLP related support. */
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
 #include <hmlp_util.hpp>
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
+
+
 #include <primitives/lowrank.hpp>
 #include <primitives/combinatorics.hpp>
 #include <primitives/gemm.hpp>
 
 #include <containers/data.hpp>
+#include <containers/SPDMatrix.hpp>
 #include <gofmm/tree.hpp>
 #include <gofmm/igofmm.hpp>
 
@@ -70,7 +72,7 @@
 
 
 /** by default, we use binary tree */
-#define N_CHILDREN 2
+//#define N_CHILDREN 2
 
 /** this parameter is used to reserve space for std::vector */
 #define MAX_NRHS 1024
@@ -181,10 +183,10 @@ class Setup : public tree::Setup<SPLITTER, T>
 {
   public:
 
-		void BackGroundProcess( bool *do_terminate )
-		{
-			K->BackGroundProcess( do_terminate );
-		};
+		//void BackGroundProcess( bool *do_terminate )
+		//{
+		//	K->BackGroundProcess( do_terminate );
+		//};
 
     /** Number of neighbors */
     size_t k = 32;
@@ -424,75 +426,8 @@ class TreeViewTask : public Task
 
 
 
-/**
- *  @brief This class does not need to inherit hmlp::Data<T>, 
- *         but it should
- *         support two interfaces for data fetching.
- */ 
-template<typename T>
-class SPDMatrix : public Data<T>
-{
-  public:
 
-    Data<T> Diagonal( vector<size_t> &I )
-    {
-      Data<T> DII( I.size(), 1 );
-
-      for ( size_t i = 0; i < I.size(); i ++ )
-        DII[ i ] = (*this)( I[ i ], I[ i ] );
-
-      return DII;
-    };
-
-    Data<T> PairwiseDistances( const vector<size_t> &I, const vector<size_t> &J )
-    {
-      Data<T> KIJ( I.size(), J.size(), 0.0 );
-      return KIJ;
-    };
-
-
-    virtual void BackGroundProcess( bool *do_terminate )
-		{
-		};
-
-    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
-    {
-    };
-
-    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
-    {
-    };
-
-    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
-    {
-    };
-
-    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
-    {
-    };
-
-    virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
-    {
-    };
-
-    virtual void RedistributeWithPartner
-    ( 
-     vector<size_t> &gids,
-     vector<size_t> &lhs, 
-     vector<size_t> &rhs, mpi::Comm comm 
-    )
-    {
-    };
-
-  private:
-
-}; /** end class SPDMatrix */
-
-
-/**
- *  @brief Provide statistics summary for the execution section.
- *
- */ 
+/** @brief Provide statistics summary for the execution section.  */ 
 template<typename NODE>
 class Summary
 {

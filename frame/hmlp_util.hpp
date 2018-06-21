@@ -39,6 +39,10 @@
 
 #include <hmlp.h>
 
+
+using namespace std;
+
+
 namespace hmlp
 {
 
@@ -51,12 +55,11 @@ namespace hmlp
 template<int ALIGN_SIZE, typename T>
 T *hmlp_malloc( int m, int n, int size )
 {
-  T *ptr;
-  int err;
+  T *ptr = NULL;
 #ifdef HMLP_MIC_AVX512
-  err = hbw_posix_memalign( (void**)&ptr, (size_t)ALIGN_SIZE, size * m * n );
+  int err = hbw_posix_memalign( (void**)&ptr, (size_t)ALIGN_SIZE, size * m * n );
 #else
-  err = posix_memalign( (void**)&ptr, (size_t)ALIGN_SIZE, size * m * n );
+  int err = posix_memalign( (void**)&ptr, (size_t)ALIGN_SIZE, size * m * n );
 #endif
 
   if ( err )
@@ -68,9 +71,7 @@ T *hmlp_malloc( int m, int n, int size )
   return ptr;
 };
 
-/**
- *  @brief Another interface.
- */ 
+/** @brief Another interface. */ 
 template<int ALIGN_SIZE, typename T>
 T *hmlp_malloc( int n )
 {
@@ -85,12 +86,10 @@ void hmlp_free( T *ptr )
 {
 #ifdef HMLP_MIC_AVX512
   if ( ptr ) hbw_free( ptr );
-  ptr = NULL;
 #else
   if ( ptr ) free( ptr );
-  ptr = NULL;
 #endif
-}
+};
 
 template<typename T>
 void hmlp_print_binary( T number )

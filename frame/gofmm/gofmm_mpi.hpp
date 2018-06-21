@@ -22,16 +22,21 @@
 #ifndef GOFMM_MPI_HPP
 #define GOFMM_MPI_HPP
 
-/** Use STL future, thread, chrono */
+/** Use STL future, thread, and chrono. */
 #include <future>
 #include <thread>
 #include <chrono>
 
 #include <hmlp_util.hpp>
-#include <mpi/tree_mpi.hpp>
-#include <mpi/DistData.hpp>
+/** Inherit most of the classes from shared-memory GOFMM. */
 #include <gofmm/gofmm.hpp>
+/** Use distributed metric trees. */
+#include <tree_mpi.hpp>
+/** Use distributed matrices inspired by the Elemental notation. */
+#include <DistData.hpp>
+/** Use distributed median select and mergesort. */
 #include <primitives/combinatorics.hpp>
+/** Use SuperMatrix style task-based GEMM. */
 #include <primitives/gemm.hpp>
 
 
@@ -45,165 +50,165 @@ namespace mpigofmm
 {
 
 
-/**
- *  @biref This class does not have to inherit DistData, but it have to 
- *         inherit DistVirtualMatrix<T>
- *
- */ 
-template<typename T>
-class DistSPDMatrix : public DistData<STAR, CBLK, T>
-{
-  public:
-
-    DistSPDMatrix( size_t m, size_t n, mpi::Comm comm ) : 
-      DistData<STAR, CBLK, T>( m, n, comm )
-    {
-    };
-
-
-    /** ESSENTIAL: this is an abstract function  */
-    virtual T operator()( size_t i, size_t j, mpi::Comm comm )
-    {
-      T Kij = 0;
-
-      /** MPI */
-      int size, rank;
-      hmlp::mpi::Comm_size( comm, &size );
-      hmlp::mpi::Comm_rank( comm, &rank );
-
-      std::vector<std::vector<size_t>> sendrids( size );
-      std::vector<std::vector<size_t>> recvrids( size );
-      std::vector<std::vector<size_t>> sendcids( size );
-      std::vector<std::vector<size_t>> recvcids( size );
-
-      /** request Kij from rank ( j % size ) */
-      sendrids[ i % size ].push_back( i );    
-      sendcids[ j % size ].push_back( j );    
-
-      /** exchange ids */
-      mpi::AlltoallVector( sendrids, recvrids, comm );
-      mpi::AlltoallVector( sendcids, recvcids, comm );
-
-      /** allocate buffer for data */
-      std::vector<std::vector<T>> senddata( size );
-      std::vector<std::vector<T>> recvdata( size );
-
-      /** fetch subrows */
-      for ( size_t p = 0; p < size; p ++ )
-      {
-        assert( recvrids[ p ].size() == recvcids[ p ].size() );
-        for ( size_t j = 0; j < recvcids[ p ].size(); j ++ )
-        {
-          size_t rid = recvrids[ p ][ j ];
-          size_t cid = recvcids[ p ][ j ];
-          senddata[ p ].push_back( (*this)( rid, cid ) );
-        }
-      }
-
-      /** exchange data */
-      mpi::AlltoallVector( senddata, recvdata, comm );
-
-      for ( size_t p = 0; p < size; p ++ )
-      {
-        assert( recvdata[ p ].size() <= 1 );
-        if ( recvdata[ p ] ) Kij = recvdata[ p ][ 0 ];
-      }
-
-      return Kij;
-    };
-
-
-    /** ESSENTIAL: return a submatrix */
-    virtual hmlp::Data<T> operator()
-		( std::vector<size_t> &imap, std::vector<size_t> &jmap, hmlp::mpi::Comm comm )
-    {
-      hmlp::Data<T> KIJ( imap.size(), jmap.size() );
-
-      /** MPI */
-      int size, rank;
-      hmlp::mpi::Comm_size( comm, &size );
-      hmlp::mpi::Comm_rank( comm, &rank );
-
-
-
-      std::vector<std::vector<size_t>> jmapcids( size );
-
-      std::vector<std::vector<size_t>> sendrids( size );
-      std::vector<std::vector<size_t>> recvrids( size );
-      std::vector<std::vector<size_t>> sendcids( size );
-      std::vector<std::vector<size_t>> recvcids( size );
-
-      /** request KIJ from rank ( j % size ) */
-      for ( size_t j = 0; j < jmap.size(); j ++ )
-      {
-        size_t cid = jmap[ j ];
-        sendcids[ cid % size ].push_back( cid );
-        jmapcids[ cid % size ].push_back(   j );
-      }
-
-      for ( size_t p = 0; p < size; p ++ )
-      {
-        if ( sendcids[ p ].size() ) sendrids[ p ] = imap;
-      }
-
-      /** exchange ids */
-      mpi::AlltoallVector( sendrids, recvrids, comm );
-      mpi::AlltoallVector( sendcids, recvcids, comm );
-
-      /** allocate buffer for data */
-      std::vector<hmlp::Data<T>> senddata( size );
-      std::vector<hmlp::Data<T>> recvdata( size );
-
-      /** fetch submatrix */
-      for ( size_t p = 0; p < size; p ++ )
-      {
-        if ( recvcids[ p ].size() && recvrids[ p ].size() )
-        {
-          senddata[ p ] = (*this)( recvrids[ p ], recvcids[ p ] );
-        }
-      }
-
-      /** exchange data */
-      mpi::AlltoallVector( senddata, recvdata, comm );
-
-      /** merging data */
-      for ( size_t p = 0; j < size; p ++ )
-      {
-        assert( recvdata[ p ].size() == imap.size() * recvcids[ p ].size() );
-        recvdata[ p ].resize( imap.size(), recvcids[ p ].size() );
-        for ( size_t j = 0; j < recvcids[ p ]; i ++ )
-        {
-          for ( size_t i = 0; i < imap.size(); i ++ )
-          {
-            KIJ( i, jmapcids[ p ][ j ] ) = recvdata[ p ]( i, j );
-          }
-        }
-      };
-
-      return KIJ;
-    };
-
-
-
-
-
-    virtual hmlp::Data<T> operator()
-		( std::vector<int> &imap, std::vector<int> &jmap, hmlp::mpi::Comm comm )
-    {
-      printf( "operator() not implemented yet\n" );
-      exit( 1 );
-    };
-
-
-
-    /** overload operator */
-
-
-  private:
-
-}; /** end class DistSPDMatrix */
-
-
+///**
+// *  @biref This class does not have to inherit DistData, but it have to 
+// *         inherit DistVirtualMatrix<T>
+// *
+// */ 
+//template<typename T>
+//class DistSPDMatrix : public DistData<STAR, CBLK, T>
+//{
+//  public:
+//
+//    DistSPDMatrix( size_t m, size_t n, mpi::Comm comm ) : 
+//      DistData<STAR, CBLK, T>( m, n, comm )
+//    {
+//    };
+//
+//
+//    /** ESSENTIAL: this is an abstract function  */
+//    virtual T operator()( size_t i, size_t j, mpi::Comm comm )
+//    {
+//      T Kij = 0;
+//
+//      /** MPI */
+//      int size, rank;
+//      hmlp::mpi::Comm_size( comm, &size );
+//      hmlp::mpi::Comm_rank( comm, &rank );
+//
+//      std::vector<std::vector<size_t>> sendrids( size );
+//      std::vector<std::vector<size_t>> recvrids( size );
+//      std::vector<std::vector<size_t>> sendcids( size );
+//      std::vector<std::vector<size_t>> recvcids( size );
+//
+//      /** request Kij from rank ( j % size ) */
+//      sendrids[ i % size ].push_back( i );    
+//      sendcids[ j % size ].push_back( j );    
+//
+//      /** exchange ids */
+//      mpi::AlltoallVector( sendrids, recvrids, comm );
+//      mpi::AlltoallVector( sendcids, recvcids, comm );
+//
+//      /** allocate buffer for data */
+//      std::vector<std::vector<T>> senddata( size );
+//      std::vector<std::vector<T>> recvdata( size );
+//
+//      /** fetch subrows */
+//      for ( size_t p = 0; p < size; p ++ )
+//      {
+//        assert( recvrids[ p ].size() == recvcids[ p ].size() );
+//        for ( size_t j = 0; j < recvcids[ p ].size(); j ++ )
+//        {
+//          size_t rid = recvrids[ p ][ j ];
+//          size_t cid = recvcids[ p ][ j ];
+//          senddata[ p ].push_back( (*this)( rid, cid ) );
+//        }
+//      }
+//
+//      /** exchange data */
+//      mpi::AlltoallVector( senddata, recvdata, comm );
+//
+//      for ( size_t p = 0; p < size; p ++ )
+//      {
+//        assert( recvdata[ p ].size() <= 1 );
+//        if ( recvdata[ p ] ) Kij = recvdata[ p ][ 0 ];
+//      }
+//
+//      return Kij;
+//    };
+//
+//
+//    /** ESSENTIAL: return a submatrix */
+//    virtual hmlp::Data<T> operator()
+//		( std::vector<size_t> &imap, std::vector<size_t> &jmap, hmlp::mpi::Comm comm )
+//    {
+//      hmlp::Data<T> KIJ( imap.size(), jmap.size() );
+//
+//      /** MPI */
+//      int size, rank;
+//      hmlp::mpi::Comm_size( comm, &size );
+//      hmlp::mpi::Comm_rank( comm, &rank );
+//
+//
+//
+//      std::vector<std::vector<size_t>> jmapcids( size );
+//
+//      std::vector<std::vector<size_t>> sendrids( size );
+//      std::vector<std::vector<size_t>> recvrids( size );
+//      std::vector<std::vector<size_t>> sendcids( size );
+//      std::vector<std::vector<size_t>> recvcids( size );
+//
+//      /** request KIJ from rank ( j % size ) */
+//      for ( size_t j = 0; j < jmap.size(); j ++ )
+//      {
+//        size_t cid = jmap[ j ];
+//        sendcids[ cid % size ].push_back( cid );
+//        jmapcids[ cid % size ].push_back(   j );
+//      }
+//
+//      for ( size_t p = 0; p < size; p ++ )
+//      {
+//        if ( sendcids[ p ].size() ) sendrids[ p ] = imap;
+//      }
+//
+//      /** exchange ids */
+//      mpi::AlltoallVector( sendrids, recvrids, comm );
+//      mpi::AlltoallVector( sendcids, recvcids, comm );
+//
+//      /** allocate buffer for data */
+//      std::vector<hmlp::Data<T>> senddata( size );
+//      std::vector<hmlp::Data<T>> recvdata( size );
+//
+//      /** fetch submatrix */
+//      for ( size_t p = 0; p < size; p ++ )
+//      {
+//        if ( recvcids[ p ].size() && recvrids[ p ].size() )
+//        {
+//          senddata[ p ] = (*this)( recvrids[ p ], recvcids[ p ] );
+//        }
+//      }
+//
+//      /** exchange data */
+//      mpi::AlltoallVector( senddata, recvdata, comm );
+//
+//      /** merging data */
+//      for ( size_t p = 0; j < size; p ++ )
+//      {
+//        assert( recvdata[ p ].size() == imap.size() * recvcids[ p ].size() );
+//        recvdata[ p ].resize( imap.size(), recvcids[ p ].size() );
+//        for ( size_t j = 0; j < recvcids[ p ]; i ++ )
+//        {
+//          for ( size_t i = 0; i < imap.size(); i ++ )
+//          {
+//            KIJ( i, jmapcids[ p ][ j ] ) = recvdata[ p ]( i, j );
+//          }
+//        }
+//      };
+//
+//      return KIJ;
+//    };
+//
+//
+//
+//
+//
+//    virtual hmlp::Data<T> operator()
+//		( std::vector<int> &imap, std::vector<int> &jmap, hmlp::mpi::Comm comm )
+//    {
+//      printf( "operator() not implemented yet\n" );
+//      exit( 1 );
+//    };
+//
+//
+//
+//    /** overload operator */
+//
+//
+//  private:
+//
+//}; /** end class DistSPDMatrix */
+//
+//
 
 
 /**
@@ -215,10 +220,10 @@ class Setup : public mpitree::Setup<SPLITTER, T>
 {
   public:
 
-		void BackGroundProcess( bool *do_terminate )
-		{
-			K->BackGroundProcess( do_terminate );
-		};
+		//void BackGroundProcess( bool *do_terminate )
+		//{
+		//	K->BackGroundProcess( do_terminate );
+		//};
 
     /** humber of neighbors */
     size_t k = 32;
@@ -267,107 +272,107 @@ class Setup : public mpitree::Setup<SPLITTER, T>
 
 
 
-template<typename T>
-class NodeData : public gofmm::Factor<T>
-{
-  public:
-
-    NodeData() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
-
-    /** the omp (or pthread) lock */
-    Lock lock;
-
-    /** whether the node can be compressed */
-    bool isskel = false;
-
-    /** whether the coefficient mathx has been computed */
-    bool hasproj = false;
-
-    /** my skeletons */
-    vector<size_t> skels;
-
-    /** (buffer) nsamples row gids */
-    vector<size_t> candidate_rows;
-
-    /** (buffer) sl+sr column gids of children */
-    vector<size_t> candidate_cols;
-
-    /** (buffer) nsamples-by-(sl+sr) submatrix of K */
-    Data<T> KIJ; 
-
-    /** 2s, pivoting order of GEQP3 */
-    vector<int> jpvt;
-
-    /** s-by-2s */
-    Data<T> proj;
-
-    /** sampling neighbors ids */
-    map<size_t, T> snids; 
-
-    /* pruning neighbors ids */
-    unordered_set<size_t> pnids; 
-
-    /** skeleton weights and potentials */
-    Data<T> w_skel;
-    Data<T> u_skel;
-
-    /** permuted weights and potentials (buffer) */
-    Data<T> w_leaf;
-    Data<T> u_leaf[ 20 ];
-
-    /** hierarchical tree view of w<RIDS> and u<RIDS> */
-    View<T> w_view;
-    View<T> u_view;
-
-    /** Cached Kab */
-    Data<size_t> Nearbmap;
-    Data<T> NearKab;
-    Data<T> FarKab;
-
-    /** Distributed dependents */
-    //set<ReadWrite*> NearDependents;
-    //set<ReadWrite*> FarDependents;
-    set<int> NearDependents;
-    set<int> FarDependents;
-
-    /**
-     *  This pool contains a subset of gids owned by this node.
-     *  Multiple threads may try to update this pool during construction.
-     *  We use a lock to prevent race condition.
-     */ 
-    map<size_t, map<size_t, T>> candidates;
-    map<size_t, T> pool;
-    multimap<T, size_t> ordered_pool;
-
-
-
-
-
-
-    /** Kij evaluation counter counters */
-    pair<double, size_t> kij_skel;
-    pair<double, size_t> kij_s2s;
-    pair<double, size_t> kij_s2n;
-
-    /** many timers */
-    double merge_neighbors_time = 0.0;
-    double id_time = 0.0;
-
-    /** recorded events (for HMLP Runtime) */
-    Event skeletonize;
-    Event updateweight;
-    Event skeltoskel;
-    Event skeltonode;
-
-    Event s2s;
-    Event s2n;
-
-    /** knn accuracy */
-    double knn_acc = 0.0;
-    size_t num_acc = 0;
-
-}; /** end class NodeData */
-
+//template<typename T>
+//class NodeData : public gofmm::Factor<T>
+//{
+//  public:
+//
+//    NodeData() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
+//
+//    /** the omp (or pthread) lock */
+//    Lock lock;
+//
+//    /** whether the node can be compressed */
+//    bool isskel = false;
+//
+//    /** whether the coefficient mathx has been computed */
+//    bool hasproj = false;
+//
+//    /** my skeletons */
+//    vector<size_t> skels;
+//
+//    /** (buffer) nsamples row gids */
+//    vector<size_t> candidate_rows;
+//
+//    /** (buffer) sl+sr column gids of children */
+//    vector<size_t> candidate_cols;
+//
+//    /** (buffer) nsamples-by-(sl+sr) submatrix of K */
+//    Data<T> KIJ; 
+//
+//    /** 2s, pivoting order of GEQP3 */
+//    vector<int> jpvt;
+//
+//    /** s-by-2s */
+//    Data<T> proj;
+//
+//    /** sampling neighbors ids */
+//    map<size_t, T> snids; 
+//
+//    /* pruning neighbors ids */
+//    unordered_set<size_t> pnids; 
+//
+//    /** skeleton weights and potentials */
+//    Data<T> w_skel;
+//    Data<T> u_skel;
+//
+//    /** permuted weights and potentials (buffer) */
+//    Data<T> w_leaf;
+//    Data<T> u_leaf[ 20 ];
+//
+//    /** hierarchical tree view of w<RIDS> and u<RIDS> */
+//    View<T> w_view;
+//    View<T> u_view;
+//
+//    /** Cached Kab */
+//    Data<size_t> Nearbmap;
+//    Data<T> NearKab;
+//    Data<T> FarKab;
+//
+//    /** Distributed dependents */
+//    //set<ReadWrite*> NearDependents;
+//    //set<ReadWrite*> FarDependents;
+//    set<int> NearDependents;
+//    set<int> FarDependents;
+//
+//    /**
+//     *  This pool contains a subset of gids owned by this node.
+//     *  Multiple threads may try to update this pool during construction.
+//     *  We use a lock to prevent race condition.
+//     */ 
+//    //map<size_t, map<size_t, T>> candidates;
+//    //map<size_t, T> pool;
+//    //multimap<T, size_t> ordered_pool;
+//
+//
+//
+//
+//
+//
+//    /** Kij evaluation counter counters */
+//    pair<double, size_t> kij_skel;
+//    pair<double, size_t> kij_s2s;
+//    pair<double, size_t> kij_s2n;
+//
+//    /** many timers */
+//    double merge_neighbors_time = 0.0;
+//    double id_time = 0.0;
+//
+//    /** recorded events (for HMLP Runtime) */
+//    Event skeletonize;
+//    Event updateweight;
+//    Event skeltoskel;
+//    Event skeltonode;
+//
+//    Event s2s;
+//    Event s2n;
+//
+//    /** knn accuracy */
+//    double knn_acc = 0.0;
+//    size_t num_acc = 0;
+//
+//}; /** end class NodeData */
+//
 
 
 /** 
@@ -379,16 +384,14 @@ class DistTreeViewTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
-      name = std::string( "TreeView" );
       arg = user_arg;
+      name = string( "TreeView" );
+      label = to_string( arg->treelist_id );
       cost = 1.0;
-      ss << arg->treelist_id;
-      label = ss.str();
     };
 
     void GetEventRecord()
@@ -1109,19 +1112,16 @@ class NeighborsTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
    
 	  /** (default) using angle distance from the Gram vector space */
 	  DistanceMetric metric = ANGLE_DISTANCE;
 
     void Set( NODE *user_arg )
     {
-      ostringstream ss;
       arg = user_arg;
       name = string( "Neighbors" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
+      label = to_string( arg->treelist_id );
 
       /** use the same distance as the tree */
       metric = arg->setup->metric;
@@ -1214,8 +1214,8 @@ void MergeNeighbors( NODE *node )
  *
  *  
  */
-template<typename MPINODE, typename T>
-void DistUpdateWeights( MPINODE *node )
+template<typename NODE, typename T>
+void DistUpdateWeights( NODE *node )
 {
   /** MPI */
   mpi::Status status;
@@ -1228,7 +1228,7 @@ void DistUpdateWeights( MPINODE *node )
   if ( size < 2 )
   {
     /** This is the root of the local tree */
-    gofmm::UpdateWeights<MPINODE, T>( node );
+    gofmm::UpdateWeights<NODE, T>( node );
   }
   else
   {
@@ -5219,7 +5219,7 @@ DistData<RIDS, STAR, T> Evaluate
   /** Get type NODE = TREE::NODE */
   using NODE    = typename TREE::NODE;
   using MPINODE = typename TREE::MPINODE;
-  using LETNODE = typename TREE::LETNODE;
+  //using LETNODE = typename TREE::LETNODE;
 
   /** All timers */
   double beg, time_ratio, evaluation_time = 0.0;
@@ -5445,7 +5445,8 @@ template<
   typename    SPDMATRIX>
 mpitree::Tree<
   mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  mpigofmm::NodeData<T>>
+  //mpigofmm::NodeData<T>>
+  gofmm::NodeData<T>>
 *Compress
 ( 
   DistData<STAR, CBLK, T> *X_cblk,
@@ -5476,10 +5477,11 @@ mpitree::Tree<
 
   /** instantiation for the GOFMM tree */
   using SETUP       = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA        = mpigofmm::NodeData<T>;
+  //using DATA        = mpigofmm::NodeData<T>;
+  using DATA        = gofmm::NodeData<T>;
   using NODE        = tree::Node<SETUP, DATA>;
   using MPINODE     = mpitree::Node<SETUP, DATA>;
-  using LETNODE     = mpitree::LetNode<SETUP, DATA>;
+  //using LETNODE     = mpitree::LetNode<SETUP, DATA>;
   using TREE        = mpitree::Tree<SETUP, DATA>;
 
   /** instantiation for the randomisze Spd-Askit tree */

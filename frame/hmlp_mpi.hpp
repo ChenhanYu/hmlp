@@ -1,35 +1,24 @@
-#ifndef HMLP_RUNTIME_MPI_HPP
-#define HMLP_RUNTIME_MPI_HPP
+#ifndef HMLP_MPI_HPP
+#define HMLP_MPI_HPP
 
 #include <vector>
 
 using namespace std;
 
-
 #ifdef HMLP_USE_MPI
-/** use vender mpi.h */
+/** Use vender mpi.h */
 #include <mpi.h>
 #else
-/** use self-define MPI */
+/** Use self-defined MPI interface. */
 #warning MPI routines are disable (-HMLP_USE_MPI=false)
 
-
-
-
-
-
-
-
-
-
-
-/* For supported thread levels */
+/* For supported thread levels. */
 #define MPI_THREAD_SINGLE 0
 #define MPI_THREAD_FUNNELED 1
 #define MPI_THREAD_SERIALIZED 2
 #define MPI_THREAD_MULTIPLE 3
 
-/** define MPI macros */
+/** Define MPI macros. */
 #define MPI_COMM_WORLD              0
 #define MPI_SUCCESS                 0
 #define MPI_BYTE                    2
@@ -589,8 +578,8 @@ template<class T, class Allocator = hbw::allocator<T> >
 template<class T, class Allocator = std::allocator<T> >
 #endif
 int ExchangeVector(
-    std::vector<T, Allocator> &sendvector,   int dest, int sendtag,
-    std::vector<T, Allocator> &recvvector, int source, int recvtag,
+    vector<T, Allocator> &sendvector,   int dest, int sendtag,
+    vector<T, Allocator> &recvvector, int source, int recvtag,
     Comm comm, Status *status )
 {
   Datatype datatype = GetMPIDatatype<T>();
@@ -648,8 +637,8 @@ template<class T, class Allocator = hbw::allocator<T> >
 template<class T, class Allocator = std::allocator<T> >
 #endif
 int AlltoallVector(
-    std::vector<std::vector<T, Allocator>> &sendvector, 
-    std::vector<std::vector<T, Allocator>> &recvvector, Comm comm )
+    vector<vector<T, Allocator>> &sendvector, 
+    vector<vector<T, Allocator>> &recvvector, Comm comm )
 {
   int size = 0; Comm_size( comm, &size );
   int rank = 0; Comm_rank( comm, &rank );
@@ -657,12 +646,12 @@ int AlltoallVector(
   assert( sendvector.size() == size );
   assert( recvvector.size() == size );
 
-  std::vector<T> sendbuf;
-  std::vector<T> recvbuf;
-  std::vector<int> sendcounts( size, 0 );
-  std::vector<int> recvcounts( size, 0 );
-  std::vector<int> sdispls( size + 1, 0 );
-  std::vector<int> rdispls( size + 1, 0 );
+  vector<T> sendbuf;
+  vector<T> recvbuf;
+  vector<int> sendcounts( size, 0 );
+  vector<int> recvcounts( size, 0 );
+  vector<int> sdispls( size + 1, 0 );
+  vector<int> rdispls( size + 1, 0 );
 
   //printf( "rank %d ", rank );
   for ( size_t p = 0; p < size; p ++ )
@@ -790,6 +779,6 @@ int AlltoallVector(
 }; /** end namespace mpi */
 }; /** end namespace hmlp */
 
-#endif /** define HMLP_RUNTIME_MPI_HPP */
+#endif /** define HMLP_MPI_HPP */
 
 

@@ -27,6 +27,7 @@
 #include <containers/data.hpp>
 
 using namespace std;
+using namespace hmlp;
 
 
 namespace hmlp
@@ -48,9 +49,9 @@ class View : public ReadWrite
     View() {};
 
     /** constructor for the buffer */
-    View( hmlp::Data<T> &buff ) { Set( buff ); };
+    View( Data<T> &buff ) { Set( buff ); };
 
-    View( bool TRANS, hmlp::Data<T> &buff )
+    View( bool TRANS, Data<T> &buff )
     { 
       Set( TRANS, buff );
     };
@@ -60,12 +61,12 @@ class View : public ReadWrite
     //~View() { printf( "~View()\n" ); fflush( stdout ); };
 
     /** base case setup */
-    void Set( bool TRANS, hmlp::Data<T> &buff )
+    void Set( bool TRANS, Data<T> &buff )
     {
       this->trans = TRANS;
       if ( trans )
       {
-        /** hmlp::Data<T> is stored in column major */
+        /** Data<T> is stored in column major */
         this->m = buff.col();
         this->n = buff.row();
       }
@@ -87,7 +88,7 @@ class View : public ReadWrite
     };
 
     /** non-base case setup */
-    void Set( size_t m, size_t n, size_t offm, size_t offn, hmlp::View<T> *base )
+    void Set( size_t m, size_t n, size_t offm, size_t offn, View<T> *base )
     {
       this->trans = base->trans;
       if ( trans )
@@ -160,8 +161,8 @@ class View : public ReadWrite
      *    A2; ]     */
     void Partition2x1
     (
-      hmlp::View<T> &A1,
-      hmlp::View<T> &A2, size_t mb, SideType side 
+      View<T> &A1,
+      View<T> &A2, size_t mb, SideType side 
     )
     {
       /** readjust mb */
@@ -178,8 +179,8 @@ class View : public ReadWrite
      *        A2; ] */
     void ContinueWith2x1
     (
-      hmlp::View<T> &A1,
-      hmlp::View<T> &A2
+      View<T> &A1,
+      View<T> &A2
     )
     {
       if ( A1.row() && A2.row() ) assert( A1.col() == A2.col() );
@@ -191,7 +192,7 @@ class View : public ReadWrite
     /** [ A1, A2; ] = A */
     void Partition1x2
     (
-      hmlp::View<T> &A1, hmlp::View<T> &A2, size_t nb, SideType side
+      View<T> &A1, View<T> &A2, size_t nb, SideType side
     )
     {
       /** readjust mb */
@@ -206,7 +207,7 @@ class View : public ReadWrite
     /** A = [ A1, A2; ] */
     void ContinueWith1x2
     (
-      hmlp::View<T> &A1, hmlp::View<T> &A2
+      View<T> &A1, View<T> &A2
     )
     {
       if ( A1.col() && A2.col() ) assert( A1.row() == A2.row() );
@@ -218,8 +219,8 @@ class View : public ReadWrite
     /** A = [ A11, A12; A21, A22; ]; */
     void Partition2x2
     (
-      hmlp::View<T> &A11, hmlp::View<T> &A12,
-      hmlp::View<T> &A21, hmlp::View<T> &A22,
+      View<T> &A11, View<T> &A12,
+      View<T> &A21, View<T> &A22,
       size_t mb, size_t nb, QuadrantType quadrant
     )
     {
@@ -269,8 +270,8 @@ class View : public ReadWrite
 
     void ContinueWith2x2
     (
-      hmlp::View<T> &A11, hmlp::View<T> &A12,
-      hmlp::View<T> &A21, hmlp::View<T> &A22
+      View<T> &A11, View<T> &A12,
+      View<T> &A21, View<T> &A22
     )
     {
        assert( A11.row() == A12.row() );
@@ -287,7 +288,7 @@ class View : public ReadWrite
       return trans;
     };
 
-    bool HasTheSameBuffer( hmlp::Data<T> *target )
+    bool HasTheSameBuffer( Data<T> *target )
     {
       return ( target == buff );
     };
@@ -342,7 +343,7 @@ class View : public ReadWrite
      *          applies to all leaf r/w blocks covered by this view.
      *          Otherwise, the r/w dependency only applies to this view.
      */ 
-    void DependencyAnalysis( ReadWriteType type, hmlp::Task *task )
+    void DependencyAnalysis( ReadWriteType type, Task *task )
     {
       if ( HasLeafReadWriteBlocks() )
       {
@@ -356,7 +357,7 @@ class View : public ReadWrite
       }
     };
 
-    void DependencyAnalysis( size_t i, size_t j, ReadWriteType type, hmlp::Task *task )
+    void DependencyAnalysis( size_t i, size_t j, ReadWriteType type, Task *task )
     {
       if ( base == this )
       {
@@ -421,9 +422,9 @@ class View : public ReadWrite
 
     size_t offn = 0;
 
-    hmlp::View<T> *base = NULL;
+    View<T> *base = NULL;
 
-    hmlp::Data<T> *buff = NULL;
+    Data<T> *buff = NULL;
 
     /** we can only have one kind of mb and nb */
     size_t mb = 0;
@@ -473,8 +474,8 @@ void Partition2x1
 template<typename T>
 void Partition2x2
 (
-  hmlp::View<T> &A, View<T> &A11, View<T> &A12,
-                    View<T> &A21, View<T> &A22,
+  View<T> &A, View<T> &A11, View<T> &A12,
+              View<T> &A21, View<T> &A22,
   size_t mb, size_t nb, QuadrantType quadrant 
 )
 {

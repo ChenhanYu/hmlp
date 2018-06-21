@@ -44,15 +44,17 @@
 #endif
 
 
-/** GOFMM templates */
+/** Use GOFMM templates. */
 #include <gofmm/gofmm.hpp>
-/** use an implicit kernel matrix (only coordinates are stored) */
+/** Use dense SPD matrices. */
+#include <containers/SPDMatrix.hpp>
+/** Use implicit kernel matrices (only coordinates are stored). */
 #include <containers/KernelMatrix.hpp>
-/** use an implicit matrix */
+/** Use implicit matrices. */
 #include <containers/VirtualMatrix.hpp>
-/** Use an implicit Gauss-Newton (multilevel perceptron) matrix */
+/** Use implicit Gauss-Newton (multilevel perceptron) matrices. */
 #include <containers/MLPGaussNewton.hpp>
-/** Use an OOC covariance matrix. */
+/** Use OOC covariance matrices. */
 #include <containers/OOCCovMatrix.hpp>
 
 
@@ -473,7 +475,7 @@ int main( int argc, char *argv[] )
     using T = float;
     {
       /** dense spd matrix format */
-      gofmm::SPDMatrix<T> K;
+      SPDMatrix<T> K;
       K.resize( n, n );
       K.read( n, n, user_matrix_filename );
 
@@ -561,7 +563,7 @@ int main( int argc, char *argv[] )
       /** no geometric coordinates provided */
       Data<T> *X = NULL;
       /** dense spd matrix format */
-      gofmm::SPDMatrix<T> K;
+      SPDMatrix<T> K;
       K.resize( n, n );
       /** random spd initialization */
       K.randspd<USE_LOWRANK>( 0.0, 1.0 );
