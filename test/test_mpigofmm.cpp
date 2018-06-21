@@ -87,8 +87,6 @@
 
 using namespace std;
 using namespace hmlp;
-//using namespace hmlp::tree;
-//using namespace hmlp::gofmm;
 
 
 template<
@@ -102,7 +100,7 @@ void test_gofmm
 ( 
   DistData<STAR, CBLK, T> *X,
   SPDMATRIX &K, 
-  DistData<STAR, CBLK, pair<T, std::size_t>> &NN,
+  DistData<STAR, CBLK, pair<T, size_t>> &NN,
   DistanceMetric metric,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,

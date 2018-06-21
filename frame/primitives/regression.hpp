@@ -15,12 +15,12 @@
 
 /** GOFMM templates */
 #include <gofmm/gofmm.hpp>
-
 #include <containers/data.hpp>
 #include <containers/KernelMatrix.hpp>
 
 
 using namespace std;
+using namespace hmlp;
 
 
 namespace hmlp
@@ -31,7 +31,7 @@ class Regression
 {
   public:
 
-    Regression( size_t d, size_t n, hmlp::Data<T> *X, hmlp::Data<T> *Y )
+    Regression( size_t d, size_t n, Data<T> *X, Data<T> *Y )
     {
       this->d = d;
       this->n = n;
@@ -41,13 +41,15 @@ class Regression
 
 
     /**
-     *  @brief 
+     *  @brief
+     *
+     *  @TODO: Support SVD
      */ 
     Data<T> Ridge( kernel_s<T> &kernel, size_t niter )
     {
       size_t nrhs = Y->col();
 
-      /** linear ridge regression */
+      /** Linear ridge regression */
       Data<T> XXt( d, d, 0.0 );
       Data<T> XY( d, nrhs, 0.0 );
       
@@ -72,6 +74,11 @@ class Regression
 
 
 
+    /**
+     *  @brief
+     *
+     *  @TODO
+     */
     Data<T> Lasso( kernel_s<T> &kernel, size_t niter )
     {
     }; /** end Lasso() */
@@ -84,14 +91,14 @@ class Regression
       KernelMatrix<T> K( n, n, d, kernel, *X );
 
       /** create a simple GOFMM compression */
-      hmlp::gofmm::SimpleGOFMM<T, KernelMatrix<T>> H( K, 1E-3, 0.03 );
+      gofmm::SimpleGOFMM<T, KernelMatrix<T>> H( K, 1E-3, 0.03 );
 
-      hmlp::Data<T> W( n, nclass, 1.0 );
-      hmlp::Data<T> P( n, nclass, 0.0 );
+      Data<T> W( n, nclass, 1.0 );
+      Data<T> P( n, nclass, 0.0 );
 
       for ( size_t it = 0; it < niter; it ++ )
       {
-        hmlp::Data<T> Gradient( n, nclass, 0.0 );
+        Data<T> Gradient( n, nclass, 0.0 );
 
         /** P = KW */
         H.Multiply( P, W );
@@ -140,7 +147,7 @@ class Regression
       printf( "Accuracy: %lf\n", (double)n_correct / n );
 
       {
-        std::ofstream fout( "weight.dat", std::ios::out | std::ios::binary );
+        ofstream fout( "weight.dat", ios::out | ios::binary );
         fout.write( (char*)W.data(), W.size() * sizeof(T) );
         fout.close();
       }
@@ -157,16 +164,16 @@ class Regression
      *         w += (-1.0 / n) * K(Kw + b - Y + lambda * w)
      *         b += (-1.0 / n) *  (Kw + b - Y)
      */ 
-    hmlp::Data<T> Solve( kernel_s<T> &kernel, size_t niter )
+    Data<T> Solve( kernel_s<T> &kernel, size_t niter )
     {
       /** create a kernel matrix */
       KernelMatrix<T> K( n, n, d, kernel, *X );
 
       /** create a simple GOFMM compression */
-      hmlp::gofmm::SimpleGOFMM<T, KernelMatrix<T>> H( K, 1E-3, 0.03 );
+      gofmm::SimpleGOFMM<T, KernelMatrix<T>> H( K, 1E-3, 0.03 );
 
-      hmlp::Data<T> W( n, (size_t)1.0, 0.0 );
-      hmlp::Data<T> B( n, (size_t)1.0, 0.0 );
+      Data<T> W( n, (size_t)1.0, 0.0 );
+      Data<T> B( n, (size_t)1.0, 0.0 );
 
       for ( size_t it = 0; it < niter; it ++ )
       {
@@ -257,16 +264,15 @@ class Regression
   private:
 
     size_t d = 0;
-
     size_t n = 0;
 
     T lambda = 0.01;
 
     T alpha = 1.0;
 
-    hmlp::Data<T> *X = NULL;
-
-    hmlp::Data<T> *Y = NULL;
+    /** Data and labels  */
+    Data<T> *X = NULL;
+    Data<T> *Y = NULL;
 
 };
 

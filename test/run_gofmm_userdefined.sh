@@ -89,7 +89,7 @@ if [[ "$matrixtype" == "dense" ]] ; then
 fi
 
 if [[ "$matrixtype" == "kernel" ]] ; then
-  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $points $d $h; status=$?
+  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $kerneltype $points $d $h; status=$?
   echo "@STATUS"
   echo $status
 fi

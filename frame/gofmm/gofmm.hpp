@@ -109,9 +109,7 @@ namespace hmlp
 namespace gofmm
 {
 
-/**
- *  @brief Configuration contains all user-defined parameters.
- */ 
+/** @brief Configuration contains all user-defined parameters. */ 
 template<typename T>
 class Configuration
 {
@@ -188,42 +186,33 @@ class Setup : public tree::Setup<SPLITTER, T>
 			K->BackGroundProcess( do_terminate );
 		};
 
-    /** humber of neighbors */
+    /** Number of neighbors */
     size_t k = 32;
 
-    /** maximum rank */
+    /** Maximum rank */
     size_t s = 64;
 
-    /** 
-     *  User specific relative error
-     */
+    /** User specific relative error */
     T stol = 1E-3;
 
-    /**
-     *  User specific budget for the amount of direct evaluation
-     */ 
+    /** User specific budget for the amount of direct evaluation */ 
     double budget = 0.0;
 
 		/** (default) distance type */
 		DistanceMetric metric = ANGLE_DISTANCE;
 
-    /** the SPDMATRIX (accessed with gids: dense, CSC or OOC) */
+    /** The SPDMATRIX (accessed with gids: dense, CSC or OOC) */
     SPDMATRIX *K = NULL;
 
-    /** rhs-by-n all weights */
+    /** rhs-by-n, weights and potentials */
     Data<T> *w = NULL;
-
-    /** n-by-nrhs all potentials */
     Data<T> *u = NULL;
 
-    /** buffer space, either dimension needs to be n  */
+    /** Buffer space, either dimension needs to be n  */
     Data<T> *input = NULL;
     Data<T> *output = NULL;
 
-
-
-
-    /** regularization */
+    /** Regularization */
     T lambda = 0.0;
 
     /** whether the matrix is symmetric */
@@ -232,17 +221,16 @@ class Setup : public tree::Setup<SPLITTER, T>
     /** use ULV or Sherman-Morrison-Woodbury */
     bool do_ulv_factorization = true;
 
-
 }; /** end class Setup */
 
 
 /**
  *  @brief This class contains all GOFMM related data.
- *         For Inv-GOFMM, all factors are inherit from hfamily::Factor<T>.
+ *         For Inv-GOFMM, all factors are inherit from Factor<T>.
  *
  */ 
 template<typename T>
-class NodeData : public hfamily::Factor<T>
+class NodeData : public Factor<T>
 {
   public:
 
@@ -280,15 +268,6 @@ class NodeData : public hfamily::Factor<T>
 
     /* pruning neighbors ids */
     unordered_set<size_t> pnids; 
-
-    /**
-     *  This pool contains a subset of gids owned by this node.
-     *  Multiple threads may try to update this pool during construction.
-     *  We use a lock to prevent race condition.
-     */ 
-    map<size_t, map<size_t, T>> candidates;
-    map<size_t, T> pool;
-    multimap<T, size_t> ordered_pool;
 
     /** Skeleton weights and potentials */
     Data<T> w_skel;
@@ -348,12 +327,12 @@ class TreeViewTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
       std::ostringstream ss;
-      name = std::string( "TreeView" );
+      name = string( "TreeView" );
       arg = user_arg;
       cost = 1.0;
       ss << arg->treelist_id;
@@ -455,7 +434,7 @@ class SPDMatrix : public Data<T>
 {
   public:
 
-    Data<T> Diagonal( std::vector<size_t> &I )
+    Data<T> Diagonal( vector<size_t> &I )
     {
       Data<T> DII( I.size(), 1 );
 
@@ -835,73 +814,6 @@ vector<T> AllToLeftRight
 
 
 
-//template<typename T>
-//std::vector<std::pair<T,size_t>> SamplesToAll
-//(
-//  DistanceMetric metric,
-//  hmlp::Data<T> &DSS,
-//  hmlp::Data<T> &KSI,
-//  hmlp::Data<T> &DII
-//)
-//{
-//  /** average distances from samples S to all points I */
-//  std::vector<std::pair<T, size_t>> S2I( DSS.size() ); 
-//
-//  /** initialization */
-//  for ( size_t s = 0; s < S2I.size(); s ++ )
-//  {
-//    S2I[ s ].first  = 0;
-//    S2I[ s ].second = s;
-//  }
-//
-//  switch ( metric )
-//  {
-//    case KERNEL_DISTANCE:
-//    {
-//      #pragma omp parallel for
-//      for ( size_t s = 0; s < DSS.size(); s ++ )
-//        for ( size_t i = 0; i < DII.size(); i ++ )
-//          S2I[ s ] += ( DSS[ s ] * DSS[ s ] - 2 * KSI( s, i ) ) / DII.size();
-//      break;
-//    }
-//    case ANGLE_DISTANCE:
-//    {
-//      #pragma omp parallel for
-//      for ( size_t s = 0; s < DSS.size(); s ++ )
-//        for ( size_t i = 0; i < DII.size(); i ++ )
-//          S2I[ s ] += ( 1.0 - ( K( s, i ) * K( s, i ) ) / 
-//              ( DSS[ s ] * DII[ i ] ) );
-//      break;
-//    }
-//    default:
-//    {
-//      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
-//      exit( 1 );
-//    }
-//  } /** end switch ( metric ) */
-//
-//  /** pair sorting */
-//  struct 
-//  {
-//    bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
-//    {   
-//      return a.first < b.first;
-//    }   
-//  } DistanceLess;
-//
-//  
-//
-//  return S2I;
-//}; /** end SamplesToAll() */
-
-
-
-
-
-
-
-
-
 
 
 /**
@@ -941,9 +853,9 @@ struct centersplit
     double beg, d2c_time, d2f_time, projection_time, max_time;
 
     SPDMATRIX &K = *Kptr;
-    std::vector<std::vector<std::size_t>> split( N_SPLIT );
+    vector<vector<size_t>> split( N_SPLIT );
     size_t n = gids.size();
-    std::vector<T> temp( n, 0.0 );
+    vector<T> temp( n, 0.0 );
 
     beg = omp_get_wtime();
 
@@ -1126,18 +1038,18 @@ struct randomsplit
   DistanceMetric metric = ANGLE_DISTANCE;
 
 	/** overload with the operator */
-  inline std::vector<std::vector<size_t> > operator()
+  inline vector<vector<size_t> > operator()
   ( 
-    std::vector<size_t>& gids,
-    std::vector<size_t>& lids
+    vector<size_t>& gids,
+    vector<size_t>& lids
   ) const 
   {
     assert( Kptr && ( N_SPLIT == 2 ) );
 
     SPDMATRIX &K = *Kptr;
     size_t n = gids.size();
-    std::vector<std::vector<std::size_t> > split( N_SPLIT );
-    std::vector<T> temp( n, 0.0 );
+    vector<vector<size_t> > split( N_SPLIT );
+    vector<T> temp( n, 0.0 );
 
     /** randomly select two points p and q */
     size_t idf2c = std::rand() % n;
@@ -1149,7 +1061,7 @@ struct randomsplit
     auto gidf2f = gids[ idf2f ];
 
     /** diagonal entries */
-    hmlp::Data<T> DII( n, (size_t)1 );
+    Data<T> DII( n, (size_t)1 );
 
     /** collecting DII */
     DII = K.Diagonal( gids );
@@ -1638,118 +1550,118 @@ multimap<TB, TA> flip_map( const map<TA, TB> &src )
 /**
  *  @brief Building neighbors for each tree node.
  */ 
-template<typename NODE, typename T>
-void BuildNeighbors( NODE *node, size_t nsamples )
-{
-  /** early return if no neighbors were provided */
-  if ( !node->setup->NN ) return;
-
-
-  auto &NN = *(node->setup->NN);
-  std::vector<size_t> &gids = node->gids;
-  auto &snids = node->data.snids;
-  auto &pnids = node->data.pnids;
-  int n = node->n;
-  int k = NN.row();
-  if ( node->isleaf )
-  {
-    /** Pruning neighbor lists/sets: */
-    pnids = std::unordered_set<size_t>();
-    for ( size_t jj = 0; jj < n; jj ++ )
-    {
-      for ( size_t ii = 0; ii < k / 2; ii ++ )
-      {
-        pnids.insert( NN( ii,  gids[ jj ] ).second );
-      }
-    }
-    /** remove "own" points */
-    for ( int i = 0; i < n; i ++ )
-    {
-      pnids.erase( gids[ i ] );
-    }
-    //printf("Size of pruning neighbor set: %lu \n", pnids.size());
-    /**
-		 *  Sampling neighbors
-     *  To think about: Make building sampling neighbor adaptive.  
-     *  E.g. request 0-100 closest neighbors, 
-     *  if additional 100 neighbors are requested, return sneighbors 100-200 
-		 */ 
-    snids = std::map<size_t, T>(); 
-    vector<pair<T, size_t>> tmp( k / 2 * n ); 
-    set<size_t> nodeIdx( gids.begin() , gids.end() );    
-    /** Allocate array for sorting */
-    for ( size_t ii = ( k + 1 ) / 2; ii < k; ii ++ )
-    {
-      for ( size_t jj = 0; jj < n; jj ++ )
-      {
-        tmp[ ( ii - ( k + 1 ) / 2 ) * n + jj ] = NN( ii, gids[ jj ] );
-      }
-    }
-    sort( tmp.begin() , tmp.end() );
-    int i = 0;
-    while ( snids.size() < nsamples && i <  (k-1) * n / 2 )
-    {
-      if ( !pnids.count( tmp[i].second ) && !nodeIdx.count( tmp[i].second ) )
-      {
-        snids.insert( std::pair<size_t,T>( tmp[i].second , tmp[i].first ) );
-      }
-      i++;
-    } 
-    //printf("Size of sampling neighbor list: %lu \n", snids.size());
-  }
-  else
-  {
-    /** At interior node */
-    auto &lsnids = node->lchild->data.snids;
-    auto &rsnids = node->rchild->data.snids;
-    auto &lpnids = node->lchild->data.pnids;
-    auto &rpnids = node->rchild->data.pnids;
-
-    /** 
-     *  merge children's sampling neighbors...    
-     *  start with left sampling neighbor list 
-     */
-    snids = lsnids;
-
-    /**
-     *  Add right sampling neighbor list. If duplicate update distace if nec.
-     */
-    for ( auto cur = rsnids.begin(); cur != rsnids.end(); cur ++ )
-    {
-      auto ret = snids.insert( *cur );
-      if ( ret.second == false )
-      {
-        // Update distance?
-        if ( ret.first->second > (*cur).first)
-        {
-          ret.first->second = (*cur).first;
-        }
-      }
-    }
-
-    // Remove "own" points
-    for (int i = 0; i < n; i ++ )
-    {
-      snids.erase( gids[ i ] );
-    }
-
-    // Remove pruning neighbors from left and right
-    for (auto cur = lpnids.begin(); cur != lpnids.end(); cur++ )
-    {
-      snids.erase( *cur );
-    }
-    for (auto cur = rpnids.begin(); cur != rpnids.end(); cur++ )
-    {
-      snids.erase( *cur );
-    }
-
-    //printf("Interior sampling neighbor size: %lu\n", snids.size());
-  }
-}; // end BuildNeighbors()
-
-
-
-
+//template<typename NODE, typename T>
+//void BuildNeighbors( NODE *node, size_t nsamples )
+//{
+//  /** early return if no neighbors were provided */
+//  if ( !node->setup->NN ) return;
+//
+//
+//  auto &NN = *(node->setup->NN);
+//  std::vector<size_t> &gids = node->gids;
+//  auto &snids = node->data.snids;
+//  auto &pnids = node->data.pnids;
+//  int n = node->n;
+//  int k = NN.row();
+//  if ( node->isleaf )
+//  {
+//    /** Pruning neighbor lists/sets: */
+//    pnids = std::unordered_set<size_t>();
+//    for ( size_t jj = 0; jj < n; jj ++ )
+//    {
+//      for ( size_t ii = 0; ii < k / 2; ii ++ )
+//      {
+//        pnids.insert( NN( ii,  gids[ jj ] ).second );
+//      }
+//    }
+//    /** remove "own" points */
+//    for ( int i = 0; i < n; i ++ )
+//    {
+//      pnids.erase( gids[ i ] );
+//    }
+//    //printf("Size of pruning neighbor set: %lu \n", pnids.size());
+//    /**
+//		 *  Sampling neighbors
+//     *  To think about: Make building sampling neighbor adaptive.  
+//     *  E.g. request 0-100 closest neighbors, 
+//     *  if additional 100 neighbors are requested, return sneighbors 100-200 
+//		 */ 
+//    snids = std::map<size_t, T>(); 
+//    vector<pair<T, size_t>> tmp( k / 2 * n ); 
+//    set<size_t> nodeIdx( gids.begin() , gids.end() );    
+//    /** Allocate array for sorting */
+//    for ( size_t ii = ( k + 1 ) / 2; ii < k; ii ++ )
+//    {
+//      for ( size_t jj = 0; jj < n; jj ++ )
+//      {
+//        tmp[ ( ii - ( k + 1 ) / 2 ) * n + jj ] = NN( ii, gids[ jj ] );
+//      }
+//    }
+//    sort( tmp.begin() , tmp.end() );
+//    int i = 0;
+//    while ( snids.size() < nsamples && i <  (k-1) * n / 2 )
+//    {
+//      if ( !pnids.count( tmp[i].second ) && !nodeIdx.count( tmp[i].second ) )
+//      {
+//        snids.insert( std::pair<size_t,T>( tmp[i].second , tmp[i].first ) );
+//      }
+//      i++;
+//    } 
+//    //printf("Size of sampling neighbor list: %lu \n", snids.size());
+//  }
+//  else
+//  {
+//    /** At interior node */
+//    auto &lsnids = node->lchild->data.snids;
+//    auto &rsnids = node->rchild->data.snids;
+//    auto &lpnids = node->lchild->data.pnids;
+//    auto &rpnids = node->rchild->data.pnids;
+//
+//    /** 
+//     *  merge children's sampling neighbors...    
+//     *  start with left sampling neighbor list 
+//     */
+//    snids = lsnids;
+//
+//    /**
+//     *  Add right sampling neighbor list. If duplicate update distace if nec.
+//     */
+//    for ( auto cur = rsnids.begin(); cur != rsnids.end(); cur ++ )
+//    {
+//      auto ret = snids.insert( *cur );
+//      if ( ret.second == false )
+//      {
+//        // Update distance?
+//        if ( ret.first->second > (*cur).first)
+//        {
+//          ret.first->second = (*cur).first;
+//        }
+//      }
+//    }
+//
+//    // Remove "own" points
+//    for (int i = 0; i < n; i ++ )
+//    {
+//      snids.erase( gids[ i ] );
+//    }
+//
+//    // Remove pruning neighbors from left and right
+//    for (auto cur = lpnids.begin(); cur != lpnids.end(); cur++ )
+//    {
+//      snids.erase( *cur );
+//    }
+//    for (auto cur = rpnids.begin(); cur != rpnids.end(); cur++ )
+//    {
+//      snids.erase( *cur );
+//    }
+//
+//    //printf("Interior sampling neighbor size: %lu\n", snids.size());
+//  }
+//}; // end BuildNeighbors()
+//
+//
+//
+//
 
 
 
@@ -1799,24 +1711,8 @@ void Interpolate( NODE *node )
   }
 
 
-
-  /** early return if ( s == n ) */
-  //if ( s == n )
-  //{
-  //  for ( int i = 0; i < s; i ++ ) skels[ i ] = i;
-  //  for ( int j = 0; j < s; j ++ )
-  //  {
-  //    for ( int i = 0; i < s; i ++ )
-  //    {
-  //      if ( i == j ) proj[ j * s + i ] = 1.0;
-  //  	else          proj[ j * s + i ] = 0.0;
-  //    }
-  //  }
-  //  return;
-  //}
-
-  /** fill in R11 */
-  hmlp::Data<T> R1( s, s, 0.0 );
+  /** Fill in R11. */
+  Data<T> R1( s, s, 0.0 );
 
   for ( int j = 0; j < s; j ++ )
   {
@@ -1826,13 +1722,13 @@ void Interpolate( NODE *node )
     }
   }
 
-  /** copy proj to tmp */
-  hmlp::Data<T> tmp = proj;
+  /** Copy proj to tmp. */
+  Data<T> tmp = proj;
 
   /** proj = inv( R1 ) * proj */
-  hmlp::xtrsm( "L", "U", "N", "N", s, n, 1.0, R1.data(), s, tmp.data(), s );
+  xtrsm( "L", "U", "N", "N", s, n, 1.0, R1.data(), s, tmp.data(), s );
 
-  /** Fill in proj */
+  /** Fill in proj. */
   for ( int j = 0; j < n; j ++ )
   {
     for ( int i = 0; i < s; i ++ )
@@ -1857,12 +1753,9 @@ class InterpolateTask : public Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "it" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
+      name = string( "it" );
+      label = to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
     };
@@ -2013,65 +1906,6 @@ void RowSamples( NODE *node, size_t nsamples )
         amap.push_back( (*it).second );
         if ( amap.size() >= nsamples ) break;
       }
-
-
-      //map<T, size_t> candidates;
-      //NODE *now = node;
-      //while ( now )
-      //{
-      //  auto *sibling = now->sibling;
-
-      //  if ( sibling )
-      //  {
-      //    for ( auto it  = sibling->data.pool.begin(); 
-      //               it != sibling->data.pool.end(); it ++ )
-      //    {
-      //      candidates.insert( flip_pair( *it ) );
-      //    }
-      //  }
-
-      //  if ( now->parent ) 
-      //  {
-      //      //printf( "node %lu now level %lu sibling->data.pool.size() %lu\n", 
-      //      //    node->treelist_id, now->l,
-      //      //    sibling->data.pool.size() ); fflush( stdout );
-      //    if ( !sibling )
-      //      printf( "node %lu now level %lu\n", 
-      //          node->treelist_id, now->l); fflush( stdout );
-      //    //assert( sibling );
-      //  }
-
-      //  /** 
-      //   *  Move toward parent.
-      //   *  We need to cast the pointer here becuase the now->parent may be in
-      //   *  type tree::Node, but NODE = mpitree::Node.
-      //   */
-      //  now = (NODE*)(now->parent);
-      //}
-
-
-      //for ( auto it = candidates.begin(); it != candidates.end(); it ++ )
-      //{
-      //  if ( node->isleaf ) 
-      //  {
-      //    auto &pnids = node->data.pnids;
-      //    if ( !pnids.count( (*it).second ) )
-      //      amap.push_back( (*it).second );
-      //  }
-      //  else
-      //  {
-      //    auto &lpnids = node->lchild->data.pnids;
-      //    auto &rpnids = node->rchild->data.pnids;
-      //    if ( !lpnids.count( (*it).second ) && !rpnids.count( (*it).second ) )
-      //      amap.push_back( (*it).second );
-      //  }
-      //  if ( amap.size() >= nsamples ) break;
-      //}
-
-
-
-
-
 
       /** Uniform samples */
       if ( amap.size() < nsamples )
@@ -2227,16 +2061,11 @@ class GetSkeletonMatrixTask : public Task
 
     void Set( NODE *user_arg )
     {
-      ostringstream ss;
       arg = user_arg;
       name = string( "par-gskm" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-
+      label = to_string( arg->treelist_id );
       /** we don't know the exact cost here */
       cost = 5.0;
-
       /** high priority */
       priority = true;
     };
@@ -2407,16 +2236,11 @@ class SkeletonizeTask2 : public Task
 
     void Set( NODE *user_arg )
     {
-      ostringstream ss;
       arg = user_arg;
       name = string( "sk" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-
+      label = to_string( arg->treelist_id );
       /** we don't know the exact cost here */
       cost = 5.0;
-
       /** high priority */
       priority = true;
     };
@@ -2466,345 +2290,6 @@ class SkeletonizeTask2 : public Task
     };
 
 }; /** end class SkeletonizeTask */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-///**
-// *  @brief Skeletonization with interpolative decomposition.
-// */ 
-//template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
-//void Skeletonize( NODE *node )
-//{
-//  /** early return if we do not need to skeletonize */
-//  if ( !node->parent ) return;
-//
-//  double beg = 0.0, kij_skel_time = 0.0, merge_neighbors_time = 0.0, id_time = 0.0;
-//
-//  /** gather shared data and create reference */
-//  auto &K = *node->setup->K;
-//  auto maxs = node->setup->s;
-//  auto stol = node->setup->stol;
-//  auto &NN = *node->setup->NN;
-//
-//  /** gather per node data and create reference */
-//  auto &data = node->data;
-//  auto &skels = data.skels;
-//  auto &proj = data.proj;
-//  auto &jpvt = data.jpvt;
-//  auto *lchild = node->lchild;
-//  auto *rchild = node->rchild;
-//
-//  /** early return if fail to skeletonize. */
-//  if ( LEVELRESTRICTION )
-//  {
-//    assert( ADAPTIVE );
-//    if ( !node->isleaf && ( !lchild->data.isskel || !rchild->data.isskel ) )
-//    {
-//      skels.clear();
-//      proj.resize( 0, 0 );
-//      data.isskel = false;
-//      return;
-//    }
-//  }
-//  else
-//  {
-//    //skels.resize( maxs );
-//    //proj.resize( )
-//  }
-//
-//  /** random sampling or importance sampling for rows. */
-//  std::vector<size_t> amap;
-//  std::vector<size_t> bmap;
-//  std::vector<size_t> &gids = node->gids;
-//
-//
-//  /** merge children's skeletons */
-//  if ( node->isleaf )
-//  {
-//    bmap = node->gids;
-//  }
-//  else
-//  {
-//    auto &lskels = lchild->data.skels;
-//    auto &rskels = rchild->data.skels;
-//    bmap = lskels;
-//    bmap.insert( bmap.end(), rskels.begin(), rskels.end() );
-//  }
-//
-//  /** decide the number of row samples */
-//  auto nsamples = 2 * bmap.size();
-//
-//  /** make sure we at least m samples */
-//  if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
-//
-//
-//  /** Build Node Neighbors from all nearest neighbors */
-//  beg = omp_get_wtime();
-//  BuildNeighbors<NODE, T>( node, nsamples );
-//  merge_neighbors_time = omp_get_wtime() - beg;
-//  
-//  /** update merge_neighbors timer */
-//  data.merge_neighbors_time = merge_neighbors_time;
-//
-//
-//  auto &snids = data.snids;
-//  // Order snids by distance
-//  std::multimap<T, size_t > ordered_snids = flip_map( snids );
-//  if ( nsamples < K.col() - node->n )
-//  {
-//    amap.reserve( nsamples );
-//
-//
-//    /** sibling's skeletons */
-//    //auto *sibling = node->sibling;
-//    //if ( sibling )
-//    //if ( 0 )
-//    //{
-//    //  if ( sibling->isleaf )
-//    //  {        
-//    //    auto &sibling_gids = sibling->gids;
-//    //    for ( size_t i = 0; i < sibling_gids.size(); i ++ )
-//    //      amap.push_back( sibling_gids[ i ] );
-//    //  }
-//    //  else
-//    //  {
-//    //    auto &sibling_lskel = sibling->lchild->data.skels;
-//    //    auto &sibling_rskel = sibling->rchild->data.skels;
-//    //    for ( size_t i = 0; i < sibling_lskel.size(); i ++ )
-//    //      amap.push_back( sibling_lskel[ i ] );
-//    //    for ( size_t i = 0; i < sibling_rskel.size(); i ++ )
-//    //      amap.push_back( sibling_rskel[ i ] );
-//    //  }
-//    //}
-//    //if ( amap.size() + ordered_snids.size() > nsamples )
-//    //{
-//    //  //printf( "exceeding current sample size %lu, enlarge to %lu\n",
-//    //  //    nsamples, amap.size() + ordered_snids.size() );
-//    //  nsamples = amap.size() + ordered_snids.size();
-//    //}
-//
-//
-//    for ( auto cur = ordered_snids.begin(); cur != ordered_snids.end(); cur++ )
-//    {
-//      amap.push_back( cur->second );
-//      if ( amap.size() >= nsamples ) break;
-//    }
-//    //if ( amap.size() > nsamples ) printf( "amap.size() %lu\n", amap.size() );
-//
-//
-//    // Uniform samples.
-//    if ( amap.size() < nsamples )
-//    {
-//      while ( amap.size() < nsamples )
-//      {
-//        size_t sample;
-//
-//        if ( rand() % 5 ) // 80% chances to use important sample
-//        {
-//          auto importantsample = K.ImportantSample( bmap[ rand() % bmap.size() ] );
-//          sample = importantsample.second;
-//        }
-//        else
-//        {
-//          sample = rand() % K.col();
-//        }
-//
-//        /** create a single query */
-//        std::vector<size_t> sample_query( 1, sample );
-//
-//        /**
-//         *  check duplication using std::find, but check whether the sample
-//         *  belongs to the diagonal block using Morton ID.
-//         */ 
-//        if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() &&
-//             !node->ContainAny( sample_query ) )
-//        {
-//          amap.push_back( sample );
-//        }
-//      }
-//    }
-//  }
-//  else // Use all off-diagonal blocks without samples.
-//  {
-//    for ( int sample = 0; sample < K.col(); sample ++ )
-//    {
-//      if ( std::find( amap.begin(), amap.end(), sample ) == amap.end() )
-//      {
-//        amap.push_back( sample );
-//      }
-//    }
-//  }
-//
-//  /** get submatrix Kab from K */
-//  beg = omp_get_wtime();
-//  auto Kab = K( amap, bmap );
-//  kij_skel_time = omp_get_wtime() - beg;
-//
-//
-//  /** update kij counter */
-//  data.kij_skel.first  = kij_skel_time;
-//  data.kij_skel.second = amap.size() * bmap.size();
-//
-//  /** interpolative decomposition */
-//  beg = omp_get_wtime();
-//  size_t N = K.col();
-//  size_t m = amap.size();
-//  size_t n = bmap.size();
-//  size_t q = gids.size();
-//  /** Bill's l2 norm scaling factor */
-//  T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
-//  /** account for uniform sampling */
-//  scaled_stol *= std::sqrt( (T)q / N );
-//  /** We use a tighter Frobenius norm */
-//  //scaled_stol /= std::sqrt( q );
-//
-//  hmlp::lowrank::id<ADAPTIVE, LEVELRESTRICTION>
-//  ( 
-//    amap.size(), bmap.size(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
-//    Kab, skels, proj, jpvt
-//  );
-//  id_time = omp_get_wtime() - beg;
-//
-//  /** update id timer */
-//  data.id_time = id_time;
-//
-//  /** depending on the flag, decide isskel or not */
-//  if ( LEVELRESTRICTION )
-//  {
-//    data.isskel = (skels.size() != 0);
-//  }
-//  else
-//  {
-//    assert( skels.size() );
-//    assert( proj.size() );
-//    assert( jpvt.size() );
-//    data.isskel = true;
-//  }
-//  
-//  /** relabel skeletions with the real gids */
-//  for ( size_t i = 0; i < skels.size(); i ++ )
-//  {
-//    skels[ i ] = bmap[ skels[ i ] ];
-//  }
-//
-//  /** separate interpolation of proj */
-//  //Interpolate<NODE, T>( node );
-//
-//  /** update pruning neighbor list */
-//  data.pnids.clear();
-//  for ( size_t j = 0 ; j < skels.size() ; j ++ )
-//    for ( size_t i = 0; i < NN.row() / 2; i ++ )
-//      data.pnids.insert( NN( i, skels[ j ] ).second );
-//
-//}; /** end void Skeletonize() */
-//
-//
-//
-///**
-// *
-// */ 
-//template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
-//class SkeletonizeTask : public Task
-//{
-//  public:
-//
-//    NODE *arg = NULL;
-//
-//    void Set( NODE *user_arg )
-//    {
-//      ostringstream ss;
-//      arg = user_arg;
-//      name = string( "sk" );
-//      //label = std::to_string( arg->treelist_id );
-//      ss << arg->treelist_id;
-//      label = ss.str();
-//
-//      /** we don't know the exact cost here */
-//      cost = 5.0;
-//
-//      /** high priority */
-//      priority = true;
-//    };
-//
-//    void GetEventRecord()
-//    {
-//      double flops = 0.0, mops = 0.0;
-//
-//      auto &K = *arg->setup->K;
-//      size_t n = arg->data.proj.col();
-//      size_t m = 2 * n;
-//      size_t k = arg->data.proj.row();
-//
-//      /** Kab */
-//      flops += K.flops( m, n );
-//
-//      /** GEQP3 */
-//      flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
-//      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
-//
-//      /* TRSM */
-//      flops += k * ( k - 1 ) * ( n + 1 );
-//      mops  += 2.0 * ( k * k + k * n );
-//
-//      //flops += ( 2.0 / 3.0 ) * k * k * ( 3 * m - k );
-//      //mops += 2.0 * m * k;
-//      //flops += 2.0 * m * n * k;
-//      //mops += 2.0 * ( m * k + k * n + m * n );
-//      //flops += ( 1.0 / 3.0 ) * k * k * n;
-//      //mops += 2.0 * ( k * k + k * n );
-//
-//      event.Set( label + name, flops, mops );
-//      arg->data.skeletonize = event;
-//    };
-//
-//    void DependencyAnalysis()
-//    {
-//      arg->DependencyAnalysis( RW, this );
-//      if ( !arg->isleaf )
-//      {
-//        arg->lchild->DependencyAnalysis( R, this );
-//        arg->rchild->DependencyAnalysis( R, this );
-//      }
-//      this->TryEnqueue();
-//    };
-//
-//    void Execute( Worker* user_worker )
-//    {
-//      //printf( "%lu Skel beg\n", arg->treelist_id );
-//      Skeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
-//      //printf( "%lu Skel end\n", arg->treelist_id );
-//    };
-//
-//}; /** end class SkeletonizeTask */
-
 
 
 
@@ -3740,13 +3225,8 @@ class LeavesToLeavesTask : public Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "l2l" );
-      {
-        //label = std::to_string( arg->treelist_id );
-        std::ostringstream ss;
-        ss << arg->treelist_id;
-        label = ss.str();
-      }
+      name = string( "l2l" );
+      label = std::to_string( arg->treelist_id );
 
       /** TODO: fill in flops and mops */
       //--------------------------------------
@@ -3764,7 +3244,7 @@ class LeavesToLeavesTask : public Task
       size_t m = gids.size();
       size_t n = w.col();
 
-      std::set<NODE*> *NearNodes;
+      set<NODE*> *NearNodes;
       if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
       else           NearNodes = &arg->NearNodes;
 
@@ -3843,92 +3323,6 @@ void PrintSet( set<NODE*> &set )
 }; /** end PrintSet() */
 
 
-//template<typename NODE>
-//void RemoveClique( NODE *node )
-//{
-//  assert( node->NNNearNodes.count( node ) );
-//  node->NNNearNodes.erase( node );
-//};
-//
-//template<typename NODE>
-//void RemoveClique( NODE *node1, NODE *node2 )
-//{
-//  if ( node1->isleaf )
-//  {
-//    if ( node2->isleaf )
-//    {
-//      node1->NNNearNodes.erase( node2 );
-//    }
-//    else
-//    {
-//      RemoveClique( node1, node2->lchild );
-//      RemoveClique( node1, node2->rchild );
-//    }
-//  }
-//  else
-//  {
-//    RemoveClique( node1->lchild, node2 );
-//    RemoveClique( node1->rchild, node2 );
-//  }
-//};
-//
-//
-//template<typename NODE>
-//bool NearNodeClique( NODE *node1, NODE *node2 )
-//{
-//  bool isclique = false;
-//
-//  if ( node1->isleaf )
-//  {
-//    if ( node2->isleaf )
-//    {
-//      isclique = node1->NNNearNodes.count( node2 );
-//    }
-//    else
-//    {
-//      isclique = 
-//        NearNodeClique( node1, node2->lchild ) &&
-//        NearNodeClique( node1, node2->rchild );
-//    }
-//  }
-//  else
-//  {
-//    isclique = 
-//      NearNodeClique( node1->lchild, node2 ) &&
-//      NearNodeClique( node1->rchild, node2 );
-//  }
-//
-//  return isclique;
-//};
-//
-//template<typename NODE>
-//bool NearNodeClique( NODE *node )
-//{
-//  if ( node->isleaf )
-//  {
-//    return true;
-//  }
-//  else
-//  {
-//    bool ll = NearNodeClique( node->lchild );
-//    bool rr = NearNodeClique( node->rchild );
-//    bool lr = NearNodeClique( node->lchild, node->rchild );
-//    bool rl = NearNodeClique( node->rchild, node->lchild );
-//
-//    if ( ll && rr && lr && rl )
-//    {
-//      printf( "clique at level %lu\n", node->l );
-//    }
-//
-//    return ( ll && rr && lr && rl );
-//  }
-//};
-//
-//template<typename TREE>
-//void FindClique( TREE &tree )
-//{
-//
-//};
 
 
 
@@ -3946,8 +3340,6 @@ multimap<size_t, size_t> NearNodeBallots( NODE *node )
   auto &gids = node->gids;
 
   /** Ballot table ( node MortonID, ids ) */
-  //map<size_t, map<size_t, T>> &candidates = node->data.candidates;
-  auto &candidates = node->data.candidates;
   map<size_t, size_t> ballot;
 
   size_t HasMissingNeighbors = 0;
@@ -3972,31 +3364,13 @@ multimap<size_t, size_t> NearNodeBallots( NODE *node )
         {
           if ( ballot.find( neighbor_morton ) != ballot.end() )
           {
-            //ballot[ neighbor_morton ] ++;
-            ballot[ neighbor_morton ] += weighted_ballot;
+            ballot[ neighbor_morton ] ++;
+            //ballot[ neighbor_morton ] += weighted_ballot;
           }
           else
           {
-            //ballot[ neighbor_morton ] = 1;
-            ballot[ neighbor_morton ] = weighted_ballot;
-          }
-        }
-        else
-        {
-          if ( candidates.find( neighbor_morton ) != candidates.end() )
-          {
-            auto &tar = candidates[ neighbor_morton ];
-            auto ret = tar.insert( make_pair( neighbor_gid, value ) );
-
-            /** if already existed, then update distance */
-            if ( ret.second == false )
-            {
-              if ( ret.first->second > value ) ret.first->second = value;
-            }
-          }
-          else
-          {
-            candidates[ neighbor_morton ][ neighbor_gid ] = value;
+            ballot[ neighbor_morton ] = 1;
+            //ballot[ neighbor_morton ] = weighted_ballot;
           }
         }
       }
@@ -4046,59 +3420,11 @@ void NearSamples( NODE *node )
     {
       /** Exit if we have enough. */ 
       if ( node->NNNearNodes.size() >= n_nodes * budget ) break;
-
-      /**
-       *  Get the node pointer from MortonID. 
-       *
-       *  Two situations:
-       *  1. the pointer doesn't exist, then creates a lettreenode
-       */ 
-      /** Acquire the global lock to modify morton2node map. */
-      //#pragma omp critical
-      //{
-      //  node->treelock->Acquire();
-      //  {
-      //    /** 
-      //     *  Double check that the let node does not exist.
-      //     *  New tree::Node with MortonID (*it).second 
-      //     */
-      //    if ( !(*node->morton2node).count( (*it).second ) )
-      //    {
-      //      (*node->morton2node)[ (*it).second ] = new NODE( (*it).second );
-      //    }
-          /** Insert */
-          auto *target = (*node->morton2node)[ (*it).second ];
-          node->NNNearNodeMortonIDs.insert( (*it).second );
-          node->NNNearNodes.insert( target );
-      //  }
-      //  node->treelock->Release();
-      //}
+      /** Insert */
+      auto *target = (*node->morton2node)[ (*it).second ];
+      node->NNNearNodeMortonIDs.insert( (*it).second );
+      node->NNNearNodes.insert( target );
     }
-    //printf( "%3lu, gids %lu candidates %2lu/%2lu, ballot %2lu budget %lf NNNearNodes %lu k %lu\n", 
-    //    node->treelist_id, gids.size(), 
-    //    candidates.size(), n_nodes, ballot.size(), budget,
-    //    node->NNNearNodes.size(), NN.row() ); fflush( stdout );
-
-
-    /**
-     *  Symmetrify 
-     */ 
-    for ( auto it = node->NNNearNodes.begin(); it != node->NNNearNodes.end(); it ++ )
-    {
-      (*it)->data.lock.Acquire();
-      {
-        (*it)->ProposedNNNearNodes.insert( node );
-      }
-      (*it)->data.lock.Release();
-    }
-
-  }
-  else
-  {
-    //printf( "%3lu pool.size() %lu\n", node->treelist_id, node->data.pool.size() );
-    /**  
-     *  Merge ballot
-     */
   }
 
 }; /** void NearSamples() */
@@ -4115,37 +3441,20 @@ class NearSamplesTask : public Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "near" );
+      name = string( "near" );
 
       //--------------------------------------
       double flops = 0.0, mops = 0.0;
 
       /** setup the event */
       event.Set( label + name, flops, mops );
-
       /** asuume computation bound */
       cost = 1.0;
-
       /** low priority */
       priority = true;
     }
 
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( RW, this );
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( R, this );
-        arg->rchild->DependencyAnalysis( R, this );
-      }
-      if ( !arg->isleaf && arg->sibling )
-      {
-        arg->sibling->lchild->DependencyAnalysis( R, this );
-        arg->sibling->rchild->DependencyAnalysis( R, this );
-      }
-      /** Try to enqueue if there is no dependency */
-      this->TryEnqueue();
-    };
+    void DependencyAnalysis() { this->TryEnqueue(); };
 
     void Execute( Worker* user_worker )
     {
@@ -4155,437 +3464,29 @@ class NearSamplesTask : public Task
 }; /** end class NearSamplesTask */
 
 
-
-
-
-template<typename NODE, typename T>
-void BuildPool( NODE *node )
+template<typename TREE>
+void SymmetrizeNearInteractions( TREE & tree )
 {
-  auto & setup = *(node->setup);
-  auto & candidates = node->data.candidates;
-
-  if ( node->isleaf )
-  {
-    /**
-     *  Merge NNNearNodes with ProposedNNNearNodes.
-     */
-    for ( auto it  = node->ProposedNNNearNodes.begin();
-               it != node->ProposedNNNearNodes.end(); it ++ )
-    {
-      node->NNNearNodes.insert( *it );
-      node->NNNearNodeMortonIDs.insert( (*it)->morton );
-    }
-  }
-  else
-  {
-    auto *lchild = node->lchild;
-    auto *rchild = node->rchild;
-
-    /**
-     *  For non-leaf nodes, we build the near interaction list to filter
-     *  the row samples. Rows in the near iteraction list will be sampled.
-     */ 
-    for ( auto it  = lchild->NNNearNodeMortonIDs.begin(); 
-               it != lchild->NNNearNodeMortonIDs.end(); it ++ )
-    {
-      if ( !tree::IsMyParent( *it, node->morton ) )
-      {
-        node->NNNearNodeMortonIDs.insert( *it );
-      }
-    }
-
-    for ( auto it  = rchild->NNNearNodeMortonIDs.begin(); 
-               it != rchild->NNNearNodeMortonIDs.end(); it ++ )
-    {
-      if ( !tree::IsMyParent( *it, node->morton ) )
-      {
-        node->NNNearNodeMortonIDs.insert( *it );
-      }
-    }
-
-    /** 
-     *  Merge left and right candidates 
-     */
-    candidates = lchild->data.candidates;
-    for ( auto it  = rchild->data.candidates.begin(); 
-               it != rchild->data.candidates.end(); it ++ )
-    {
-      if ( candidates.find( (*it).first ) != candidates.end() )
-      {
-        /** Merge two maps */
-        auto & existing_candidate = candidates[ (*it).first ];
-
-        /** Loop over queries */
-        for ( auto query_it  = (*it).second.begin();
-                   query_it != (*it).second.end(); query_it ++ )
-        {
-          auto ret = existing_candidate.insert( *query_it );
-          if ( ret.second == false )
-          {
-            if ( ret.first->second > query_it->second ) 
-              ret.first->second = query_it->second;
-          }
-        }
-      }
-      else
-      {
-        candidates.insert( *it );
-      }
-    }
-
-    lchild->data.candidates.clear();
-    rchild->data.candidates.clear();
-  }
-
-  /**
-   *  Remove near interactions from the ballot table. The key value of 
-   *  candidates is morton.
-   */ 
-  for ( auto it  = node->NNNearNodeMortonIDs.begin(); 
-             it != node->NNNearNodeMortonIDs.end(); it ++ )
-  {
-    candidates.erase( *it );
-  }
-
-
-
-
-
-
-
-
-  /**
-   *  Building the sample pool
-   */ 
-  auto *sibling = node->sibling;
-  if ( sibling ) 
-  {
-    if ( node->treelist_id == 0 ) 
-      printf( "Construct sibling's sample pool for local root\n" ); fflush( stdout );
-
-    //vector<pair<size_t, T>> merged_candidates;
-    vector<pair<T,size_t>> merged_candidates;
-
-    for ( auto it = candidates.begin(); it != candidates.end(); it ++ )
-    {
-      size_t candidate_morton = (*it).first;
-      auto & candidate_pairs  = (*it).second;
-      if ( tree::IsMyParent( candidate_morton, sibling->morton ) )
-      { 
-        for ( auto nn_it  = candidate_pairs.begin(); 
-                   nn_it != candidate_pairs.end(); nn_it ++ )
-        {
-          //merged_candidates.push_back( *nn_it );
-          merged_candidates.push_back( flip_pair( *nn_it ) );
-        }
-      }
-    }
-    sort( merged_candidates.begin(), merged_candidates.end() );
-
-    size_t nsamples = 4 * std::max( setup.s, setup.m );
-    //if ( merged_candidates.size() > nsamples )
-    //  merged_candidates.resize( nsamples );
-
-    auto &pool = sibling->data.pool;
-    for ( size_t i = 0; i < merged_candidates.size(); i ++ )
-    {
-      auto new_candidate = flip_pair( merged_candidates[ i ] );
-      auto ret = pool.insert( new_candidate );
-      if ( ret.second == false )
-      {
-        if ( ret.first->second > new_candidate.second ) 
-          ret.first->second = new_candidate.second;
-      }
-
-      //if ( pool.size() >= nsamples ) break;
-    }
-    //printf( "%3lu pool.size() %lu\n", sibling->treelist_id, pool.size() );
-  }
-
-
-}; /** end BuildPool() */
-
-
-
-template<typename NODE, typename T>
-class BuildPoolTask : public Task
-{
-  public:
-
-    NODE *arg = NULL;
-
-    void Set( NODE *user_arg )
-    {
-      arg = user_arg;
-      name = std::string( "near" );
-
-      //--------------------------------------
-      double flops = 0.0, mops = 0.0;
-
-      /** setup the event */
-      event.Set( label + name, flops, mops );
-
-      /** asuume computation bound */
-      cost = 1.0;
-
-      /** low priority */
-      priority = true;
-    }
-
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( RW, this );
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( R, this );
-        arg->rchild->DependencyAnalysis( R, this );
-      }
-      /** Try to enqueue if there is no dependency */
-      this->TryEnqueue();
-
-    };
-
-    void Execute( Worker* user_worker )
-    {
-      BuildPool<NODE, T>( arg );
-    };
-
-}; /** end class NearSamplesTask */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/**
- *  @brief (FMM specific) Compute Near( leaf nodes ). This is just like
- *         the neighbor list but the granularity is in nodes but not points.
- *         The algorithm is to compute the node morton ids of neighbor points.
- *         Get the pointers of these nodes and insert them into a std::set.
- *         std::set will automatic remove duplication. Here the insertion 
- *         will be performed twice each time to get a symmetric one. That is
- *         if alpha has beta in its list, then beta will also have alpha in
- *         its list.
- *
- *         Only leaf nodes will have the list `` NearNodes''.
- *
- *         This list will later be used to get the FarNodes using a recursive
- *         node traversal scheme.
- *  
- */ 
-template<bool SYMMETRIC, typename TREE>
-void FindNearNodes( TREE &tree, double budget )
-{
-  auto &setup = tree.setup;
-  auto &NN = *setup.NN;
-  size_t n_nodes = ( 1 << tree.depth );
+  int n_nodes = 1 << tree.depth;
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
-  //printf( "NN( %lu, %lu ) depth %lu n_nodes %lu treelist.size() %lu\n", 
-  //    NN.row(), NN.col(),      
-  //    tree.depth, n_nodes, tree.treelist.size() );
-
-
-  /** 
-   * traverse all leaf nodes. 
-   *
-   * TODO: the following omp parallel for will result in segfault on KNL.
-   *       Not sure why.
-   **/
-  //#pragma omp parallel for
-  for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+  for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
     auto *node = *(level_beg + node_ind);
-    auto &data = node->data;
-    auto &gids = node->gids;
-
-    /** if no skeletons, then add every leaf nodes */
-    /** TODO: this is not affected by the BUDGET */
-    if ( !node->data.isskel )
+    auto & NearMortonIDs = node->NNNearNodeMortonIDs;
+    for ( auto & it : NearMortonIDs )
     {
-      for ( size_t i = 0; i < n_nodes; i ++ )
-      {
-        node->NearNodes.insert(   *(level_beg + i) );
-        node->NNNearNodes.insert( *(level_beg + i) );
-      }
+      auto *target = tree.morton2node[ it ];
+      target->NNNearNodes.insert( node );
+      target->NNNearNodeMortonIDs.insert( it );
     }
-    
-    /** add myself to the list. */
-    node->NearNodes.insert( node );
-    node->NNNearNodes.insert( node );
- 
-    /** ballot table */
-    std::vector<std::pair<size_t, size_t>> ballot( n_nodes );
-    for ( size_t i = 0; i < n_nodes; i ++ )
-    {
-      ballot[ i ].first  = 0;
-      ballot[ i ].second = i;
-    }
-
-    //printf( "before Neighbor\n" ); fflush( stdout );
-
-    /** traverse all points and their neighbors. NN is stored as k-by-N */
-    for ( size_t j = 0; j < gids.size(); j ++ )
-    {
-      size_t gid = gids[ j ];
-      /** use the second half */
-      //for ( size_t i = NN.row() / 2; i < NN.row(); i ++ )
-      for ( size_t i = 0; i < NN.row() / 2; i ++ )
-      {
-        size_t neighbor_gid = NN( i, gid ).second;
-
-        /** if this gid is valid, then compute its morton */
-        if ( neighbor_gid >= 0 && neighbor_gid < NN.col() )
-        {
-          //printf( "lid %lu i %lu neighbor_gid %lu\n", lid, i, neighbor_gid );
-          size_t neighbor_morton = setup.morton[ neighbor_gid ];
-          //printf( "neighborlid %lu morton %lu\n", neighbor_lid, neighbor_morton );
-          //auto *target = tree.Morton2Node( neighbor_morton );
-          auto *target = (*node->morton2node)[ neighbor_morton ];
-          ballot[ target->treelist_id - ( n_nodes - 1 ) ].first += 1;
-        }
-        else
-        {
-          printf( "illegal gid in neighbor pairs\n" ); fflush( stdout );
-        }
-      }
-    }
-
-    //printf( "after Neighbor\n" ); fflush( stdout );
-
-    /** sort the ballot list */
-    struct 
-    {
-      bool operator () ( std::pair<size_t, size_t> a, std::pair<size_t, size_t> b )
-      {   
-        return a.first > b.first;
-      }   
-    } BallotMore;
-
-    //printf( "before sorting\n" ); fflush( stdout );
-    std::sort( ballot.begin(), ballot.end(), BallotMore );
-    //printf( "after sorting\n" ); fflush( stdout );
-
-    /** add leaf nodes with the highest votes util reach the budget */
-    for ( size_t i = 0; i < n_nodes; i ++ )
-    {
-      if ( ballot[ i ].first && node->NNNearNodes.size() < n_nodes * budget )
-      {
-        //printf( "add %lu ", ballot[ i ].second + ( n_nodes - 1 ) ); fflush( stdout );
-        node->NNNearNodes.insert( tree.treelist[ ballot[ i ].second + ( n_nodes - 1 ) ] );
-      }
-      //printf( "\n" );
-    }
-
-    //printf( "After ballot\n" ); fflush( stdout );
   }
-
-  /** symmetrinize Near( node ) */
-  if ( SYMMETRIC )
-  {
-    /** make Near( node ) symmetric */
-    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-    {
-      auto *node = *(level_beg + node_ind);
-      auto &NNNearNodes = node->NNNearNodes;
-      for ( auto it = NNNearNodes.begin(); it != NNNearNodes.end(); it ++ )
-      {
-        (*it)->NNNearNodes.insert( node );
-      }
-    }
-#ifdef DEBUG_SPDASKIT
-    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
-    {
-      auto *node = *(level_beg + node_ind);
-      auto &NNNearNodes = node->NNNearNodes;
-      printf( "Node %lu NearNodes ", node->treelist_id );
-      for ( auto it = NNNearNodes.begin(); it != NNNearNodes.end(); it ++ )
-      {
-        printf( "%lu, ", (*it)->treelist_id );
-      }
-      printf( "\n" );
-    }
-#endif
-  }
-
-}; /** end FindNearNodes() */
+}; /** end SymmetrizeNearInteractions() */
 
 
-
-/**
- *  @brief Task wrapper for FindNearNodes()
- */ 
-template<bool SYMMETRIC, typename TREE>
-class NearNodesTask : public Task
-{
-  public:
-
-    TREE *arg = NULL;
-
-    double budget = 0.0;
-
-    void Set( TREE *user_arg, double user_budget )
-    {
-      arg = user_arg;
-      budget = user_budget;
-      name = std::string( "near" );
-
-      //--------------------------------------
-      double flops = 0.0, mops = 0.0;
-
-      /** setup the event */
-      event.Set( label + name, flops, mops );
-
-      /** asuume computation bound */
-      cost = 1.0;
-
-      /** low priority */
-      priority = true;
-    }
-
-    void DependencyAnalysis()
-    {
-      TREE &tree = *arg;
-      size_t n_nodes = 1 << tree.depth;
-      auto level_beg = tree.treelist.begin() + n_nodes - 1;
-      for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
-      {
-        auto *node = *(level_beg + node_ind);
-        node->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      }
-    };
-
-    void Execute( Worker* user_worker )
-    {
-      //printf( "FindNearNode beg\n" ); fflush( stdout );
-      FindNearNodes<SYMMETRIC, TREE>( *arg, budget );
-      //printf( "FindNearNode end\n" ); fflush( stdout );
-    };
-
-}; /** end class NearNodesTask */
-
-
-/**
- *  @brief Task wrapper for CacheNearNodes().
- */
+/** @brief Task wrapper for CacheNearNodes(). */
 template<bool NNPRUNE, typename NODE>
-class CacheNearNodesTask : public hmlp::Task
+class CacheNearNodesTask : public Task
 {
   public:
 
@@ -4594,14 +3495,8 @@ class CacheNearNodesTask : public hmlp::Task
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = std::string( "c-n" );
-      {
-        //label = std::to_string( arg->treelist_id );
-        std::ostringstream ss;
-        ss << arg->treelist_id;
-        label = ss.str();
-      }
-
+      name = string( "c-n" );
+      label = to_string( arg->treelist_id );
       /** asuume computation bound */
       cost = 1.0;
     };
@@ -4692,14 +3587,14 @@ class CacheNearNodesTask : public hmlp::Task
  *
  *         Otherwise, recurse to two children.
  */ 
-template<bool SYMMETRIC, typename NODE>
+template<typename NODE>
 void FindFarNodes( NODE *node, NODE *target )
 {
   /** all assertions, ``target'' must be a leaf node */
   assert( target->isleaf );
 
   /** get a list of near nodes from target */
-  std::set<NODE*> *NearNodes;
+  set<NODE*> *NearNodes;
   auto &data = node->data;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
@@ -4713,19 +3608,19 @@ void FindFarNodes( NODE *node, NODE *target )
    **/
   NearNodes = &target->NearNodes;
 
-  /** if this node contains any Near( target ) or isn't skeletonized */
+  /** If this node contains any Near( target ) or isn't skeletonized */
   if ( !data.isskel || node->ContainAny( *NearNodes ) )
   {
     if ( !node->isleaf )
     {
-      /** recurse to two children */
-      FindFarNodes<SYMMETRIC>( lchild, target );
-      FindFarNodes<SYMMETRIC>( rchild, target );
+      /** Recurs to two children */
+      FindFarNodes( lchild, target );
+      FindFarNodes( rchild, target );
     }
   }
   else
   {
-    /** insert ``node'' to Far( target ) */
+    /** Insert ``node'' to Far( target ) */
     target->FarNodes.insert( node );
   }
 
@@ -4738,19 +3633,19 @@ void FindFarNodes( NODE *node, NODE *target )
    **/
   NearNodes = &target->NNNearNodes;
 
-  /** if this node contains any Near( target ) or isn't skeletonized */
+  /** If this node contains any Near( target ) or isn't skeletonized */
   if ( !data.isskel || node->ContainAny( *NearNodes ) )
   {
     if ( !node->isleaf )
     {
-      /** recurse to two children */
-      FindFarNodes<SYMMETRIC>( lchild, target );
-      FindFarNodes<SYMMETRIC>( rchild, target );
+      /** Recurs to two children */
+      FindFarNodes( lchild, target );
+      FindFarNodes( rchild, target );
     }
   }
   else
   {
-    if ( SYMMETRIC && ( node->morton < target->morton ) )
+    if ( node->setup->issymmetric && ( node->morton < target->morton ) )
     {
       /** since target->morton is larger than the visiting node,
        * the interaction between the target and this node has
@@ -4776,12 +3671,12 @@ void FindFarNodes( NODE *node, NODE *target )
  *  @TODO  change to task.
  *
  */
-template<bool SYMMETRIC, typename TREE>
+template<typename TREE>
 void MergeFarNodes( TREE &tree )
 {
   for ( int l = tree.depth; l >= 0; l -- )
   {
-    std::size_t n_nodes = ( 1 << l );
+    size_t n_nodes = ( 1 << l );
     auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -4793,7 +3688,7 @@ void MergeFarNodes( TREE &tree )
 
       if ( node->isleaf )
       {
-        FindFarNodes<SYMMETRIC>( tree.treelist[ 0 ] /** root */, node );
+        FindFarNodes( tree.treelist[ 0 ] /** root */, node );
       }
       else
       {
@@ -4801,9 +3696,7 @@ void MergeFarNodes( TREE &tree )
         auto *lchild = node->lchild;
         auto *rchild = node->rchild;
 
-        /**
-         *  case: !NNPRUNE (HSS specific)
-         */ 
+        /** case: !NNPRUNE (HSS specific) */ 
         auto &pFarNodes =   node->FarNodes;
         auto &lFarNodes = lchild->FarNodes;
         auto &rFarNodes = rchild->FarNodes;
@@ -4819,10 +3712,7 @@ void MergeFarNodes( TREE &tree )
         }
 
 
-
-        /**
-         *  case: NNPRUNE (FMM specific)
-         */ 
+        /** case: NNPRUNE (FMM specific) */ 
         auto &pNNFarNodes =   node->NNFarNodes;
         auto &lNNFarNodes = lchild->NNFarNodes;
         auto &rNNFarNodes = rchild->NNFarNodes;
@@ -4852,7 +3742,7 @@ void MergeFarNodes( TREE &tree )
     }
   }
 
-  if ( SYMMETRIC )
+  if ( tree.setup.issymmetric )
   {
     /** symmetrinize FarNodes to FarNodes interaction */
     for ( int l = tree.depth; l >= 0; l -- )
@@ -5030,8 +3920,8 @@ void Evaluate
 ( 
   NODE *node, 
   size_t gid, 
-  std::vector<size_t> &nnandi, // k + 1 non-prunable lists
-  hmlp::Data<T> &potentials 
+  vector<size_t> &nnandi, // k + 1 non-prunable lists
+  Data<T> &potentials 
 )
 {
   auto &K = *node->setup->K;
@@ -5142,10 +4032,10 @@ void Evaluate
 ( 
   TREE &tree, 
   size_t gid, 
-  hmlp::Data<T> &potentials
+  Data<T> &potentials
 )
 {
-  std::vector<size_t> nnandi;
+  vector<size_t> nnandi;
   auto &w = *tree.setup.w;
 
   potentials.clear();
@@ -5181,7 +4071,6 @@ void Evaluate
 template<
   bool     USE_RUNTIME = true, 
   bool     USE_OMP_TASK = false, 
-  bool     SYMMETRIC_PRUNE = true, 
   bool     NNPRUNE = true, 
   bool     CACHE = true, 
   typename TREE, 
@@ -5189,7 +4078,7 @@ template<
 Data<T> Evaluate
 ( 
   TREE &tree,
-  hmlp::Data<T> &weights
+  Data<T> &weights
 )
 {
   const bool AUTO_DEPENDENCY = true;
@@ -5254,7 +4143,7 @@ Data<T> Evaluate
   {
     printf( "N2S, S2S, S2N, L2L (HMLP Runtime) ...\n" ); fflush( stdout );
   }
-  if ( SYMMETRIC_PRUNE )
+  if ( tree.setup.issymmetric )
   {
     beg = omp_get_wtime();
 #ifdef HMLP_USE_CUDA
@@ -5464,9 +4353,7 @@ template<
   typename    SPDMATRIX>
 tree::Tree<
   gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  gofmm::NodeData<T>,
-  N_CHILDREN,
-  T> 
+  gofmm::NodeData<T>>
 *Compress
 ( 
   Data<T> *X,
@@ -5477,7 +4364,7 @@ tree::Tree<
 	Configuration<T> &config
 )
 {
-  /** get all user-defined parameters */
+  /** Get all user-defined parameters. */
   DistanceMetric metric = config.MetricType();
   size_t n = config.ProblemSize();
 	size_t m = config.LeafNodeSize();
@@ -5487,19 +4374,18 @@ tree::Tree<
 	T budget = config.Budget(); 
 
   /** options */
-  const bool SYMMETRIC = true;
   const bool NNPRUNE   = true;
   const bool CACHE     = true;
 
   /** instantiation for the Spd-Askit tree */
   using SETUP     = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA      = gofmm::NodeData<T>;
-  using NODE      = tree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using TREE      = tree::Tree<SETUP, DATA, N_CHILDREN, T>;
+  using NODE      = tree::Node<SETUP, DATA>;
+  using TREE      = tree::Tree<SETUP, DATA>;
 
   /** instantiation for the randomisze Spd-Askit tree */
   using RKDTSETUP = gofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
-  using RKDTNODE  = tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
+  using RKDTNODE  = tree::Node<RKDTSETUP, DATA>;
 
   /** all timers */
   double beg, omptask45_time, omptask_time, ref_time;
@@ -5524,7 +4410,7 @@ tree::Tree<
   const size_t n_iter = 10;
   const bool SORTED = false;
   /** do not change anything below this line */
-  tree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
+  tree::Tree<RKDTSETUP, DATA> rkdt;
   rkdt.setup.X = X;
   rkdt.setup.K = &K;
 	rkdt.setup.metric = metric; 
@@ -5570,7 +4456,7 @@ tree::Tree<
 
 
   /** initialize metric ball tree using approximate center split */
-  auto *tree_ptr = new tree::Tree<SETUP, DATA, N_CHILDREN, T>();
+  auto *tree_ptr = new tree::Tree<SETUP, DATA>();
 	auto &tree = *tree_ptr;
   tree.setup.X = X;
   tree.setup.K = &K;
@@ -5611,25 +4497,27 @@ tree::Tree<
 
 
 
-  /**
-   *  Build the near node list and merge neighbors
-   */ 
+  /** Build near interaction lists. */ 
   NearSamplesTask<NODE, T> NEARSAMPLEStask;
+  tree.DependencyCleanUp();
+  printf( "Dependency clean up\n" ); fflush( stdout );
   tree.TraverseLeafs<true>( NEARSAMPLEStask );
   hmlp_run();
-  tree.DependencyCleanUp();
   printf( "Finish NearSamplesTask\n" ); fflush( stdout );
+  SymmetrizeNearInteractions( tree );
+  printf( "Finish SymmetrizeNearInteractions\n" ); fflush( stdout );
 
 
   /**
    *  Create sample pools for each tree node by merging the near interaction
    *  list. 
    */ 
-  BuildPoolTask<NODE, T> BUILDPOOLtask;
-  tree.TraverseUp<true>( BUILDPOOLtask );
-  hmlp_run();
-  tree.DependencyCleanUp();
-  printf( "Finish BuildPoolTask\n" ); fflush( stdout );
+  //BuildPoolTask<NODE, T> BUILDPOOLtask;
+  //tree.DependencyCleanUp();
+  ////tree.TraverseUp<true>( BUILDPOOLtask );
+  //tree.TraverseLeafs<true>( BUILDPOOLtask );
+  //hmlp_run();
+  //printf( "Finish BuildPoolTask\n" ); fflush( stdout );
 
 
   /** Skeletonization */
@@ -5642,9 +4530,10 @@ tree::Tree<
   //tree.template TraverseUp<true>( SKELtask );
   gofmm::GetSkeletonMatrixTask<NODE, T> GETMTXtask;
   gofmm::SkeletonizeTask2<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
-  tree.TraverseUp( GETMTXtask, SKELtask );
   gofmm::InterpolateTask<NODE, T> PROJtask;
-  tree.template TraverseUnOrdered<true>( PROJtask );
+  tree.DependencyCleanUp();
+  tree.TraverseUp( GETMTXtask, SKELtask );
+  tree.TraverseUnOrdered<true>( PROJtask );
   if ( CACHE )
   {
     gofmm::CacheNearNodesTask<NNPRUNE, NODE> KIJtask;
@@ -5674,7 +4563,7 @@ tree::Tree<
   {
     printf( "MergeFarNodes ...\n" ); fflush( stdout );
   }
-  gofmm::MergeFarNodes<SYMMETRIC>( tree );
+  gofmm::MergeFarNodes( tree );
   mergefarnodes_time = omp_get_wtime() - beg;
 
   /** CacheFarNodes */
@@ -5777,17 +4666,15 @@ tree::Tree<
 template<typename T, typename SPDMATRIX>
 tree::Tree<
   gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-  gofmm::NodeData<T>,
-  2,
-  T> 
+  gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, T stol, T budget, size_t m, size_t k, size_t s )
 {
   const bool ADAPTIVE = true;
   const bool LEVELRESTRICTION = false;
   using SPLITTER     = centersplit<SPDMATRIX, 2, T>;
   using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T>;
-  hmlp::Data<T> *X = NULL;
-  hmlp::Data<std::pair<T, std::size_t>> NN;
+  Data<T> *X = NULL;
+  Data<pair<T, size_t>> NN;
 	/** GOFMM tree splitter */
   SPLITTER splitter;
   splitter.Kptr = &K;
@@ -5821,9 +4708,7 @@ tree::Tree<
 template<typename T, typename SPDMATRIX>
 tree::Tree<
   gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-  gofmm::NodeData<T>,
-  2,
-  T> 
+  gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, T stol, T budget )
 {
   const bool ADAPTIVE = true;
@@ -5885,9 +4770,7 @@ tree::Tree<
 template<typename T>
 tree::Tree<
   gofmm::Setup<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
-  gofmm::NodeData<T>,
-  2,
-  T>
+  gofmm::NodeData<T>>
 *Compress( SPDMatrix<T> &K, T stol, T budget )
 {
 	return Compress<T, SPDMatrix<T>>( K, stol, budget );
@@ -5908,7 +4791,7 @@ tree::Tree<
 
 
 template<typename NODE, typename T>
-void ComputeError( NODE *node, hmlp::Data<T> potentials )
+void ComputeError( NODE *node, Data<T> potentials )
 {
   auto &K = *node->setup->K;
   auto &w = node->setup->w;
@@ -6009,7 +4892,7 @@ class SimpleGOFMM
       if ( tree_ptr ) delete tree_ptr;
     };
 
-    void Multiply( hmlp::Data<T> &y, hmlp::Data<T> &x )
+    void Multiply( Data<T> &y, Data<T> &x )
     {
       //hmlp::Data<T> weights( x.col(), x.row() );
 
@@ -6018,7 +4901,7 @@ class SimpleGOFMM
       //    weights( j, i ) = x( i, j );
 
 
-      y = hmlp::gofmm::Evaluate( *tree_ptr, x );
+      y = gofmm::Evaluate( *tree_ptr, x );
       //auto potentials = hmlp::gofmm::Evaluate( *tree_ptr, weights );
 
       //for ( size_t j = 0; j < y.col(); j ++ )
@@ -6030,9 +4913,9 @@ class SimpleGOFMM
   private:
 
     /** GOFMM tree */
-    hmlp::tree::Tree<
-      hmlp::gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-      hmlp::gofmm::NodeData<T>, 2, T> *tree_ptr = NULL; 
+    tree::Tree<
+      gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
+      gofmm::NodeData<T>> *tree_ptr = NULL; 
 
 }; /** end class SimpleGOFMM */
 
@@ -6061,8 +4944,8 @@ typedef hmlp::gofmm::Setup<SPDMatrix<double>,
 typedef hmlp::gofmm::Setup<SPDMatrix<float>, 
     centersplit<SPDMatrix<float >, 2,  float>,  float> sSetup_t;
 
-typedef hmlp::tree::Tree<dSetup_t, hmlp::gofmm::NodeData<double>, 2, double> dTree_t;
-typedef hmlp::tree::Tree<sSetup_t, hmlp::gofmm::NodeData<float >, 2, float > sTree_t;
+typedef tree::Tree<dSetup_t, gofmm::NodeData<double>> dTree_t;
+typedef tree::Tree<sSetup_t, gofmm::NodeData<float >> sTree_t;
 
 
 
@@ -6073,8 +4956,8 @@ typedef hmlp::tree::Tree<sSetup_t, hmlp::gofmm::NodeData<float >, 2, float > sTr
  *  arguments are replaced by pass-by-pointer. There implementaion
  *  can be found at hmlp/package/$HMLP_ARCH/gofmm.gpp
  **/
-Data<double> Evaluate( dTree_t *tree, hmlp::Data<double> *weights );
-Data<float>  Evaluate( dTree_t *tree, hmlp::Data<float > *weights );
+Data<double> Evaluate( dTree_t *tree, Data<double> *weights );
+Data<float>  Evaluate( dTree_t *tree, Data<float > *weights );
 
 dTree_t *Compress( dSPDMatrix_t *K, double stol, double budget );
 sTree_t *Compress( sSPDMatrix_t *K,  float stol,  float budget );
@@ -6098,7 +4981,6 @@ float  ComputeError( sTree_t *tree, size_t gid, hmlp::Data<float>  *potentials )
 
 
 }; /** end namespace gofmm */
-
 }; /** end namespace hmlp */
 
 #endif /** define GOFMM_HPP */

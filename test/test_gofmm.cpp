@@ -67,8 +67,9 @@
 #define N_CHILDREN 2
 
 using namespace std;
-using namespace hmlp::tree;
-using namespace hmlp::gofmm;
+//using namespace hmlp::tree;
+//using namespace hmlp::gofmm;
+using namespace hmlp;
 
 
 
@@ -81,9 +82,9 @@ template<
   typename    SPDMATRIX>
 void test_gofmm
 ( 
-  hmlp::Data<T> *X,
+  Data<T> *X,
   SPDMATRIX &K, 
-  hmlp::Data<std::pair<T, std::size_t>> &NN,
+  Data<pair<T, size_t>> &NN,
   DistanceMetric metric,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
@@ -92,9 +93,9 @@ void test_gofmm
 )
 {
   /** instantiation for the Spd-Askit tree */
-  using SETUP = hmlp::gofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA  = hmlp::gofmm::NodeData<T>;
-  using NODE  = Node<SETUP, N_CHILDREN, DATA, T>;
+  using SETUP = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using DATA  = gofmm::NodeData<T>;
+  using NODE  = tree::Node<SETUP, DATA>;
  
   /** all timers */
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
@@ -104,10 +105,10 @@ void test_gofmm
   const bool CACHE = true;
 
 	/** creatgin configuration for all user-define arguments */
-	Configuration<T> config( metric, n, m, k, s, stol, budget );
+  gofmm::Configuration<T> config( metric, n, m, k, s, stol, budget );
 
   /** compress K */
-  auto *tree_ptr = Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+  auto *tree_ptr = gofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
   ( X, K, NN, //metric, 
 		splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
 	  config );
@@ -132,8 +133,8 @@ void test_gofmm
 #endif
 
   /** Evaluate u ~ K * w */
-  hmlp::Data<T> w( n, nrhs ); w.rand();
-  auto u = Evaluate<true, false, true, true, CACHE>( tree, w );
+  Data<T> w( n, nrhs ); w.rand();
+  auto u = gofmm::Evaluate<true, false, true, CACHE>( tree, w );
 
 
 #ifdef HMLP_AVX512
@@ -185,17 +186,17 @@ void test_gofmm
   {
     Data<T> potentials;
     /** ASKIT treecode with NN pruning */
-    Evaluate<false, true>( tree, i, potentials );
-    auto nnerr = ComputeError( tree, i, potentials );
+    gofmm::Evaluate<false, true>( tree, i, potentials );
+    auto nnerr = gofmm::ComputeError( tree, i, potentials );
     /** ASKIT treecode without NN pruning */
-    Evaluate<false, false>( tree, i, potentials );
-    auto nonnerr = ComputeError( tree, i, potentials );
+    gofmm::Evaluate<false, false>( tree, i, potentials );
+    auto nonnerr = gofmm::ComputeError( tree, i, potentials );
     /** get results from GOFMM */
     for ( size_t p = 0; p < potentials.col(); p ++ )
     {
       potentials[ p ] = u( i, p );
     }
-    auto fmmerr = ComputeError( tree, i, potentials );
+    auto fmmerr = gofmm::ComputeError( tree, i, potentials );
 
     /** only print 10 values. */
     if ( i < 10 )
@@ -223,11 +224,10 @@ void test_gofmm
   if ( lambda < 10.0 * ( fmmerr_avg / ntest ) )
     printf( "Warning! lambda %lf may be too small for accuracy %3.1E\n",
         lambda, fmmerr_avg / ntest );
-  //hmlp::hfamily::Factorize<NODE, T>( do_ulv_factorization, tree, lambda ); 
-  hfamily::Factorize( tree, lambda ); 
+  gofmm::Factorize( tree, lambda ); 
 
   /** compute error */
-  hfamily::ComputeError( tree, lambda, w, u );
+  gofmm::ComputeError( tree, lambda, w, u );
 
   //#ifdef DUMP_ANALYSIS_DATA
   gofmm::Summary<NODE> summary;
@@ -255,9 +255,9 @@ void test_gofmm
 template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T, typename SPDMATRIX>
 void test_gofmm_setup
 ( 
-  hmlp::Data<T> *X,
+  Data<T> *X,
   SPDMATRIX &K, 
-  hmlp::Data<std::pair<T, std::size_t>> &NN,
+  Data<pair<T, size_t>> &NN,
   DistanceMetric metric,
   size_t n, size_t m, size_t k, size_t s, 
   double stol, double budget, size_t nrhs
@@ -269,8 +269,8 @@ void test_gofmm_setup
     {
       assert( X );
 			/** using geometric splitters from hmlp::tree */
-      using SPLITTER     = hmlp::tree::centersplit<N_CHILDREN, T>;
-      using RKDTSPLITTER = hmlp::tree::randomsplit<N_CHILDREN, T>;
+      using SPLITTER     = tree::centersplit<N_CHILDREN, T>;
+      using RKDTSPLITTER = tree::randomsplit<N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
       splitter.Coordinate = X;
@@ -285,8 +285,8 @@ void test_gofmm_setup
     case ANGLE_DISTANCE:
     {
 			/** using geometric-oblivious splitters from hmlp::gofmm */
-      using SPLITTER     = hmlp::gofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
-      using RKDTSPLITTER = hmlp::gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
+      using SPLITTER     = gofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
+      using RKDTSPLITTER = gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
       splitter.Kptr = &K;
@@ -473,23 +473,23 @@ int main( int argc, char *argv[] )
     using T = float;
     {
       /** dense spd matrix format */
-      hmlp::gofmm::SPDMatrix<T> K;
+      gofmm::SPDMatrix<T> K;
       K.resize( n, n );
       K.read( n, n, user_matrix_filename );
 
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
+      Data<pair<T, size_t>> NN;
 
 			/** (optional) provide coordinates */
       if ( user_points_filename.size() )
       {
-        hmlp::Data<T> X( d, n, user_points_filename );
+        Data<T> X( d, n, user_points_filename );
         test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
       else
       {
-        hmlp::Data<T> *X = NULL;
+        Data<T> *X = NULL;
         test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
@@ -566,7 +566,7 @@ int main( int argc, char *argv[] )
       /** random spd initialization */
       K.randspd<USE_LOWRANK>( 0.0, 1.0 );
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
+      Data<std::pair<T, std::size_t>> NN;
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
@@ -574,15 +574,15 @@ int main( int argc, char *argv[] )
     {
       d = 4;
       /** generate coordinates from normal(0,1) distribution */
-      hmlp::Data<T> X( d, n ); X.randn( 0.0, 1.0 );
+      Data<T> X( d, n ); X.randn( 0.0, 1.0 );
       /** setup the kernel object as Gaussian */
       kernel_s<T> kernel;
       kernel.type = KS_GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
       /** spd kernel matrix format (implicitly create) */
-      hmlp::KernelMatrix<T> K( n, n, d, kernel, X );
+      KernelMatrix<T> K( n, n, d, kernel, X );
       /** (optional) provide neighbors, leave uninitialized otherwise */
-      hmlp::Data<std::pair<T, std::size_t>> NN;
+      Data<pair<T, size_t>> NN;
       /** routine */
       test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
@@ -662,7 +662,7 @@ int main( int argc, char *argv[] )
   hmlp_finalize();
 
   /** Message Passing Interface */
-  hmlp::mpi::Finalize();
+  mpi::Finalize();
 
   return 0;
 

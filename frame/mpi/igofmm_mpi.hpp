@@ -1,5 +1,5 @@
-#ifndef IGOFMM_HPP
-#define IGOFMM_HPP
+#ifndef IGOFMM_MPI_HPP
+#define IGOFMM_MPI_HPP
 
 #include <hmlp_mpi.hpp>
 #include <gofmm/igofmm.hpp>
@@ -158,7 +158,7 @@ class DistFactorizeTask : public Task
 
       if ( myself->GetCommSize() == 1 )
       {
-        hfamily::Factorize<NODE, T>( myself );
+        gofmm::Factorize<NODE, T>( myself );
       }
       else
       {
@@ -313,7 +313,7 @@ void DistFactorize( TREE &tree, T lambda )
   tree.setup.do_ulv_factorization = true;
 
   /** Traverse the tree upward to prepare thr ULV factorization. */
-  hfamily::SetupFactorTask<NODE, T> seqSETUPFACTORtask; 
+  gofmm::SetupFactorTask<NODE, T> seqSETUPFACTORtask; 
   DistSetupFactorTask<MPINODE, T> parSETUPFACTORtask;
 
   tree.DependencyCleanUp();
@@ -322,7 +322,7 @@ void DistFactorize( TREE &tree, T lambda )
   hmlp_run();
   printf( "Finish SETUPFACTOR\n" ); fflush( stdout );
 
-  hfamily::FactorizeTask<   NODE, T> seqFACTORIZEtask; 
+  gofmm::FactorizeTask<   NODE, T> seqFACTORIZEtask; 
   DistFactorizeTask<MPINODE, T> parFACTORIZEtask; 
   tree.DependencyCleanUp();
   tree.LocaTraverseUp( seqFACTORIZEtask );
@@ -343,11 +343,11 @@ void DistSolve( TREE &tree, Data<T> &input )
   tree.setup.input  = &input;
 
   /** clean up all dependencies on tree nodes */
-  hfamily::TreeViewTask<NODE> seqTREEVIEWtask;
+  gofmm::TreeViewTask<NODE> seqTREEVIEWtask;
   DistFactorTreeViewTask<MPINODE, T>   parTREEVIEWtask;
-  hfamily::ULVForwardSolveTask<NODE, T> seqFORWARDtask;
+  gofmm::ULVForwardSolveTask<NODE, T> seqFORWARDtask;
   DistULVForwardSolveTask<MPINODE, T>   parFORWARDtask;
-  hfamily::ULVBackwardSolveTask<NODE, T> seqBACKWARDtask;
+  gofmm::ULVBackwardSolveTask<NODE, T> seqBACKWARDtask;
   DistULVBackwardSolveTask<MPINODE, T>   parBACKWARDtask;
 
   tree.DependencyCleanUp();
@@ -440,4 +440,4 @@ void ComputeError( TREE &tree, T lambda,
 }; /** end namespace mpigofmm */
 }; /** end namespace hmlp */
 
-#endif /** define IGOFMM_HPP */
+#endif /** define IGOFMM_MPI_HPP */

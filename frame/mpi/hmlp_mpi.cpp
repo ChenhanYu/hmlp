@@ -168,6 +168,8 @@ int Test( Request *request, int *flag, Status *status )
 #ifdef HMLP_USE_MPI
 	return MPI_Test( request, flag, status );
 #else
+  /** Set *flag = 1 to prevent blocking. */
+  *flag = 1;
 	return 0;
 #endif
 };

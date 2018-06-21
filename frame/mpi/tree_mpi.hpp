@@ -454,10 +454,12 @@ class DistSplitTask : public Task
 /**
  *  @brief Data and setup that are shared with all nodes.
  */ 
-template<typename SPLITTER, typename T>
+template<typename SPLITTER, typename DATATYPE>
 class Setup
 {
   public:
+
+    typedef DATATYPE T;
 
     Setup() {};
 
@@ -587,10 +589,16 @@ class DistIndexPermuteTask : public hmlp::Task
 /**
  *
  */ 
-template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
-class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+//template<typename SETUP, int N_CHILDREN, typename NODEDATA>
+template<typename SETUP, typename NODEDATA>
+class Node : public tree::Node<SETUP, NODEDATA>
 {
   public:
+
+    /** Deduce data type from SETUP. */
+    typedef typename SETUP::T T;
+
+    static const int N_CHILDREN = tree::Node<SETUP, NODEDATA>::N_CHILDREN;
 
     /** Inherit all parameters from tree::Node */
 
@@ -598,10 +606,10 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     /** Constructor for inner node (gids and n unassigned) */
     Node( SETUP *setup, size_t n, size_t l, 
         Node *parent,
-        unordered_map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
+        unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton2node,
         Lock *treelock, mpi::Comm comm ) 
     /** Inherits the constructor from tree::Node */
-      : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, 
+      : tree::Node<SETUP, NODEDATA>( setup, n, l, 
           parent, morton2node, treelock ) 
     {
       /** local communicator */
@@ -617,14 +625,14 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     /** 
      *  Constructor for root 
      */
-    Node( SETUP *setup, size_t n, size_t l, std::vector<size_t> &gids, 
+    Node( SETUP *setup, size_t n, size_t l, vector<size_t> &gids, 
         Node *parent, 
-        unordered_map<size_t, tree::Node<SETUP, N_CHILDREN, NODEDATA, T>*> *morton2node,
+        unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton2node,
         Lock *treelock, mpi::Comm comm ) 
     /** 
      *  Inherits the constructor from tree::Node
      */
-      : Node<SETUP, N_CHILDREN, NODEDATA, T>( setup, n, l, parent, 
+      : Node<SETUP, NODEDATA>( setup, n, l, parent, 
           morton2node, treelock, comm ) 
     {
       /** 
@@ -634,7 +642,7 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
     };
 
 
-    Node( size_t morton ) : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>( morton )
+    Node( size_t morton ) : tree::Node<SETUP, NODEDATA>( morton )
     { 
     };
 
@@ -763,7 +771,7 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 
 				/** TODO: deprecate lids */
 			  this->lids = this->gids;
-        tree::Node<SETUP, N_CHILDREN, NODEDATA, T>::Split<true>( 0 );
+        tree::Node<SETUP, NODEDATA>::Split<true>( 0 );
 
 		  } /** end if ( child ) */
       
@@ -849,15 +857,15 @@ class Node : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
 /**
  *
  */ 
-template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
-class LetNode : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+template<typename SETUP, typename NODEDATA>
+class LetNode : public tree::Node<SETUP, NODEDATA>
 {
   public:
 
     /** inherit all parameters from hmlp::tree::Node */
 
     LetNode( SETUP *setup, size_t morton )
-      : tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
+      : tree::Node<SETUP, NODEDATA>
         ( setup, (size_t)0, (size_t)1, NULL, NULL, NULL ) 
     {
       this->morton = morton;
@@ -884,14 +892,16 @@ class LetNode : public tree::Node<SETUP, N_CHILDREN, NODEDATA, T>
  *  @brief This distributed tree inherits the shared memory tree
  *         with some additional MPI data structure and function call.
  */ 
-template<class SETUP, class NODEDATA, int N_CHILDREN, typename T>
+template<class SETUP, class NODEDATA>
 class Tree 
 /**
  *  Inherits from tree::Tree
  */ 
-: public tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>
+: public tree::Tree<SETUP, NODEDATA>
 {
   public:
+
+    typedef typename SETUP::T T;
 
     /** 
      *  Inherit parameters n, m, and depth; local treelists and morton2node map.
@@ -913,15 +923,15 @@ class Tree
      *  Define local tree node type as NODE. Notice that all pointers in the
      *  interaction lists and morton2node map will be in this type.
      */
-    typedef tree::Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
+    typedef tree::Node<SETUP, NODEDATA> NODE;
 
     /** 
      *  Define distributed tree node type as MPINODE.
      */
-    typedef Node<SETUP, N_CHILDREN, NODEDATA, T> MPINODE;
+    typedef Node<SETUP, NODEDATA> MPINODE;
 
     /** define our tree node type as NODE */
-    typedef LetNode<SETUP, N_CHILDREN, NODEDATA, T> LETNODE;
+    typedef LetNode<SETUP, NODEDATA> LETNODE;
 
 
     /** 
@@ -939,7 +949,7 @@ class Tree
     /** Default constructor */ 
     Tree() 
     /** Inherit constructor */
-    : tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Tree()
+    : tree::Tree<SETUP, NODEDATA>::Tree()
     {
 			/** Create a new comm_world for */
       mpi::Comm_dup( MPI_COMM_WORLD, &comm );
@@ -1096,7 +1106,7 @@ class Tree
 			//printf( "" );
 
 
-      tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::AllocateNodes( 
+      tree::Tree<SETUP, NODEDATA>::AllocateNodes( 
           local_tree_root );
 
     };
@@ -1107,7 +1117,7 @@ class Tree
     vector<size_t> GetPermutation()
     {
       vector<size_t> perm_loc, perm_glb;
-      perm_loc = tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::GetPermutation();
+      perm_loc = tree::Tree<SETUP, NODEDATA>::GetPermutation();
       mpi::GatherVector( perm_loc, perm_glb, 0, comm );
 
       //if ( rank == 0 )
@@ -1167,7 +1177,7 @@ class Tree
       DistTraverseDown<false>( mpisplittask );
       LocaTraverseDown( seqsplittask );
       hmlp_run();
-	  	MPI_Barrier( comm );
+      mpi::Barrier( comm );
 
 
 
@@ -1188,13 +1198,13 @@ class Tree
           DependencyCleanUp();
           DistTraverseDown<false>( mpisplittask );
           hmlp_run();
-	  	    MPI_Barrier( comm );
+          mpi::Barrier( comm );
         }
         DependencyCleanUp();
         LocaTraverseLeafs( dummy );
         LocaTraverseDown( seqsplittask );
         hmlp_run();
-	  	  MPI_Barrier( comm );
+        mpi::Barrier( comm );
 
         if ( t == 0 )
         {
@@ -1363,7 +1373,7 @@ class Tree
     {
       if ( node->GetCommSize() < 2 )
       {
-        tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Offset( node, offset );
+        tree::Tree<SETUP, NODEDATA>::Offset( node, offset );
         return;
       }
 
@@ -1419,7 +1429,7 @@ class Tree
        */
       if ( node->GetCommSize() < 2 )
       {
-        tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::Morton( node, morton );
+        tree::Tree<SETUP, NODEDATA>::Morton( node, morton );
         //printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
         //    node->l, comm_rank, comm_size, 
         //    node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
@@ -1680,7 +1690,7 @@ class Tree
       //  mpitreelists[ i ]->DependencyCleanUp();
       //}
 
-      tree::Tree<SETUP, NODEDATA, N_CHILDREN, T>::DependencyCleanUp();
+      tree::Tree<SETUP, NODEDATA>::DependencyCleanUp();
 
 
 

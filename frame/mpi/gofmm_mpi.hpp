@@ -62,7 +62,7 @@ class DistSPDMatrix : public DistData<STAR, CBLK, T>
 
 
     /** ESSENTIAL: this is an abstract function  */
-    virtual T operator()( size_t i, size_t j, hmlp::mpi::Comm comm )
+    virtual T operator()( size_t i, size_t j, mpi::Comm comm )
     {
       T Kij = 0;
 
@@ -268,7 +268,7 @@ class Setup : public mpitree::Setup<SPLITTER, T>
 
 
 template<typename T>
-class NodeData : public hfamily::Factor<T>
+class NodeData : public gofmm::Factor<T>
 {
   public:
 
@@ -5445,14 +5445,12 @@ template<
   typename    SPDMATRIX>
 mpitree::Tree<
   mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  mpigofmm::NodeData<T>,
-  N_CHILDREN,
-  T> 
+  mpigofmm::NodeData<T>>
 *Compress
 ( 
   DistData<STAR, CBLK, T> *X_cblk,
   SPDMATRIX &K, 
-  DistData<STAR, CBLK, std::pair<T, std::size_t>> &NN_cblk,
+  DistData<STAR, CBLK, pair<T, size_t>> &NN_cblk,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
 	gofmm::Configuration<T> &config
@@ -5479,15 +5477,15 @@ mpitree::Tree<
   /** instantiation for the GOFMM tree */
   using SETUP       = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
   using DATA        = mpigofmm::NodeData<T>;
-  using NODE        = tree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using MPINODE     = mpitree::Node<SETUP, N_CHILDREN, DATA, T>;
-  using LETNODE     = mpitree::LetNode<SETUP, N_CHILDREN, DATA, T>;
-  using TREE        = mpitree::Tree<SETUP, DATA, N_CHILDREN, T>;
+  using NODE        = tree::Node<SETUP, DATA>;
+  using MPINODE     = mpitree::Node<SETUP, DATA>;
+  using LETNODE     = mpitree::LetNode<SETUP, DATA>;
+  using TREE        = mpitree::Tree<SETUP, DATA>;
 
   /** instantiation for the randomisze Spd-Askit tree */
   using RKDTSETUP   = mpigofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
-  using RKDTNODE    = tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
-  using MPIRKDTNODE = tree::Node<RKDTSETUP, N_CHILDREN, DATA, T>;
+  using RKDTNODE    = tree::Node<RKDTSETUP, DATA>;
+  using MPIRKDTNODE = tree::Node<RKDTSETUP, DATA>;
 
   /** all timers */
   double beg, omptask45_time, omptask_time, ref_time;
@@ -5501,7 +5499,7 @@ mpitree::Tree<
   const size_t n_iter = 20;
   const bool SORTED = false;
   /** Do not change anything below this line */
-  mpitree::Tree<RKDTSETUP, DATA, N_CHILDREN, T> rkdt;
+  mpitree::Tree<RKDTSETUP, DATA> rkdt;
   rkdt.setup.X_cblk = X_cblk;
   rkdt.setup.K = &K;
 	rkdt.setup.metric = metric; 
@@ -5537,7 +5535,7 @@ mpitree::Tree<
 
 
   /** Initialize metric ball tree using approximate center split. */
-  auto *tree_ptr = new mpitree::Tree<SETUP, DATA, N_CHILDREN, T>();
+  auto *tree_ptr = new mpitree::Tree<SETUP, DATA>();
 	auto &tree = *tree_ptr;
 
 	/** Global configuration for the metric tree */

@@ -18,9 +18,6 @@
  *
  **/  
 
-
-
-
 #ifndef TREE_HPP
 #define TREE_HPP
 
@@ -490,10 +487,16 @@ struct randomsplit
 /**
  *  @brief 
  */ 
-template<typename SETUP, int N_CHILDREN, typename NODEDATA, typename T>
+//template<typename SETUP, int N_CHILDREN, typename NODEDATA>
+template<typename SETUP, typename NODEDATA>
 class Node : public ReadWrite
 {
   public:
+
+    /** Deduce data type from SETUP. */
+    typedef typename SETUP::T T;
+    /** Use binary trees. */
+    static const int N_CHILDREN = 2;
 
     Node( SETUP* setup, size_t n, size_t l, 
         Node *parent, unordered_map<size_t, Node*> *morton2node, Lock *treelock )
@@ -535,17 +538,12 @@ class Node : public ReadWrite
   
 
     /**
-     *  Constructor of local essential tree node:
+     *  Constructor of local essential tree (LET) node:
      *  This constructor will only be used in the distributed environment.
      */ 
-    Node( size_t morton )
-    {
-      this->morton = morton;
-    };
+    Node( size_t morton ) { this->morton = morton; };
 
-
-
-
+    /** (Default) destructor */
     ~Node() {};
 
     void Resize( int n )
@@ -698,13 +696,11 @@ class Node : public ReadWrite
     /** Level in the tree */
     size_t l;
 
-    /** Morton ID and offset */
+    /** Morton ID and offset. */
     size_t morton = 0;
     size_t offset = 0;
 
-
-
-    /** In top-down topology order */
+    /** ID in top-down topology order. */
     size_t treelist_id; 
 
     vector<size_t> gids;
@@ -762,10 +758,12 @@ class Node : public ReadWrite
  *
  *
  */ 
-template<typename SPLITTER, typename T>
+template<typename SPLITTER, typename DATATYPE>
 class Setup
 {
   public:
+
+    typedef DATATYPE T;
 
     Setup() {};
 
@@ -783,10 +781,10 @@ class Setup
     /** neighbors<distance, gid> (accessed with lids) */
     Data<pair<T, size_t>> *NN;
 
-    /** morton ids */
+    /** MortonIDs of all indices. */
     vector<size_t> morton;
 
-    /** tree splitter */
+    /** Tree splitter */
     SPLITTER splitter;
 
 
@@ -840,13 +838,19 @@ class Setup
 /**
  *
  */ 
-template<class SETUP, class NODEDATA, int N_CHILDREN, typename T>
+//template<class SETUP, class NODEDATA, int N_CHILDREN>
+template<class SETUP, class NODEDATA>
 class Tree
 {
   public:
 
-    /** define our tree node type as NODE */
-    typedef Node<SETUP, N_CHILDREN, NODEDATA, T> NODE;
+    typedef typename SETUP::T T;
+    /** Define our tree node type as NODE. */
+    typedef Node<SETUP, NODEDATA> NODE;
+
+    static const int N_CHILDREN = 2;
+
+
 
     /** data shared by all tree nodes */
     SETUP setup;
@@ -864,9 +868,7 @@ class Tree
     /** Mutex for exclusive right to modify treelist and morton2node. */ 
     Lock lock;
 
-    /**
-     *  Local tree nodes (complete binary tree) in the top-down order.
-     */ 
+    /** Local tree nodes in the top-down order. */ 
     vector<NODE*> treelist;
 
     /** 
@@ -875,11 +877,11 @@ class Tree
      */
     unordered_map<size_t, NODE*> morton2node;
 
-    /** constructor */
+    /** (Default) constructor */
     Tree() : n( 0 ), m( 0 ), depth( 0 )
     {};
 
-    /** Destructor */
+    /** (Default) destructor */
     ~Tree()
     {
       //printf( "~Tree() shared treelist.size() %lu treequeue.size() %lu\n",
@@ -1457,10 +1459,7 @@ class Tree
     }; /** end DependencyCleanUp() */
 
 
-    /**
-     *  @brief Summarize all events in each level. 
-     *
-     */ 
+    /** @brief Summarize all events in each level. */ 
     template<typename SUMMARY>
     void Summary( SUMMARY &summary )
     {
@@ -1468,9 +1467,9 @@ class Tree
 
       for ( std::size_t l = 0; l <= depth; l ++ )
       {
-        std::size_t n_nodes = 1 << l;
+        size_t n_nodes = 1 << l;
         auto level_beg = treelist.begin() + n_nodes - 1;
-        for ( std::size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
+        for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
           auto *node = *(level_beg + node_ind);
           summary( node );

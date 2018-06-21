@@ -20,8 +20,8 @@
 
 
 
-#ifndef HFAMILY_HPP
-#define HFAMILY_HPP
+#ifndef IGOFMM_HPP
+#define IGOFMM_HPP
 
 #include <assert.h>
 #include <typeinfo>
@@ -44,7 +44,6 @@
 
 #define USE_OLD_ULV 0
 
-
 using namespace std;
 using namespace hmlp;
 
@@ -53,7 +52,7 @@ using namespace hmlp;
 
 namespace hmlp
 {
-namespace hfamily
+namespace gofmm
 {
 
 
@@ -1372,7 +1371,7 @@ class SetupFactorTask : public Task
  *  @brief This task creates an hierarchical tree view for a matrix.
  */
 template<typename NODE>
-class TreeViewTask : public Task
+class SolverTreeViewTask : public Task
 {
   public:
 
@@ -1829,7 +1828,7 @@ void Solve( TREE &tree, Data<T> &input )
   /** copy input to output */
   auto *output = new Data<T>( input.row(), input.col() );
 
-  TreeViewTask<NODE>             treeviewtask;
+  SolverTreeViewTask<NODE>             treeviewtask;
   MatrixPermuteTask<true,  NODE> forwardpermutetask;
   MatrixPermuteTask<false, NODE> inversepermutetask;
   /** Sherman-Morrison-Woodbury */
@@ -2268,7 +2267,7 @@ void ComputeError( TREE &tree, T lambda,
       rhs( i, j ) = potentials( i, j ) + lambda * weights( i, j );
 
   /** potentials = inv( K + lambda * I ) * potentials */
-  hfamily::Solve( tree, rhs );
+  Solve( tree, rhs );
 
 
   /** Compute relative error = sqrt( err / nrm2 ) for each rhs */
@@ -2322,7 +2321,7 @@ void ComputeError( TREE &tree, T lambda,
 
 
 
-}; // end namespace hfamily
-}; // end namespace hmlp
+}; /** end namespace gofmm */
+}; /** end namespace hmlp */
 
-#endif // define HFAMILY_HPP
+#endif /** define IGOFMM_HPP */
