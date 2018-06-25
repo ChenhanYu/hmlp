@@ -171,19 +171,19 @@ class Event
 
   private:
 
-    size_t tid;
+    size_t tid = 0;
 
 	  string label;
 
-    double flops;
+    double flops = 0.0;
 
-    double mops;
+    double mops = 0.0;
 
-    double beg;
+    double beg = 0.0;
 
-    double end;
+    double end = 0.0;
 
-    double sec;
+    double sec = 0.0;
 
 }; /** end class Event */
 
@@ -217,7 +217,6 @@ class Task
 
     void Submit();
 
-		void SetAsBackGround();
 
     virtual void Set( string user_name, void (*user_function)(Task*), void *user_arg );
 
@@ -407,149 +406,18 @@ class RecvTask : public ListenerTask
 };
 
 
-//class ListenerTask : public Task
-//{
-//	public:
-//
-//    /** Global communicator used between listeners */
-//    mpi::Comm comm;
-//
-//
-//		ListenerTask() : Task()
-//		{
-//			name = string( "BackGround" );
-//      /** Asuume computation bound */
-//      cost = 9999.9;
-//			/** High priority */
-//      priority = true;
-//		};
-//
-//    void Execute( Worker* user_worker )
-//    {
-//      /** MPI */
-//      int size; mpi::Comm_size( comm, &size );
-//      int rank; mpi::Comm_rank( comm, &rank );
-//      
-//      /** Iprobe flag */
-//      int probe_flag = 0;
-//
-//      /** Iprobe and Recv status */
-//      mpi::Status status;
-//
-//      /** Keep probing for messages */
-//      while ( 1 ) 
-//      {
-//        /** Info from mpi::Status */
-//        int recv_src;
-//        int recv_tag;
-//        int recv_cnt;
-//
-//        /** Only one thread will probe and recv message at a time */
-//        #pragma omp critical
-//        {
-//          mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &probe_flag, &status );
-//
-//          /** If receive any message, then handle it */
-//          if ( probe_flag )
-//          {
-//            /** Extract info from status */
-//            recv_src = status.MPI_SOURCE;
-//            recv_tag = status.MPI_TAG;
-//
-//
-//
-//
-//            if ( this->IsBackGroundMessage( recv_tag ) )
-//            {
-//              /** get I object count */
-//              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
-//
-//              /** recv (typeless) I by matching SOURCE and TAG */
-//              I.resize( recv_cnt );
-//              mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
-//                  this->GetRecvComm(), &status );
-//
-//              /** blocking Probe the message that contains J */
-//              mpi::Probe( recv_src, recv_tag + 128, this->GetComm(), &status );
-//
-//              /** get J object count */
-//              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
-//
-//              /** recv (typeless) J by matching SOURCE and TAG */
-//              J.resize( recv_cnt );
-//              mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag + 128, 
-//                  this->GetRecvComm(), &status );
-//            }
-//            else probe_flag = 0;
-//          }
-//        } /** end pragma omp critical */
-//
-//        /** Nonblocking consensus for termination */
-//        if ( *do_terminate ) 
-//        {
-//          /** While reaching both global and local concensus, exit */
-//          if ( this->IsTimeToTerminate() ) break;
-//        }
-//
-//      } /** end while ( 1 ) */
-//
-//    };
-//
-//  private:
-//
-//    bool IsTimeToTerminate()
-//    {
-//      #pragma omp critical
-//      {
-//        if ( !has_Ibarrier )
-//        {
-//          mpi::Ibarrier( this->GetComm(), &request );
-//          has_Ibarrier = true;
-//        }
-//
-//        if ( !test_flag )
-//        {
-//          /** while test_flag = 1, MPI request got reset */
-//          mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
-//          if ( test_flag ) do_terminate = true;
-//        }
-//      }
-//
-//      /** if this is not the mater thread, just return the flag */
-//      return do_terminate;
-//
-//    }; /** end IsTimeToTerminate() */
-//
-//
-//}; /** end class ListenerTask */
-//
 
-
-
-
-
-
-/**
- *  @brief Recursive task sibmission (base case)
- */ 
+/** @brief Recursive task sibmission (base case). */ 
 template<typename ARG>
-void RecuTaskSubmit( ARG *arg )
-{
-	/** do nothing */
-}; /** end RecuDistTaskSubmit() */
+void RecuTaskSubmit( ARG *arg ) { /** do nothing */ }; 
 
 
-
-
-/**
- *  @brief Recursive task sibmission
- */ 
+/** @brief Recursive task sibmission. */ 
 template<typename ARG, typename TASK, typename... Args>
 void RecuTaskSubmit( ARG *arg, TASK& dummy, Args&... dummyargs )
 {
   using NULLTASK = NULLTask<ARG>;
-
-  /** create the first normal task is it is not a NULLTask */
+  /** Create the first normal task is it is not a NULLTask. */
   if ( !std::is_same<NULLTASK, TASK>::value )
   {
     auto task = new TASK();
@@ -557,35 +425,22 @@ void RecuTaskSubmit( ARG *arg, TASK& dummy, Args&... dummyargs )
     task->Set( arg );
     task->DependencyAnalysis();
   }
-
   /** now recurs to Args&... args, types are deduced automatically */
   RecuTaskSubmit( arg, dummyargs... );
-
 }; /** end RecuDistTaskSubmit() */
 
 
-
-
-/**
- *  @brief Recursive task sibmission (base case)
- */ 
+/** @brief Recursive task execution (base case). */ 
 template<typename ARG>
-void RecuTaskExecute( ARG *arg )
-{
-}; /** end RecuDistTaskSubmit() */
+void RecuTaskExecute( ARG *arg ) { /** do nothing */ }; 
 
 
-
-
-/**
- *  @brief Recursive task sibmission
- */ 
+/** @brief Recursive task execution. */ 
 template<typename ARG, typename TASK, typename... Args>
 void RecuTaskExecute( ARG *arg, TASK& dummy, Args&... dummyargs )
 {
   using NULLTASK = NULLTask<ARG>;
-
-  /** create the first normal task is it is not a NULLTask */
+  /** Create the first normal task is it is not a NULLTask */
   if ( !std::is_same<NULLTASK, TASK>::value )
   {
     auto *task = new TASK();
@@ -593,10 +448,8 @@ void RecuTaskExecute( ARG *arg, TASK& dummy, Args&... dummyargs )
     task->Execute( NULL );
     delete task;
   }
-
-  /** now recurs to Args&... args, types are deduced automatically */
+  /** Now recurs to Args&... args, types are deduced automatically */
   RecuTaskExecute( arg, dummyargs... );
-
 }; /** end RecuDistTaskExecute() */
 
 
@@ -719,12 +572,6 @@ class Scheduler
     void NewListenerTask( ListenerTask *task );
 
     Task *TryDispatchFromNestedQueue();
-
-		void SetBackGroundTask( Task *task );
-
-	  Task *GetBackGroundTask();
-
-		void UnsetBackGroundTask();
 
     void Summary();
 

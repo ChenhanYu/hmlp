@@ -15,8 +15,6 @@ class SPDMatrixMPISupport
 {
   public:
 
-    virtual void BackGroundProcess( bool *do_terminate ) {};
-
     virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm ) {};
 
     virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status ) {};

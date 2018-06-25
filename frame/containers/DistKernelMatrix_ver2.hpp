@@ -59,7 +59,8 @@ template<typename T, typename TP, class Allocator = std::allocator<TP> >
 /**
  *  @brief
  */ 
-class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
+class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, 
+                              public ReadWrite
 {
   public:
 
@@ -230,10 +231,8 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
     }; /** end operator () */
 
 
-    virtual Data<T> PairwiseDistances
-    ( 
-      const vector<size_t> &I, const vector<size_t> &J 
-    )
+    virtual Data<T> PairwiseDistances( const vector<size_t> &I, 
+                                       const vector<size_t> &J )
     {
       /** 
        *  Return values
@@ -244,10 +243,10 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
        */
       Data<T> KIJ( I.size(), J.size() );
 
-			/** Early return */
+			/** Early return. */
 			if ( !I.size() || !J.size() ) return KIJ;
 
-			/** Request for coordinates */
+			/** Request for coordinates. */
       Data<TP> itargets, jsources;
 
       if ( is_symmetric ) 
@@ -261,17 +260,13 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
         jsources = sources_user( all_dimensions, J );
       }
 
-      /** Compute inner products */
-      xgemm
-      (
-        "Transpose", "No-transpose",
-        I.size(), J.size(), d,
+      /** Compute inner products. */
+      xgemm ( "Transpose", "No-transpose", I.size(), J.size(), d,
         -2.0, itargets.data(),   itargets.row(),
               jsources.data(),   jsources.row(),
-         0.0,      KIJ.data(),        KIJ.row()
-      );
+         0.0,      KIJ.data(),        KIJ.row() );
 
-      /** Compute square norms */
+      /** Compute square norms. */
       vector<T> itargets_sqnorms( I.size() );
       vector<T> jsources_sqnorms( J.size() );
 
@@ -304,12 +299,9 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 
     /** (Overwrittable) ESSENTIAL: return K( I, J ) */
-    virtual Data<T> operator() ( vector<size_t> &I, vector<size_t> &J )
+    virtual Data<T> operator() ( vector<size_t> &I, 
+                                 vector<size_t> &J )
     {
-      /** MPI */
-      int size = this->Comm_size();
-      int rank = this->Comm_rank();
-
       /** 
        *  Return values
        * 
@@ -351,12 +343,9 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
             if ( KIJ[ i ] < 1E-6 ) KIJ[ i ] = 0.0;
             else
             {
-              if ( d == 1 ) KIJ[ i ] = sqrt( KIJ[ i ] );
+              if      ( d == 1 ) KIJ[ i ] = sqrt( KIJ[ i ] );
               else if ( d == 2 ) KIJ[ i ] = std::log( KIJ[ i ] ) / 2;
-              else         
-              {
-                KIJ[ i ] = 1 / sqrt( KIJ[ i ] );
-              }
+              else               KIJ[ i ] = 1 / sqrt( KIJ[ i ] );
             }
           }
           break;
@@ -379,23 +368,14 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
         }
       }
 
-
-      //size_t nnz = 0;
-      //for ( size_t i = 0; i < KIJ.size(); i ++ )
-      //  if ( KIJ[ i ] ) nnz ++;
-      //if ( !nnz ) printf( "Zero matrix %lu %lu\n", KIJ.row(), KIJ.col() ); fflush( stdout ) ;
-
-
       /** There should be no NAN or INF value. */
       //assert( !KIJ.HasIllegalValue() );
-
-
-      /** return submatrix KIJ */
+      /** Return submatrix KIJ. */
       return KIJ;
     };
 
 
-    /** Get the diagonal of KII, i.e. diag( K( I, I ) ) */
+    /** Get the diagonal of KII, i.e. diag( K( I, I ) ). */
     Data<T> Diagonal( vector<size_t> &I )
     {
       /** MPI */
@@ -741,11 +721,6 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     }; /** end RedistributeWithPartner() */
 
-    virtual void BackGroundProcess( bool *do_terminate )
-    {
-    };
-
-
 
   private:
 
@@ -753,27 +728,19 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
     size_t d = 0;
 
-    /** Legacy data structure */
+    /** Legacy data structure for kernel matrices. */
     kernel_s<T> kernel;
 
     /** Pointers to user provided data points in block cylic distribution. */
     DistData<STAR, CBLK, TP> *sources = NULL;
     DistData<STAR, CBLK, TP> *targets = NULL;
 
-    //DistData<STAR, CIDS, TP> *sources_cids = NULL;
-    //DistData<STAR, CIDS, TP> *targets_cids = NULL;
-
+    /** For local essential tree [LET]. */
     DistData<STAR, USER, TP> sources_user;
     DistData<STAR, USER, TP> targets_user;
 
     /** [ 0, 1, ..., d-1 ] */
     vector<size_t> all_dimensions;
-
-		//Cache1D<4096, 256, T> cache;
-		//Cache1D<256, 256, T> cache;
-
-    /** Tempoaray */
-
 
     /** Temporary buffer for P2P exchange during tree partition */
     Data<TP> dynamic_sources;

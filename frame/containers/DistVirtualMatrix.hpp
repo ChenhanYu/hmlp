@@ -98,16 +98,10 @@ class DistVirtualMatrix : public mpi::MPIObject
     };
 
     /** return number of columns */
-    virtual size_t row() 
-    { 
-      return m; 
-    };
+    virtual size_t row() { return m; };
 
     /** return number of rows */
-    virtual size_t col() 
-    { 
-      return n; 
-    };
+    virtual size_t col() { return n; };
 
 
 
@@ -228,155 +222,155 @@ class DistVirtualMatrix : public mpi::MPIObject
     /**
      *  (Servers) wait and receive message from any client
      */ 
-    virtual void BackGroundProcess( bool *do_terminate )
-    {
-      /** MPI */
-      int size = this->Comm_size();
-      int rank = this->Comm_rank();
-
-      /** Iprobe flag */
-      int probe_flag = 0;
-
-      /** Iprobe and Recv status */
-      mpi::Status status;
-
-      /** buffer for I and J */
-      size_t buff_size = 1048576;
-      std::vector<size_t> I;
-      std::vector<size_t> J;
-
-      /** reserve space for I and J */
-      I.reserve( buff_size );
-      J.reserve( buff_size );
-
-
-      /** keep probing for messages */
-      while ( 1 ) 
-      {
-        /** info from mpi::Status */
-        int recv_src;
-        int recv_tag;
-        int recv_cnt;
-
-        /** only on thread will probe and recv message at a time */
-        #pragma omp critical
-        {
-          mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, 
-              this->GetRecvComm(), &probe_flag, &status );
-
-          /** if receive any message, then handle it */
-          if ( probe_flag )
-          {
-            /** extract info from status */
-            recv_src = status.MPI_SOURCE;
-            recv_tag = status.MPI_TAG;
-
-            if ( this->IsBackGroundMessage( recv_tag ) )
-            {
-              /** get I object count */
-              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
-
-              /** recv (typeless) I by matching SOURCE and TAG */
-              I.resize( recv_cnt );
-              mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
-                  this->GetRecvComm(), &status );
-
-              /** blocking Probe the message that contains J */
-              mpi::Probe( recv_src, recv_tag + 128, this->GetComm(), &status );
-
-              /** get J object count */
-              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
-
-              /** recv (typeless) J by matching SOURCE and TAG */
-              J.resize( recv_cnt );
-              mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag + 128, 
-                  this->GetRecvComm(), &status );
-            }
-            else probe_flag = 0;
-          }
-        } /** end pragma omp critical */
-
-
-        if ( probe_flag )
-        {
-          /** 
-           *  this invoke the operator () to get K( I, J )  
-           *
-           *  notice that operator () can invoke MPI routines,
-           *  but limited to one-sided routines without blocking.
-           */
-          auto KIJ = (*this)( I, J );
-
-          /** blocking send */
-          mpi::Send( KIJ.data(), KIJ.size(), recv_src, 
-              ( recv_tag - 128 ), this->GetComm() );
-
-          /** reset flag to zero */
-          probe_flag = 0;
-        }
-
-
-        /** nonblocking consensus for termination */
-        if ( *do_terminate ) 
-        {
-          /** while reaching both global and local concensus, exit */
-          if ( this->IsTimeToTerminate() ) break;
-        }
-
-      } /** end while ( 1 ) */
-
-    }; /** end BackGroundProcess() */
-
-
-
-
-
-
-
-    /** check if this tag is for one-sided communication */
-    bool IsBackGroundMessage( int tag )
-    {
-      return ( tag >= background_tag_offset );
-
-    }; /** end IsBackGroundMessage() */
-
-
-    /**
-     *  @brief The termination flag is reset by the first omp thread
-     *         who execute the function.
-     */ 
-    void ResetTerminationFlag()
-    {
-      test_flag = 0;
-      has_Ibarrier = false;
-      do_terminate = false;
-
-    }; /** end ResetTerminationFlag () */
-
-
-    bool IsTimeToTerminate()
-    {
-      #pragma omp critical
-      {
-        if ( !has_Ibarrier )
-        {
-          mpi::Ibarrier( this->GetComm(), &request );
-          has_Ibarrier = true;
-        }
-
-        if ( !test_flag )
-        {
-          /** while test_flag = 1, MPI request got reset */
-          mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
-          if ( test_flag ) do_terminate = true;
-        }
-      }
-
-      /** if this is not the mater thread, just return the flag */
-      return do_terminate;
-
-    }; /** end IsTimeToTerminate() */
-
+//    virtual void BackGroundProcess( bool *do_terminate )
+//    {
+//      /** MPI */
+//      int size = this->Comm_size();
+//      int rank = this->Comm_rank();
+//
+//      /** Iprobe flag */
+//      int probe_flag = 0;
+//
+//      /** Iprobe and Recv status */
+//      mpi::Status status;
+//
+//      /** buffer for I and J */
+//      size_t buff_size = 1048576;
+//      std::vector<size_t> I;
+//      std::vector<size_t> J;
+//
+//      /** reserve space for I and J */
+//      I.reserve( buff_size );
+//      J.reserve( buff_size );
+//
+//
+//      /** keep probing for messages */
+//      while ( 1 ) 
+//      {
+//        /** info from mpi::Status */
+//        int recv_src;
+//        int recv_tag;
+//        int recv_cnt;
+//
+//        /** only on thread will probe and recv message at a time */
+//        #pragma omp critical
+//        {
+//          mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, 
+//              this->GetRecvComm(), &probe_flag, &status );
+//
+//          /** if receive any message, then handle it */
+//          if ( probe_flag )
+//          {
+//            /** extract info from status */
+//            recv_src = status.MPI_SOURCE;
+//            recv_tag = status.MPI_TAG;
+//
+//            if ( this->IsBackGroundMessage( recv_tag ) )
+//            {
+//              /** get I object count */
+//              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+//
+//              /** recv (typeless) I by matching SOURCE and TAG */
+//              I.resize( recv_cnt );
+//              mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
+//                  this->GetRecvComm(), &status );
+//
+//              /** blocking Probe the message that contains J */
+//              mpi::Probe( recv_src, recv_tag + 128, this->GetComm(), &status );
+//
+//              /** get J object count */
+//              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
+//
+//              /** recv (typeless) J by matching SOURCE and TAG */
+//              J.resize( recv_cnt );
+//              mpi::Recv( J.data(), recv_cnt, recv_src, recv_tag + 128, 
+//                  this->GetRecvComm(), &status );
+//            }
+//            else probe_flag = 0;
+//          }
+//        } /** end pragma omp critical */
+//
+//
+//        if ( probe_flag )
+//        {
+//          /** 
+//           *  this invoke the operator () to get K( I, J )  
+//           *
+//           *  notice that operator () can invoke MPI routines,
+//           *  but limited to one-sided routines without blocking.
+//           */
+//          auto KIJ = (*this)( I, J );
+//
+//          /** blocking send */
+//          mpi::Send( KIJ.data(), KIJ.size(), recv_src, 
+//              ( recv_tag - 128 ), this->GetComm() );
+//
+//          /** reset flag to zero */
+//          probe_flag = 0;
+//        }
+//
+//
+//        /** nonblocking consensus for termination */
+//        if ( *do_terminate ) 
+//        {
+//          /** while reaching both global and local concensus, exit */
+//          if ( this->IsTimeToTerminate() ) break;
+//        }
+//
+//      } /** end while ( 1 ) */
+//
+//    }; /** end BackGroundProcess() */
+//
+//
+//
+//
+//
+//
+//
+//    /** check if this tag is for one-sided communication */
+//    bool IsBackGroundMessage( int tag )
+//    {
+//      return ( tag >= background_tag_offset );
+//
+//    }; /** end IsBackGroundMessage() */
+//
+//
+//    /**
+//     *  @brief The termination flag is reset by the first omp thread
+//     *         who execute the function.
+//     */ 
+//    void ResetTerminationFlag()
+//    {
+//      test_flag = 0;
+//      has_Ibarrier = false;
+//      do_terminate = false;
+//
+//    }; /** end ResetTerminationFlag () */
+//
+//
+//    bool IsTimeToTerminate()
+//    {
+//      #pragma omp critical
+//      {
+//        if ( !has_Ibarrier )
+//        {
+//          mpi::Ibarrier( this->GetComm(), &request );
+//          has_Ibarrier = true;
+//        }
+//
+//        if ( !test_flag )
+//        {
+//          /** while test_flag = 1, MPI request got reset */
+//          mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
+//          if ( test_flag ) do_terminate = true;
+//        }
+//      }
+//
+//      /** if this is not the mater thread, just return the flag */
+//      return do_terminate;
+//
+//    }; /** end IsTimeToTerminate() */
+//
 
   private:
 

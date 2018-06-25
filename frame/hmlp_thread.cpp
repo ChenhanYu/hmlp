@@ -559,15 +559,14 @@ tuple<size_t, size_t, size_t> Worker::DistributeOver1DThreads(
 
 #ifdef HMLP_HAVE_RUNTIME
 
-void Worker::SetDevice( class Device *device )
-{
-  this->device = device;
-};
 
-class Device* Worker::GetDevice()
-{
-  return device;
-};
+
+/** Assign a device to this worker. */
+void Worker::SetDevice( class Device *device ) { this->device = device; };
+
+
+/** Return the device pointer attached to the worker. */
+class Device* Worker::GetDevice() { return device; };
 
 
 /**
@@ -597,7 +596,7 @@ bool Worker::Execute( Task *batch )
     task = task->next;
   }
 
-  /** Wait for all tasks in the batch to terminate */
+  /** Wait for all tasks in the batch to terminate. */
   WaitExecute();
 
   task = batch;
@@ -609,13 +608,11 @@ bool Worker::Execute( Task *batch )
     task = task->next;
   }
 
-  // WaitPrefetch
-
+  /** Set my current executing task to NULL. */
   current_task = NULL;
 
   return true;
-
-}; // end bool Worker::Execute()
+}; /** end Worker::Execute() */
 
 
 
@@ -623,15 +620,9 @@ bool Worker::Execute( Task *batch )
  *  @brief Pose a barrier if the device owned by this worker
  *         is performing asybchronous execution.
  */ 
-void Worker::WaitExecute()
-{
-  if ( device ) device->waitexecute();
-};
+void Worker::WaitExecute() { if ( device ) device->waitexecute(); };
 
-float Worker::EstimateCost( class Task * task )
-{
-  return task->cost;
-};
+float Worker::EstimateCost( class Task *task ) { return task->cost; };
 
 #endif /** ifdef HMLP_HAVE_RUNTIME */
 

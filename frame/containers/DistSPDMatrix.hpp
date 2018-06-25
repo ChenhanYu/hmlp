@@ -4,19 +4,22 @@
 #include <containers/DistData.hpp>
 #include <containers/DistVirtualMatrix.hpp>
 
+using namespace std;
 
 namespace hmlp
 {
 
 
 template<typename T>
-class DistSPDMatrix : public DistData<STAR, CBLK, T>, DistVirtualMatrix<T>
+class DistSPDMatrix : public DistData<STAR, CBLK, T>, 
+                      public DistVirtualMatrix<T>
 {
   public:
 
 
 	  DistSPDMatrix( size_t m, size_t n, mpi::Comm comm ) 
-			: DistData<STAR, CBLK, T>( m, n, comm ), DistVirtualMatrix<T>( m, n, comm )
+			: DistData<STAR, CBLK, T>( m, n, comm ), 
+        DistVirtualMatrix<T>( m, n, comm )
 		{
 		};
 

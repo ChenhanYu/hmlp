@@ -1563,7 +1563,7 @@ void Apply( NODE *node )
   if ( node->isleaf )
   {
     auto lambda = setup->lambda;
-    auto &amap = node->lids;
+    auto &amap = node->gids;
     /** evaluate the diagonal block */
     auto Kaa = K( amap, amap );
     /** apply the regularization */
@@ -1939,7 +1939,7 @@ void Factorize( NODE *node )
   if ( node->isleaf )
   {
     auto lambda = setup->lambda;
-    auto &amap = node->lids;
+    auto &amap = node->gids;
 
     /** Evaluate the diagonal block. */
     Data<T> Kaa = K( amap, amap );

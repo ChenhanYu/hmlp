@@ -911,7 +911,6 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 
 
-      //printf( "Enter DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
 
 
       

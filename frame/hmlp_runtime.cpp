@@ -36,7 +36,7 @@
 // #define DEBUG_SCHEDULER 1
 
 using namespace std;
-
+using namespace hmlp;
 
 
 struct 
@@ -155,9 +155,7 @@ static RunTime rt;
 //  return GetRange( HMLP_SCHEDULE_DEFAULT, beg, end, nb, 0, 1 );
 //};
 
-/**
- *  @brief Lock
- */ 
+/** @brief Shared-memory lock. */ 
 Lock::Lock()
 {
 #ifdef USE_PTHREAD_RUNTIME
@@ -168,7 +166,7 @@ Lock::Lock()
 #else
   omp_init_lock( &lock );
 #endif
-};
+}; /** end Lock::Lock() */
 
 Lock::~Lock()
 {
@@ -248,35 +246,17 @@ void Event::Terminate()
   sec = end - beg;
 };
 
-double Event::GetBegin()
-{
-  return beg;
-};
+double Event::GetBegin() { return beg; };
 
-double Event::GetEnd()
-{
-  return end;
-};
+double Event::GetEnd() { return end; };
 
-double Event::GetDuration()
-{
-  return sec;
-};
+double Event::GetDuration() { return sec; };
 
-double Event::GetFlops()
-{
-  return flops;
-};
+double Event::GetFlops() { return flops; };
 
-double Event::GetMops()
-{
-  return mops;
-};
+double Event::GetMops() { return mops; };
 
-double Event::GflopsPerSecond()
-{
-  return ( flops / sec ) / 1E+9;
-};
+double Event::GflopsPerSecond() { return ( flops / sec ) / 1E+9; };
 
 
 void Event::Print()
@@ -331,9 +311,7 @@ void Event::MatlabTimeline( FILE *pFile )
 
 
 
-/**
- *  @brief Task
- */ 
+/** @brief (Default) Task constructor. */ 
 Task::Task()
 {
   /** Whether this is a nested task? */
@@ -342,22 +320,16 @@ Task::Task()
   created_by = omp_get_thread_num();
   status = ALLOCATED;
   status = NOTREADY;
-};
+}; /** end Task::Task() */
 
-Task::~Task()
-{};
+/** @brief (Default) Task destructor. */ 
+Task::~Task() {};
 
-TaskStatus Task::GetStatus()
-{
-  return status;
-};
+TaskStatus Task::GetStatus() { return status; };
 
-void Task::SetStatus( TaskStatus next_status )
-{
-  this->status = next_status;
-};
+void Task::SetStatus( TaskStatus next_status ) { this->status = next_status; };
 
-/** Change the status of all tasks in the batch */
+/** Change the status of all tasks in the batch. */
 void Task::SetBatchStatus( TaskStatus next_status )
 {
   auto *task = this;
@@ -369,25 +341,14 @@ void Task::SetBatchStatus( TaskStatus next_status )
   }
 };
 
-void Task::Submit()
-{
-  rt.scheduler->NewTask( this );
-};
+/** @brief Ask the runtime to create an normal task in file. */
+void Task::Submit() { rt.scheduler->NewTask( this ); };
 
-void MessageTask::Submit()
-{
-  rt.scheduler->NewMessageTask( this );
-};
+/** @brief Ask the runtime to create an message task in file. */
+void MessageTask::Submit() { rt.scheduler->NewMessageTask( this ); };
 
-void ListenerTask::Submit()
-{
-  rt.scheduler->NewListenerTask( this );
-};
-
-void Task::SetAsBackGround()
-{
-	rt.scheduler->SetBackGroundTask( this );
-};
+/** @brief Ask the runtime to create a listener task in file. */
+void ListenerTask::Submit() { rt.scheduler->NewListenerTask( this ); };
 
 /** virtual function */
 void Task::Set( string user_name, void (*user_function)(Task*), void *user_arg )
@@ -398,9 +359,7 @@ void Task::Set( string user_name, void (*user_function)(Task*), void *user_arg )
   status = NOTREADY;
 };
 
-/** virtual function */
-void Task::Prefetch( Worker *user_worker ) {};
-
+/** @brief Update the my outgoing and children's incoming edges. */
 void Task::DependenciesUpdate()
 {
   while ( out.size() )
@@ -410,12 +369,10 @@ void Task::DependenciesUpdate()
     child->task_lock.Acquire();
     {
       child->n_dependencies_remaining --;
-
       //std::cout << child->n_dependencies_remaining << std::endl;
-
       if ( !child->n_dependencies_remaining && child->status == NOTREADY )
       {
-        /** Nested tasks may not carry the worker pointer */
+        /** Nested tasks may not carry the worker pointer. */
         if ( worker ) child->Enqueue( worker->tid );
         else          child->Enqueue();
       }
@@ -424,15 +381,10 @@ void Task::DependenciesUpdate()
     out.pop_front();
   }
   status = DONE;
-};
+}; /** end Task::DependenciesUpdate() */
 
 
-//void Task::Execute( Worker *user_worker )
-//{
-//  function( this );
-//};
-
-
+/** @brief TODO: redo the nested tasks. */
 bool Task::ContextSwitchToNextTask( Worker *user_worker )
 {
   auto *task = next;
@@ -450,22 +402,18 @@ bool Task::ContextSwitchToNextTask( Worker *user_worker )
 };
 
 
-/** virtual function */
+/** All virtual functions. */
 void Task::GetEventRecord() {};
-
-/** virtual function */
+void Task::Prefetch( Worker *user_worker ) {};
 void Task::DependencyAnalysis() {};
 
-/** try to dispatch the task if there is no dependency left */
+/** Try to dispatch the task if there is no dependency left */
 void Task::TryEnqueue()
 {
   if ( status == NOTREADY && !n_dependencies_remaining ) Enqueue();
 };
 
-void Task::Enqueue()
-{
-  Enqueue( 0 );
-};
+void Task::Enqueue() { Enqueue( 0 ); };
 
 void Task::ForceEnqueue( size_t tid )
 {
@@ -496,30 +444,27 @@ void Task::Enqueue( size_t tid )
   float earliest_t = -1.0;
   int assignment = -1;
 
-  /** dispatch to mpi queue */
+  /** Dispatch to MPI queue. */
   if ( has_mpi_routines )
   {
     rt.scheduler->mpi_queue_lock.Acquire();
     {
-      /** change status */
+      /** Change status to "QUEUED". */
       status = QUEUED;
-      if ( priority )
-        rt.scheduler->mpi_queue.push_front( this );
-      else
-        rt.scheduler->mpi_queue.push_back( this );
+      if ( priority ) rt.scheduler->mpi_queue.push_front( this );
+      else            rt.scheduler->mpi_queue.push_back( this );
     }
     rt.scheduler->mpi_queue_lock.Release();
-
-    /** finish and return without further going down */
+    /** Finish and return without further going down. */
     return;
   }
 
-  /** Dispatch to nested queue if in the epoch session */
+  /** Dispatch to nested queue if created in the epoch session. */
   if ( is_created_in_epoch_session )
   {
     rt.scheduler->nested_queue_lock[ created_by ].Acquire();
     {
-      /** Change status. */
+      /** Change status to "QUEUED". */
       status = QUEUED;
       if ( priority )
         rt.scheduler->nested_queue[ created_by ].push_front( this );
@@ -527,23 +472,11 @@ void Task::Enqueue( size_t tid )
         rt.scheduler->nested_queue[ created_by ].push_back( this );
     }
     rt.scheduler->nested_queue_lock[ created_by ].Release();
-
-    //rt.scheduler->nested_queue_lock.Acquire();
-    //{
-    //  /** Change status. */
-    //  status = QUEUED;
-    //  if ( priority )
-    //    rt.scheduler->nested_queue.push_front( this );
-    //  else
-    //    rt.scheduler->nested_queue.push_back( this );
-    //}
-    //rt.scheduler->nested_queue_lock.Release();
-
-    /** finish and return without further going down */
+    /** Finish and return without further going down. */
     return;
   };
 
-  /** determine which work the task should go to using HEFT policy */
+  /** Determine which worker the task should go to using HEFT policy. */
   for ( int p = 0; p < rt.n_worker; p ++ )
   {
     int i = ( tid + p ) % rt.n_worker;
@@ -556,17 +489,18 @@ void Task::Enqueue( size_t tid )
     }
   }
 
-  /** dispatch to normal ready queue */
+  /** Dispatch to normal ready queue. */
   rt.scheduler->ready_queue_lock[ assignment ].Acquire();
   {
     float cost = rt.workers[ assignment ].EstimateCost( this );
+    /** Change status to "QUEUED". */
     status = QUEUED;
     if ( priority )
       rt.scheduler->ready_queue[ assignment ].push_front( this );
     else
       rt.scheduler->ready_queue[ assignment ].push_back( this );
 
-    /** update the remaining time */
+    /** Update the remaining time. */
     rt.scheduler->time_remaining[ assignment ] += cost; 
   }
   rt.scheduler->ready_queue_lock[ assignment ].Release();
@@ -574,23 +508,17 @@ void Task::Enqueue( size_t tid )
 }; /** end Task::Enqueue() */
 
 
-/**
- *  @brief 
- **/ 
+/** @brief **/ 
 void Task::CallBackWhileWaiting()
 {
   rt.ExecuteNestedTasksWhileWaiting( this );
 }; /** end CallBackWhileWaiting() */
 
 
-/**
- *  @breief ReadWrite
- */ 
+/** @breief (Default) ReadWrite constructor. */ 
 ReadWrite::ReadWrite() {};
 
-/**
- *  @brief 
- **/ 
+/** @brief **/ 
 void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
 {
   if ( type == R || type == RW )
@@ -628,10 +556,7 @@ void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
 }; /** end ReadWrite::DependencyAnalysis() */
 
 
-/**
- *
- *
- */ 
+/** Clean both read and write sets. */
 void ReadWrite::DependencyCleanUp()
 {
   read.clear();
@@ -639,9 +564,7 @@ void ReadWrite::DependencyCleanUp()
 }; /** end DependencyCleanUp() */
 
 
-/**
- *  @breief MatrixReadWrite
- */ 
+/** @breief MatrixReadWrite */ 
 MatrixReadWrite::MatrixReadWrite() {};
 
 
@@ -656,10 +579,8 @@ void MatrixReadWrite::Setup( size_t m, size_t n )
 };
 
 
-bool MatrixReadWrite::HasBeenSetup()
-{
-  return has_been_setup;
-}
+bool MatrixReadWrite::HasBeenSetup() { return has_been_setup; };
+
 
 void MatrixReadWrite::DependencyAnalysis( 
     size_t i, size_t j, ReadWriteType type, Task *task )
@@ -678,19 +599,17 @@ void MatrixReadWrite::DependencyCleanUp()
 
 
 
-/**
- *  @brief Scheduler
- */ 
+/**  @brief (Default) Scheduler constructor. */ 
 Scheduler::Scheduler() : timeline_tag( 500 )
 {
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler()\n" );
 #endif
-  /** MPI support (use a private COMM_WORLD) */
+  /** MPI support (use a private COMM_WORLD). */
   mpi::Comm_dup( MPI_COMM_WORLD, &comm );
   int size; mpi::Comm_size( comm, &size );
   listener_tasklist.resize( size );
-  /** Set now as the begining of the time table */
+  /** Set now as the begining of the time table. */
   timeline_beg = omp_get_wtime();
 };
 
@@ -899,34 +818,25 @@ void Scheduler::ReportRemainingTime()
 };
 
 
-/**
- *  @brief Add an direct edge (dependency) from source to target. 
- *         That is to say, target depends on source.
- *
- */ 
+/** @brief Add an direct edge (dependency) from source to target. */ 
 void Scheduler::DependencyAdd( Task *source, Task *target )
 {
-  /** Avoid self-loop */
+  /** Avoid self-loop. */
   if ( source == target ) return;
-
-  /** Update the source list */
+  /** Update the source out-going edges. */
   source->task_lock.Acquire();
   {
     source->out.push_back( target );
   }
   source->task_lock.Release();
-
-  /** Update the target list */
+  /** Update the target incoming edges. */
   target->task_lock.Acquire();
   {
     target->in.push_back( source );
-    if ( source->GetStatus() != DONE )
-    {
-      target->n_dependencies_remaining ++;
-    }
+    /** Only increase the dependency count for incompleted tasks. */
+    if ( source->GetStatus() != DONE ) target->n_dependencies_remaining ++;
   }
   target->task_lock.Release();
-
 }; /** end Scheduler::DependencyAdd() */
 
 
@@ -1018,22 +928,6 @@ Task *Scheduler::TryDispatchFromNestedQueue()
 
 
 
-void Scheduler::SetBackGroundTask( Task *task )
-{
-  this->UnsetBackGroundTask();	
-	this->bgtask = task;
-};
-
-Task *Scheduler::GetBackGroundTask()
-{
-	return bgtask;
-};
-
-void Scheduler::UnsetBackGroundTask()
-{
-	if ( this->bgtask ) delete this->bgtask;
-	this->bgtask = NULL;
-};
 
 bool Scheduler::IsTimeToExit( int tid )
 {
@@ -1214,50 +1108,21 @@ void* Scheduler::EntryPoint( void* arg )
   printf( "pthreadid %d\n", me->tid );
 #endif
 
-	/** if there is a background task, tid = 1 is assigned to it */
-  //if ( me->tid < rt.n_background_worker )
-	//{
-	//	auto *bgtask = scheduler->GetBackGroundTask();
-	//	if ( bgtask ) 
-  //  {
-	//		/** only use 1 thread */
-  //    omp_set_num_threads( 1 );
-
-  //    /** update my termination time to infinite */
-  //    scheduler->ready_queue_lock[ me->tid ].Acquire();
-  //    {
-  //      scheduler->time_remaining[ me->tid ] = 999999.9;
-  //    }
-  //    scheduler->ready_queue_lock[ me->tid ].Release();
-
-  //    //printf( "Enter background task\n" ); fflush( stdout );
-  //    me->Execute( bgtask );
-  //    //printf( "Exit  background task\n" ); fflush( stdout );
-  //  }
-	//}
-
-
-  /** Prepare listeners */
+  /** Prepare listeners (half of total workers). */
   if ( ( me->tid % 2 ) && true )
   {
-    /** Update my termination time to infinite */
+    /** Update my termination time to infinite. */
     scheduler->ready_queue_lock[ me->tid ].Acquire();
     {
       scheduler->time_remaining[ me->tid ] = numeric_limits<float>::max();
     }
     scheduler->ready_queue_lock[ me->tid ].Release();
-    /** Enter listening mode */
+    /** Enter listening mode. */
     scheduler->Listen( me );
   }
 
 
-
-
-
-
-
-
-  /** Start to consume all tasks in this epoch session */
+  /** Start to consume all tasks in this epoch session. */
   while ( 1 )
   {
     Task *batch = NULL;
@@ -1291,7 +1156,7 @@ void* Scheduler::EntryPoint( void* arg )
       if ( scheduler->ConsumeTasks( me, nested_task, true ) ) idle = 0;
     }
 
-    /** Try to steal from others */
+    /** Try to steal from others. */
     if ( idle > 10 )
     {
       int max_remaining_task = 0;
@@ -1326,13 +1191,13 @@ void* Scheduler::EntryPoint( void* arg )
 };
 
 
-/** Listen asynchronous incoming MPI messages */
+/** Listen for asynchronous incoming MPI messages. */
 void Scheduler::Listen( Worker *worker )
 {
   int size; mpi::Comm_size( comm, &size );
   int rank; mpi::Comm_rank( comm, &rank );
 
-  /** Buffer for recv_sizes, recv_skels, recv_buffs */
+  /** Buffer space for recv_sizes, recv_skels, recv_buffs. */
   vector<size_t> recv_sizes;
   vector<size_t> recv_skels;
 
@@ -1340,12 +1205,12 @@ void Scheduler::Listen( Worker *worker )
   int probe_flag = 0;
   mpi::Status status;
 
-  /** Keep probing for messages */
+  /** Keep probing for incoming messages. */
   while ( 1 ) 
   {
     ListenerTask *task = NULL;
 
-    /** Only one thread will probe and recv message at a time */
+    /** Only one thread will probe and recv message at a time. */
     #pragma omp critical
     {
       mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &probe_flag, &status );
@@ -1440,7 +1305,7 @@ void Scheduler::Listen( Worker *worker )
     }
   }
 
-};
+}; /** end Scheduler::Listen() */
 
 
 

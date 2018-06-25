@@ -93,21 +93,21 @@ struct centersplit
 
   inline vector<vector<size_t> > operator()
   ( 
-    vector<size_t>& gids, vector<size_t>& lids
+    vector<size_t>& gids
   ) const 
   {
     assert( N_SPLIT == 2 );
 
     Data<T> &X = *Coordinate;
     size_t d = X.row();
-    size_t n = lids.size();
+    size_t n = gids.size();
 
     T rcx0 = 0.0, rx01 = 0.0;
     size_t x0, x1;
     vector<vector<size_t> > split( N_SPLIT );
 
 
-    vector<T> centroid = combinatorics::Mean( d, n, X, lids );
+    vector<T> centroid = combinatorics::Mean( d, n, X, gids );
     vector<T> direction( d );
     vector<T> projection( n, 0.0 );
 
@@ -119,12 +119,10 @@ struct centersplit
       T rcx = 0.0;
       for ( int p = 0; p < d; p ++ )
       {
-        T tmp = X[ lids[ i ] * d + p ] - centroid[ p ];
+        T tmp = X[ gids[ i ] * d + p ] - centroid[ p ];
         rcx += tmp * tmp;
-        //printf( "%5.2lf ", X[ lids[ i ] * d + p  ] );
       }
       //printf( "\n" );
-      //printf( "rcx %lf rcx0 %lf lids %d\n", rcx, rcx0, (int)lids[ i ] );
       if ( rcx > rcx0 ) 
       {
         rcx0 = rcx;
@@ -132,12 +130,6 @@ struct centersplit
       }
     }
 
-    //printf( "After Farest\n" );
-    //for ( int p = 0; p < d; p ++ )
-    //{
-    //  printf( "%5.2lf ", X[ lids[ x0 ] * d + p ] );
-    //}
-    //printf( "\n" );
 
     // Compute the farest point x1 from x0
     for ( int i = 0; i < n; i ++ )
@@ -145,7 +137,7 @@ struct centersplit
       T rxx = 0.0;
       for ( int p = 0; p < d; p ++ )
       {
-        T tmp = X[ lids[ i ] * d + p ] - X[ lids[ x0 ] * d + p ];
+        T tmp = X[ gids[ i ] * d + p ] - X[ gids[ x0 ] * d + p ];
         rxx += tmp * tmp;
       }
       if ( rxx > rx01 )
@@ -158,14 +150,14 @@ struct centersplit
     // Compute direction
     for ( int p = 0; p < d; p ++ )
     {
-      direction[ p ] = X[ lids[ x1 ] * d + p ] - X[ lids[ x0 ] * d + p ];
+      direction[ p ] = X[ gids[ x1 ] * d + p ] - X[ gids[ x0 ] * d + p ];
     }
 
     // Compute projection
     projection.resize( n, 0.0 );
     for ( int i = 0; i < n; i ++ )
       for ( int p = 0; p < d; p ++ )
-        projection[ i ] += X[ lids[ i ] * d + p ] * direction[ p ];
+        projection[ i ] += X[ gids[ i ] * d + p ] * direction[ p ];
 
     /** Parallel median search */
     T median;
@@ -225,31 +217,19 @@ struct centersplit
 template<int N_SPLIT, typename T>
 struct randomsplit
 {
-  // closure
-  hmlp::Data<T> *Coordinate;
+  Data<T> *Coordinate = NULL;
 
-  inline std::vector<std::vector<std::size_t> > operator()
-  ( 
-    std::vector<std::size_t>& gids,
-    std::vector<std::size_t>& lids
-  ) const 
+  inline vector<vector<size_t> > operator() ( vector<size_t>& gids ) const 
   {
-    std::vector<std::vector<std::size_t> > split( N_SPLIT );
-
+    vector<vector<size_t> > split( N_SPLIT );
     return split;
   };
 
-  inline std::vector<std::vector<size_t> > operator()
-  ( 
-    std::vector<size_t>& gids,
-    hmlp::mpi::Comm comm
-  ) const 
+  inline vector<vector<size_t> > operator() ( vector<size_t>& gids, mpi::Comm comm ) const 
   {
-    std::vector<std::vector<size_t> > split( N_SPLIT );
-
+    vector<vector<size_t> > split( N_SPLIT );
     return split;
   };
-
 };
 
 
@@ -363,30 +343,6 @@ void MergeNeighbors
 
 
 
-//template<typename BACKGROUND>
-//class BackGroundTask : public hmlp::Task
-//{
-//	public:
-//
-//		BACKGROUND *bg = NULL;
-//
-//		BackGroundTask( BACKGROUND *user_bg ) : hmlp::Task()
-//		{
-//			bg = user_bg;
-//			name = std::string( "BackGround" );
-//      /** asuume computation bound */
-//      cost = 9999.9;
-//			/** high priority */
-//      priority = true;
-//		};
-//
-//    void Execute( Worker* user_worker )
-//    {
-//      bg->BackGroundProcess( &(user_worker->scheduler->do_terminate) );
-//    };
-//
-//}; /** end class BusyGroundTask */
-//
 
 template<typename NODE>
 class DistSplitTask : public Task
@@ -769,8 +725,6 @@ class Node : public tree::Node<SETUP, NODEDATA>
 			{
 				//printf( "Split(): n %lu  \n", this->n ); fflush( stdout );
 
-				/** TODO: deprecate lids */
-			  this->lids = this->gids;
         tree::Node<SETUP, NODEDATA>::Split<true>( 0 );
 
 		  } /** end if ( child ) */
@@ -1281,9 +1235,6 @@ class Tree
 
       /** allocate distributed tree nodes in advance */
       AllocateNodes( gids );
-
-      //auto *bgtask = new BackGroundTask<SETUP>( &(this->setup) );
-      //bgtask->SetAsBackGround();
 
       DependencyCleanUp();
       //hmlp_redistribute_workers( 

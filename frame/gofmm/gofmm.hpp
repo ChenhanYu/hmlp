@@ -117,12 +117,9 @@ class Configuration
 {
 	public:
 
-		Configuration
-	  ( 
-		  DistanceMetric metric,
+		Configuration( DistanceMetric metric,
 		  size_t n, size_t m, size_t k, size_t s, 
-			T stol, T budget 
-	  ) 
+			T stol, T budget ) 
 		{
 			this->metric = metric;
 			this->n = n;
@@ -134,6 +131,8 @@ class Configuration
 		};
 
 		DistanceMetric MetricType() { return metric; };
+
+    bool IsSymmetric() { return issymmetric; };
 
 		size_t ProblemSize() { return n; };
 
@@ -149,25 +148,28 @@ class Configuration
 
 	private:
 
-		/** (default) metric type */
+		/** (Default) metric type. */
 		DistanceMetric metric = ANGLE_DISTANCE;
 
-		/** (default) problem size */
+    /** (Default) whether the matrix is symmetric. */
+    bool issymmetric = true;
+
+		/** (Default) problem size. */
 		size_t n = 0;
 
-		/** (default) maximum leaf node size */
+		/** (Default) maximum leaf node size. */
 		size_t m = 64;
 
-		/** (default) number of neighbors */
+		/** (Default) number of neighbors. */
 		size_t k = 32;
 
-		/** (default) maximum off-diagonal ranks */
+		/** (Default) maximum off-diagonal ranks. */
 		size_t s = 64;
 
-		/** (default) user tolerance */
+		/** (Default) user error tolerance. */
 		T stol = 1E-3;
 
-		/** (default) user computation budget */
+		/** (Default) user computation budget. */
 		T budget = 0.03;
 
 }; /** end class Configuration */
@@ -228,7 +230,8 @@ class NodeData : public Factor<T>
 {
   public:
 
-    NodeData() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
+    /** (Default) constructor. */
+    NodeData() {};
 
     /** The OpenMP (or pthread) lock that grants exclusive right. */
     Lock lock;
@@ -236,18 +239,8 @@ class NodeData : public Factor<T>
     /** Whether the node can be compressed (with skel and proj). */
     bool isskel = false;
 
-    /** Whether the coefficient mathx has been computed. */
-    bool hasproj = false;
-
     /** Skeleton gids (subset of gids). */
     vector<size_t> skels;
-
-    /** (Buffer) nsamples row gids, and sl + sr skeleton columns of children. */
-    vector<size_t> candidate_rows;
-    vector<size_t> candidate_cols;
-
-    /** (Buffer) nsamples-by-(sl+sr) submatrix of K */
-    Data<T> KIJ; 
 
     /** 2s, pivoting order of GEQP3 (or GEQP4). */
     vector<int> jpvt;
@@ -260,6 +253,13 @@ class NodeData : public Factor<T>
 
     /* Pruning neighbors ids. */
     unordered_set<size_t> pnids; 
+
+    /** (Buffer) nsamples row gids, and sl + sr skeleton columns of children. */
+    vector<size_t> candidate_rows;
+    vector<size_t> candidate_cols;
+
+    /** (Buffer) nsamples-by-(sl+sr) submatrix of K. */
+    Data<T> KIJ; 
 
     /** (Buffer) skeleton weights and potentials. */
     Data<T> w_skel;
@@ -278,17 +278,11 @@ class NodeData : public Factor<T>
     Data<T> NearKab;
     Data<T> FarKab;
 
-    /** Interaction list (in morton) per MPI rank */
+    /** Interaction list (in morton) per MPI rank. */
     set<int> NearDependents;
     set<int> FarDependents;
 
-
-    /** Kij evaluation counter counters */
-    pair<double, size_t> kij_skel;
-    pair<double, size_t> kij_s2s;
-    pair<double, size_t> kij_s2n;
-
-    /** many timers */
+    /** Timers */
     double merge_neighbors_time = 0.0;
     double id_time = 0.0;
 
@@ -297,7 +291,6 @@ class NodeData : public Factor<T>
     Event updateweight;
     Event skeltoskel;
     Event skeltonode;
-
     Event s2s;
     Event s2n;
 
@@ -335,18 +328,8 @@ class TreeViewTask : public Task
       event.Set( label + name, flops, mops );
     };
 
-    /** preorder dependencies (with a single source node) */
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( R, this );
-
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( RW, this );
-        arg->rchild->DependencyAnalysis( RW, this );
-      }
-      this->TryEnqueue();
-    };
+    /** Preorder dependencies (with a single source node). */
+    void DependencyAnalysis() { arg->DependOnParent( this ); };
 
     void Execute( Worker* user_worker )
     {
@@ -428,10 +411,6 @@ class Summary
 
     deque<Statistic> merge_neighbors_time;
 
-    deque<Statistic> kij_skel;
-
-    deque<Statistic> kij_skel_time;
-
     deque<Statistic> id_time;
 
     deque<Statistic> skeletonize;
@@ -456,36 +435,16 @@ class Summary
       {
         rank.push_back( hmlp::Statistic() );
         merge_neighbors_time.push_back( hmlp::Statistic() );
-        kij_skel.push_back( hmlp::Statistic() );
-        kij_skel_time.push_back( hmlp::Statistic() );
         id_time.push_back( hmlp::Statistic() );
         skeletonize.push_back( hmlp::Statistic() );
         updateweight.push_back( hmlp::Statistic() );
-        /** s2s */
-        s2s_kij_t.push_back( hmlp::Statistic() );
-        s2s_t.push_back( hmlp::Statistic() );
-        s2s_gfp.push_back( hmlp::Statistic() );
-        /** s2n */
-        s2n_kij_t.push_back( hmlp::Statistic() );
-        s2n_t.push_back( hmlp::Statistic() );
-        s2n_gfp.push_back( hmlp::Statistic() );
       }
 
       rank[ node->l ].Update( (double)node->data.skels.size() );
       merge_neighbors_time[ node->l ].Update( node->data.merge_neighbors_time );
-      kij_skel[ node->l ].Update( (double)node->data.kij_skel.second );
-      kij_skel_time[ node->l ].Update( node->data.kij_skel.first );
       id_time[ node->l ].Update( node->data.id_time );
       skeletonize[ node->l ].Update( node->data.skeletonize.GetDuration() );
       updateweight[ node->l ].Update( node->data.updateweight.GetDuration() );
-
-      s2s_kij_t[ node->l ].Update( node->data.kij_s2s.first         );
-      s2s_t    [ node->l ].Update( node->data.s2s.GetDuration()     );
-      s2s_gfp  [ node->l ].Update( node->data.s2s.GflopsPerSecond() );
-
-      s2n_kij_t[ node->l ].Update( node->data.kij_s2n.first         );
-      s2n_t    [ node->l ].Update( node->data.s2s.GetDuration()     );
-      s2n_gfp  [ node->l ].Update( node->data.s2s.GflopsPerSecond() );
 
 #ifdef DUMP_ANALYSIS_DATA
       if ( node->parent )
@@ -514,8 +473,6 @@ class Summary
         printf( "@SUMMARY\n" );
         printf( "level %2lu, ", l ); rank[ l ].Print();
         //printf( "merge_neig: " ); merge_neighbors_time[ l ].Print();
-        //printf( "kij_skel_n: " ); kij_skel[ l ].Print();
-        //printf( "kij_skel_t: " ); kij_skel_time[ l ].Print();
         //printf( "id_t:       " ); id_time[ l ].Print();
         //printf( "skel_t:     " ); skeletonize[ l ].Print();
         //printf( "... ... ...\n" );
@@ -529,7 +486,7 @@ class Summary
       }
     };
 
-}; // end class Summary
+}; /** end class Summary */
 
 
 
@@ -760,11 +717,8 @@ struct centersplit
   size_t n_centroid_samples = 1;
   
 
-	/** overload the operator */
-  vector<vector<size_t>> operator()
-  ( 
-    vector<size_t>& gids, vector<size_t>& lids
-  ) const 
+	/** Overload the operator (). */
+  vector<vector<size_t>> operator() ( vector<size_t>& gids ) const 
   {
     /** all assertions */
     assert( N_SPLIT == 2 );
@@ -780,44 +734,31 @@ struct centersplit
 
     beg = omp_get_wtime();
 
-    /** diagonal entries */
-    Data<T> DII( n, (size_t)1 ), DCC( n_centroid_samples, (size_t)1 );
 
-
-    //printf( "shared enter DII\n" ); fflush( stdout );
-
-    /** Collecting DII */
-    DII = K.Diagonal( gids );
-
-
-    //printf( "shared after DII\n" ); fflush( stdout );
-
-
-    /** collecting column samples of K and DCC */
-    std::vector<size_t> column_samples( n_centroid_samples );
+    /** Collecting diagonal entries DII. */
+    auto DII = K.Diagonal( gids );
+    /** Collecting column samples of K. */
+    vector<size_t> column_samples( n_centroid_samples );
     for ( size_t j = 0; j < n_centroid_samples; j ++ )
-    {
       /** just use the first few gids */
       column_samples[ j ] = gids[ j ];
-      //DCC[ j ] = K( column_samples[ j ], column_samples[ j ] );
-    }
-    DCC = K.Diagonal( column_samples );
+    /** Collecting diagonal entries DCC. */
+    auto DCC = K.Diagonal( column_samples );
 
-    /** Collecting KIC */
-    Data<T> KIC = K( gids, column_samples );
+    /** Collecting sampled columns KIC. */
+    auto KIC = K( gids, column_samples );
 
     if ( metric == GEOMETRY_DISTANCE ) 
     {
       KIC = K.PairwiseDistances( gids, column_samples );
     }
 
-
-    /** compute d2c (distance to the approximate centroid) */
+    /** Compute all distances to the approximate centroid. */
     temp = AllToCentroid( metric, DII, KIC, DCC );
 
     d2c_time = omp_get_wtime() - beg;
 
-    /** find f2c (farthest from center) */
+    /** Find the farthest index from center. */
     auto itf2c = std::max_element( temp.begin(), temp.end() );
     auto idf2c = std::distance( temp.begin(), itf2c );
     auto gidf2c = gids[ idf2c ];
@@ -825,8 +766,8 @@ struct centersplit
     /** compute the all2f (distance to farthest point) */
     beg = omp_get_wtime();
 
-    /** collecting KIP */
-    std::vector<size_t> P( 1, gidf2c );
+    /** Collecting KIP */
+    vector<size_t> P( 1, gidf2c );
     auto KIP = K( gids, P );
 
     if ( metric == GEOMETRY_DISTANCE ) 
@@ -959,11 +900,7 @@ struct randomsplit
   DistanceMetric metric = ANGLE_DISTANCE;
 
 	/** overload with the operator */
-  inline vector<vector<size_t> > operator()
-  ( 
-    vector<size_t>& gids,
-    vector<size_t>& lids
-  ) const 
+  inline vector<vector<size_t> > operator() ( vector<size_t>& gids ) const 
   {
     assert( Kptr && ( N_SPLIT == 2 ) );
 
@@ -1680,11 +1617,7 @@ class InterpolateTask : public Task
       event.Set( label + name, flops, mops );
     };
 
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( RW, this );
-      this->TryEnqueue();
-    }
+    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
 
     void Execute( Worker* user_worker )
     {
@@ -1984,19 +1917,7 @@ class GetSkeletonMatrixTask : public Task
       priority = true;
     };
 
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( RW, this );
-
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( R, this );
-        arg->rchild->DependencyAnalysis( R, this );
-      }
-
-      /** Try to enqueue if there is no dependency */
-      this->TryEnqueue();
-    };
+    void DependencyAnalysis() { arg->DependOnChildren( this ); };
 
     void Execute( Worker* user_worker )
     {
@@ -2121,7 +2042,7 @@ void Skeletonize2( NODE *node )
     data.isskel = true;
   }
   
-  /** Relabel skeletions with the real lids */
+  /** Relabel skeletions with the real gids. */
   for ( size_t i = 0; i < skels.size(); i ++ )
   {
     skels[ i ] = candidate_cols[ skels[ i ] ];
@@ -2190,11 +2111,7 @@ class SkeletonizeTask2 : public Task
       arg->data.skeletonize = event;
     };
 
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( RW, this );
-      this->TryEnqueue();
-    };
+    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
 
     void Execute( Worker* user_worker )
     {
@@ -2485,19 +2402,7 @@ class UpdateWeightsTask : public Task
       arg->data.updateweight = event;
     };
 
-    void DependencyAnalysis()
-    {
-      if ( arg->parent ) 
-      {
-        arg->DependencyAnalysis( W, this );
-      }
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( R, this );
-        arg->rchild->DependencyAnalysis( R, this );
-      }
-      this->TryEnqueue();
-    };
+    void DependencyAnalysis() { arg->DependOnChildren( this ); };
 
     void Execute( Worker* user_worker )
     {
@@ -2530,7 +2435,7 @@ void SkeletonsToSkeletons( NODE *node )
 
   if ( !node->parent || !node->data.isskel ) return;
 
-  double beg, kij_s2s_time = 0.0, u_skel_time, s2s_time;
+  double beg, u_skel_time, s2s_time;
 
   auto *FarNodes = &node->FarNodes;
   if ( NNPRUNE ) FarNodes = &node->NNFarNodes;
@@ -2605,27 +2510,13 @@ void SkeletonsToSkeletons( NODE *node )
 					node->treelist_id, node->l ); fflush( stdout );
 
       /** get submatrix Kad from K */
-      beg = omp_get_wtime();
       auto Kab = K( amap, bmap );
-      kij_s2s_time = omp_get_wtime() - beg;
-
-      /** update kij counter */
-      data.kij_s2s.first  += kij_s2s_time;
-      data.kij_s2s.second += amap.size() * bmap.size();
-
-      //printf( "%lu (%lu, %lu), ", (*it)->treelist_id, w_skel.row(), w_skel.num() );
-      //fflush( stdout );
-      xgemm
-      (
-        "N", "N",
-        u_skel.row(), u_skel.col(), w_skel.row(),
+      xgemm( "N", "N", u_skel.row(), u_skel.col(), w_skel.row(),
         1.0, Kab.data(),       Kab.row(),
              w_skel.data(), w_skel.row(),
-        1.0, u_skel.data(), u_skel.row()
-      );
+        1.0, u_skel.data(), u_skel.row() );
     }
   }
-  s2s_time = omp_get_wtime() - beg;
 
 
   //if ( u_skel.HasIllegalValue() )
@@ -2736,7 +2627,7 @@ void SkeletonsToNodes( NODE *node )
   fflush( stdout );
 #endif
 
-  double beg, kij_s2n_time = 0.0, u_leaf_time, before_writeback_time, after_writeback_time;
+  double beg, u_leaf_time, before_writeback_time, after_writeback_time;
 
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
@@ -2960,23 +2851,7 @@ class SkeletonsToNodesTask : public Task
       arg->data.s2n = event;
     };
 
-    void DependencyAnalysis()
-    {
-      if ( arg->parent )
-      {
-        arg->DependencyAnalysis( R, this );
-      }
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( RW, this );
-        arg->rchild->DependencyAnalysis( RW, this );
-      }
-      else
-      {
-        arg->DependencyAnalysis( W, this );
-      }
-      this->TryEnqueue();
-    };
+    void DependencyAnalysis() { arg->DependOnParent( this ); };
 
     void Execute( Worker* user_worker )
     {
@@ -2999,7 +2874,7 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
 {
   assert( node->isleaf );
 
-  double beg, kij_s2n_time = 0.0, u_leaf_time, before_writeback_time, after_writeback_time;
+  double beg, u_leaf_time, before_writeback_time, after_writeback_time;
 
   /** gather shared data and create reference */
   auto &K = *node->setup->K;
@@ -3084,37 +2959,23 @@ void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
         auto wb = (*it)->data.w_leaf;
 
         /** evaluate the submatrix */
-        beg = omp_get_wtime();
         auto Kab = K( amap, bmap );
-        kij_s2n_time = omp_get_wtime() - beg;
-
-        /** update kij counter */
-        data.kij_s2n.first  += kij_s2n_time;
-        data.kij_s2n.second += amap.size() * bmap.size();
 
         if ( wb.size() )
         {
           /** ( Kab * wb )' = wb' * Kab' */
-          xgemm
-          (
-            "N", "N",
-            u_leaf.row(), u_leaf.col(), wb.row(),
+          xgemm( "N", "N", u_leaf.row(), u_leaf.col(), wb.row(),
             1.0,    Kab.data(),    Kab.row(),
                      wb.data(),     wb.row(),
-            1.0, u_leaf.data(), u_leaf.row()
-          );
+            1.0, u_leaf.data(), u_leaf.row());
         }
         else
         {
           View<T> W = (*it)->data.w_view;
-          xgemm
-          (
-            "N", "N",
-            u_leaf.row(), u_leaf.col(), W.row(),
+          xgemm( "N", "N", u_leaf.row(), u_leaf.col(), W.row(),
             1.0,    Kab.data(),    Kab.row(),
                       W.data(),       W.ld(),
-            1.0, u_leaf.data(), u_leaf.row()
-          );
+            1.0, u_leaf.data(), u_leaf.row() );
         }
       }
       itptr ++;
@@ -3134,13 +2995,13 @@ class LeavesToLeavesTask : public Task
 
     size_t itbeg;
 
-	size_t itend;
+	  size_t itend;
 
     void Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "l2l" );
-      label = std::to_string( arg->treelist_id );
+      label = to_string( arg->treelist_id );
 
       /** TODO: fill in flops and mops */
       //--------------------------------------
@@ -3430,18 +3291,13 @@ class CacheNearNodesTask : public Task
       {
         n += (*it)->gids.size();
       }
-
       /** Kab */
       flops += K.flops( m, n );
-
       /** setup the event */
       event.Set( label + name, flops, mops );
     };
 
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-    };
+    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
 
     void Execute( Worker* user_worker )
     {
@@ -3453,7 +3309,7 @@ class CacheNearNodesTask : public Task
       auto &K = *node->setup->K;
       auto &data = node->data;
       auto &amap = node->gids;
-      std::vector<size_t> bmap;
+      vector<size_t> bmap;
       for ( auto it = NearNodes->begin(); it != NearNodes->end(); it ++ )
       {
         bmap.insert( bmap.end(), (*it)->gids.begin(), (*it)->gids.end() );
@@ -4310,12 +4166,11 @@ tree::Tree<
 
   /** original order of the matrix */
   beg = omp_get_wtime();
-  vector<size_t> gids( n ), lids( n );
+  vector<size_t> gids( n );
   #pragma omp parallel for
   for ( auto i = 0; i < n; i ++ ) 
   {
     gids[ i ] = i;
-    lids[ i ] = i;
   }
   other_time += omp_get_wtime() - beg;
 
@@ -4339,7 +4194,7 @@ tree::Tree<
   {
     gofmm::KNNTask<3, RKDTNODE, T> KNNtask;
     NN = rkdt.template AllNearestNeighbor<SORTED>
-         ( n_iter, k, 10, gids, lids, initNN, KNNtask );
+         ( n_iter, k, 10, gids, initNN, KNNtask );
   }
   else
   {
@@ -4387,7 +4242,7 @@ tree::Tree<
     printf( "TreePartitioning ...\n" ); fflush( stdout );
   }
   beg = omp_get_wtime();
-  tree.TreePartition( gids, lids );
+  tree.TreePartition( gids );
   tree_time = omp_get_wtime() - beg;
 
 
@@ -4416,7 +4271,8 @@ tree::Tree<
   tree.DependencyCleanUp();
   printf( "Dependency clean up\n" ); fflush( stdout );
   tree.TraverseLeafs<true>( NEARSAMPLEStask );
-  hmlp_run();
+  tree.ExecuteAllTasks();
+  //hmlp_run();
   printf( "Finish NearSamplesTask\n" ); fflush( stdout );
   SymmetrizeNearInteractions( tree );
   printf( "Finish SymmetrizeNearInteractions\n" ); fflush( stdout );

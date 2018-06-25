@@ -220,12 +220,7 @@ class Setup : public mpitree::Setup<SPLITTER, T>
 {
   public:
 
-		//void BackGroundProcess( bool *do_terminate )
-		//{
-		//	K->BackGroundProcess( do_terminate );
-		//};
-
-    /** humber of neighbors */
+    /** Number of neighbors */
     size_t k = 32;
 
     /** maximum rank */
@@ -489,7 +484,7 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
   /** Shared-memory operator */
   inline vector<vector<size_t> > operator()
   ( 
-    vector<size_t>& gids, vector<size_t>& lids
+    vector<size_t>& gids
   ) const 
   {
     /** MPI */
@@ -500,7 +495,7 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     //    global_rank, gids.size() ); fflush( stdout );
 
     return gofmm::centersplit<SPDMATRIX, N_SPLIT, T>::operator()
-      ( gids, lids );
+      ( gids );
   };
 
 
@@ -746,10 +741,10 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
   /** Shared-memory operator */
   inline vector<vector<size_t> > operator()
   ( 
-    vector<size_t>& gids, vector<size_t>& lids
+    vector<size_t>& gids
   ) const 
   {
-    return gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator() ( gids, lids );
+    return gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator() ( gids );
   };
 
   /** Distributed operator */
@@ -1832,7 +1827,6 @@ void DistSkeletonsToNodes( NODE *node )
   auto &w = *node->setup->w;
 
   /** Gather per node data and create reference */
-  auto &lids = node->lids;
   auto &data = node->data;
   auto &proj = data.proj;
   auto &skels = data.skels;
@@ -5778,28 +5772,28 @@ pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm c
   /** Bcast gid and its parameter to all MPI processes. */
   K.BcastColumns( I, gid % comm_size, comm );
 
-	Data<T> Kab;
+	Data<T> Kab = K( J, I );
 
-	bool do_terminate = false;
-
-	/** use omp sections to create client-server */
-  #pragma omp parallel sections
-	{
-		/** client thread */
-    #pragma omp section
-		{
-			Kab = K( J, I );
-			do_terminate = true;
-		}
-		/** server thread */
-    #pragma omp section
-		{
-			K.BackGroundProcess( &do_terminate );
-		}
-
-	}; /** end omp parallel sections */
-
-  Kab.resize( I.size(), J.size() );
+//	bool do_terminate = false;
+//
+//	/** use omp sections to create client-server */
+//  #pragma omp parallel sections
+//	{
+//		/** client thread */
+//    #pragma omp section
+//		{
+//			Kab = K( J, I );
+//			do_terminate = true;
+//		}
+//		/** server thread */
+//    #pragma omp section
+//		{
+//			K.BackGroundProcess( &do_terminate );
+//		}
+//
+//	}; /** end omp parallel sections */
+//
+//  Kab.resize( I.size(), J.size() );
 
   auto loc_exact = potentials;
   auto glb_exact = potentials;

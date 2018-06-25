@@ -60,7 +60,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 {
   public:
 
-    /** symmetric kernel matrix */
+    /** Symmetric kernel matrices. */
     template<typename TINDEX>
     KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, 
         Data<T> &sources )
@@ -70,11 +70,11 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
       this->is_symmetric = true;
       this->d = d;
       this->kernel = kernel;
-      /** compute square 2-norms for Euclidian family */
+      /** Compute square 2-norms for Euclidian family. */
       ComputeSquare2Norm();
     };
 
-    /** unsymmetric kernel matrix */
+    /** Non-symmetric kernel matrices. */
     template<typename TINDEX>
     KernelMatrix( TINDEX m, TINDEX n, TINDEX d, kernel_s<T> &kernel, 
         Data<T> &sources, Data<T> &targets )
@@ -83,7 +83,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
       this->is_symmetric = false;
       this->d = d;
       this->kernel = kernel;
-      /** compute square 2-norms for Euclidian family */
+      /** Compute square 2-norms for Euclidian family. */
       ComputeSquare2Norm();
     };
 

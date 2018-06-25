@@ -116,7 +116,7 @@ bool ContainAnyMortonID( set<size_t> &querys, size_t morton )
 
 
 /**
- *  @brief Permuate the order of gids and lids of each inner node
+ *  @brief Permuate the order of gids for each internal node
  *         to the order of leaf nodes.
  *         
  *  @para  The parallelism is exploited in the task level using a
@@ -151,19 +151,14 @@ class IndexPermuteTask : public Task
 
     void Execute( Worker* user_worker )
     {
-      auto &lids = arg->lids; 
       auto &gids = arg->gids; 
       auto *lchild = arg->lchild;
       auto *rchild = arg->rchild;
       
       if ( !arg->isleaf )
       {
-        auto &llids = lchild->lids;
-        auto &rlids = rchild->lids;
         auto &lgids = lchild->gids;
         auto &rgids = rchild->gids;
-        lids = llids;
-        lids.insert( lids.end(), rlids.begin(), rlids.end() );
         gids = lgids;
         gids.insert( gids.end(), rgids.begin(), rgids.end() );
       }
@@ -230,7 +225,7 @@ struct centersplit
 
   inline vector<vector<size_t> > operator()
   ( 
-    vector<size_t>& gids, vector<size_t>& lids
+    vector<size_t>& gids
   ) const 
   {
     assert( N_SPLIT == 2 );
@@ -256,15 +251,11 @@ struct centersplit
       T rcx = 0.0;
       for ( size_t p = 0; p < d; p ++ )
       {
-        //T tmp = X[ lids[ i ] * d + p ] - centroid[ p ];
         T tmp = X( p, gids[ i ] ) - centroid[ p ];
 
 
         rcx += tmp * tmp;
-        //printf( "%5.2lf ", X[ lids[ i ] * d + p  ] );
       }
-      //printf( "\n" );
-      //printf( "rcx %lf rcx0 %lf lids %d\n", rcx, rcx0, (int)lids[ i ] );
       if ( rcx > rcx0 ) 
       {
         rcx0 = rcx;
@@ -275,7 +266,6 @@ struct centersplit
     //printf( "After Farest\n" );
     //for ( int p = 0; p < d; p ++ )
     //{
-    //  printf( "%5.2lf ", X[ lids[ x0 ] * d + p ] );
     //}
     //printf( "\n" );
 
@@ -285,7 +275,6 @@ struct centersplit
       T rxx = 0.0;
       for ( size_t p = 0; p < d; p ++ )
       {
-        //T tmp = X[ lids[ i ] * d + p ] - X[ lids[ x0 ] * d + p ];
 				T tmp = X( p, gids[ i ] ) - X( p, gids[ x0 ] );
         rxx += tmp * tmp;
       }
@@ -296,18 +285,11 @@ struct centersplit
       }
     }
 
-    //printf( "After Nearest\n" );
-    //for ( int p = 0; p < d; p ++ )
-    //{
-    //  printf( "%5.2lf ", X[ lids[ x1 ] * d + p ] );
-    //}
-    //printf( "\n" );
 
 
     // Compute direction
     for ( size_t p = 0; p < d; p ++ )
     {
-      //direction[ p ] = X[ lids[ x1 ] * d + p ] - X[ lids[ x0 ] * d + p ];
       direction[ p ] = X( p, gids[ x1 ] ) - X( p, gids[ x0 ] );
     }
 
@@ -325,7 +307,6 @@ struct centersplit
     projection.resize( n, 0.0 );
     for ( size_t i = 0; i < n; i ++ )
       for ( size_t p = 0; p < d; p ++ )
-        //projection[ i ] += X[ lids[ i ] * d + p ] * direction[ p ];
         projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
 
     //printf( "After Projetion\n" );
@@ -404,24 +385,24 @@ struct centersplit
 template<int N_SPLIT, typename T>
 struct randomsplit
 {
-  // closure
-  hmlp::Data<T> *Coordinate;
+  /** Closure */
+  Data<T> *Coordinate = NULL;
 
   inline vector<vector<size_t> > operator()
   ( 
-    vector<size_t>& gids, vector<size_t>& lids
+    vector<size_t>& gids
   ) const 
   {
     assert( N_SPLIT == 2 );
 
-    hmlp::Data<T> &X = *Coordinate;
+    Data<T> &X = *Coordinate;
     size_t d = X.row();
     size_t n = gids.size();
 
-    std::vector<std::vector<std::size_t> > split( N_SPLIT );
+    vector<vector<size_t> > split( N_SPLIT );
 
-    std::vector<T> direction( d );
-    std::vector<T> projection( n, 0.0 );
+    vector<T> direction( d );
+    vector<T> projection( n, 0.0 );
 
     // Compute random direction
     static std::default_random_engine generator;
@@ -435,7 +416,6 @@ struct randomsplit
     projection.resize( n, 0.0 );
     for ( size_t i = 0; i < n; i ++ )
       for ( size_t p = 0; p < d; p ++ )
-        //projection[ i ] += X[ lids[ i ] * d + p ] * direction[ p ];
         projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
 
 
@@ -507,7 +487,6 @@ class Node : public ReadWrite
       this->morton = 0;
       this->treelist_id = 0;
       this->gids.resize( n );
-      this->lids.resize( n );
       this->isleaf = false;
       this->parent = parent;
       this->lchild = NULL;
@@ -517,7 +496,7 @@ class Node : public ReadWrite
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
-    Node( SETUP *setup, int n, int l, vector<size_t> gids, vector<size_t> lids,
+    Node( SETUP *setup, int n, int l, vector<size_t> gids,
       Node *parent, unordered_map<size_t, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
@@ -526,7 +505,6 @@ class Node : public ReadWrite
       this->morton = 0;
       this->treelist_id = 0;
       this->gids = gids;
-      this->lids = lids;
       this->isleaf = false;
       this->parent = parent;
       this->lchild = NULL;
@@ -550,7 +528,6 @@ class Node : public ReadWrite
     {
       this->n = n;
       gids.resize( n );
-      lids.resize( n );
     };
 
 
@@ -566,7 +543,7 @@ class Node : public ReadWrite
       if ( !isleaf )
       {
         double beg = omp_get_wtime();
-        auto split = setup->splitter( gids, lids );
+        auto split = setup->splitter( gids );
         double splitter_time = omp_get_wtime() - beg;
         //printf( "splitter %5.3lfs\n", splitter_time );
 
@@ -599,7 +576,6 @@ class Node : public ReadWrite
           for ( int j = 0; j < nchild; j ++ )
           {
             kids[ i ]->gids[ j ] = gids[ split[ i ][ j ] ];
-            kids[ i ]->lids[ j ] = lids[ split[ i ][ j ] ];
           }
         }
 
@@ -734,7 +710,6 @@ class Node : public ReadWrite
     size_t treelist_id; 
 
     vector<size_t> gids;
-    vector<size_t> lids;
 
     /** These two prunning lists are used when no NN pruning. */
     set<size_t> FarIDs;
@@ -805,10 +780,10 @@ class Setup
     /** by default we use 4 bits = 0-15 levels */
     size_t max_depth = 15;
 
-    /** coordinates (accessed with lids) */
-    Data<T> *X;
+    /** Coordinates (accessed with gids) */
+    Data<T> *X = NULL;
 
-    /** neighbors<distance, gid> (accessed with lids) */
+    /** neighbors<distance, gid> (accessed with gids) */
     Data<pair<T, size_t>> *NN;
 
     /** MortonIDs of all indices. */
@@ -1093,7 +1068,7 @@ class Tree
      */ 
     void TreePartition
     (
-      vector<size_t> &gids, vector<size_t> &lids
+      vector<size_t> &gids
     )
     {
       double beg, alloc_time, split_time, morton_time, permute_time;
@@ -1109,7 +1084,7 @@ class Tree
        *  Allocate all tree nodes in advance.
        */
       beg = omp_get_wtime();
-      AllocateNodes( new NODE( &setup, n, 0, gids, lids, NULL, &morton2node, &lock ) );
+      AllocateNodes( new NODE( &setup, n, 0, gids, NULL, &morton2node, &lock ) );
       alloc_time = omp_get_wtime() - beg;
 
       /**
@@ -1140,9 +1115,7 @@ class Tree
       }
 
 
-      /** 
-       *  Adgust lids and gids to the appropriate order. 
-       */
+      /** Adgust gids to the appropriate order.  */
       beg = omp_get_wtime();
       IndexPermuteTask<NODE> indexpermutetask;
       TraverseUp<false>( indexpermutetask );
@@ -1185,7 +1158,6 @@ class Tree
       size_t k, 
       size_t max_depth,
       vector<size_t> &gids,
-      vector<size_t> &lids,
       pair<T, size_t> initNN,
       KNNTASK &dummy
     )
@@ -1213,13 +1185,12 @@ class Tree
       }
       for ( int t = 0; t < n_tree; t ++ )      
       {
-        //TreePartition( 2 * k, max_depth, gids, lids );
 
         //Flops/Mops for tree partitioning
         flops += std::log( gids.size() / setup.m ) * gids.size();
         mops  += std::log( gids.size() / setup.m ) * gids.size();
 
-        TreePartition( gids, lids );
+        TreePartition( gids );
         //TraverseLeafs<false, false>( dummy );
         TraverseLeafs<false>( dummy );
 
@@ -1487,6 +1458,13 @@ class Tree
         if ( node ) node->DependencyCleanUp();
       }
     }; /** end DependencyCleanUp() */
+
+    void ExecuteAllTasks()
+    {
+      hmlp_run();
+      DependencyCleanUp();
+    }; /** end ExecuteAllTasks() */
+
 
 
     /** @brief Summarize all events in each level. */ 
