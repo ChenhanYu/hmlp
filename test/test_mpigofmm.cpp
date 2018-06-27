@@ -41,7 +41,6 @@
 #include <mkl.h>
 #endif
 
-
 /** MPI support */
 #include <hmlp_mpi.hpp>
 /** GOFMM templates */
@@ -49,11 +48,12 @@
 /** INV-GOFMM templates */
 #include <igofmm_mpi.hpp>
 
-
 /** Use dense SPD matrices. */
 #include <containers/SPDMatrix.hpp>
 /** use implicit kernel matrices (only coordinates are stored). */
 #include <containers/KernelMatrix.hpp>
+/** use distributed implicit kernel matrices (only coordinates are stored). */
+#include <containers/DistKernelMatrix.hpp>
 /** use implicit matrices */
 #include <containers/VirtualMatrix.hpp>
 /** use implicit PVFMM kernel matrices. */
@@ -62,11 +62,8 @@
 #include <containers/MLPGaussNewton.hpp>
 /** Use an OOC covariance matrices. */
 #include <containers/OOCCovMatrix.hpp>
-
+/** Use dense distributed matrices. */
 #include <containers/DistData.hpp>
-#include <containers/DistKernelMatrix.hpp>
-#include <containers/DistKernelMatrix_ver2.hpp>
-//#include <containers/DistSPDMatrix.hpp>
 
 
 
@@ -80,7 +77,7 @@
 #define GFLOPS 1073741824 
 #define TOLERANCE 1E-13
 
-/** by default, we use binary tree */
+/** By default, we use binary tree */
 #define N_CHILDREN 2
 
 
@@ -89,8 +86,6 @@ using namespace hmlp;
 
 
 template<
-  bool        ADAPTIVE, 
-  bool        LEVELRESTRICTION, 
   typename    SPLITTER, 
   typename    RKDTSPLITTER, 
   typename    T, 
@@ -109,9 +104,8 @@ void test_gofmm
 )
 {
   /** MPI: Message Passing Interface */
-  int size, rank;
-  mpi::Comm_size( CommGOFMM, &size );
-  mpi::Comm_rank( CommGOFMM, &rank );
+  int size; mpi::Comm_size( CommGOFMM, &size );
+  int rank; mpi::Comm_rank( CommGOFMM, &rank );
 
   /** all timers */
   double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
@@ -120,43 +114,26 @@ void test_gofmm
 
   const bool CACHE = true;
 
-	/** creatgin configuration for all user-define arguments */
+	/** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( metric, n, m, k, s, stol, budget );
 
-  /** compress K */
-  auto *tree_ptr = mpigofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
-  ( 
-   X, K, NN, //metric, 
-   splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
-   config );
+  /** Compress matrix K. */
+  auto *tree_ptr = mpigofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
   auto &tree = *tree_ptr;
 
-  /** redistribute from RBLK to RIDS */
-  //DistData<RBLK, STAR, T> w_rblk( n, nrhs, MPI_COMM_WORLD );
+  /** Initialize weights with N( 0, 1 ) in [RIDS, STAR] distribution. */
   DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, CommGOFMM );
-  
-  /** Initialization */
   w_rids.randn();
-  //auto &gids = tree.treelist[ 0 ]->gids;
-  //for ( int j = 0; j < nrhs; j ++ )
-  //  for ( int i = 0; i < gids.size(); i ++ )
-  //    w_rids( gids[ i ], j ) = gids[ i ];
 
-  //printf( "w( %lu, 0 ) = %E\n", gids[ 0 ], w_rids( gids[ 0 ], 0 ) ); fflush( stdout );
-  //printf( "w( %lu, 0 ) = %E\n", gids[ 1 ], w_rids( gids[ 1 ], 0 ) ); fflush( stdout );
-
-
-
-  /** Evaluate u ~ K * w */
+  /** Evaluate u ~ K * w. */
   auto u_rids = mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, CommGOFMM );
-
 
   if ( u_rids.HasIllegalValue() )
   {
     printf( "Illegal value after Evaluate\n" ); fflush( stdout );
   }
 
-  /** redistribution */
+  /** Redistribute potentials from RIDS to RBLK. */
   DistData<RBLK, STAR, T> u_rblk( n, nrhs, CommGOFMM );
   u_rblk = u_rids;
 
@@ -258,7 +235,7 @@ void test_gofmm
 /**
  *  @brief Instantiate the splitters here.
  */ 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T, typename SPDMATRIX>
+template<typename T, typename SPDMATRIX>
 void test_gofmm_setup
 ( 
   DistData<STAR, CBLK, T> *X,
@@ -284,7 +261,7 @@ void test_gofmm_setup
 		//	/** randomized tree splitter */
     //  RKDTSPLITTER rkdtsplitter;
     //  rkdtsplitter.Coordinate = X;
-    //  test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+    //  test_gofmm<SPLITTER, RKDTSPLITTER, T>
     //  ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     //  break;
     //}
@@ -302,7 +279,7 @@ void test_gofmm_setup
       RKDTSPLITTER rkdtsplitter;
       rkdtsplitter.Kptr = &K;
 			rkdtsplitter.metric = metric;
-      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+      test_gofmm<SPLITTER, RKDTSPLITTER, T>
       ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs, CommGOFMM );
       break;
     }
@@ -320,10 +297,6 @@ void test_gofmm_setup
  */ 
 int main( int argc, char *argv[] )
 {
-  /** Default adaptive scheme */
-  const bool ADAPTIVE = true;
-  const bool LEVELRESTRICTION = false;
-
   /** Default geometric-oblivious scheme */
   DistanceMetric metric = ANGLE_DISTANCE;
 
@@ -497,13 +470,13 @@ int main( int argc, char *argv[] )
       if ( user_points_filename.size() )
       {
         DistData<STAR, CBLK, T> X( d, n, CommGOFMM,  user_points_filename );
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        test_gofmm_setup<T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
       }
       else
       {
         DistData<STAR, CBLK, T> *X = NULL;
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        test_gofmm_setup<T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
       }
     }
@@ -519,7 +492,7 @@ int main( int argc, char *argv[] )
       /** (optional) provide neighbors, leave uninitialized otherwise */
       DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
       DistData<STAR, CBLK, T> *X = NULL;
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
       ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     }
   }
@@ -543,7 +516,6 @@ int main( int argc, char *argv[] )
       kernel.scal = -0.5 / ( h * h );
 
       /** Distributed spd kernel matrix format (implicitly create) */
-      //DistKernelMatrix<T> K( n, n, d, kernel, X, CommGOFMM );
 		  DistKernelMatrix_ver2<T, T> K( n, d, kernel, X, CommGOFMM );
 
 
@@ -556,7 +528,7 @@ int main( int argc, char *argv[] )
       DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
 
       /** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     }
   }
@@ -609,7 +581,7 @@ int main( int argc, char *argv[] )
       /** (optional) provide neighbors, leave uninitialized otherwise */
       DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
       /** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
 		}
 
@@ -627,7 +599,7 @@ int main( int argc, char *argv[] )
     //	/** (optional) provide neighbors, leave uninitialized otherwise */
     //	hmlp::Data<std::pair<T, std::size_t>> NN;
     //	/** routine */
-    //  test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+    //  test_gofmm_setup<T>
     //  ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
 		//}
   }
@@ -646,7 +618,7 @@ int main( int argc, char *argv[] )
       /** (Optional) provide neighbors, leave uninitialized otherwise */
       DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
       /** Routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     }
 	}
@@ -680,7 +652,7 @@ int main( int argc, char *argv[] )
       ///** (Optional) provide neighbors, leave uninitialized otherwise */
       //DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
       ///** Routine */
-      //test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      //test_gofmm_setup<T>
       //  ( NULL, K, NN, metric, K.col(), m, k, s, stol, budget, nrhs, CommGOFMM );
     }
   }
@@ -695,7 +667,7 @@ int main( int argc, char *argv[] )
       /** (optional) provide neighbors, leave uninitialized otherwise */
       DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
       /** Routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     }
   }

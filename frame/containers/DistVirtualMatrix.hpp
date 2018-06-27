@@ -158,10 +158,10 @@ class DistVirtualMatrix : public mpi::MPIObject
      *             Redistribute( gids ) the two virtual functions
      *             above cannot involve any blocking communication.
      */ 
-    virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
-    {
+    //virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
+    //{
 
-    }; /** end Redistribute() */
+    //}; /** end Redistribute() */
 
 
     virtual void RedistributeWithPartner( 

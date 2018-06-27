@@ -216,34 +216,29 @@ namespace mpigofmm
  *         Distributed setup inherits mpitree::Setup.
  */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
-class Setup : public mpitree::Setup<SPLITTER, T>
+class Setup : public mpitree::Setup<SPLITTER, T>,
+              public gofmm::Configuration<T>
 {
   public:
 
-    /** Number of neighbors */
-    size_t k = 32;
+    /** Shallow copy from the config. */
+    void FromConfiguration( gofmm::Configuration<T> &config,
+        SPDMATRIX &K, SPLITTER &splitter,
+        DistData<STAR, CBLK, pair<T, size_t>> &NN_cblk, 
+        DistData<STAR, CBLK, T> *X_cblk )
+    { 
+      this->CopyFrom( config ); 
+      this->K = &K;
+      this->splitter = splitter;
+      this->NN_cblk = &NN_cblk;
+      this->X_cblk = X_cblk;
+    };
 
-    /** maximum rank */
-    size_t s = 64;
-
-    /** relative error for rank-revealed QR */
-    T stol = 1E-3;
-
-    /**
-     *  User specific budget for the amount of direct evaluation
-     */ 
-    double budget = 0.0;
-
-		/** (default) distance type */
-		DistanceMetric metric = ANGLE_DISTANCE;
-
-    /** the SPDMATRIX (accessed with gids: dense, CSC or OOC) */
+    /** The SPDMATRIX (accessed with gids: dense, CSC or OOC) */
     SPDMATRIX *K = NULL;
 
-    /** rhs-by-n all weights */
+    /** rhs-by-n, all weights and potentials. */
     Data<T> *w = NULL;
-
-    /** n-by-nrhs all potentials */
     Data<T> *u = NULL;
 
     /** buffer space, either dimension needs to be n  */
@@ -254,7 +249,7 @@ class Setup : public mpitree::Setup<SPLITTER, T>
     T lambda = 0.0;
 
     /** whether the matrix is symmetric */
-    bool issymmetric = true;
+    //bool issymmetric = true;
 
     /** use ULV or Sherman-Morrison-Woodbury */
     bool do_ulv_factorization = true;
@@ -266,108 +261,6 @@ class Setup : public mpitree::Setup<SPLITTER, T>
 
 
 
-
-//template<typename T>
-//class NodeData : public gofmm::Factor<T>
-//{
-//  public:
-//
-//    NodeData() : kij_skel( 0.0, 0 ), kij_s2s( 0.0, 0 ), kij_s2n( 0.0, 0 ) {};
-//
-//    /** the omp (or pthread) lock */
-//    Lock lock;
-//
-//    /** whether the node can be compressed */
-//    bool isskel = false;
-//
-//    /** whether the coefficient mathx has been computed */
-//    bool hasproj = false;
-//
-//    /** my skeletons */
-//    vector<size_t> skels;
-//
-//    /** (buffer) nsamples row gids */
-//    vector<size_t> candidate_rows;
-//
-//    /** (buffer) sl+sr column gids of children */
-//    vector<size_t> candidate_cols;
-//
-//    /** (buffer) nsamples-by-(sl+sr) submatrix of K */
-//    Data<T> KIJ; 
-//
-//    /** 2s, pivoting order of GEQP3 */
-//    vector<int> jpvt;
-//
-//    /** s-by-2s */
-//    Data<T> proj;
-//
-//    /** sampling neighbors ids */
-//    map<size_t, T> snids; 
-//
-//    /* pruning neighbors ids */
-//    unordered_set<size_t> pnids; 
-//
-//    /** skeleton weights and potentials */
-//    Data<T> w_skel;
-//    Data<T> u_skel;
-//
-//    /** permuted weights and potentials (buffer) */
-//    Data<T> w_leaf;
-//    Data<T> u_leaf[ 20 ];
-//
-//    /** hierarchical tree view of w<RIDS> and u<RIDS> */
-//    View<T> w_view;
-//    View<T> u_view;
-//
-//    /** Cached Kab */
-//    Data<size_t> Nearbmap;
-//    Data<T> NearKab;
-//    Data<T> FarKab;
-//
-//    /** Distributed dependents */
-//    //set<ReadWrite*> NearDependents;
-//    //set<ReadWrite*> FarDependents;
-//    set<int> NearDependents;
-//    set<int> FarDependents;
-//
-//    /**
-//     *  This pool contains a subset of gids owned by this node.
-//     *  Multiple threads may try to update this pool during construction.
-//     *  We use a lock to prevent race condition.
-//     */ 
-//    //map<size_t, map<size_t, T>> candidates;
-//    //map<size_t, T> pool;
-//    //multimap<T, size_t> ordered_pool;
-//
-//
-//
-//
-//
-//
-//    /** Kij evaluation counter counters */
-//    pair<double, size_t> kij_skel;
-//    pair<double, size_t> kij_s2s;
-//    pair<double, size_t> kij_s2n;
-//
-//    /** many timers */
-//    double merge_neighbors_time = 0.0;
-//    double id_time = 0.0;
-//
-//    /** recorded events (for HMLP Runtime) */
-//    Event skeletonize;
-//    Event updateweight;
-//    Event skeltoskel;
-//    Event skeltonode;
-//
-//    Event s2s;
-//    Event s2n;
-//
-//    /** knn accuracy */
-//    double knn_acc = 0.0;
-//    size_t num_acc = 0;
-//
-//}; /** end class NodeData */
-//
 
 
 /** 
@@ -1119,7 +1012,7 @@ class NeighborsTask : public Task
       label = to_string( arg->treelist_id );
 
       /** use the same distance as the tree */
-      metric = arg->setup->metric;
+      metric = arg->setup->MetricType();
 
       //--------------------------------------
       double flops, mops;
@@ -2524,7 +2417,7 @@ void FindNearNodes( TREE &tree )
 {
   auto &setup = tree.setup;
   auto &NN = *setup.NN;
-  double budget = setup.budget;
+  double budget = setup.Budget();
   size_t n_leafs = ( 1 << tree.depth );
   /** 
    *  The type here is tree::Node but not mpitree::Node.
@@ -4621,7 +4514,8 @@ void ParallelGetSkeletonMatrix( NODE *node )
       nsamples = 2 * candidate_cols.size();
 
       /** make sure we at least m samples */
-      if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
+      if ( nsamples < 2 * node->setup->LeafNodeSize() ) 
+        nsamples = 2 * node->setup->LeafNodeSize();
 
       /** gather rpnids and rsnids */
       auto &lsnids = node->child->data.snids;
@@ -4741,7 +4635,7 @@ void ParallelGetSkeletonMatrix( NODE *node )
      *  all MPI process must participate in operator () 
      */
     //KIJ = K( candidate_rows, candidate_cols );
-    size_t over_size_rank = node->setup->s + 20;
+    size_t over_size_rank = node->setup->MaximumRank() + 20;
     //if ( candidate_rows.size() <= over_size_rank )
     if ( 1 )
     {
@@ -4840,7 +4734,7 @@ class ParallelGetSkeletonMatrixTask : public Task
 /**
  *  @brief Skeletonization with interpolative decomposition.
  */ 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
+template<typename NODE, typename T>
 void DistSkeletonize( NODE *node )
 {
   /** early return if we do not need to skeletonize */
@@ -4849,8 +4743,10 @@ void DistSkeletonize( NODE *node )
   /** gather shared data and create reference */
   auto &K   = *(node->setup->K);
   auto &NN  = *(node->setup->NN);
-  auto maxs = node->setup->s;
-  auto stol = node->setup->stol;
+  auto maxs = node->setup->MaximumRank();
+  auto stol = node->setup->Tolerance();
+  bool secure_accuracy = node->setup->SecureAccuracy();
+  bool use_adaptive_ranks = node->setup->UseAdaptiveRanks();
 
   /** gather per node data and create reference */
   auto &data  = node->data;
@@ -4866,7 +4762,7 @@ void DistSkeletonize( NODE *node )
   size_t n = KIJ.col();
   size_t q = node->n;
 
-  if ( LEVELRESTRICTION )
+  if ( secure_accuracy )
   {
     /** TODO: need to check of both children's isskel to preceed */
   }
@@ -4878,9 +4774,10 @@ void DistSkeletonize( NODE *node )
   /** account for uniform sampling */
   scaled_stol *= std::sqrt( (T)q / N );
 
-  lowrank::id<ADAPTIVE, LEVELRESTRICTION>
-  ( 
-    KIJ.row(), KIJ.col(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
+  lowrank::id
+  (
+    use_adaptive_ranks, secure_accuracy,
+    KIJ.row(), KIJ.col(), maxs, scaled_stol, 
     KIJ, skels, proj, jpvt
   );
 
@@ -4889,7 +4786,7 @@ void DistSkeletonize( NODE *node )
   KIJ.shrink_to_fit();
 
   /** depending on the flag, decide isskel or not */
-  if ( LEVELRESTRICTION )
+  if ( secure_accuracy )
   {
     /** TODO: this needs to be bcast to other nodes */
     data.isskel = (skels.size() != 0);
@@ -4914,7 +4811,7 @@ void DistSkeletonize( NODE *node )
 
 
 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
+template<typename NODE, typename T>
 class SkeletonizeTask : public hmlp::Task
 {
   public:
@@ -4963,7 +4860,7 @@ class SkeletonizeTask : public hmlp::Task
     {
       //printf( "%d Par-Skel beg\n", global_rank );
 
-      DistSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+      DistSkeletonize<NODE, T>( arg );
 
       /** If neighbors were provided, then update the estimated prunning list. */
       if ( arg->setup->NN )
@@ -4991,7 +4888,7 @@ class SkeletonizeTask : public hmlp::Task
 /**
  *
  */ 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
+template<typename NODE, typename T>
 class DistSkeletonizeTask : public hmlp::Task
 {
   public:
@@ -5050,7 +4947,7 @@ class DistSkeletonizeTask : public hmlp::Task
       if ( arg->GetCommRank() == 0 )
       {
         //printf( "%d Par-Skel beg\n", global_rank );
-        DistSkeletonize<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+        DistSkeletonize<NODE, T>( arg );
         //printf( "%d Par-Skel end\n", global_rank );
       }
       double skel_t = omp_get_wtime() - beg;
@@ -5431,15 +5328,12 @@ DistData<RIDS, STAR, T> Evaluate
  *  @brief template of the compress routine
  */ 
 template<
-  bool        ADAPTIVE, 
-  bool        LEVELRESTRICTION, 
   typename    SPLITTER, 
   typename    RKDTSPLITTER, 
   typename    T, 
   typename    SPDMATRIX>
 mpitree::Tree<
   mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  //mpigofmm::NodeData<T>>
   gofmm::NodeData<T>>
 *Compress
 ( 
@@ -5451,7 +5345,7 @@ mpitree::Tree<
 	gofmm::Configuration<T> &config
 )
 {
-  /** MPI */
+  /** MPI size ane rank. */
   int size; mpi::Comm_size( MPI_COMM_WORLD, &size );
   int rank; mpi::Comm_rank( MPI_COMM_WORLD, &rank );
 
@@ -5461,29 +5355,25 @@ mpitree::Tree<
 	size_t m = config.LeafNodeSize();
 	size_t k = config.NeighborSize(); 
 	size_t s = config.MaximumRank(); 
-  T stol = config.Tolerance();
-	T budget = config.Budget(); 
 
   /** options */
   const bool SYMMETRIC = true;
   const bool NNPRUNE   = true;
   const bool CACHE     = true;
 
-  /** instantiation for the GOFMM tree */
+  /** Instantiation for the GOFMM metric tree. */
   using SETUP       = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  //using DATA        = mpigofmm::NodeData<T>;
   using DATA        = gofmm::NodeData<T>;
   using NODE        = tree::Node<SETUP, DATA>;
   using MPINODE     = mpitree::Node<SETUP, DATA>;
-  //using LETNODE     = mpitree::LetNode<SETUP, DATA>;
   using TREE        = mpitree::Tree<SETUP, DATA>;
 
-  /** instantiation for the randomisze Spd-Askit tree */
+  /** Instantiation for the randomized metric tree. */
   using RKDTSETUP   = mpigofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
   using RKDTNODE    = tree::Node<RKDTSETUP, DATA>;
   using MPIRKDTNODE = tree::Node<RKDTSETUP, DATA>;
 
-  /** all timers */
+  /** All timers. */
   double beg, omptask45_time, omptask_time, ref_time;
   double time_ratio, compress_time = 0.0, other_time = 0.0;
   double ann_time, tree_time, skel_time, mpi_skel_time, mergefarnodes_time, cachefarnodes_time;
@@ -5491,15 +5381,10 @@ mpitree::Tree<
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
   double exchange_neighbor_time, symmetrize_time;
 
-  /** Iterative all nearnest-neighbor (ANN) */
+  /** Iterative all nearnest-neighbor (ANN). */
   const size_t n_iter = 20;
-  const bool SORTED = false;
-  /** Do not change anything below this line */
   mpitree::Tree<RKDTSETUP, DATA> rkdt;
-  rkdt.setup.X_cblk = X_cblk;
-  rkdt.setup.K = &K;
-	rkdt.setup.metric = metric; 
-  rkdt.setup.splitter = rkdtsplitter;
+  rkdt.setup.FromConfiguration( config, K, rkdtsplitter, NN_cblk, X_cblk );
   pair<T, size_t> initNN( numeric_limits<T>::max(), n );
 
   mpi::PrintProgress( "NeighborSearch ...\n", MPI_COMM_WORLD );
@@ -5507,8 +5392,7 @@ mpitree::Tree<
   if ( NN_cblk.row() != k )
   {
     NeighborsTask<RKDTNODE, T> knntask;
-    //knntask.metric = metric;
-    NN_cblk = rkdt.AllNearestNeighbor<SORTED>( n_iter, n, k, 15, initNN, knntask );
+    NN_cblk = rkdt.AllNearestNeighbor( n_iter, n, k, 15, initNN, knntask );
   }
   else
   {
@@ -5517,40 +5401,19 @@ mpitree::Tree<
   ann_time = omp_get_wtime() - beg;
   printf( "ann_time %lf\n", ann_time );
 
-  /** Check illegle values in neighbor pairs. */
-  for ( auto &neig : NN_cblk )
-  {
-    if ( neig.second < 0 || neig.second >= n )
-    {
-      printf( "Illegle neighbor values %lu\n", neig.second );
-      break;
-    }
-  }
-
-
-
 
   /** Initialize metric ball tree using approximate center split. */
   auto *tree_ptr = new mpitree::Tree<SETUP, DATA>();
 	auto &tree = *tree_ptr;
 
-	/** Global configuration for the metric tree */
-  tree.setup.X_cblk = X_cblk;
-  tree.setup.K = &K;
-	tree.setup.metric = metric; 
-  tree.setup.splitter = splitter;
-  tree.setup.NN_cblk = &NN_cblk;
-  tree.setup.m = m;
-  tree.setup.k = k;
-  tree.setup.s = s;
-  tree.setup.budget = budget;
-  tree.setup.stol = stol;
+	/** Global configuration for the metric tree. */
+  tree.setup.FromConfiguration( config, K, splitter, NN_cblk, X_cblk );
 
-	/** Metric ball tree partitioning */
+	/** Metric ball tree partitioning. */
   mpi::PrintProgress( "TreePartitioning ...\n", tree.comm ); 
   mpi::Barrier( tree.comm );
   beg = omp_get_wtime();
-  tree.TreePartition( n );
+  tree.TreePartition();
   mpi::Barrier( tree.comm );
   tree_time = omp_get_wtime() - beg;
   mpi::PrintProgress( "End TreePartitioning ...\n", tree.comm ); 
@@ -5565,10 +5428,6 @@ mpitree::Tree<
     perm_file.close();
   }
 
-
-  /** Now redistribute K. */
-  K.Redistribute( true, tree.treelist[ 0 ]->gids );
-  mpi::PrintProgress( "Finish redistribute K\n", tree.comm );
 
   /** Redistribute neighbors i.e. NN[ *, CIDS ] = NN[ *, CBLK ]; */
   DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, tree.comm );
@@ -5640,8 +5499,8 @@ mpitree::Tree<
   /** Gather sample rows and skeleton columns, then ID */
   gofmm::GetSkeletonMatrixTask<NODE, T> seqGETMTXtask;
   mpigofmm::ParallelGetSkeletonMatrixTask<MPINODE, T> mpiGETMTXtask;
-  mpigofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> seqSKELtask;
-  mpigofmm::DistSkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, MPINODE, T> mpiSKELtask;
+  mpigofmm::SkeletonizeTask<NODE, T> seqSKELtask;
+  mpigofmm::DistSkeletonizeTask<MPINODE, T> mpiSKELtask;
   tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
   //tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
   /** Compute the coefficient matrix of ID */
@@ -5772,7 +5631,8 @@ pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials, mpi::Comm c
   /** Bcast gid and its parameter to all MPI processes. */
   K.BcastColumns( I, gid % comm_size, comm );
 
-	Data<T> Kab = K( J, I );
+	//Data<T> Kab = K( J, I );
+	Data<T> Kab = K( I, J );
 
 //	bool do_terminate = false;
 //

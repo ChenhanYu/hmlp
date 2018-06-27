@@ -131,7 +131,7 @@ class IndexPermuteTask : public Task
 
     void Set( NODE *user_arg )
     {
-      name = std::string( "Permutation" );
+      name = string( "Permutation" );
       arg = user_arg;
       // Need an accurate cost model.
       cost = 1.0;
@@ -180,7 +180,7 @@ class SplitTask : public Task
 
     void Set( NODE *user_arg )
     {
-      name = std::string( "Split" );
+      name = string( "Split" );
       arg = user_arg;
       // Need an accurate cost model.
       cost = 1.0;
@@ -235,13 +235,13 @@ struct centersplit
     size_t n = gids.size();
 
     T rcx0 = 0.0, rx01 = 0.0;
-    std::size_t x0, x1;
-    std::vector<std::vector<std::size_t> > split( N_SPLIT );
+    size_t x0, x1;
+    vector<vector<size_t> > split( N_SPLIT );
 
 
-    std::vector<T> centroid = hmlp::combinatorics::Mean( d, n, X, gids );
-    std::vector<T> direction( d );
-    std::vector<T> projection( n, 0.0 );
+    vector<T> centroid = combinatorics::Mean( d, n, X, gids );
+    vector<T> direction( d );
+    vector<T> projection( n, 0.0 );
 
     //printf( "After Mean\n" );
 
@@ -328,7 +328,7 @@ struct centersplit
     else
     {
       auto proj_copy = projection;
-      std::sort( proj_copy.begin(), proj_copy.end() );
+      sort( proj_copy.begin(), proj_copy.end() );
       median = proj_copy[ n / 2 ];
     }
 
@@ -338,7 +338,7 @@ struct centersplit
     split[ 1 ].reserve( n / 2 + 1 );
 
     /** TODO: Can be parallelized */
-    std::vector<std::size_t> middle;
+    vector<size_t> middle;
     for ( size_t i = 0; i < n; i ++ )
     {
       if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
@@ -405,8 +405,8 @@ struct randomsplit
     vector<T> projection( n, 0.0 );
 
     // Compute random direction
-    static std::default_random_engine generator;
-    std::normal_distribution<T> distribution;
+    static default_random_engine generator;
+    normal_distribution<T> distribution;
     for ( int p = 0; p < d; p ++ )
     {
       direction[ p ] = distribution( generator );
@@ -422,14 +422,14 @@ struct randomsplit
     // Parallel median search
     // T median = Select( n, n / 2, projection );
     auto proj_copy = projection;
-    std::sort( proj_copy.begin(), proj_copy.end() );
+    sort( proj_copy.begin(), proj_copy.end() );
     T median = proj_copy[ n / 2 ];
 
     split[ 0 ].reserve( n / 2 + 1 );
     split[ 1 ].reserve( n / 2 + 1 );
 
     /** TODO: Can be parallelized */
-    std::vector<std::size_t> middle;
+    vector<size_t> middle;
     for ( size_t i = 0; i < n; i ++ )
     {
       if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
@@ -687,10 +687,7 @@ class Node : public ReadWrite
     };
 
 
-
-
-
-    /** This is the call back pointer to the shared data. */
+    /** This is the call back pointer to the shared setup. */
     SETUP *setup = NULL;
 
     /** Per node private data */
@@ -775,7 +772,7 @@ class Setup
     ~Setup() {};
 
     /** maximum leaf node size */
-    size_t m;
+    size_t m = 0;
     
     /** by default we use 4 bits = 0-15 levels */
     size_t max_depth = 15;
@@ -784,7 +781,7 @@ class Setup
     Data<T> *X = NULL;
 
     /** neighbors<distance, gid> (accessed with gids) */
-    Data<pair<T, size_t>> *NN;
+    Data<pair<T, size_t>> *NN = NULL;
 
     /** MortonIDs of all indices. */
     vector<size_t> morton;
@@ -840,10 +837,7 @@ class Setup
 }; /** end class Setup */
 
 
-/**
- *
- */ 
-//template<class SETUP, class NODEDATA, int N_CHILDREN>
+/** */
 template<class SETUP, class NODEDATA>
 class Tree
 {
@@ -861,13 +855,13 @@ class Tree
     SETUP setup;
 
     /** number of points */
-    size_t n;
+    size_t n = 0;
 
     /** maximum leaf node size */
-    size_t m;
+    size_t m = 0;
 
     /** depth of local tree */
-    size_t depth;
+    size_t depth = 0;
 
 
     /** Mutex for exclusive right to modify treelist and morton2node. */ 
@@ -877,16 +871,15 @@ class Tree
     vector<NODE*> treelist;
 
     /** 
-     *  Map MortonID to tree nodes. When distributed tree inherit Tree,
+     *  Map MortonID to tree nodes. When distributed tree inherits Tree,
      *  morton2node will also contain distributed and LET node.
      */
     unordered_map<size_t, NODE*> morton2node;
 
-    /** (Default) constructor */
-    Tree() : n( 0 ), m( 0 ), depth( 0 )
-    {};
+    /** (Default) Tree constructor. */
+    Tree() {};
 
-    /** (Default) destructor */
+    /** (Default) Tree destructor. */
     ~Tree()
     {
       //printf( "~Tree() shared treelist.size() %lu treequeue.size() %lu\n",
@@ -899,21 +892,7 @@ class Tree
       //printf( "end ~Tree() shared\n" );
     };
 
-    /**
-     *  @brief gid is the index of the lexicographic matrix order.
-     *         lid is the index of the lexicographic storage order.
-     *         These two indices are the same in non-distributed
-     *         environment.
-     */ 
-    size_t Getlid( size_t gid ) 
-    {
-      return gid;
-    }; /** end Getlid() */
-
-
-    /**
-     *  currently only used in DrawInteraction()
-     */ 
+    /** Currently only used in DrawInteraction() */ 
     void Offset( NODE *node, size_t offset )
     {
       if ( node )
@@ -925,7 +904,6 @@ class Tree
           Offset( node->rchild, offset + node->lchild->gids.size() );
         }
       }
-      
     }; /** end Offset() */
 
 
@@ -934,15 +912,11 @@ class Tree
     {
       if ( node )
       {
-        /**
-         *  shift = 16 - l + 4
-         */ 
+        /** Shift = 16 - l + 4. */ 
         size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
         node->morton = ( morton << shift ) + node->l;
 
-        /**
-         *  Recurs
-         */
+        /** Recurs. */
         Morton( node->lchild, ( morton << 1 ) + 0 );
         Morton( node->rchild, ( morton << 1 ) + 1 );
 
@@ -1000,42 +974,31 @@ class Tree
      */ 
     void AllocateNodes( NODE *root )
     {
-      /** all assertion */
-      assert( N_CHILDREN == 2 );
-
-      /** 
-       *  Compute the global tree depth using std::log2(). 
-       */
+      /** Compute the global tree depth using std::log2(). */
 			int glb_depth = std::ceil( std::log2( (double)n / m ) );
 			if ( glb_depth > setup.max_depth ) glb_depth = setup.max_depth;
-
-			/** 
-       *  Compute the local tree depth.
-       */
+			/** Compute the local tree depth. */
 			depth = glb_depth - root->l;
 
 			//printf( "local AllocateNodes n %lu m %lu glb_depth %d loc_depth %lu\n", 
 			//		n, m, glb_depth, depth );
 
-      /** 
-       *  Clean up and reserve space for local tree nodes.
-       *  Push root into the treelist.
-       */
-      morton2node.clear();
+      /** Clean up and reserve space for local tree nodes. */
+      for ( auto node_ptr : treelist ) delete node_ptr;
       treelist.clear();
+      morton2node.clear();
       treelist.reserve( 1 << ( depth + 1 ) );
       deque<NODE*> treequeue;
+      /** Push root into the treelist. */
       treequeue.push_back( root );
 
 
-      /** 
-       *  Allocate children with BFS (queue solution)
-       */
+      /** Allocate children with BFS (queue solution). */
       while ( auto *node = treequeue.front() )
       {
-        /** Assign local tree node id */
+        /** Assign local treenode_id. */
         node->treelist_id = treelist.size();
-        /** Account for the depth of the distributed tree */
+        /** Account for the depth of the distributed tree. */
         if ( node->l < glb_depth )
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
@@ -1062,43 +1025,43 @@ class Tree
 
 
 
-    /**
-     *  @brief shared memory version.
-     *
-     */ 
-    void TreePartition
-    (
-      vector<size_t> &gids
-    )
+    /** @brief Shared-memory tree partition. */ 
+    void TreePartition()
     {
       double beg, alloc_time, split_time, morton_time, permute_time;
 
-      this->n = gids.size();
-      this->m = setup.m;
-      int max_depth = setup.max_depth;
+      //this->n = gids.size();
+      //this->m = setup.m;
+
+      printf( "n %lu m %lu\n", n, m ); fflush( stdout );
+
+      this->n = setup.ProblemSize();
+      this->m = setup.LeafNodeSize();
+
+      printf( "n %lu m %lu\n", n, m ); fflush( stdout );
+
+
+      /** Reset and initialize global indices with lexicographical order. */
+      global_indices.clear();
+      for ( size_t i = 0; i < n; i ++ ) global_indices.push_back( i );
+
 
       /** Reset the warning flag and clean up the treelist */
       has_uneven_split = false;
 
-      /** 
-       *  Allocate all tree nodes in advance.
-       */
+      /** Allocate all tree nodes in advance. */
       beg = omp_get_wtime();
-      AllocateNodes( new NODE( &setup, n, 0, gids, NULL, &morton2node, &lock ) );
+      AllocateNodes( new NODE( &setup, n, 0, global_indices, NULL, &morton2node, &lock ) );
       alloc_time = omp_get_wtime() - beg;
 
-      /**
-       *  Recursive spliting (topdown)
-       */
+      /** Recursive spliting (topdown). */
       beg = omp_get_wtime();
       SplitTask<NODE> splittask;
       TraverseDown<false>( splittask );
       split_time = omp_get_wtime() - beg;
 
 
-      /**
-       *  Compute node and point morton id.
-       */ 
+      /** Compute node and point MortonId. */ 
       beg = omp_get_wtime();
       setup.morton.resize( n );
       Morton( treelist[ 0 ], 0 );
@@ -1151,56 +1114,33 @@ class Tree
     /**
      *
      */ 
-    template<bool SORTED, typename KNNTASK>
-    Data<pair<T, size_t>> AllNearestNeighbor
-    (
-      size_t n_tree,
-      size_t k, 
-      size_t max_depth,
-      vector<size_t> &gids,
-      pair<T, size_t> initNN,
-      KNNTASK &dummy
-    )
+    template<typename KNNTASK>
+    Data<pair<T, size_t>> AllNearestNeighbor( size_t n_tree, size_t k, 
+      size_t max_depth, pair<T, size_t> initNN,
+      KNNTASK &dummy )
     {
-      /** k-by-N */
-      Data<pair<T, size_t>> NN( k, gids.size(), initNN );
+      /** k-by-N, neighbor pairs. */
+      Data<pair<T, size_t>> NN( k, setup.ProblemSize(), initNN );
 
-      /** use leaf size = 4 * k  */
+      /** Use leaf_size = 4 * k. */
       setup.m = 4 * k;
       if ( setup.m < 32 ) setup.m = 32;
       setup.NN = &NN;
 
-      /** Clean the treelist. */
-      #pragma omp parallel for
-      for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
-      treelist.clear();
-
-      double flops= 0.0; 
-      double mops= 0.0;
-
-      // This loop has to be sequential to prevent from race condiditon on NN.
       if ( REPORT_ANN_STATUS )
       {
         printf( "========================================================\n");
       }
+
+      /** This loop has to be sequential to avoid race condiditon on NN. */
       for ( int t = 0; t < n_tree; t ++ )      
       {
-
-        //Flops/Mops for tree partitioning
-        flops += std::log( gids.size() / setup.m ) * gids.size();
-        mops  += std::log( gids.size() / setup.m ) * gids.size();
-
-        TreePartition( gids );
-        //TraverseLeafs<false, false>( dummy );
-        TraverseLeafs<false>( dummy );
-
-        /** TODO: need to redo the way without using dummy */
-        flops += dummy.event.GetFlops();
-        mops  += dummy.event.GetMops();
-
         /** Report accuracy */
         double knn_acc = 0.0;
         size_t num_acc = 0;
+        /** Randomize metric tree and exhausted search for each leaf node. */
+        TreePartition();
+        TraverseLeafs<false>( dummy );
 
         size_t n_nodes = 1 << depth;
         auto level_beg = treelist.begin() + n_nodes - 1;
@@ -1216,12 +1156,7 @@ class Tree
               t, knn_acc / num_acc, num_acc );
         }
 
-        /** clean up for the new iteration */
-        #pragma omp parallel for
-        for ( int i = 0; i < treelist.size(); i ++ ) delete treelist[ i ];
-        treelist.clear();
-
-        /** increase leaf size */
+        /** Increase leaf_size with less than 80% accuracy. */
         if ( knn_acc / num_acc < 0.8 )
         { 
           if ( 2.0 * setup.m < 2048 ) setup.m = 2.0 * setup.m;
@@ -1237,61 +1172,32 @@ class Tree
         }
         printf( "\n" );
 #endif
-      }
+      } /** end for each tree. */
+
       if ( REPORT_ANN_STATUS )
       {
         printf( "========================================================\n\n");
       }
 
-      
-      if ( SORTED )
-      {
-        struct 
-        {
-          bool operator () ( std::pair<T, size_t> a, std::pair<T, size_t> b )
-          {   
-            return a.first < b.first;
-          }   
-        } ANNLess;
-
-        // Assuming O(N) sorting
-        flops += NN.col() * NN.row();
-        // Worst case (2* for swaps, 1* for loads)
-        mops += 3* NN.col() * NN.row() ;
-
-#pragma omp parallel for
-        for ( size_t j = 0; j < NN.col(); j ++ )
-        {
-          std::sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row() );
-        }
-#ifdef DEBUG_TREE
-        printf( "Sorted  NN 0 " );
-        for ( size_t i = 0; i < NN.row(); i ++ )
-        {
-          printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
-        }
-        printf( "\n" );
-#endif
-      } /** end if ( SORTED ) */
-
-#ifdef DEBUG_TREE
+      /** Sort neighbor pairs in ascending order. */
       #pragma omp parallel for
       for ( size_t j = 0; j < NN.col(); j ++ )
+        sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row() );
+
+      /** Check for illegle values. */
+      for ( auto &neig : NN )
       {
-        for ( size_t i = 0; i < NN.row(); i ++ )
+        if ( neig.second < 0 || neig.second >= NN.col() )
         {
-          if ( NN( i, j ).second >= NN.col() )
-          {
-            printf( "NN bug ( %lu, %lu ) = %lf, %lu\n", i, j, NN( i, j ).first, NN( i, j ).second );
-          }
+          printf( "Illegle neighbor gid %lu\n", neig.second );
+          break;
         }
       }
-      printf("flops: %E, mops: %E \n", flops, mops);
-#endif
 
+      /** Return a matrix of neighbor pairs. */
       return NN;
 
-    }; /** end AllNearestNeighbor */
+    }; /** end AllNearestNeighbor() */
 
 
 
@@ -1484,6 +1390,13 @@ class Tree
         }
       }
     }; /** end void Summary() */
+
+
+  private:
+
+  protected:
+
+    vector<size_t> global_indices;
 
 }; /** end class Tree */
 }; /** end namespace tree */

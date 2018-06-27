@@ -76,8 +76,6 @@ using namespace hmlp;
 
 
 template<
-  bool        ADAPTIVE, 
-  bool        LEVELRESTRICTION, 
   typename    SPLITTER, 
   typename    RKDTSPLITTER, 
   typename    T, 
@@ -106,14 +104,11 @@ void test_gofmm
 
   const bool CACHE = true;
 
-	/** creatgin configuration for all user-define arguments */
+	/** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( metric, n, m, k, s, stol, budget );
 
-  /** compress K */
-  auto *tree_ptr = gofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
-  ( X, K, NN, //metric, 
-		splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
-	  config );
+  /** Compress K. */
+  auto *tree_ptr = gofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
 	auto &tree = *tree_ptr;
 
 
@@ -254,7 +249,7 @@ void test_gofmm
 /**
  *  @brief Instantiate the splitters here.
  */ 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T, typename SPDMATRIX>
+template<typename T, typename SPDMATRIX>
 void test_gofmm_setup
 ( 
   Data<T> *X,
@@ -279,7 +274,7 @@ void test_gofmm_setup
 			/** randomized tree splitter */
       RKDTSPLITTER rkdtsplitter;
       rkdtsplitter.Coordinate = X;
-      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+      test_gofmm<SPLITTER, RKDTSPLITTER, T>
       ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
       break;
     }
@@ -297,7 +292,7 @@ void test_gofmm_setup
       RKDTSPLITTER rkdtsplitter;
       rkdtsplitter.Kptr = &K;
 			rkdtsplitter.metric = metric;
-      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+      test_gofmm<SPLITTER, RKDTSPLITTER, T>
       ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
       break;
     }
@@ -315,10 +310,6 @@ void test_gofmm_setup
  */ 
 int main( int argc, char *argv[] )
 {
-  /** default adaptive scheme */
-  const bool ADAPTIVE = true;
-  const bool LEVELRESTRICTION = false;
-
   /** default geometric-oblivious scheme */
   DistanceMetric metric = ANGLE_DISTANCE;
 
@@ -486,13 +477,13 @@ int main( int argc, char *argv[] )
       if ( user_points_filename.size() )
       {
         Data<T> X( d, n, user_points_filename );
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        test_gofmm_setup<T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
       else
       {
         Data<T> *X = NULL;
-        test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        test_gofmm_setup<T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
     }
@@ -519,7 +510,7 @@ int main( int argc, char *argv[] )
       Data<pair<T, size_t>> NN;
 
       /** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
       ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
     }
   }
@@ -570,7 +561,7 @@ int main( int argc, char *argv[] )
       /** (optional) provide neighbors, leave uninitialized otherwise */
       Data<std::pair<T, std::size_t>> NN;
       /** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
     }
     {
@@ -586,7 +577,7 @@ int main( int argc, char *argv[] )
       /** (optional) provide neighbors, leave uninitialized otherwise */
       Data<pair<T, size_t>> NN;
       /** routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
     }
   }
@@ -610,7 +601,7 @@ int main( int argc, char *argv[] )
 //      /** use non-zero pattern as neighbors */
 //      hmlp::Data<std::pair<T, std::size_t>> NN = hmlp::gofmm::SparsePattern<true, true, T>( n, k, K );
 //      /** routine */
-//      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, metric, T>
+//      test_gofmm_setup<metric, T>
 //      ( X, K, NN, n, m, k, s, stol, budget, nrhs );
 //    }
 //  }
@@ -653,7 +644,7 @@ int main( int argc, char *argv[] )
       /** (optional) provide neighbors, leave uninitialized otherwise */
       hmlp::Data<std::pair<T, std::size_t>> NN;
       /** Routine */
-      test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      test_gofmm_setup<T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
     }
   }

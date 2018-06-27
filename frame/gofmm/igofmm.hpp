@@ -1288,7 +1288,7 @@ void SetupFactor( NODE *node )
   printf( "begin SetupFactor %lu\n", node->treelist_id ); fflush( stdout );
 #endif
 
-  issymmetric = node->setup->issymmetric;
+  issymmetric = node->setup->IsSymmetric();
   do_ulv_factorization = node->setup->do_ulv_factorization;
   n  = node->n;
   nl = 0;
@@ -2217,9 +2217,6 @@ void Factorize( TREE &tree, T lambda )
 
   /** Regularization parameter lambda */
   tree.setup.lambda = lambda;
-
-  /** setup the symmetric type */
-  tree.setup.issymmetric = true;
 
   /** setup factorization type */
   tree.setup.do_ulv_factorization = true;

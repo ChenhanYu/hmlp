@@ -38,6 +38,10 @@
 
 //#define DEBUG_SKEL 1
 
+using namespace std;
+using namespace hmlp;
+
+
 namespace hmlp
 {
 namespace lowrank
@@ -178,12 +182,13 @@ namespace lowrank
  *
  *
  */ 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T>
+template<typename T>
 void id
 (
+  bool use_adaptive_ranks, bool secure_accuracy,
   int m, int n, int maxs, T stol,
-  hmlp::Data<T> A,
-  std::vector<size_t> &skels, hmlp::Data<T> &proj, std::vector<int> &jpvt
+  Data<T> A,
+  vector<size_t> &skels, Data<T> &proj, vector<int> &jpvt
 )
 {
   int s;
@@ -238,13 +243,14 @@ void id
     //if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) / std::abs( A_tmp[ 0 ] ) < stol ) break;
   }
 
-  /** if using fixed rank */
-  if ( !ADAPTIVE ) s = std::min( maxs, n );
+  /** If using fixed rank, then */
+  if ( !use_adaptive_ranks ) s = std::min( maxs, n );
 
-  /** failed to satisfy error tolerance */
+  /** Failed to satisfy error tolerance. */
   if ( s > maxs )
   {
-    if ( LEVELRESTRICTION ) /** abort */
+    //if ( LEVELRESTRICTION ) /** abort */
+    if ( secure_accuracy ) /** abort */
     {
       skels.clear();
       proj.resize( 0, 0 );
@@ -655,27 +661,27 @@ void skeletonize( Node *node )
 //
 //}; // end class Task
 
-template<class Node>
-class Task : public hmlp::Task
-{
-  public:
-
-    Node *arg;
-
-    void Set( Node *user_arg )
-    {
-      name = std::string( "Skeletonization" );
-      arg = user_arg;
-    };
-
-    void Execute( Worker* user_worker )
-    {
-      //printf( "SkeletonizeTask Execute 2\n" );
-      skeletonize( arg );
-    };
-
-  private:
-};
+//template<class Node>
+//class Task : public Task
+//{
+//  public:
+//
+//    Node *arg;
+//
+//    void Set( Node *user_arg )
+//    {
+//      name = std::string( "Skeletonization" );
+//      arg = user_arg;
+//    };
+//
+//    void Execute( Worker* user_worker )
+//    {
+//      //printf( "SkeletonizeTask Execute 2\n" );
+//      skeletonize( arg );
+//    };
+//
+//  private:
+//};
 
 
 

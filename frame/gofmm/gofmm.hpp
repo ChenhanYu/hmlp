@@ -117,60 +117,84 @@ class Configuration
 {
 	public:
 
-		Configuration( DistanceMetric metric,
-		  size_t n, size_t m, size_t k, size_t s, 
-			T stol, T budget ) 
+    Configuration() {};
+
+		Configuration( DistanceMetric metric_type,
+		  size_t problem_size, size_t leaf_node_size, 
+      size_t neighbor_size, size_t maximum_rank, 
+			T tolerance, T budget ) 
 		{
-			this->metric = metric;
-			this->n = n;
-			this->m = m;
-			this->k = k;
-			this->s = s;
-			this->stol = stol;
+      Set( metric_type, problem_size, leaf_node_size, 
+          neighbor_size, maximum_rank, tolerance, budget );
+		};
+
+		void Set( DistanceMetric metric_type,
+		  size_t problem_size, size_t leaf_node_size, 
+      size_t neighbor_size, size_t maximum_rank, 
+			T tolerance, T budget ) 
+		{
+			this->metric_type = metric_type;
+			this->problem_size = problem_size;
+			this->leaf_node_size = leaf_node_size;
+			this->neighbor_size = neighbor_size;
+			this->maximum_rank = maximum_rank;
+			this->tolerance = tolerance;
 			this->budget = budget;
 		};
 
-		DistanceMetric MetricType() { return metric; };
+    void CopyFrom( Configuration<T> &config ) { *this = config; };
 
-    bool IsSymmetric() { return issymmetric; };
+		DistanceMetric MetricType() { return metric_type; };
 
-		size_t ProblemSize() { return n; };
+		size_t ProblemSize() { return problem_size; };
 
-		size_t LeafNodeSize() { return m; };
+		size_t LeafNodeSize() { return leaf_node_size; };
 
-		size_t NeighborSize() { return k; };
+		size_t NeighborSize() { return neighbor_size; };
 
-		size_t MaximumRank() { return s; };
+		size_t MaximumRank() { return maximum_rank; };
 
-		T Tolerance() { return stol; };
+		T Tolerance() { return tolerance; };
 
 		T Budget() { return budget; };
+
+    bool IsSymmetric() { return is_symmetric; };
+
+    bool UseAdaptiveRanks() { return use_adaptive_ranks; };
+
+    bool SecureAccuracy() { return secure_accuracy; };
 
 	private:
 
 		/** (Default) metric type. */
-		DistanceMetric metric = ANGLE_DISTANCE;
-
-    /** (Default) whether the matrix is symmetric. */
-    bool issymmetric = true;
+		DistanceMetric metric_type = ANGLE_DISTANCE;
 
 		/** (Default) problem size. */
-		size_t n = 0;
+		size_t problem_size = 0;
 
 		/** (Default) maximum leaf node size. */
-		size_t m = 64;
+		size_t leaf_node_size = 64;
 
 		/** (Default) number of neighbors. */
-		size_t k = 32;
+		size_t neighbor_size = 32;
 
 		/** (Default) maximum off-diagonal ranks. */
-		size_t s = 64;
+		size_t maximum_rank = 64;
 
 		/** (Default) user error tolerance. */
-		T stol = 1E-3;
+		T tolerance = 1E-3;
 
 		/** (Default) user computation budget. */
 		T budget = 0.03;
+
+    /** (Default, Advanced) whether the matrix is symmetric. */
+    bool is_symmetric = true;
+
+		/** (Default, Advanced) whether or not using adaptive ranks. */
+		bool use_adaptive_ranks = true;
+
+    /** (Default, Advanced) whether or not securing the accuracy. */
+    bool secure_accuracy = false;
 
 }; /** end class Configuration */
 
@@ -178,24 +202,24 @@ class Configuration
 
 /** @brief These are data that shared by the whole local tree. */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
-class Setup : public tree::Setup<SPLITTER, T>
+class Setup : public tree::Setup<SPLITTER, T>,
+              public Configuration<T>
 {
   public:
 
-    /** Number of neighbors. */
-    size_t k = 32;
+    Setup() {};
 
-    /** Maximum rank. */
-    size_t s = 64;
-
-    /** User specific relative error. */
-    T stol = 1E-3;
-
-    /** User specific budget for the amount of direct evaluation. */ 
-    double budget = 0.0;
-
-		/** (Default) distance type. */
-		DistanceMetric metric = ANGLE_DISTANCE;
+    /** Shallow copy from the config. */
+    void FromConfiguration( Configuration<T> &config,
+        SPDMATRIX &K, SPLITTER &splitter,
+        Data<pair<T, size_t>> &NN, Data<T> *X )
+    { 
+      this->CopyFrom( config ); 
+      this->K = &K;
+      this->splitter = splitter;
+      this->NN = &NN;
+      this->X = X;
+    };
 
     /** The SPDMATRIX (accessed with gids: dense, CSC or OOC). */
     SPDMATRIX *K = NULL;
@@ -211,11 +235,13 @@ class Setup : public tree::Setup<SPLITTER, T>
     /** Regularization for factorization. */
     T lambda = 0.0;
 
-    /** Whether the matrix is symmetric. */
-    bool issymmetric = true;
-
     /** Use ULV or Sherman-Morrison-Woodbury */
     bool do_ulv_factorization = true;
+
+  private:
+
+
+
 
 }; /** end class Setup */
 
@@ -1115,7 +1141,7 @@ class KNNTask : public Task
       // TODO: Need an accurate cost model.
       cost = 1.0;
       /** use the same distance as the tree */
-      metric = arg->setup->metric;
+      metric = arg->setup->MetricType();
 
       //--------------------------------------
       double flops, mops;
@@ -1142,7 +1168,7 @@ class KNNTask : public Task
       #pragma omp parallel for
       for ( size_t j = 0; j < gids.size(); j ++ )
       {
-        std::set<size_t> NNset;
+        set<size_t> NNset;
 
         for ( size_t i = 0; i < NN.row(); i ++ )
         {
@@ -1841,7 +1867,8 @@ void GetSkeletonMatrix( NODE *node )
   size_t nsamples = 2 * candidate_cols.size();
 
   /** make sure we at least m samples */
-  if ( nsamples < 2 * node->setup->m ) nsamples = 2 * node->setup->m;
+  if ( nsamples < 2 * node->setup->LeafNodeSize() ) 
+    nsamples = 2 * node->setup->LeafNodeSize();
 
   /** sample off-diagonal rows */
   RowSamples<NODE, T>( node, nsamples );
@@ -1853,7 +1880,7 @@ void GetSkeletonMatrix( NODE *node )
    *
    */
   //KIJ = K( candidate_rows, candidate_cols );
-  size_t over_size_rank = node->setup->s + 20;
+  size_t over_size_rank = node->setup->MaximumRank() + 20;
   //if ( candidate_rows.size() <= over_size_rank )
   if ( 1 )
   {
@@ -1974,7 +2001,7 @@ class GetSkeletonMatrixTask : public Task
 /**
  *  @brief Skeletonization with interpolative decomposition.
  */ 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
+template<typename NODE, typename T>
 void Skeletonize2( NODE *node )
 {
   /** early return if we do not need to skeletonize */
@@ -1983,8 +2010,11 @@ void Skeletonize2( NODE *node )
   /** gather shared data and create reference */
   auto &K   = *(node->setup->K);
   auto &NN  = *(node->setup->NN);
-  auto maxs = node->setup->s;
-  auto stol = node->setup->stol;
+  auto maxs = node->setup->MaximumRank();
+  auto stol = node->setup->Tolerance();
+  bool secure_accuracy = node->setup->SecureAccuracy();
+  bool use_adaptive_ranks = node->setup->UseAdaptiveRanks();
+
 
   /** gather per node data and create reference */
   auto &data  = node->data;
@@ -2000,9 +2030,8 @@ void Skeletonize2( NODE *node )
   size_t n = KIJ.col();
   size_t q = node->n;
 
-  if ( LEVELRESTRICTION )
+  if ( secure_accuracy )
   {
-    assert( ADAPTIVE );
     if ( !node->isleaf && ( !node->lchild->data.isskel || !node->rchild->data.isskel ) )
     {
       skels.clear();
@@ -2019,17 +2048,18 @@ void Skeletonize2( NODE *node )
   /** account for uniform sampling */
   scaled_stol *= std::sqrt( (T)q / N );
 
-  lowrank::id<ADAPTIVE, LEVELRESTRICTION>
+  lowrank::id
   ( 
-    KIJ.row(), KIJ.col(), maxs, scaled_stol, /** ignore if !ADAPTIVE */
+    use_adaptive_ranks, secure_accuracy,
+    KIJ.row(), KIJ.col(), maxs, scaled_stol,
     KIJ, skels, proj, jpvt
   );
 
   /** free KIJ for spaces */
   KIJ.resize( 0, 0 );
 
-  /** depending on the flag, decide isskel or not */
-  if ( LEVELRESTRICTION )
+  /** Depending on the flag, decide isskel or not. */
+  if ( secure_accuracy )
   {
     /** TODO: this needs to be bcast to other nodes */
     data.isskel = (skels.size() != 0);
@@ -2062,7 +2092,7 @@ void Skeletonize2( NODE *node )
 /**
  *
  */ 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename NODE, typename T>
+template<typename NODE, typename T>
 class SkeletonizeTask2 : public Task
 {
   public:
@@ -2116,7 +2146,7 @@ class SkeletonizeTask2 : public Task
     void Execute( Worker* user_worker )
     {
       //printf( "%lu Skel beg\n", arg->treelist_id );
-      Skeletonize2<ADAPTIVE, LEVELRESTRICTION, NODE, T>( arg );
+      Skeletonize2<NODE, T>( arg );
       //printf( "%lu Skel end\n", arg->treelist_id );
     };
 
@@ -3179,7 +3209,8 @@ void NearSamples( NODE *node )
   if ( node->isleaf )
   {
     auto &gids = node->gids;
-    double budget = setup.budget;
+    //double budget = setup.budget;
+    double budget = setup.Budget();
     size_t n_nodes = ( 1 << node->l );
 
     /** Add myself to the near interaction list.  */
@@ -3415,7 +3446,7 @@ void FindFarNodes( NODE *node, NODE *target )
   }
   else
   {
-    if ( node->setup->issymmetric && ( node->morton < target->morton ) )
+    if ( node->setup->IsSymmetric() && ( node->morton < target->morton ) )
     {
       /** since target->morton is larger than the visiting node,
        * the interaction between the target and this node has
@@ -3512,7 +3543,7 @@ void MergeFarNodes( TREE &tree )
     }
   }
 
-  if ( tree.setup.issymmetric )
+  if ( tree.setup.IsSymmetric() )
   {
     /** symmetrinize FarNodes to FarNodes interaction */
     for ( int l = tree.depth; l >= 0; l -- )
@@ -3913,7 +3944,7 @@ Data<T> Evaluate
   {
     printf( "N2S, S2S, S2N, L2L (HMLP Runtime) ...\n" ); fflush( stdout );
   }
-  if ( tree.setup.issymmetric )
+  if ( tree.setup.IsSymmetric() )
   {
     beg = omp_get_wtime();
 #ifdef HMLP_USE_CUDA
@@ -4114,16 +4145,8 @@ Data<T> Evaluate
 /**
  *  @brielf template of the compress routine
  */ 
-template<
-  bool        ADAPTIVE, 
-  bool        LEVELRESTRICTION, 
-  typename    SPLITTER, 
-  typename    RKDTSPLITTER, 
-  typename    T, 
-  typename    SPDMATRIX>
-tree::Tree<
-  gofmm::Setup<SPDMATRIX, SPLITTER, T>, 
-  gofmm::NodeData<T>>
+template<typename SPLITTER, typename RKDTSPLITTER, typename T, typename SPDMATRIX>
+tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 *Compress
 ( 
   Data<T> *X,
@@ -4164,26 +4187,13 @@ tree::Tree<
   double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
 
 
-  /** original order of the matrix */
-  beg = omp_get_wtime();
-  vector<size_t> gids( n );
-  #pragma omp parallel for
-  for ( auto i = 0; i < n; i ++ ) 
-  {
-    gids[ i ] = i;
-  }
-  other_time += omp_get_wtime() - beg;
 
 
   /** iterative all nearnest-neighbor (ANN) */
   const size_t n_iter = 10;
-  const bool SORTED = false;
   /** do not change anything below this line */
   tree::Tree<RKDTSETUP, DATA> rkdt;
-  rkdt.setup.X = X;
-  rkdt.setup.K = &K;
-	rkdt.setup.metric = metric; 
-  rkdt.setup.splitter = rkdtsplitter;
+  rkdt.setup.FromConfiguration( config, K, rkdtsplitter, NN, X );
   pair<T, size_t> initNN( numeric_limits<T>::max(), n );
   if ( REPORT_COMPRESS_STATUS )
   {
@@ -4193,8 +4203,7 @@ tree::Tree<
   if ( NN.size() != n * k )
   {
     gofmm::KNNTask<3, RKDTNODE, T> KNNtask;
-    NN = rkdt.template AllNearestNeighbor<SORTED>
-         ( n_iter, k, 10, gids, initNN, KNNtask );
+    NN = rkdt.AllNearestNeighbor( n_iter, k, 10, initNN, KNNtask );
   }
   else
   {
@@ -4206,43 +4215,36 @@ tree::Tree<
   ann_time = omp_get_wtime() - beg;
 
   /** check illegle values in NN */
-  for ( size_t j = 0; j < NN.col(); j ++ )
-  {
-    for ( size_t i = 0; i < NN.row(); i ++ )
-    {
-      size_t neighbor_gid = NN( i, j ).second;
-      if ( neighbor_gid < 0 || neighbor_gid >= n )
-      {
-        printf( "NN( %lu, %lu ) has illegle values %lu\n", i, j, neighbor_gid );
-        break;
-      }
-    }
-  }
+  //for ( size_t j = 0; j < NN.col(); j ++ )
+  //{
+  //  for ( size_t i = 0; i < NN.row(); i ++ )
+  //  {
+  //    size_t neighbor_gid = NN( i, j ).second;
+  //    if ( neighbor_gid < 0 || neighbor_gid >= n )
+  //    {
+  //      printf( "NN( %lu, %lu ) has illegle values %lu\n", i, j, neighbor_gid );
+  //      break;
+  //    }
+  //  }
+  //}
 
 
 
 
 
 
-  /** initialize metric ball tree using approximate center split */
+  /** Initialize metric ball tree using approximate center split. */
   auto *tree_ptr = new tree::Tree<SETUP, DATA>();
 	auto &tree = *tree_ptr;
-  tree.setup.X = X;
-  tree.setup.K = &K;
-	tree.setup.metric = metric; 
-  tree.setup.splitter = splitter;
-  tree.setup.NN = &NN;
-  tree.setup.m = m;
-  tree.setup.k = k;
-  tree.setup.s = s;
-  tree.setup.stol = stol;
-  tree.setup.budget = budget;
+  tree.setup.FromConfiguration( config, K, splitter, NN, X );
+
+
   if ( REPORT_COMPRESS_STATUS )
   {
     printf( "TreePartitioning ...\n" ); fflush( stdout );
   }
   beg = omp_get_wtime();
-  tree.TreePartition( gids );
+  tree.TreePartition();
   tree_time = omp_get_wtime() - beg;
 
 
@@ -4296,10 +4298,10 @@ tree::Tree<
     printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
   }
   beg = omp_get_wtime();
-  //gofmm::SkeletonizeTask<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
+  //gofmm::SkeletonizeTask<NODE, T> SKELtask;
   //tree.template TraverseUp<true>( SKELtask );
   gofmm::GetSkeletonMatrixTask<NODE, T> GETMTXtask;
-  gofmm::SkeletonizeTask2<ADAPTIVE, LEVELRESTRICTION, NODE, T> SKELtask;
+  gofmm::SkeletonizeTask2<NODE, T> SKELtask;
   gofmm::InterpolateTask<NODE, T> PROJtask;
   tree.DependencyCleanUp();
   tree.TraverseUp( GETMTXtask, SKELtask );
@@ -4439,8 +4441,6 @@ tree::Tree<
   gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, T stol, T budget, size_t m, size_t k, size_t s )
 {
-  const bool ADAPTIVE = true;
-  const bool LEVELRESTRICTION = false;
   using SPLITTER     = centersplit<SPDMATRIX, 2, T>;
   using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T>;
   Data<T> *X = NULL;
@@ -4459,7 +4459,7 @@ tree::Tree<
 	Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
 
 	/** call the complete interface and return tree_ptr */
-  return Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER>
+  return Compress<SPLITTER, RKDTSPLITTER>
          ( X, K, NN, //ANGLE_DISTANCE, 
 					 splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
 					 config );
@@ -4481,8 +4481,6 @@ tree::Tree<
   gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, T stol, T budget )
 {
-  const bool ADAPTIVE = true;
-  const bool LEVELRESTRICTION = false;
   using SPLITTER     = centersplit<SPDMATRIX, 2, T>;
   using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T>;
   Data<T> *X = NULL;
@@ -4526,11 +4524,9 @@ tree::Tree<
 	Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
 
 	/** call the complete interface and return tree_ptr */
-  return Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER>
+  return Compress<SPLITTER, RKDTSPLITTER>
          ( X, K, NN, //ANGLE_DISTANCE, 
-					 splitter, rkdtsplitter, 
-					 //n, m, k, s, stol, budget, 
-					 config );
+					 splitter, rkdtsplitter, config );
 
 }; /** end Compress() */
 

@@ -57,7 +57,7 @@ class DistSetupFactorTask : public Task
       size_t n, nl, nr, s, sl, sr;
       bool issymmetric, do_ulv_factorization, isleft;
   
-      issymmetric = myself->setup->issymmetric;
+      issymmetric = myself->setup->IsSymmetric();
       do_ulv_factorization = myself->setup->do_ulv_factorization;
       isleft = false;
       n  = myself->n;
@@ -307,8 +307,6 @@ void DistFactorize( TREE &tree, T lambda )
 
   /** setup the regularization parameter lambda */
   tree.setup.lambda = lambda;
-  /** setup the symmetric type */
-  tree.setup.issymmetric = true;
   /** setup factorization type */
   tree.setup.do_ulv_factorization = true;
 

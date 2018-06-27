@@ -50,8 +50,6 @@ namespace gofmm
 
 
 template<
-  bool        ADAPTIVE, 
-  bool        LEVELRESTRICTION, 
   typename    SPLITTER, 
   typename    RKDTSPLITTER, 
   typename    T, 
@@ -84,7 +82,7 @@ void test_gofmm
   gofmm::Configuration<T> config( metric, n, m, k, s, stol, budget );
 
   /** compress K */
-  auto *tree_ptr = gofmm::Compress<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+  auto *tree_ptr = gofmm::Compress<SPLITTER, RKDTSPLITTER, T>
   ( X, K, NN, //metric, 
 		splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
 	  config );
@@ -147,7 +145,7 @@ void test_gofmm
 /**
  *  @brief Instantiate the splitters here.
  */ 
-template<bool ADAPTIVE, bool LEVELRESTRICTION, typename T, typename SPDMATRIX>
+template<typename T, typename SPDMATRIX>
 void test_gofmm_setup
 ( 
   Data<T> *X,
@@ -172,7 +170,7 @@ void test_gofmm_setup
 			/** randomized tree splitter */
       RKDTSPLITTER rkdtsplitter;
       rkdtsplitter.Coordinate = X;
-      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+      test_gofmm<SPLITTER, RKDTSPLITTER, T>
       ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
       break;
     }
@@ -190,7 +188,7 @@ void test_gofmm_setup
       RKDTSPLITTER rkdtsplitter;
       rkdtsplitter.Kptr = &K;
 			rkdtsplitter.metric = metric;
-      test_gofmm<ADAPTIVE, LEVELRESTRICTION, SPLITTER, RKDTSPLITTER, T>
+      test_gofmm<SPLITTER, RKDTSPLITTER, T>
       ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
       break;
     }
@@ -212,10 +210,6 @@ void test_gofmm_setup
 int main( int argc, char *argv[] )
 {
   printf( "\n--- Artifact of GOFMM for Super Computing 2017\n" );
-
-  /** default adaptive scheme */
-  const bool ADAPTIVE = true;
-  const bool LEVELRESTRICTION = false;
 
   /** default geometric-oblivious scheme */
   DistanceMetric metric = ANGLE_DISTANCE;
@@ -352,13 +346,13 @@ int main( int argc, char *argv[] )
       if ( user_points_filename.size() )
       {
         Data<T> X( d, n, user_points_filename );
-        gofmm::test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        gofmm::test_gofmm_setup<T>
         ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
       else
       {
         Data<T> *X = NULL;
-        gofmm::test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+        gofmm::test_gofmm_setup<T>
         ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
     }
@@ -380,7 +374,7 @@ int main( int argc, char *argv[] )
       /** (optional) provide neighbors, leave uninitialized otherwise */
       Data<pair<T, size_t>> NN;
       /** routine */
-      gofmm::test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      gofmm::test_gofmm_setup<T>
       ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
     }
   }
@@ -400,7 +394,7 @@ int main( int argc, char *argv[] )
 			/** (optional) provide neighbors, leave uninitialized otherwise */
 			Data<pair<T, size_t>> NN;
 			/** routine */
-      gofmm::test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      gofmm::test_gofmm_setup<T>
 				( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
 		}
 		{
@@ -416,7 +410,7 @@ int main( int argc, char *argv[] )
 			/** (optional) provide neighbors, leave uninitialized otherwise */
 			Data<pair<T, size_t>> NN;
 			/** routine */
-      gofmm::test_gofmm_setup<ADAPTIVE, LEVELRESTRICTION, T>
+      gofmm::test_gofmm_setup<T>
       ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
 		}
   }

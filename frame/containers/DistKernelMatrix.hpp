@@ -21,8 +21,8 @@
 
 
 
-#ifndef DISTKERNELMATRIX_HPP
-#define DISTKERNELMATRIX_HPP
+#ifndef DISTKERNELMATRIX_VER2_HPP
+#define DISTKERNELMATRIX_VER2_HPP
 
 #ifdef USE_INTEL
 #include <mkl.h>
@@ -35,13 +35,12 @@
 #endif
 
 #include <hmlp_blas_lapack.h>
-
 #include <hmlp_runtime.hpp>
 
-/** use software cache */
+/** Use software cache */
 #include <containers/Cache.hpp>
 
-/** kernel matrix uses VirtualMatrix<T> as base */
+/** Use VirtualMatrix<T> as base */
 #include <containers/DistVirtualMatrix.hpp>
 
 
@@ -53,536 +52,154 @@ namespace hmlp
 {
 
 #ifdef HMLP_MIC_AVX512
-template<typename T, class Allocator = hbw::allocator<T> >
+template<typename T, typename TP, class Allocator = hbw::allocator<TP> >
 #else
-template<typename T, class Allocator = std::allocator<T> >
+template<typename T, typename TP, class Allocator = std::allocator<TP> >
 #endif
 /**
  *  @brief
  */ 
-class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
+class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, 
+                              public ReadWrite
 {
   public:
 
-    /** symmetric kernel matrix */
-    DistKernelMatrix
+    /** (Default) unsymmetric kernel matrix */
+    DistKernelMatrix_ver2
     ( 
       size_t m, size_t n, size_t d, 
-      kernel_s<T> &kernel, 
       /** by default we assume sources are distributed in [STAR, CBLK] */
-      DistData<STAR, CBLK, T> &sources, 
-      mpi::Comm comm 
-    )
-    : sources_sqnorms( 1, m, comm ), 
-      targets_sqnorms( 1, n, comm ),
-      all_dimensions( d ),
-			cache( d ),
-      DistVirtualMatrix<T>( m, n, comm )
-    {
-      assert( m == n );
-      this->is_symmetric = true;
-      this->d = d;
-      this->kernel = kernel;
-      this->sources = &sources;
-      this->targets = &sources;
-      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
-      /** compute square 2-norms for Euclidian family */
-      ComputeSquare2Norm();
-    };
-
-    /** unsymmetric kernel matrix */
-    DistKernelMatrix
-    ( 
-      size_t m, size_t n, size_t d, 
-      kernel_s<T> &kernel, 
-      /** by default we assume sources are distributed in [STAR, CBLK] */
-      DistData<STAR, CBLK, T> &sources, 
+      DistData<STAR, CBLK, TP> &sources, 
       /** by default we assume targets are distributed in [STAR, CBLK] */
-      DistData<STAR, CBLK, T> &targets, 
+      DistData<STAR, CBLK, TP> &targets, 
       mpi::Comm comm 
     )
-    : sources_sqnorms( 1, m, comm ), 
-      targets_sqnorms( 1, n, comm ),
-      all_dimensions( d ),
-			cache( d ),
+    : all_dimensions( d ), sources_user( sources ), targets_user( target ),
       DistVirtualMatrix<T>( m, n, comm )
     {
       this->is_symmetric = false;
       this->d = d;
-      this->kernel = kernel;
       this->sources = &sources;
       this->targets = &targets;
       for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
-      /** compute square 2-norms for Euclidian family */
-      ComputeSquare2Norm();
     };
 
-    ~DistKernelMatrix() {};
-
-    void ComputeSquare2Norm()
+    /** Unsymmetric kernel matrix with legacy kernel_s<T> */
+    DistKernelMatrix_ver2
+    ( 
+      size_t m, size_t n, size_t d,
+      kernel_s<T> &kernel, 
+      /** by default we assume sources are distributed in [STAR, CBLK] */
+      DistData<STAR, CBLK, TP> &sources, 
+      /** by default we assume targets are distributed in [STAR, CBLK] */
+      DistData<STAR, CBLK, TP> &targets, 
+      mpi::Comm comm 
+    )
+    : DistKernelMatrix_ver2( m, n, d, sources, targets, comm ) 
     {
-      /** MPI */
-      int size = this->Comm_size();
-      int rank = this->Comm_rank();
-
-      //printf( "before ComputeSquare\n" ); fflush( stdout );
-
-      /** compute 2-norm using xnrm2 */
-      #pragma omp parallel for
-      for ( size_t j = 0; j < sources->col_owned(); j ++ )
-      {
-        /** 
-         *  notice that here we want to compute 2-norms only
-         *  for the sources owned locally. In this case, we
-         *  cannot use ( i, j ) operator. 
-         */
-        sources_sqnorms[ j ] = xdot( 
-						d, sources->data() + j * d, 1,
-						   sources->data() + j * d, 1 ); 
-      } /** end omp parallel for */
-
-
-      //printf( "after ComputeSquare\n" ); fflush( stdout );
-
-
-      /** compute 2-norms for targets if unsymmetric */
-      if ( is_symmetric ) 
-      {
-        /** directly copy from sources */
-        targets_sqnorms = sources_sqnorms;
-      }
-      else
-      {
-        /** 
-         *  targets are stored as "d-by-m" in the distributed
-         *  fashion. We directly access the local data by pointers
-         *  but not ( i, j ) operator.
-         */
-        #pragma omp parallel for
-        for ( size_t i = 0; i < targets->col_owned(); i ++ )
-        {
-          targets_sqnorms[ i ] = xdot( 
-							d, targets->data() + i * d, 1,
-							   targets->data() + i * d, 1 );
-        } /** end omp paralllel for */
-      }
-    }; /** end ComputeSquare2Norm() */
-
-
-		/**
-		 *  @brief This function collects 
-		 */ 
-		Data<T> RequestSources( std::vector<size_t>& J )
-		{
-			/** MPI */
-			int size = this->Comm_size();
-			int rank = this->Comm_rank();
-
-
-			//printf( "%d RequestSources %lu\n", rank, J.size() ); fflush( stdout );
-
-			/** return value */
-			Data<T> XJ( d, J.size() );
-
-			/** check if source j are both owned by this MPI process */
-			std::vector<std::vector<size_t>> sendcids( size );
-
-			/** record the destination order */
-			std::vector<std::vector<size_t>> jmapcids( size );
-
-			/** check if source j is cached */
-			std::vector<size_t> cacheids;
-			std::vector<size_t> jmapline;
-
-			size_t num_blk = 0;
-			size_t num_ids = 0;
-			size_t num_cac = 0;
-
-			for ( size_t j = 0; j < J.size(); j ++ )
-			{
-				size_t cid = J[ j ];
-
-				/** source( cid ) is stored locally <STAR, CBLK> */
-				if ( cid % size == rank )
-				{
-					for ( size_t i = 0; i < d; i ++ ) XJ( i, j ) = (*sources)( i, cid );
-					num_blk ++;
-					continue;
-				}
-
-				if ( sources_cids )
-				{
-					/** source( cid ) is stored locally <STAR, CIDS> */
-          if ( sources_cids->HasColumn( cid ) )
-          {
-            T *XJ_cids = sources_cids->columndata( cid );
-					  for ( size_t i = 0; i < d; i ++ ) XJ( i, j ) = XJ_cids[ i ];
-            num_ids ++;
-            continue;
-          }
-        }
-
-				/** try to read from cache (critical region) */
-				auto line = cache.Read( cid );
-
-        //printf( "%d fetching cache line cid %lu, return %lu\n", rank, cid, line.size() ); fflush( stdout );
-
-				if ( line.size() != d )
-				//if ( 1 )
-				{
-          sendcids[ cid % size ].push_back( cid );    
-          jmapcids[ cid % size ].push_back(   j );
-				}
-				else
-				{
-					/** source( cid ) is cached */
-					for ( size_t i = 0; i < d; i ++ ) XJ( i, j ) = line[ i ];
-          num_cac ++;
-				}
-			}
-
-      //if ( J.size() - num_blk - num_ids - num_cac )
-      //{
-      //  printf( "blk %4lu ids %4lu cac %4lu all %lu\n", 
-      //      num_blk, num_ids, num_cac, J.size() ); fflush( stdout );
-      //}
-
-      if ( J.size() - num_blk - num_ids - num_cac > 2 )
-      {
-
-
-     int mybatchid = 0;
-
-      batch_lock.Acquire();
-      {
-        mybatchid == batch.size();
-        std::pair<std::vector<std::vector<size_t>>*, std::vector<std::vector<size_t>>*> 
-          request( &sendcids, &jmapcids );
-        batch.push_back( request );
-        batch_results.push_back( &XJ );
-
-        if ( mybatchid == 0 ) batchhascomplete = false;
-      }
-      batch_lock.Release();
-
-
-      if ( mybatchid == 0 )
-      {
-        double beg = omp_get_wtime();
-
-        /** busy waiting */
-        while ( omp_get_wtime() - beg < 0.01 && batch.size() < 16 ) {}
-
-        batch_lock.Acquire();
-        {
-			    /** started to request coordinates */
-			    for ( size_t p = 0; p < size; p ++ )
-          {
-            std::vector<size_t> Jp;
-
-            /** concatenate all requests to p */
-            for ( size_t b = 0; b < batch.size(); b ++ )
-            {
-              auto &Jpb = (*batch[ b ].first)[ p ];
-              Jp.insert( Jp.end(), Jpb.begin(), Jpb.end() );
-            }
-
-            Data<T> XJp( d, Jp.size() );
-
-            if ( p == rank )
-            {
-					     XJp = (*sources)( all_dimensions, Jp );
-            }
-            else
-            {
-					    /** tag 128 for sources */
-              int tag = omp_get_thread_num() + 128;
-						  mpi::Send( Jp.data(), Jp.size(), p, tag, this->GetRecvComm() );
-						  /** wait to recv the coorinates */
-						  mpi::Status status;
-						  mpi::Recv( XJp.data(), XJp.size(), p, tag - 128, 
-							  	this->GetSendComm(), &status );
-            }
-
-            size_t offset = 0;
-            for ( size_t b = 0; b < batch.size(); b ++ )
-            {
-              auto &Jpb = (*batch[ b ].second)[ p ];
-              auto &XJb = *(batch_results[ b ]);
-
-              for ( size_t j = 0; j < Jpb.size(); j ++ )
-                for ( size_t i = 0; i < d; i ++ )
-                  XJb( i, Jpb[ j ] ) = XJp( i, offset + j );
-
-              offset += Jpb.size();
-            }
-          }
-        
-          /** the batch request is done */
-          batch.clear();
-          batch_results.clear();
-          batchhascomplete = true;
-        }
-        batch_lock.Release();
-      }
-      else
-      {
-        while ( !batchhascomplete ) {}
-      }
-
-
-
-
-
-
-
-
-
-      }
-      else
-      {
-
-
-
-
-			/** double buffer for XJp */
-			hmlp::Data<T> buffer[ 2 ];
-
-			/** started to request coordinates */
-			for ( size_t pp = 0; pp < size; pp ++ )
-			{
-				/** use Round-Robin order to interleave requests */
-        size_t p = ( pp + rank ) % size;
-
-				auto &Jp = sendcids[ p ];
-
-				if ( !Jp.size() ) continue;
-
-				/** get the interleaving buffer for XJp */
-        hmlp::Data<T> &XJp = buffer[ pp % 2 ];
-
-        if ( p == rank )
-				{
-					XJp = (*sources)( all_dimensions, Jp );
-				}
-				else
-				{
-					/** resize buffer for receving from p */
-          XJp.resize( d, Jp.size() );
-					/** tag 128 for sources */
-          int tag = omp_get_thread_num() + 128;
-          int max_tag = MPI_TAG_UB;
-          //printf( " %d Sending tag %d (MAX %d) to %lu\n", rank, tag, max_tag, p ); fflush( stdout );
-
-          //#pragma omp critical
-					{
-						/** issue a request to dest for source( j ) */
-						//mpi::Send( Jp.data(), Jp.size(), p, tag, this->GetRecvComm() );
-						//printf( "%d Expect to receive %lu tag %d from %lu\n",
-						//    rank, XJp.size(), tag, p ); fflush( stdout );
-
-
-
-						/** issue a request to dest for source( j ) */
-						int test_flag = false;
-		        mpi::Request request;
-						mpi::Isend( Jp.data(), Jp.size(), p, tag, this->GetRecvComm(), &request );
-						//printf( "%d Expect to receive %lu tag %d from %lu\n",
-						//    rank, XJp.size(), tag, p ); fflush( stdout );
-
-						/** wait and cache */
-						if ( pp )
-						{
-              int previous = ( pp - 1 + rank ) % size;
-
-              for ( size_t j = 0; j < sendcids[ previous ].size(); j ++ )
-							{
-						    //mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
-								//if ( test_flag ) break;
-					      /** write to cache */
-                hmlp::Data<T> line( d, (size_t)1 );					
-                for ( size_t i = 0; i < d; i ++ ) 
-									line[ i ] = buffer[ ( pp - 1 ) % 2 ]( i, j );
-					      /** write to cache */
-                cache.Write( sendcids[ previous ][ j ], line ); 
-							}
-						}
-
-						while ( !test_flag )
-						{
-						  mpi::Test( &request, &test_flag, MPI_STATUS_IGNORE );
-						}
-
-						/** wait to recv the coorinates */
-						mpi::Status status;
-						mpi::Recv( XJp.data(), XJp.size(), p, tag - 128, 
-								this->GetSendComm(), &status );
-					}
-          //printf( "%d Done receive %lu tag %d from %lu\n",
-          //    rank, XJp.size(), tag - 128, p ); fflush( stdout );
-				}
-
-				/** fill-in XJ and write to cache */
-        for ( size_t j = 0; j < jmapcids[ p ].size(); j ++ )
-				{
-					/** write to cache */
-          //hmlp::Data<T> line( d, (size_t)1 );					
-					/** fill-in XJ */
-          for ( size_t i = 0; i < d; i ++ )
-					{
-						//line[ i ] = XJp( i, j );
-            XJ( i, jmapcids[ p ][ j ] ) = XJp( i, j );
-					}
-
-					/** write to cache */
-          //cache.Write( Jp[ j ], line ); 
-				}
-			}
-
-      }
-
-			return XJ;
-
-    }; /** end RequestSources() */
-
-
-
-
-
-
-
-
-
-		/**
-		 *  @brief This function collects KIJ from myself
-		 */ 
-    hmlp::Data<T> RequestColumns( std::vector<size_t>& I, hmlp::Data<T> &XJ )
+      this->kernel = kernel;
+    };
+
+    /** (Default) symmetric kernel matrix */
+    DistKernelMatrix_ver2
+    ( 
+      size_t n, size_t d, 
+      /** by default we assume sources are distributed in [STAR, CBLK] */
+      DistData<STAR, CBLK, TP> &sources, 
+      mpi::Comm comm 
+    ) 
+    : all_dimensions( d ), sources_user( sources ), targets_user( d, 0, comm ),
+      DistVirtualMatrix<T>( n, n, comm )
     {
-      /** MPI */
-      int size = this->Comm_size();
-			int rank = this->Comm_rank();
+      this->is_symmetric = true;
+      this->d = d;
+      this->sources = &sources;
+      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
+    };
 
-      /** assertion */
-      assert( XJ.row() == d );
-
-			/** return value */
-      hmlp::Data<T> KIJ( I.size(), XJ.col() );
-
-			/** check if source j are both owned by this MPI process */
-			std::vector<std::vector<size_t>> sendcids( size );
-
-      /** record the destination order */
-      std::vector<std::vector<size_t>> jmapcids( size );
-
-			/** check if source j is cached */
-      std::vector<size_t> cacheids;
-			std::vector<size_t> jmapline;
-
-			for ( size_t i = 0; i < I.size(); i ++ )
-			{
-        size_t cid = I[ i ];
-
-        std::vector<size_t> cid_query( 1, cid );
-
-        /** source( cid ) is stored locally <STAR, CBLK> */
-        if ( cid % size == rank )
-        {
-					auto XI = (*sources)( all_dimensions, cid_query );
-					for ( size_t j = 0; j < KIJ.col(); j ++ )
-            KIJ( i, j ) = (*this)( XI.data(), XJ.columndata( j ) );
-          continue;
-        }
-
-        if ( sources_cids )
-        {
-          /** source( cid ) is stored locally <STAR, CIDS> */
-          if ( sources_cids->HasColumn( cid ) )
-          {
-					  auto XI = (*sources_cids)( all_dimensions, cid_query );
-					  for ( size_t j = 0; j < KIJ.col(); j ++ )
-              KIJ( i, j ) = (*this)( XI.data(), XJ.columndata( j ) );
-            continue;
-          }
-          else
-          {
-            //printf( "RequestColumn: cid not found\n" ); fflush( stdout );
-          }
-        }
-
-				/** try to read from cache (critical region) */
-				auto line = cache.Read( cid );
-
-				if ( line.size() != d )
-				{
-          sendcids[ cid % size ].push_back( cid );    
-          jmapcids[ cid % size ].push_back(   i );
-				}
-				else
-				{
-					for ( size_t j = 0; j < KIJ.col(); j ++ )
-            KIJ( i, j ) = (*this)( line.data(), XJ.columndata( j ) );
-				}
-			}
-
-
-			/** started to request values of the column */
-			for ( size_t pp = 0; pp < size; pp ++ )
-			{
-				/** use Round-Robin order to interleave requests */
-        size_t p = ( pp + rank ) % size;
-
-				auto &Jp = sendcids[ p ];
-
-				if ( !Jp.size() ) continue;
-
-        /** use tags larger than 1024 */
-        int tag = omp_get_thread_num() + 1024;
-
-			  /** issue a request to notify rank p */
-				mpi::Send(   Jp.data(),   Jp.size(), p, tag, this->GetRecvComm() );
-        /** send rank p XJ for K( XI, XJ ) */
-				//mpi::Send(   XJ.data(),   XJ.size(), p, tag, this->GetRecvComm() );
-			  mpi::SendVector( XJ, p, tag, this->GetRecvComm() );
-
-
-
-        /** wait to recv K( XI, XJ ) */
-				mpi::Status status;
-        Data<T> KIJp( Jp.size(), XJ.col() );
-				mpi::Recv( KIJp.data(), KIJp.size(), p, tag, this->GetSendComm(), &status );
-
-        for ( size_t i = 0; i < jmapcids[ p ].size(); i ++ )
-        {
-					for ( size_t j = 0; j < KIJ.col(); j ++ )
-            KIJ( jmapcids[ p ][ i ], j ) = KIJp( i, j );
-        }
-      }
-
-      return KIJ;
-
-    }; /** end RequestColumns() */
-
-
-
-
-
-    T operator () ( T *itargets, T *jsources )
+    /** Symmetric kernel matrix with legacy kernel_s<T> */
+    DistKernelMatrix_ver2
+    ( 
+      size_t n, size_t d, 
+      kernel_s<T> &kernel,
+      /** by default we assume sources are distributed in [STAR, CBLK] */
+      DistData<STAR, CBLK, TP> &sources, 
+      mpi::Comm comm 
+    )
+    : DistKernelMatrix_ver2( n, d, sources, comm )
     {
-      /** return value */
+      this->kernel = kernel;
+    };
+
+
+
+
+
+    /** (Default) destructor */
+    ~DistKernelMatrix_ver2() {};
+
+
+
+    /** Compute Kij according legacy kernel_s<T> */
+    T operator () ( TP *itargets, TP *jsources )
+    {
+      /** Return value */
       T Kij = 0.0;
 
-      /** at this moment we already have the corrdinates on this process */
+      /** At this moment we already have the corrdinates on this process */
       switch ( kernel.type )
       {
         case KS_GAUSSIAN:
         {
           for ( size_t k = 0; k < d; k++ )
           {
-            T tar = itargets[ k ];
-            T src = jsources[ k ];
+            TP tar = itargets[ k ];
+            TP src = jsources[ k ];
             Kij += ( tar - src ) * ( tar - src );
           }
           Kij = exp( kernel.scal * Kij );
+          break;
+        }
+        case KS_LAPLACE:
+        {
+          //T scale = 0.0;
+
+          //if ( d == 1 ) scale = 1.0;
+          //else if ( d == 2 ) scale = ( 0.5 / M_PI );
+          //else
+          //{
+          //  scale = tgamma( 0.5 * d + 1.0 ) / ( d * ( d - 2 ) * pow( M_PI, 0.5 * d ) ); 
+          //}
+
+          for ( size_t k = 0; k < d; k++ )
+          {
+            /** Use high precision */
+            TP tar = itargets[ k ];
+            TP src = jsources[ k ];
+            Kij += ( tar - src ) * ( tar - src );
+          }
+
+          /** Deal with the signularity (i.e. r ~ 0.0). */
+          if ( Kij < 1E-6 ) Kij = 0.0;
+          else
+          {
+            if ( d == 1 ) Kij = sqrt( Kij );
+            else if ( d == 2 ) Kij = ( log( Kij ) / 2.0 );
+            else Kij = 1 / sqrt( Kij );
+          }
+          break;
+        }
+        case KS_QUARTIC:
+        {
+          for ( size_t k = 0; k < d; k++ )
+          {
+            TP tar = itargets[ k ];
+            TP src = jsources[ k ];
+            Kij += ( tar - src ) * ( tar - src );
+          }
+          //if ( Kij < sqrt ( 2 ) / 2 ) Kij = 1;
+          if ( Kij < 0.5 ) Kij = 1;
+          else Kij = 0;
           break;
         }
         default:
@@ -594,139 +211,64 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       }
 
       return Kij;
-
     };
 
 
-
-
-
-
-    T operator () ( size_t i, size_t j )
+    /** (Overwrittable) Request a single Kij */
+    virtual T operator () ( size_t i, size_t j )
     {
-      /** MPI */
-      int size = this->Comm_size();
-      int rank = this->Comm_rank();
-
-      /** return value */
-      T Kij = 0.0;
- 
-			std::vector<size_t> I( 1, i );
-			std::vector<size_t> J( 1, j );
-
-      /** get coordinates */
-      hmlp::Data<T> itargets = RequestSources( I );
-      hmlp::Data<T> jsources = RequestSources( J );
-
-      /** at this moment we already have the corrdinates on this process */
-//      switch ( kernel.type )
-//      {
-//        case KS_GAUSSIAN:
-//          {
-//            for ( size_t k = 0; k < d; k++ )
-//            {
-//              T tar = itargets[ k ];
-//              T src = jsources[ k ];
-//              Kij += ( tar - src ) * ( tar - src );
-//            }
-//            Kij = exp( kernel.scal * Kij );
-//            break;
-//          }
-//        default:
-//          {
-//            printf( "invalid kernel type\n" );
-//            exit( 1 );
-//            break;
-//          }
-//      }
-//      return Kij;
-
-      return (*this)( itargets.data(), jsources.data() );
-
+      /** Return value */
+      if ( is_symmetric )
+      {
+        return (*this)( sources_user.columndata( i ),
+                        sources_user.columndata( j ) );
+      }
+      else
+      {
+        return (*this)( targets_user.columndata( i ),
+                        sources_user.columndata( j ) );
+      }
     }; /** end operator () */
 
 
-
-
-
-
-
-
-
-    /** ESSENTIAL: return K( I, J ) */
-    hmlp::Data<T> operator() 
-    ( 
-      std::vector<size_t> &I, std::vector<size_t> &J 
-    )
+    virtual Data<T> PairwiseDistances( const vector<size_t> &I, 
+                                       const vector<size_t> &J )
     {
-      /** MPI */
-      int size = this->Comm_size();
-      int rank = this->Comm_rank();
-
       /** 
-       *  return values
+       *  Return values
        * 
        *  NOTICE: even KIJ can be an 0-by-0 matrix for this MPI rank,
        *  yet early return is not allowed. All MPI process must execute
        *  all collaborative communication routines to avoid deadlock.
        */
-      hmlp::Data<T> KIJ( I.size(), J.size() );
-			Data<T> itargets, jsources;
+      Data<T> KIJ( I.size(), J.size() );
 
-			/** early return */
+			/** Early return. */
 			if ( !I.size() || !J.size() ) return KIJ;
 
-      /** 
-       *  Request form column values directly, this access pattern happends only
-       *  during the tree partitioning. We need to provide the parter rank.
-       *
-       */
-      if ( J.size() < 3 )
+			/** Request for coordinates. */
+      Data<TP> itargets, jsources;
+
+      if ( is_symmetric ) 
       {
-        if ( I.size() == dynamic_sources.col() ) 
-        {
-          itargets = dynamic_sources;
-          jsources = RequestSources( J );
-        }
-        else
-        {
-          auto XJ = RequestSources( J );
-          return RequestColumns( I, XJ );
-        }
+        itargets = sources_user( all_dimensions, I );
+        jsources = sources_user( all_dimensions, J );
       }
       else
       {
-			  if ( &I == &J )
-			  {
-          itargets = RequestSources( I );
-			    jsources = itargets;
-			  }
-			  else
-			  {
-          itargets = RequestSources( I );
-          jsources = RequestSources( J );
-			  }
+        itargets = targets_user( all_dimensions, I );
+        jsources = sources_user( all_dimensions, J );
       }
 
-			/** request for coordinates */
-      //hmlp::Data<T> itargets = RequestSources( I );
-      //hmlp::Data<T> jsources = RequestSources( J );
-
-      /** compute inner products */
-      xgemm
-      (
-        "Transpose", "No-transpose",
-        I.size(), J.size(), d,
+      /** Compute inner products. */
+      xgemm ( "Transpose", "No-transpose", I.size(), J.size(), d,
         -2.0, itargets.data(),   itargets.row(),
               jsources.data(),   jsources.row(),
-         0.0,      KIJ.data(),        KIJ.row()
-      );
+         0.0,      KIJ.data(),        KIJ.row() );
 
-      /** compute square norms */
-      std::vector<T> itargets_sqnorms( I.size() );
-      std::vector<T> jsources_sqnorms( J.size() );
-
-      //printf( "After xgemm\n" ); fflush( stdout );
+      /** Compute square norms. */
+      vector<T> itargets_sqnorms( I.size() );
+      vector<T> jsources_sqnorms( J.size() );
 
       #pragma omp parallel for
       for ( size_t i = 0; i < I.size(); i ++ )
@@ -744,21 +286,77 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 					     jsources.data() + j * d, 1 );
       } /** end omp parallel for */
 
-      /** add square norms to inner products to get square distances */
+      /** Add square norms to inner products to get square distances */
       #pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
         for ( size_t i = 0; i < I.size(); i ++ )
           KIJ( i, j ) += itargets_sqnorms[ i ] + jsources_sqnorms[ j ];
 
+      return KIJ;
+    };
+
+
+
+
+    /** (Overwrittable) ESSENTIAL: return K( I, J ) */
+    virtual Data<T> operator() ( vector<size_t> &I, 
+                                 vector<size_t> &J )
+    {
+      /** 
+       *  Return values
+       * 
+       *  NOTICE: even KIJ can be an 0-by-0 matrix for this MPI rank,
+       *  yet early return is not allowed. All MPI process must execute
+       *  all collaborative communication routines to avoid deadlock.
+       */
+      Data<T> KIJ = PairwiseDistances( I, J );
+
+			/** Early return */
+			if ( !I.size() || !J.size() ) return KIJ;
+
       switch ( kernel.type )
       {
         case KS_GAUSSIAN:
         {
-          /** apply the scaling factor and exponentiate */
+          /** Apply the scaling factor and exponent */
           #pragma omp parallel for
           for ( size_t i = 0; i < KIJ.size(); i ++ )
           {
             KIJ[ i ] = std::exp( kernel.scal * KIJ[ i ] );
+          }
+          break;
+        }
+        case KS_LAPLACE:
+        {
+          //T scale = 0.0;
+
+          //if ( d == 1 ) scale = 1.0;
+          //else if ( d == 2 ) scale = ( 0.5 / M_PI );
+          //else
+          //{
+          //  scale = tgamma( 0.5 * d + 1.0 ) / ( d * ( d - 2 ) * pow( M_PI, 0.5 * d ) ); 
+          //}
+
+          #pragma omp parallel for
+          for ( size_t i = 0; i < KIJ.size(); i ++ )
+          {
+            if ( KIJ[ i ] < 1E-6 ) KIJ[ i ] = 0.0;
+            else
+            {
+              if      ( d == 1 ) KIJ[ i ] = sqrt( KIJ[ i ] );
+              else if ( d == 2 ) KIJ[ i ] = std::log( KIJ[ i ] ) / 2;
+              else               KIJ[ i ] = 1 / sqrt( KIJ[ i ] );
+            }
+          }
+          break;
+        }
+        case KS_QUARTIC:
+        {
+          for ( size_t i = 0; i < KIJ.size(); i ++ )
+          {
+            //if ( KIJ[ i ] < sqrt( 2 ) / 2 ) KIJ[ i ] = 1.0;
+            if ( KIJ[ i ] < 0.5 ) KIJ[ i ] = 1.0;
+            else KIJ[ i ] = 0.0;
           }
           break;
         }
@@ -770,13 +368,15 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         }
       }
 
-      /** return submatrix KIJ */
+      /** There should be no NAN or INF value. */
+      //assert( !KIJ.HasIllegalValue() );
+      /** Return submatrix KIJ. */
       return KIJ;
     };
 
 
-    /** get the diagonal of KII, i.e. diag( K( I, I ) ) */
-    hmlp::Data<T> Diagonal( std::vector<size_t> &I )
+    /** Get the diagonal of KII, i.e. diag( K( I, I ) ). */
+    Data<T> Diagonal( vector<size_t> &I )
     {
       /** MPI */
       int size = this->Comm_size();
@@ -789,12 +389,22 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
        *  yet early return is not allowed. All MPI process must execute
        *  all collaborative communication routines to avoid deadlock.
        */
-      hmlp::Data<T> DII( I.size(), 1, 0.0 );
+      Data<T> DII( I.size(), 1, 0.0 );
 
       /** at this moment we already have the corrdinates on this process */
       switch ( kernel.type )
       {
         case KS_GAUSSIAN:
+        {
+          for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
+          break;
+        }
+        case KS_LAPLACE:
+        {
+          for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
+          break;
+        }
+        case KS_QUARTIC:
         {
           for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
           break;
@@ -815,13 +425,14 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
 
 
 
-    /** important sampling */
+    /** Important sampling */
     template<typename TINDEX>
-    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    pair<T, TINDEX> ImportantSample( TINDEX j )
     {
-      //TINDEX i = std::rand() % this->col();
-      //std::pair<T, TINDEX> sample( (*this)( i, j ), i );
-      std::pair<T, TINDEX> sample( 0,  std::rand() % this->col() );
+      TINDEX i = std::rand() % this->col();
+      while( !sources_user.HasColumn( i ) ) i = std::rand() % this->col();
+      assert( sources_user.HasColumn( i ) );
+      pair<T, TINDEX> sample( 0, i );
       return sample; 
     };
 
@@ -829,7 +440,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     {
       printf( "ComputeDegree(): K * ones\n" );
       assert( is_symmetric );
-      hmlp::Data<T> ones( this->row(), (size_t)1, 1.0 );
+      Data<T> ones( this->row(), (size_t)1, 1.0 );
       Degree.resize( this->row(), (size_t)1, 0.0 );
       Multiply( 1, Degree, ones );
     };
@@ -852,7 +463,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
     }; /** end Print() */
 
     /** return number of attributes */
-    std::size_t dim() { return d; };
+    size_t dim() { return d; };
 
 
 
@@ -878,202 +489,137 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
       return flopcount; 
     };
 
-
-    virtual void BackGroundProcess( bool *do_terminate )
+    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
     {
-#ifdef USE_INTEL
-			mkl_set_num_threads_local( 1 );
-#endif
-
-      /** reset the termination flag */
-      this->ResetTerminationFlag();
-
-      /** MPI */
-      int size = this->Comm_size();
-      int rank = this->Comm_rank();
-
-      /** Iprobe flag */
-      int probe_flag = 0;
-
-      /** Iprobe and Recv status */
-      mpi::Status status;
-
-      /** buffer for I and J */
-      size_t buff_size = 1048576;
-      std::vector<size_t> I;
-
-      /** reserve space for I and J */
-      I.reserve( buff_size );
-
-      /** recving XJ for evaluating KIJ */
-      hmlp::Data<T> XJ;
-			XJ.reserve( d, (size_t)8192 );
-
-
-
-
-
-      
-			size_t iter_counter = 0;
-
-			/** keep probing for messages */
-			while ( 1 ) 
-			{
-        /** info from mpi::Status */
-        int recv_src;
-        int recv_tag;
-        int recv_cnt;
-
-        /** only on thread will probe and recv message at a time */
-        #pragma omp critical
-        {
-          mpi::Iprobe( MPI_ANY_SOURCE, MPI_ANY_TAG, 
-            this->GetRecvComm(), &probe_flag, &status );
-
-          /** if receive any message, then handle it */
-          if ( probe_flag )
-          {
-            /** extract info from status */
-            recv_src = status.MPI_SOURCE;
-            recv_tag = status.MPI_TAG;
-
-            if ( this->IsBackGroundMessage( recv_tag ) )
-            {
-              /** get I object count */
-              mpi::Get_count( &status, HMLP_MPI_SIZE_T, &recv_cnt );
-
-              /** recv (typeless) I by matching SOURCE and TAG */
-              I.resize( recv_cnt );
-              mpi::Recv( I.data(), recv_cnt, recv_src, recv_tag, 
-                  this->GetRecvComm(), &status );
-
-              if ( recv_tag >= 1024 )
-              {
-                /** recv XJ that contains multiple coordinates */
-							  mpi::RecvVector( XJ, recv_src, recv_tag, this->GetRecvComm(), &status );
-                XJ.resize( d, XJ.size() / d );
-                //mpi::Recv( XJ.data(), d, recv_src, recv_tag, this->GetRecvComm(), &status );
-
-              }
-            }
-            else probe_flag = 0;
-          }
-        }
-
-        if ( probe_flag )
-        {
-          if ( recv_tag >= 1024 )
-          {
-            Data<T> KIJ( I.size(), XJ.col() );
-              
-            for ( size_t i = 0; i < I.size(); i ++ )
-            {
-              std::vector<size_t> query( 1, I[ i ] );
-              auto XI = (*sources)( all_dimensions, query );
-							for ( size_t j = 0; j < KIJ.col(); j ++ )
-                KIJ( i, j ) = (*this)( XI.data(), XJ.columndata( j ) );
-            }
-
-            /** blocking send */
-            mpi::Send( KIJ.data(), KIJ.size(), recv_src, 
-                recv_tag, this->GetSendComm() );
-          }
-          else
-          {
-            auto XI = (*sources)( all_dimensions, I );
-            /** blocking send */
-            mpi::Send( XI.data(), XI.size(), recv_src, 
-                (recv_tag - 128), this->GetSendComm() );
-          }
-
-          /** reset flag to zero */
-          probe_flag = 0;
-        }
-        else
-        {
-          /** do something else */
-          if ( sources_cids )
-          {
-            if ( iter_counter < sources_cids->col_owned() )
-            {
-              auto query = sources_cids->GetIDAndColumnPointer( iter_counter );
-              Data<T> line( d, (size_t)1 );
-              for ( size_t i = 0; i < d; i ++ ) line[ i ] = (query.second)[ i ];
-              cache.Write( query.first, line );
-            }
-          }
-        }
-
-
-				/** nonblocking consensus for termination */
-				if ( *do_terminate ) 
-				{
-          /** while reaching both global and local concensus, exit */
-          if ( this->IsTimeToTerminate() ) break;
-        }
-
-
-        /** increate iteration counter */
-        iter_counter ++;
-
-      }; /** end while ( 1 ) */
-
-
-      //printf( "Exit DistKernelMatrix::BackGroundProcess\n" ); fflush( stdout );
-
-    }; /** end BackGroundProcess() */
-
-    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
-    {
+      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
+      //printf( "rank[%d %d] SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+      Data<TP> send_para = sources_user( all_dimensions, cids );
+      mpi::SendVector(      cids, dest, 90, comm );
+      mpi::SendVector( send_para, dest, 90, comm );
+      //printf( "rank[%d %d] end SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
     };
 
-    virtual void Redistribute( bool enforce_ordered, std::vector<size_t> &cids )
+    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
     {
-			mpi::Comm comm = this->GetComm();
-			size_t n = this->col();
+      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
+      //printf( "rank[%d %d] RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+      vector<size_t> cids;
+      Data<TP> recv_para;
+      mpi::RecvVector(      cids, root, 90, comm, status );
+      mpi::RecvVector( recv_para, root, 90, comm, status );
+      assert( recv_para.size() == cids.size() * dim() );
+      recv_para.resize( dim(), recv_para.size() / dim() );
+      /** Insert into hash table */
+      sources_user.InsertColumns( cids, recv_para );
+      //printf( "rank[%d %d] end RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+    };
 
-			/** delete the previous redistribution */
-			if ( sources_cids ) 
-      {
-        //printf( "delete sources_cids\n" ); fflush( stdout );
-        delete sources_cids;
-      }
+    /** Bcast cids from sender for K( :, cids ) evaluation. */
+    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
+    {
+      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
 
-			/** allocation */
-      if ( enforce_ordered )
+      /** Bcast size of cids from root */
+      size_t recv_size = cids.size();
+      mpi::Bcast( &recv_size, 1, root, comm );
+      
+      //printf( "rank %d, before Bcast root %d\n", comm_rank, root ); fflush( stdout );
+      mpi::Barrier( comm );
+      /** Resize to receive cids and parameters */
+      Data<TP> recv_para;
+      if ( comm_rank == root )
       {
-			  sources_cids = new DistData<STAR, CIDS, T>( d, n, cids, comm );
-			  *sources_cids = *sources;
+         recv_para = sources_user( all_dimensions, cids );
       }
       else
       {
-			  sources_cids = new DistData<STAR, CIDS, T>( d, n, cids, dynamic_sources, comm );
+         cids.resize( recv_size );
+         recv_para.resize( dim(), recv_size );
       }
-      for ( size_t i = 0; i < cids.size(); i ++ )
+      //printf( "rank %d, after Bcast root %d\n", comm_rank, root ); fflush( stdout );
+      mpi::Barrier( comm );
+
+      /** Bcast cids and parameters from root */
+      mpi::Bcast( cids.data(), recv_size, root, comm );
+      mpi::Bcast( recv_para.data(), dim() * recv_size, root, comm );
+
+      /** Insert into hash table */
+      sources_user.InsertColumns( cids, recv_para );
+
+    };
+
+    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
+    {
+      mpi::Comm comm = this->GetComm();
+      int comm_rank = this->Comm_rank();
+      int comm_size = this->Comm_size();
+
+      assert( requ_cids.size() == comm_size );
+
+      vector<vector<size_t>> recv_cids( comm_size );
+      vector<vector<TP>>     send_para( comm_size );
+      vector<vector<TP>>     recv_para( comm_size );
+
+      /** Send out cids request to each rank. */
+      mpi::AlltoallVector( requ_cids, recv_cids, comm );
+      //printf( "Finish all2allv requ_cids\n" ); fflush( stdout );
+
+      for ( int p = 0; p < comm_size; p ++ )
       {
-        assert( sources_cids->HasColumn( cids[ i ] ) );
+        Data<TP> para = sources_user( all_dimensions, recv_cids[ p ] );
+        send_para[ p ].insert( send_para[ p ].end(), para.begin(), para.end() );
       }
 
-    }; /** end Redistribute() */
+      /** Send out parameters */
+      mpi::AlltoallVector( send_para, recv_para, comm );
+      //printf( "Finish all2allv send_para\n" ); fflush( stdout );
 
-   
+      for ( int p = 0; p < comm_size; p ++ )
+      {
+        assert( recv_para[ p ].size() == dim() * requ_cids[ p ].size() );
+        if ( p != comm_rank && requ_cids[ p ].size() )
+        {
+          Data<TP> para;
+          para.insert( para.end(), recv_para[ p ].begin(), recv_para[ p ].end() );
+          para.resize( dim(), para.size() / dim() );
+          sources_user.InsertColumns( requ_cids[ p ], para );
+        }
+      }
 
+    };
+
+
+
+
+
+    //virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
+    //{
+    //}; /** end Redistribute() */
+
+    
+
+    /** 
+     *  P2P exchange parameters (or points) with partners in the local
+     *  communicator.
+     */
     virtual void RedistributeWithPartner
     (
-      vector<size_t> &gids,
-      vector<size_t> &lhs, 
-      vector<size_t> &rhs, 
+      vector<size_t> &gids, vector<size_t> &lhs, vector<size_t> &rhs, 
       mpi::Comm comm 
     )
     {
       mpi::Status status;
-      int loc_size, loc_rank;
-      mpi::Comm_size( comm, &loc_size );
-      mpi::Comm_rank( comm, &loc_rank );
+      int loc_size; mpi::Comm_size( comm, &loc_size );
+      int loc_rank; mpi::Comm_rank( comm, &loc_rank );
 
-      size_t n = this->col();
+      //printf( "RedistributeWithPartner loc_rank %d loc_size %d glb_size %d\n", 
+      //    loc_rank, loc_size, this->Comm_size() ); fflush( stdout );
 
-      /** at the root level, starts from CBLK */
+
+      /** 
+       *  At the root level, starts from sources<STAR, CBLK>. We use
+       *  dynamic_sources as buffer space.
+       */
       if ( loc_size == this->Comm_size() )
       {
         dynamic_sources = *sources;
@@ -1082,121 +628,117 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, ReadWrite
         //    sources->row(), sources->col(), sources->col_owned() ); fflush( stdout );
       }
 
-      auto Xlhs = dynamic_sources( all_dimensions, lhs );
-      auto Xrhs = dynamic_sources( all_dimensions, rhs );
-
-      Data<T> Xpar;
+      /** Use cylic order for p2p exchange */
       int par_rank = ( loc_rank + loc_size / 2 ) % loc_size;
+      vector<size_t> send_gids, keep_gids, recv_gids;
+      Data<TP> Xsend, Xkeep;
 
+      send_gids.reserve( gids.size() );
+      recv_gids.reserve( gids.size() );
+
+      /** Split parameters (or points) into lhs and rhs. */
       if ( loc_rank < loc_size / 2 )
       {
-        mpi::ExchangeVector( 
-            Xrhs, par_rank, 0, 
-            Xpar, par_rank, 0, comm, &status );
-        Xlhs.insert( Xlhs.end(), Xpar.begin(), Xpar.end() );
-        Xlhs.resize( d, Xlhs.size() / d );
-        dynamic_sources = Xlhs;
+        for ( auto it = lhs.begin(); it != lhs.end(); it ++ )
+          keep_gids.push_back( gids[ *it ] );
+        for ( auto it = rhs.begin(); it != rhs.end(); it ++ )
+          send_gids.push_back( gids[ *it ] );
+        Xkeep = dynamic_sources( all_dimensions, lhs );
+        Xsend = dynamic_sources( all_dimensions, rhs );
       }
       else
       {
-        mpi::ExchangeVector( 
-            Xlhs, par_rank, 0, 
-            Xpar, par_rank, 0, comm, &status );
-        Xrhs.insert( Xrhs.end(), Xpar.begin(), Xpar.end() );
-        Xrhs.resize( d, Xrhs.size() / d );
-        dynamic_sources = Xrhs;
+        for ( auto it = lhs.begin(); it != lhs.end(); it ++ )
+          send_gids.push_back( gids[ *it ] );
+        for ( auto it = rhs.begin(); it != rhs.end(); it ++ )
+          keep_gids.push_back( gids[ *it ] );
+        Xsend = dynamic_sources( all_dimensions, lhs );
+        Xkeep = dynamic_sources( all_dimensions, rhs );
       }
+      dynamic_sources = Xkeep;
 
-      //if ( loc_size == 2 )
+
+
+      //mpi::Barrier( comm );
+      //if ( loc_rank == 0 )
       //{
-      //  printf( "Base redistribute gids %lu lhs %lu rhs %lu\n",
-      //      gids.size(), lhs.size(), rhs.size() ); fflush( stdout );
-
-      //  vector<size_t> send_gids, recv_gids, keep_gids;
-      //  send_gids.reserve( gids.size() );
-      //  recv_gids.reserve( gids.size() );
-      //  keep_gids.reserve( gids.size() );
-
-      //  if ( loc_rank < loc_size / 2 )
-      //  {
-      //    for ( auto it = lhs.begin(); it != lhs.end(); it ++ ) 
-      //      keep_gids.push_back( gids[ *it ] );
-      //    for ( auto it = rhs.begin(); it != rhs.end(); it ++ ) 
-      //      send_gids.push_back( gids[ *it ] );
-      //  }
-      //  else
-      //  {
-      //    for ( auto it = lhs.begin(); it != lhs.end(); it ++ ) 
-      //      send_gids.push_back( gids[ *it ] );
-      //    for ( auto it = rhs.begin(); it != rhs.end(); it ++ ) 
-      //      keep_gids.push_back( gids[ *it ] );
-      //  }
-
-      //  mpi::ExchangeVector( 
-      //      send_gids, par_rank, 0, 
-      //      recv_gids, par_rank, 0, comm, &status );
-
-      //  printf( "Finish Base redistribute ExchangeVector\n" ); fflush( stdout );
+      //  printf( "rank %2d RedistributeWithPartner Checkpoint#1\n", 
+      //      this->Comm_rank() ); 
+      //  fflush( stdout );
+      //}
 
 
-      //  /** Concatenate */
-      //  keep_gids.insert( keep_gids.end(), recv_gids.begin(), recv_gids.end() );
+      /** Overwrite Xkeep */
+      mpi::ExchangeVector( 
+          send_gids, par_rank, 0,
+          recv_gids, par_rank, 0, comm, &status );
+      mpi::ExchangeVector( 
+        Xsend, par_rank, 1, 
+        Xkeep, par_rank, 1, comm, &status );
 
-			//  /** Delete the previous redistribution */
-			//  if ( sources_cids ) delete sources_cids;
+      /** Resize Xkeep to adjust its row() and col(). */
+      Xkeep.resize( Xkeep.row(), Xkeep.size() / Xkeep.row() );
 
-			//  /** Allocation */
-			//  sources_cids = new DistData<STAR, CIDS, T>( d, n, keep_gids, 
-      //      dynamic_sources, this->GetComm() );
-      //  
-      //  printf( "Finish Base redistribute\n" ); fflush( stdout );
+
+      //mpi::Barrier( comm );
+      //if ( loc_rank == 0 )
+      //{
+      //  printf( "rank %2d RedistributeWithPartner Checkpoint#2\n", 
+      //      this->Comm_rank() ); 
+      //  fflush( stdout );
+      //}
+
+      /** Insert received parameters into table */
+      sources_user.InsertColumns( recv_gids, Xkeep );
+
+      //mpi::Barrier( comm );
+      //if ( loc_rank == 0 )
+      //{
+      //  printf( "rank %2d RedistributeWithPartner Checkpoint#3\n", 
+      //      this->Comm_rank() ); 
+      //  fflush( stdout );
+      //}
+
+      /** Concatenate */
+      dynamic_sources.insert( dynamic_sources.end(), Xkeep.begin(), Xkeep.end() );
+
+      //mpi::Barrier( comm );
+      //if ( loc_rank == 0 )
+      //{
+      //  printf( "rank %2d RedistributeWithPartner Checkpoint#4\n", 
+      //      this->Comm_rank() ); 
+      //  fflush( stdout );
       //}
 
     }; /** end RedistributeWithPartner() */
 
 
-
-
   private:
 
-    bool is_symmetric = true;
+    bool is_symmetric = false;
 
-    size_t d;
+    size_t d = 0;
 
-    /** legacy data structure */
+    /** Legacy data structure for kernel matrices. */
     kernel_s<T> kernel;
 
-    DistData<STAR, CBLK, T> *sources = NULL;
+    /** Pointers to user provided data points in block cylic distribution. */
+    DistData<STAR, CBLK, TP> *sources = NULL;
+    DistData<STAR, CBLK, TP> *targets = NULL;
 
-    DistData<STAR, CBLK, T> *targets = NULL;
+    /** For local essential tree [LET]. */
+    DistData<STAR, USER, TP> sources_user;
+    DistData<STAR, USER, TP> targets_user;
 
-    DistData<STAR, CBLK, T> sources_sqnorms;
+    /** [ 0, 1, ..., d-1 ] */
+    vector<size_t> all_dimensions;
 
-    DistData<STAR, CBLK, T> targets_sqnorms;
-
-    DistData<STAR, CIDS, T> *sources_cids = NULL;
-
-    DistData<STAR, CIDS, T> *targets_cids = NULL;
-
-    /** */
-    std::vector<size_t> all_dimensions;
-
-		Cache1D<4096, 256, T> cache;
-		//Cache1D<256, 256, T> cache;
-
-    //DistData<STAR, CIDS, T> dynamic_sources;
-    Data<T> dynamic_sources;
+    /** Temporary buffer for P2P exchange during tree partition */
+    Data<TP> dynamic_sources;
 
 
-    bool batchhascomplete = false;
+}; /** end class DistKernelMatrix_ver2 */
 
-    Lock batch_lock;
-
-    vector<pair<vector<vector<size_t>>*, vector<vector<size_t>>*>> batch;
-
-    vector<Data<T>*> batch_results;
-
-}; /** end class DistKernelMatrix */
 }; /** end namespace hmlp */
 
-#endif /** define DISTKERNELMATRIX_HPP */
+#endif /** define DISTKERNELMATRIX_VER2_HPP */

@@ -23,7 +23,7 @@ class SPDMatrixMPISupport
 
     virtual void RequestColumns( vector<vector<size_t>> requ_cids ) {};
 
-    virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids ) {};
+    //virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids ) {};
 
     virtual void RedistributeWithPartner( vector<size_t> &gids, 
         vector<size_t> &lhs, vector<size_t> &rhs, mpi::Comm comm ) {};
