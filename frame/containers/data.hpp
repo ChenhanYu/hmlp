@@ -180,6 +180,13 @@ class Data : public ReadWrite, public vector<T, Allocator>
       vector<T, Allocator>::reserve( m * n );
     };
 
+    void clear()
+    {
+      this->m = 0;
+      this->n = 0;
+      vector<T, Allocator>::clear();
+    };
+
     void read( size_t m, size_t n, string &filename )
     {
       assert( this->m == m );

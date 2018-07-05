@@ -106,14 +106,10 @@ class xgemmTask : public Task
       //    rand_id, transA.data(), transB.data(), m, n, k, alpha, beta ); fflush( stdout );
       //printf( "%d lda %lu ldb %lu ldc %lu\n", rand_id, A.ld(), B.ld(), C.ld() ); fflush( stdout );
 
-      xgemm
-      ( 
-        transA.data(), transB.data(),
-        m, n, k,
+      xgemm( transA.data(), transB.data(), m, n, k,
         alpha, A.data(), A.ld(),
                B.data(), B.ld(),
-        beta,  C.data(), C.ld()
-      );
+        beta,  C.data(), C.ld() );
 
       //printf( "%d end GEMM task %s %s %lu %lu %lu, %E, %E\n", 
       //    rand_id, transA.data(), transB.data(), m, n, k, alpha, beta ); fflush( stdout );
@@ -141,7 +137,6 @@ class xgemmBarrierTask : public Task
       this->C = C;
 
       /** Name and label */
-      ostringstream ss;
       name = string( "gemmBarrier" );
 
       /** Flops, Mops, cost and event */
@@ -152,57 +147,21 @@ class xgemmBarrierTask : public Task
       event.Set( name + label, flops, mops );
     };
 
-    void DependencyAnalysis()
-    {
-      /** create RAW dependencies on all submatrices C */
-      C.DependencyAnalysis( R, this );
-    };
+    /** Create RAW dependencies on all submatrices C. */
+    void DependencyAnalysis() { C.DependencyAnalysis( RW, this ); };
 
-    void Execute( Worker* user_worker )
-    {
-      /** empty */
-    };
+    void Execute( Worker* user_worker ) {};
 
 }; /** end class xgemmBarrierTask */
 
 
 template<typename T>
-void CreatexgemmTask(
-    T alpha, View<T> &A, 
-             View<T> &B, 
-    T beta,  View<T> &C )
+void CreatexgemmTask( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 {
-  //std::string transA, transB;
-
-  //printf( "\n");
-  //printf( "alpha %3.1E beta %3.1E\n", alpha, beta );
-  //printf( "A: " ); A.Print();
-  //printf( "B: " ); B.Print();
-  //printf( "C: " ); C.Print();
-
-  //if ( A.IsTransposed() ) transA = "Transpose";
-  //else                    transA = "No transpose";
-  //if ( B.IsTransposed() ) transB = "Transpose";
-  //else                    transB = "No transpose";
-
-  //size_t m = C.row();
-  //size_t n = C.col();
-  //size_t k = A.col();
-
-  //xgemm
-  //( 
-  //  transA.data(), transB.data(),
-  //  m, n, k,
-  //  alpha, A.data(), A.ld(),
-  //         B.data(), B.ld(),
-  //  beta,  C.data(), C.ld()
-  //);
- 
   auto *task = new xgemmTask<T>();
   task->Set( alpha, A, B, beta, C );
   task->Submit();
   task->DependencyAnalysis();
-
 }; /** end xgemmTask() */
 
 
@@ -210,19 +169,13 @@ void CreatexgemmTask(
  *  @brief
  */ 
 template<size_t NB = 512, typename T>
-void xgemm_var1( 
-    T alpha, View<T> &A, 
-             View<T> &B, 
-    T beta,  View<T> &C )
+void xgemm_var1( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 {
-  //printf( "var1\n" ); fflush( stdout );
-
   /** All subviews */
   View<T> AL, AR, 
           A0, A1, A2;
   View<T> BT, BB, 
           B0, B1, B2;
-  
   /** A = [ AL, AR ] */
   A.Partition1x2( AL, AR, 0, LEFT );
   /** B = [ BT; BB ] */
@@ -260,20 +213,13 @@ void xgemm_var1(
                           BB, /**/ B2,  TOP );
 
   } /** end while */
-
-  //printf( "end var1\n" ); fflush( stdout );
 }; /** end xgemm_var1() */
 
 
 /** @brief [ A * BL + CL, A * BR + CR ] */ 
 template<size_t NB = 512, typename T>
-void xgemm_var2( 
-    T alpha, View<T> &A, 
-             View<T> &B, 
-    T beta,  View<T> &C )
+void xgemm_var2( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 {
-  //printf( "var2\n" ); fflush( stdout );
-
   /** All subviews */
   View<T> CL, CR, 
           C0, C1, C2;
@@ -310,20 +256,13 @@ void xgemm_var2(
                           B0,  B1, B2, LEFT );
 
   } /** end while */
-
-  //printf( "end var2\n" ); fflush( stdout );
 }; /** end xgemm_var2() */
 
 
 /** @brief [ AT * B + CT; AB * B + CB ] */ 
 template<size_t NB = 512, typename T>
-void xgemm_var3( 
-    T alpha, View<T> &A, 
-             View<T> &B, 
-    T beta,  View<T> &C )
+void xgemm_var3( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 {
-  //printf( "var3\n" ); fflush( stdout );
-
   /** All subviews */
   View<T> AT, A0, CT, C0, 
           AB, A1, CB, C1,
@@ -360,17 +299,12 @@ void xgemm_var3(
                               /**/ C1,
                           CB, /**/ C2,  TOP );
   }; /** end while */
-
-  //printf( "end var3\n" ); fflush( stdout );
 }; /** end xgemm_var3() */
 
 
 /** @breif  Interface for automatic task-bsed parallelism. */ 
 template<size_t NB = 512, typename T>
-void xgemm( 
-    T alpha, View<T> &A, 
-             View<T> &B, 
-    T beta,  View<T> &C )
+void xgemm( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 {
   /** try to  */
   A.CreateLeafMatrixBlocks( NB, NB );
@@ -413,9 +347,7 @@ void xgemm(
     endXGEMMtask->Submit();
     endXGEMMtask->DependencyAnalysis();
 
-    /**
-     *  Now enqueue begXGEMMtask and callback with endXGEMMtask
-     */
+    /** Now enqueue begXGEMMtask and callback with endXGEMMtask. */
     begXGEMMtask->TryEnqueue();
     endXGEMMtask->CallBackWhileWaiting();
   }
@@ -423,16 +355,12 @@ void xgemm(
   {
     xgemm_var3( alpha, A, B, beta, C );
   }
-
 }; /** xgemm() */
 
 
 template<typename T>
-void xgemm( 
-    hmlpOperation_t transA, hmlpOperation_t transB,
-    T alpha, Data<T> &A, 
-             Data<T> &B, 
-    T beta,  Data<T> &C )
+void xgemm( hmlpOperation_t transA, hmlpOperation_t transB,
+    T alpha, Data<T> &A, Data<T> &B, T beta,  Data<T> &C ) 
 {
   const bool TRANS = true;
   const bool NOTRANS = true;

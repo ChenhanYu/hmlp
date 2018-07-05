@@ -49,72 +49,105 @@ using namespace hmlp;
 
 namespace hmlp
 {
+
+class MortonHelper
+{
+  public:
+
+    typedef pair<size_t, size_t> Recursor;
+
+    static Recursor Root() 
+    { 
+      return Recursor( 0, 0 ); 
+    };
+
+    static Recursor RecurLeft( Recursor r ) 
+    { 
+      return Recursor( ( r.first << 1 ) + 0, r.second + 1 ); 
+    };
+
+    static Recursor RecurRight( Recursor r ) 
+    { 
+      return Recursor( ( r.first << 1 ) + 1, r.second + 1 ); 
+    };
+
+    static size_t MortonID( Recursor r )
+    {
+      /** Compute the correct shift. */
+      size_t shift = ( 1 << LEVELOFFSET ) - r.second + LEVELOFFSET;
+      /** Append the depth of the tree. */
+      return ( r.first << shift ) + r.second;
+    };
+
+    static size_t SiblingMortonID( Recursor r )
+    {
+      /** Compute the correct shift. */
+      size_t shift = ( 1 << LEVELOFFSET ) - r.second + LEVELOFFSET;
+      if ( r.first % 2 )
+        return ( ( r.first - 1 ) << shift ) + r.second;
+      else
+        return ( ( r.first + 1 ) << shift ) + r.second;
+    };
+
+    //static size_t MortonID( size_t recursive_morton, size_t depth )
+    //{
+    //  /** Compute the correct shift. */
+    //  size_t shift = ( 1 << LEVELOFFSET ) - depth + LEVELOFFSET;
+    //  /** Append the depth of the tree. */
+    //  return ( recursive_morton << shift ) + depth;
+    //};
+
+    /**
+     *  @brief Check if ``it'' is ``me'''s ancestor by checking two facts.
+     *         1) itlevel >= mylevel and
+     *         2) morton above itlevel should be identical. For example,
+     *
+     *         me = 01110 100 (level 4)
+     *         it = 01100 010 (level 2) is my parent
+     *
+     *         me = 00000 001 (level 1)
+     *         it = 00000 011 (level 3) is not my parent
+     */ 
+    static bool IsMyParent( size_t me, size_t it )
+    {
+      size_t filter = ( 1 << LEVELOFFSET ) - 1;
+      size_t itlevel = it & filter;
+      size_t mylevel = me & filter;
+      size_t itshift = ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET;
+      bool is_my_parent = !( ( me ^ it ) >> itshift ) && ( itlevel <= mylevel );
+    #ifdef DEBUG_TREE
+      hmlp_print_binary( me );
+      hmlp_print_binary( it );
+      hmlp_print_binary( ( me ^ it ) >> itshift );
+      printf( "ismyparent %d itlevel %lu mylevel %lu shift %lu fixed shift %d\n",
+          is_my_parent, itlevel, mylevel, itshift, 1 << LEVELOFFSET );
+    #endif
+      return is_my_parent;
+    }; /** end IsMyParent() */
+
+
+    template<typename TQUERY>
+    static bool ContainAny( size_t target, TQUERY &querys )
+    {
+      for ( auto & q : querys ) 
+        if ( IsMyParent( q, target ) ) return true;
+      return false;
+    }; /** end ContainAny() */
+
+
+  private:
+
+    const static int LEVELOFFSET = 5;
+
+}; /** end class MortonHelper */
+  
+  
+  
+  
+  
+  
 namespace tree
 {
-
-
-
-/**
- *  @brief Check if ``it'' is ``me'''s ancestor by checking two facts.
- *         1) itlevel >= mylevel and
- *         2) morton above itlevel should be identical. For example,
- *
- *         me = 01110 100 (level 4)
- *         it = 01100 010 (level 2) is my parent
- *
- *         me = 00000 001 (level 1)
- *         it = 00000 011 (level 3) is not my parent
- */ 
-template<size_t LEVELOFFSET=5>
-bool IsMyParent( size_t me, size_t it )
-{
-  size_t filter = ( 1 << LEVELOFFSET ) - 1;
-  size_t itlevel = it & filter;
-  size_t mylevel = me & filter;
-  size_t itshift = ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET;
-  bool ret = !( ( me ^ it ) >> itshift ) && ( itlevel <= mylevel );
-#ifdef DEBUG_TREE
-  hmlp_print_binary( me );
-  hmlp_print_binary( it );
-  hmlp_print_binary( ( me ^ it ) >> itshift );
-  printf( "ismyparent %d itlevel %lu mylevel %lu shift %lu fixed shift %d\n",
-      ret, itlevel, mylevel, itshift, 1 << LEVELOFFSET );
-#endif
-  return ret;
-
-}; /** end IsMyParent() */
-
-
-/**
- *
- */ 
-bool ContainAnyMortonID( vector<size_t> &querys, size_t morton )
-{
-  for ( size_t i = 0; i < querys.size(); i ++ )
-  {
-    if ( IsMyParent( querys[ i ], morton ) ) return true;
-  }
-  return false;
-
-}; /** end ContainAnyMortonID() */
-
-
-/**
- *
- */ 
-bool ContainAnyMortonID( set<size_t> &querys, size_t morton )
-{
-  for ( auto it = querys.begin(); it != querys.end(); it ++ )
-  {
-    if ( IsMyParent( (*it), morton ) ) return true;
-  }
-  return false;
-
-}; /** end ContainAnyMortonID() */
-
-
-
-
 /**
  *  @brief Permuate the order of gids for each internal node
  *         to the order of leaf nodes.
@@ -186,23 +219,18 @@ class SplitTask : public Task
       cost = 1.0;
     };
 
-		void DependencyAnalysis()
-		{
-      arg->DependencyAnalysis( R, this );
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( RW, this );
-        arg->rchild->DependencyAnalysis( RW, this );
-      }
-      this->TryEnqueue();
-		};
+		void DependencyAnalysis() { arg->DependOnParent( this ); };
+		//{
+    //  arg->DependencyAnalysis( R, this );
+    //  if ( !arg->isleaf )
+    //  {
+    //    arg->lchild->DependencyAnalysis( RW, this );
+    //    arg->rchild->DependencyAnalysis( RW, this );
+    //  }
+    //  this->TryEnqueue();
+		//};
 
-    void Execute( Worker* user_worker )
-    {
-			//printf( "Local Split %lu level %lu begin\n", arg->treelist_id, arg->l ); fflush( stdout );
-      arg->template Split<true>( 0 );
-			//printf( "Local Split %lu level %lu end\n", arg->treelist_id, arg->l ); fflush( stdout );
-    };
+    void Execute( Worker* user_worker ) { arg->Split(); };
 
 }; /** end class SplitTask */
 
@@ -531,69 +559,50 @@ class Node : public ReadWrite
     };
 
 
-    template<bool PREALLOCATE>
-    void Split( int dummy )
+    void Split()
     {
-      assert( N_CHILDREN == 2 );
+      /** Early return if this is a leaf node. */
+      if ( isleaf ) return;
 
       int m = setup->m;
       int max_depth = setup->max_depth;
 
-      //if ( n > m && l < max_depth || ( PREALLOCATE && kids[ 0 ] ) )
-      if ( !isleaf )
+      double beg = omp_get_wtime();
+      auto split = setup->splitter( gids );
+      double splitter_time = omp_get_wtime() - beg;
+      //printf( "splitter %5.3lfs\n", splitter_time );
+
+      if ( std::abs( (int)split[ 0 ].size() - (int)split[ 1 ].size() ) > 1 )
       {
-        double beg = omp_get_wtime();
-        auto split = setup->splitter( gids );
-        double splitter_time = omp_get_wtime() - beg;
-        //printf( "splitter %5.3lfs\n", splitter_time );
-
-        if ( std::abs( (int)split[ 0 ].size() - (int)split[ 1 ].size() ) > 1 )
+        if ( !has_uneven_split )
         {
-          if ( !has_uneven_split )
-          {
-            printf( "\n\nWARNING! uneven split. Using random split instead %lu %lu\n\n",
-                split[ 0 ].size(), split[ 1 ].size() );
-            has_uneven_split = true;
-          }
-          //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", 
-          //  split[ 0 ].size(), split[ 1 ].size() );
-          split[ 0 ].resize( gids.size() / 2 );
-          split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
-          //#pragma omp parallel for
-          for ( size_t i = 0; i < gids.size(); i ++ )
-          {
-            if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
-            else                       split[ 1 ][ i - ( gids.size() / 2 ) ] = i;
-          }
+          printf( "\n\nWARNING! uneven split. Using random split instead %lu %lu\n\n",
+              split[ 0 ].size(), split[ 1 ].size() );
+          has_uneven_split = true;
         }
-
-        for ( size_t i = 0; i < N_CHILDREN; i ++ )
+        //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", 
+        //  split[ 0 ].size(), split[ 1 ].size() );
+        split[ 0 ].resize( gids.size() / 2 );
+        split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
+        //#pragma omp parallel for
+        for ( size_t i = 0; i < gids.size(); i ++ )
         {
-          int nchild = split[ i ].size();
-
-          /** TODO: need a better way */ 
-          kids[ i ]->Resize( nchild );
-          for ( int j = 0; j < nchild; j ++ )
-          {
-            kids[ i ]->gids[ j ] = gids[ split[ i ][ j ] ];
-          }
+          if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
+          else                       split[ 1 ][ i - ( gids.size() / 2 ) ] = i;
         }
-
-        /** facilitate binary tree */
-        //if ( N_CHILDREN > 1  )
-        //{
-        //  lchild = kids[ 0 ];
-        //  rchild = kids[ 1 ];
-        //  if ( lchild ) lchild->sibling = rchild;
-        //  if ( rchild ) rchild->sibling = lchild;
-        //}
       }
-      //else
-      //{
-      //  if ( PREALLOCATE ) assert( kids[ 0 ] == NULL );
-      //  isleaf = true;
-      //}
-	  
+
+      for ( size_t i = 0; i < N_CHILDREN; i ++ )
+      {
+        int nchild = split[ i ].size();
+
+        /** TODO: need a better way */ 
+        kids[ i ]->Resize( nchild );
+        for ( int j = 0; j < nchild; j ++ )
+        {
+          kids[ i ]->gids[ j ] = gids[ split[ i ][ j ] ];
+        }
+      }
     }; /** end Split() */
 
 
@@ -612,7 +621,7 @@ class Node : public ReadWrite
       }
       for ( size_t i = 0; i < queries.size(); i ++ )
       {
-        if ( IsMyParent( setup->morton[ queries[ i ] ], morton ) ) 
+        if ( MortonHelper::IsMyParent( setup->morton[ queries[ i ] ], morton ) ) 
         {
 #ifdef DEBUG_TREE
           printf( "\n" );
@@ -628,12 +637,6 @@ class Node : public ReadWrite
     }; /** end ContainAny() */
 
 
-    bool ContainAnyMortonID( vector<size_t> &querys )
-    {
-      return ContainAnyMortonID( querys, morton );
-    }; /** end ContainAnyMortonID() */
-
-
     bool ContainAny( set<Node*> &querys )
     {
       if ( !setup->morton.size() )
@@ -643,7 +646,7 @@ class Node : public ReadWrite
       }
       for ( auto it = querys.begin(); it != querys.end(); it ++ )
       {
-        if ( IsMyParent( (*it)->morton, morton ) ) 
+        if ( MortonHelper::IsMyParent( (*it)->morton, morton ) ) 
         {
           return true;
         }
@@ -818,7 +821,8 @@ class Setup
 				//}
 
 
-       if ( tree::IsMyParent( morton[ queries[ i ] ], target ) ) 
+       //if ( tree::IsMyParent( morton[ queries[ i ] ], target ) ) 
+       if ( MortonHelper::IsMyParent( morton[ queries[ i ] ], target ) ) 
 				 validation[ i ] = 1;
 
       }
@@ -907,60 +911,80 @@ class Tree
     }; /** end Offset() */
 
 
-    template<size_t LEVELOFFSET=5>
-    void Morton( NODE *node, size_t morton )
+    void RecursiveMorton( NODE *node, MortonHelper::Recursor r ) 
     {
-      if ( node )
+      /** Return dirctly while no children exist. */
+      if ( !node ) return;
+      /** Set my MortonID. */
+      node->morton = MortonHelper::MortonID( r );
+      /** Recur to children. */
+      RecursiveMorton( node->lchild, MortonHelper::RecurLeft( r ) );
+      RecursiveMorton( node->rchild, MortonHelper::RecurRight( r ) );
+      /** Fill the  */
+      if ( !node->lchild )
       {
-        /** Shift = 16 - l + 4. */ 
-        size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
-        node->morton = ( morton << shift ) + node->l;
-
-        /** Recurs. */
-        Morton( node->lchild, ( morton << 1 ) + 0 );
-        Morton( node->rchild, ( morton << 1 ) + 1 );
-
-        if ( node->lchild )
-        {
-#ifdef DEBUG_TREE
-          cout << IsMyParent( node->lchild->morton, node->rchild->morton ) << endl;
-          cout << IsMyParent( node->lchild->morton, node->morton         ) << endl;
-#endif
-        }
-        else /** Setup morton id for all points in the leaf node */
-        {
-          auto &gids = node->gids;
-          for ( size_t i = 0; i < gids.size(); i ++ )
-          {
-            setup.morton[ gids[ i ] ] = node->morton;
-          }
-        }
+        for ( auto it : node->gids ) setup.morton[ it ] = node->morton;
       }
     };
 
 
-    /**
-     *  @TODO: used in FindNearNode, problematic in distributed version
-     *
-     */ 
-    template<size_t LEVELOFFSET=5>
-    NODE *Morton2Node( size_t me )
-    {
-      assert( N_CHILDREN == 2 );
-      // Get my level.
-      size_t filter = ( 1 << LEVELOFFSET ) - 1;
-      size_t mylevel = me & filter;
-      auto level_beg = treelist.begin() + ( 1 << mylevel ) - 1;
-      // Get my index in this level.
-      size_t shift = ( 1 << LEVELOFFSET ) - mylevel + LEVELOFFSET;
-      size_t index = me >> shift;
-      if ( index >= ( 1 << mylevel ) )
-      {
-        printf( "level %lu index %lu\n", mylevel, index );
-        hmlp_print_binary( me );
-      }
-      return *(level_beg + index);
-    };
+
+
+
+//    template<size_t LEVELOFFSET=5>
+//    void Morton( NODE *node, size_t morton )
+//    {
+//      if ( node )
+//      {
+//        /** Shift = 16 - l + 4. */ 
+//        size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
+//        node->morton = ( morton << shift ) + node->l;
+//
+//        /** Recurs. */
+//        Morton( node->lchild, ( morton << 1 ) + 0 );
+//        Morton( node->rchild, ( morton << 1 ) + 1 );
+//
+//        if ( node->lchild )
+//        {
+//#ifdef DEBUG_TREE
+//          cout << IsMyParent( node->lchild->morton, node->rchild->morton ) << endl;
+//          cout << IsMyParent( node->lchild->morton, node->morton         ) << endl;
+//#endif
+//        }
+//        else /** Setup morton id for all points in the leaf node */
+//        {
+//          auto &gids = node->gids;
+//          for ( size_t i = 0; i < gids.size(); i ++ )
+//          {
+//            setup.morton[ gids[ i ] ] = node->morton;
+//          }
+//        }
+//      }
+//    };
+
+
+//    /**
+//     *  @TODO: used in FindNearNode, problematic in distributed version
+//     *
+//     */ 
+//    template<size_t LEVELOFFSET=5>
+//    NODE *Morton2Node( size_t me )
+//    {
+//      assert( N_CHILDREN == 2 );
+//      // Get my level.
+//      size_t filter = ( 1 << LEVELOFFSET ) - 1;
+//      size_t mylevel = me & filter;
+//      auto level_beg = treelist.begin() + ( 1 << mylevel ) - 1;
+//      // Get my index in this level.
+//      size_t shift = ( 1 << LEVELOFFSET ) - mylevel + LEVELOFFSET;
+//      size_t index = me >> shift;
+//      if ( index >= ( 1 << mylevel ) )
+//      {
+//        printf( "level %lu index %lu\n", mylevel, index );
+//        hmlp_print_binary( me );
+//      }
+//      return *(level_beg + index);
+//    };
 
 
 
@@ -1061,16 +1085,15 @@ class Tree
       split_time = omp_get_wtime() - beg;
 
 
-      /** Compute node and point MortonId. */ 
-      beg = omp_get_wtime();
+      /** Compute node and point MortonID. */ 
       setup.morton.resize( n );
-      Morton( treelist[ 0 ], 0 );
-      Offset( treelist[ 0 ], 0 );
-      morton_time = omp_get_wtime() - beg;
+      /** Compute MortonID recursively. */
+      RecursiveMorton( treelist[ 0 ], MortonHelper::Root() );
 
-      /**
-       *  Construct morton2node map for local tree
-       */
+
+      Offset( treelist[ 0 ], 0 );
+
+      /** Construct morton2node map for the local tree. */
       morton2node.clear();
       for ( size_t i = 0; i < treelist.size(); i ++ )
       {
@@ -1079,14 +1102,10 @@ class Tree
 
 
       /** Adgust gids to the appropriate order.  */
-      beg = omp_get_wtime();
       IndexPermuteTask<NODE> indexpermutetask;
       TraverseUp<false>( indexpermutetask );
-      permute_time = omp_get_wtime() - beg;
 
-      //printf( "alloc %5.3lfs split %5.3lfs morton %5.3lfs permute %5.3lfs\n", 
-      //  alloc_time, split_time, morton_time, permute_time );
-    };
+    }; /** end TreePartition() */
 
 
 

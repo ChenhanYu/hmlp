@@ -152,16 +152,16 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 
     /** ESSENTIAL: return K( imap, jmap ) */
     template<typename TINDEX>
-    hmlp::Data<T> operator()
-		  ( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    Data<T> operator()
+		  ( vector<TINDEX> &imap, vector<TINDEX> &jmap )
     {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
+      Data<T> submatrix( imap.size(), jmap.size() );
 
       if ( !submatrix.size() ) return submatrix;
 
       /** Get coordinates of sources and targets */
-      hmlp::Data<T> itargets = targets( imap );
-      hmlp::Data<T> jsources = sources( jmap );
+      Data<T> itargets = targets( imap );
+      Data<T> jsources = sources( jmap );
 
       assert( itargets.col() == submatrix.row() );
       assert( itargets.row() == d );
@@ -258,12 +258,12 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 
 
     /** get the diagonal of KII, i.e. diag( K( I, I ) ) */
-    hmlp::Data<T> Diagonal( std::vector<size_t> &I )
+    Data<T> Diagonal( vector<size_t> &I )
     {
       /** 
        *  return values
        */
-      hmlp::Data<T> DII( I.size(), 1, 0.0 );
+      Data<T> DII( I.size(), 1, 0.0 );
 
       /** at this moment we already have the corrdinates on this process */
       switch ( kernel.type )
@@ -303,7 +303,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
     {
       printf( "ComputeDegree(): K * ones\n" );
       assert( is_symmetric );
-      hmlp::Data<T> ones( this->row(), (size_t)1, 1.0 );
+      Data<T> ones( this->row(), (size_t)1, 1.0 );
       Degree.resize( this->row(), (size_t)1, 0.0 );
       Multiply( 1, Degree, ones );
     };
@@ -322,7 +322,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
       {
         ComputeDegree();
       }
-      hmlp::Data<T> invDw( this->row(), (size_t)1, 0.0 );
+      Data<T> invDw( this->row(), (size_t)1, 0.0 );
 
       /** D^{-1/2}w */
       for ( size_t i = 0; i < this->row(); i ++ )
@@ -413,7 +413,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
       Multiply( nrhs, u, amap, bmap, w );
     };
 
-    void Multiply( hmlp::Data<T, Allocator> &u, hmlp::Data<T, Allocator> &w )
+    void Multiply( Data<T, Allocator> &u, Data<T, Allocator> &w )
     {
       assert( u.row() == this->row() );
       assert( w.row() == this->col() );

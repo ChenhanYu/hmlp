@@ -7,6 +7,9 @@
 #include <hmlp_runtime.hpp>
 #include <containers/data.hpp>
 
+using namespace std;
+using namespace hmlp;
+
 
 namespace hmlp
 {
@@ -41,9 +44,9 @@ class Cache1D
 
 		};
 
-	  hmlp::Data<T> Read( size_t id )
+	  Data<T> Read( size_t id )
 		{
-			hmlp::Data<T> ret;
+			Data<T> ret;
 
 			/** use direct map to find the set */
 			auto &set = table[ id % NSET ];
@@ -55,7 +58,7 @@ class Cache1D
 				if ( it != set.end() ) 
 				{
 					size_t line_id = (*it).second;
-					std::vector<size_t> J( 1, line_id );
+					vector<size_t> J( 1, line_id );
 					/** cache hit */
 					ret = buffer( all_units, J );
 					/** increate frequency */
@@ -67,7 +70,7 @@ class Cache1D
 			return ret;
 		};
 
-		void Write( size_t id,  hmlp::Data<T> &input )
+		void Write( size_t id,  Data<T> &input )
 		{
 			/** use direct map to find the set */
 			auto &set = table[ id % NSET ];
@@ -130,16 +133,15 @@ class Cache1D
 	private:
 
 
-		std::vector<size_t> all_units;
+		vector<size_t> all_units;
 
-		std::vector<hmlp::Lock> locks;
+		vector<Lock> locks;
 
-		//std::vector<std::map<size_t, size_t>> table;
-		std::vector<std::unordered_map<size_t, size_t>> table;
+		vector<unordered_map<size_t, size_t>> table;
 
-		std::vector<size_t> freq;
+		vector<size_t> freq;
 
-		hmlp::Data<T> buffer;
+		Data<T> buffer;
 
 };
 
@@ -162,7 +164,7 @@ class Cache2D
 			}
 		};
 
-		hmlp::Data<T> Read( size_t i, size_t j )
+		Data<T> Read( size_t i, size_t j )
 		{
 			size_t iset  = i % NSET;
 			size_t jset  = j % NSET;
@@ -194,7 +196,7 @@ class Cache2D
 		}; /** end Read() */
 
 
-		void Write( size_t i, size_t j, std::pair<T, double> v )
+		void Write( size_t i, size_t j, pair<T, double> v )
 		{
 			size_t iset  = i % NSET;
 			size_t jset  = j % NSET;
@@ -243,9 +245,9 @@ class Cache2D
 
 		size_t ldway = 0;
 
-		std::vector<std::vector<hmlp::Lock>> locks;
+		vector<vector<Lock>> locks;
 
-		std::vector<std::vector<std::map<size_t, std::pair<T, double>>>> table;
+		vector<vector<map<size_t, pair<T, double>>>> table;
 
 }; /** end class Cache2D */
 

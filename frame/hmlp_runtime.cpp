@@ -1512,10 +1512,7 @@ hmlp::Device *hmlp_get_device_host()
 
 }; // end namespace hmlp
 
-void hmlp_init()
-{
-  hmlp::rt.Init();
-};
+void hmlp_init() { hmlp::rt.Init(); };
 
 void hmlp_set_num_workers( int n_worker )
 {
@@ -1580,7 +1577,7 @@ bool hmlp_is_in_epoch_session()
 //};
 
 void hmlp_msg_dependency_analysis( 
-    int key, int p, hmlp::ReadWriteType type, hmlp::Task *task )
+    int key, int p, ReadWriteType type, Task *task )
 {
   hmlp::rt.scheduler->MessageDependencyAnalysis(
       key, p, type, task );
@@ -1589,11 +1586,11 @@ void hmlp_msg_dependency_analysis(
 void hmlp_set_num_background_worker( int n_background_worker )
 {
 	int rank = 0;
-	hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
+	mpi::Comm_rank( MPI_COMM_WORLD, &rank );
   if ( n_background_worker <= 0 )
   {
     if ( rank == 0 ) printf( "(WARNING!) no background worker left\n" ); fflush( stdout );
     n_background_worker = 0;
   }
-  hmlp::rt.n_background_worker = n_background_worker;
+  rt.n_background_worker = n_background_worker;
 };

@@ -103,17 +103,6 @@ void test_gofmm
   mpi::Comm CommGOFMM
 )
 {
-  /** MPI: Message Passing Interface */
-  int size; mpi::Comm_size( CommGOFMM, &size );
-  int rank; mpi::Comm_rank( CommGOFMM, &rank );
-
-  /** all timers */
-  double beg, dynamic_time, omptask45_time, omptask_time, ref_time;
-  double ann_time, tree_time, overhead_time;
-  double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
-
-  const bool CACHE = true;
-
 	/** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( metric, n, m, k, s, stol, budget );
 
@@ -121,105 +110,16 @@ void test_gofmm
   auto *tree_ptr = mpigofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
   auto &tree = *tree_ptr;
 
-  /** Initialize weights with N( 0, 1 ) in [RIDS, STAR] distribution. */
-  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, CommGOFMM );
-  w_rids.randn();
+  /** Examine accuracies. */
+  SelfTesting( tree, 100, nrhs );
 
-  /** Evaluate u ~ K * w. */
-  auto u_rids = mpigofmm::Evaluate<true, false, true, true, CACHE>( tree, w_rids, CommGOFMM );
-
-  if ( u_rids.HasIllegalValue() )
-  {
-    printf( "Illegal value after Evaluate\n" ); fflush( stdout );
-  }
-
-  /** Redistribute potentials from RIDS to RBLK. */
-  DistData<RBLK, STAR, T> u_rblk( n, nrhs, CommGOFMM );
-  u_rblk = u_rids;
-
-
-  if ( u_rblk.HasIllegalValue() )
-  {
-    printf( "Illegal value after alltoall\n" ); fflush( stdout );
-  }
-
-
-
-  /** Examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM */
-  std::size_t ntest = 100;
-  T nnerr_avg = 0.0;
-  T nonnerr_avg = 0.0;
-  T fmmerr_avg = 0.0;
-
-
-  T sse_2norm = 0.0;
-  T ssv_2norm = 0.0;
-
-
-  if ( rank == 0 )
-  {
-    printf( "========================================================\n");
-    printf( "Accuracy report\n" );
-    printf( "========================================================\n");
-  }
-  for ( size_t i = 0; i < ntest; i ++ )
-  {
-    size_t tar = i * 500;
-
-    Data<T> potentials( (size_t)1, nrhs );
- 
-    if ( rank == ( tar % size ) )
-    {
-      for ( size_t p = 0; p < potentials.col(); p ++ )
-      {
-        potentials[ p ] = u_rblk( tar , p );
-      }
-    }
-
-    /** bcast potentials to all MPI processes */
-    mpi::Bcast( potentials.data(), nrhs, tar % size, CommGOFMM );
-
-    if ( potentials.HasIllegalValue() )
-    {
-      printf( "potential %lu has illegal value %E\n", tar, potentials[ 0 ] ); fflush( stdout );
-    }
-
-    auto sse_ssv = mpigofmm::ComputeError( tree, tar, potentials, CommGOFMM );
-    /** Compute element-wise 2-norm error. */
-    auto fmmerr  = sqrt( sse_ssv.first / sse_ssv.second ); 
-    /** Accumulate element-wise 2-norm error. */
-    fmmerr_avg += fmmerr;
-    /** Accumulate SSE and SSV. */
-    sse_2norm += sse_ssv.first;
-    ssv_2norm += sse_ssv.second;
-
-    /** Only print 10 values. */
-    if ( i < 10 && rank == 0 )
-    {
-      printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-          tar, 0.0, 0.0, fmmerr );
-    }
-  }
-  if ( rank == 0 )
-  {
-    printf( "========================================================\n");
-    printf( "Elementwise ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-        nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
-    printf( "F-norm      ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-        0.0, 0.0, sqrt( sse_2norm / ssv_2norm ) );
-    printf( "========================================================\n");
-  }
-  // ------------------------------------------------------------------------
-
-
-  /** Factorization */
-  T lambda = 10.0;
-  mpigofmm::DistFactorize( tree, lambda ); 
-  mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
+//  /** Factorization */
+//  T lambda = 10.0;
+//  mpigofmm::DistFactorize( tree, lambda ); 
+//  mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
 
 	/** Delete tree_ptr. */
   delete tree_ptr;
-
 }; /** end test_gofmm() */
 
 

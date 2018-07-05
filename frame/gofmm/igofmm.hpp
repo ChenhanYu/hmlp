@@ -85,23 +85,6 @@ namespace gofmm
  **/ 
 
 
-//typedef enum 
-//{
-//  HODLR,
-//  PHSS,
-//  HSS,
-//  ASKIT
-//} HFamilyType;
-//
-//typedef enum 
-//{
-//  UV,
-//  COLUMNID,
-//  ROWID,
-//  CUR,
-//  LOWRANKPLUSSPARSE
-//} OffdiagonalType;
-
 template<typename T>
 class Factor
 {
@@ -112,7 +95,7 @@ class Factor
     void SetupFactor
     (
       bool issymmetric, bool do_ulv_factorization,
-      bool isleft, bool isleaf, bool isroot,
+      bool isleaf, bool isroot,
       /** n == nl + nr (left + right) */
       size_t n, size_t nl, size_t nr,
       /** s <= sl + sr */
@@ -121,7 +104,6 @@ class Factor
     {
       this->issymmetric = issymmetric;
       this->do_ulv_factorization = do_ulv_factorization;
-      this->isleft = isleft;
       this->isleaf = isleaf;
       this->isroot = isroot;
       this->n = n; this->nl = nl; this->nr = nr;
@@ -131,7 +113,7 @@ class Factor
     void SetupFactor
     (
       bool issymmetric, bool do_ulv_factorization,
-      bool isleft, bool isleaf, bool isroot,
+      bool isleaf, bool isroot,
       size_t n, size_t nl, size_t nr,
       size_t s, size_t sl, size_t sr,
       /** n-by-?; its rank depends on mu sibling */
@@ -141,7 +123,7 @@ class Factor
     )
     {
       SetupFactor( issymmetric, do_ulv_factorization, 
-          isleft, isleaf, isroot, n, nl, nr, s, sl, sr );
+          isleaf, isroot, n, nl, nr, s, sl, sr );
     };
 
     bool DoULVFactorization()
@@ -149,10 +131,7 @@ class Factor
       return do_ulv_factorization;
     };
 
-    bool IsSymmetric()
-    {
-      return is_symmetric;
-    };
+    bool IsSymmetric() { return is_symmetric; };
 
 
 
@@ -193,49 +172,28 @@ class Factor
       assert( isleaf );
       assert( Kaa.row() == n ); assert( Kaa.col() == n );
 
-      /** initialize */
+      /** Initialize with Kaa. */
       Z = Kaa;
 
-      /** LU or Cholesky factorization */
-      if ( do_ulv_factorization && issymmetric ) 
-      {
-        /** Cholesky factorization */
-        if ( USE_OLD_ULV )
-        {
-          xpotrf( "Lower", n, Z.data(), n );
-          //CheckCondition();
-        }
-        else
-        {
-          ipiv.resize( n, 0 );
-          xgetrf( n, n, Z.data(), n, ipiv.data() );
-        }
-      }
-      else
-      {
-        ipiv.resize( n, 0 );
+      /** Record the partial pivoting order. */
+      ipiv.resize( n, 0 );
 
-        /** compute 1-norm of Z */
-        T nrm1 = 0.0;
-        for ( size_t i = 0; i < Z.size(); i ++ ) 
-          nrm1 += std::abs( Z[ i ] );
-        //printf( "1-norm\n" ); fflush( stdout );
+      /** Compute 1-norm of Z. */
+      T nrm1 = 0.0;
+      for ( auto &z : Z ) nrm1 += z;
 
-        /** pivoted LU factorization */
-        xgetrf(   n, n, Z.data(), n, ipiv.data() );
-        //printf( "getrf\n" ); fflush( stdout );
+      /** Pivoted LU factorization. */
+      xgetrf( n, n, Z.data(), n, ipiv.data() );
 
-        /** compute 1-norm condition number */
-        T rcond1 = 0.0;
-        hmlp::Data<T> work( Z.row(), 4 );
-        std::vector<int> iwork( Z.row() );
-        xgecon( "1", Z.row(), Z.data(), Z.row(), nrm1, 
-            &rcond1, work.data(), iwork.data() );
-        if ( 1.0 / rcond1 > 1E+6 )
-          printf( "Warning! large 1-norm condition number %3.1E, nrm1( Z ) %3.1E\n", 
-              1.0 / rcond1, nrm1 );
-      }
-
+      /** Compute 1-norm condition number. */
+      T rcond1 = 0.0;
+      Data<T> work( Z.row(), 4 );
+      vector<int> iwork( Z.row() );
+      xgecon( "1", Z.row(), Z.data(), Z.row(), nrm1, 
+          &rcond1, work.data(), iwork.data() );
+      if ( 1.0 / rcond1 > 1E+6 )
+        printf( "Warning! large 1-norm condition number %3.1E, nrm1( Z ) %3.1E\n", 
+            1.0 / rcond1, nrm1 );
     }; /** end Factorize() */
 
 
@@ -245,7 +203,7 @@ class Factor
      */ 
     void PartialFactorize( Data<T> &A )
     {
-      /** Similar transformation ( Q' * Z * Q ) */
+      /** Similar transformation ( Q' * Z * Q ). */
       Z = A;
       ChangeBasis( Z );
 
@@ -269,7 +227,8 @@ class Factor
           -1.0, Zbl.data(), Zbl.ld(),
                 Ztr.data(), Ztr.ld(),
            1.0, Zbr.data(), Zbr.ld() );
-    }; /** end PartialFactorize */
+
+    }; /** end PartialFactorize() */
 
 
 
@@ -477,15 +436,13 @@ class Factor
     }; /** end Factorize() */
 
 
-    void PartialFactorize
-    ( 
+    void PartialFactorize( 
       /** Zl,  nl-by-nl,  Zr,  nr-by-nr */
       View<T> &Zl, View<T> &Zr,
       /** Ul,  nl-by-sl,  Ur,  nr-by-sr */
       Data<T> &Ul, Data<T> &Ur, 
       /** Vl,  nl-by-sr,  Vr,  nr-by-sr */
-      Data<T> &Vl, Data<T> &Vr
-    )
+      Data<T> &Vl, Data<T> &Vr )
     {
       Z.resize( 0, 0 );
       Z.resize( sl + sr, sl + sr, 0.0 );
@@ -521,11 +478,9 @@ class Factor
 
 
 
-    /** 
-     *
-     */
+    /** */
     template<bool SYMMETRIC>
-    void Multiply( hmlp::View<T> &bl, hmlp::View<T> &br )
+    void Multiply( View<T> &bl, View<T> &br )
     {
       assert( !isleaf && bl.col() == br.col() );
     
@@ -612,7 +567,7 @@ class Factor
      *  @brief b - U * inv( Z ) * C * V' * b 
      */
     template<bool TRANS, bool SYMMETRIC = true>
-    void Solve( hmlp::View<T> &bl, hmlp::View<T> &br ) 
+    void Solve( View<T> &bl, View<T> &br ) 
     {
       size_t nrhs = bl.col();
 
@@ -631,9 +586,9 @@ class Factor
 //      hmlp::Data<T> tl(      sl, nrhs );
 //      hmlp::Data<T> tr(      sr, nrhs );
 
-      std::vector<T> ta( ( sl + sr ) * nrhs );
-      std::vector<T> tl(      sl * nrhs );
-      std::vector<T> tr(      sr * nrhs );
+      vector<T> ta( ( sl + sr ) * nrhs );
+      vector<T> tl(      sl * nrhs );
+      vector<T> tr(      sr * nrhs );
 
 
       ///** views of buffer */
@@ -869,9 +824,9 @@ class Factor
 
         if ( DO_INVERSE )
         {
-            hmlp::Data<T> x( sl + sr, s );
-            hmlp::Data<T> xl( sl, s );
-            hmlp::Data<T> xr( sr, s );
+            Data<T> x( sl + sr, s );
+            Data<T> xl( sl, s );
+            Data<T> xr( sr, s );
 
             /** xl = Vlt * Pa( 0:nl-1, : ) */
             xgemm( "T", "N", sl, s, nl, 
@@ -917,86 +872,57 @@ class Factor
     /** */
     void Orthogonalization()
     {
-      assert( do_ulv_factorization );
-
       /** Initialize householder reflectors "tau". */
       tau.resize( std::min( U.row(), U.col() ) );
-
-      /** Initialize work space. */
+      /** Initialize work space for xgeqrf. */
       Data<T> work( U.col() * 512, 1 );
-      //printf( "U.row() %lu U.col() %lu tau.size() %lu work.size() %lu\n",
-      //    U.row(), U.col(), tau.size(), work.size() );
-
-      /** QR factorization */
+      /** QR factorization without column pivoting. */
       xgeqrf( U.row(), U.col(), U.data(), U.row(),
           tau.data(), work.data(), work.size() );
-      //printf( "finish xgeqrf\n" );
-
-
-      /** Copy U to Q. */
+      /** Copy U to Q to generate the full orthonormal basis. */
       Q = U;
+      /** Increase the rank of Q to full rank. */
+      Q.resize( U.row(), U.row() );
+      /** Generate the full orthonormal basis Q. */
+      xorgqr( Q.row(), Q.col(), U.col(), Q.data(), Q.row(), tau.data(), 
+          work.data(), work.size() );
 
 
 
-      //printf( "U:\n" );
-      //U.Print();
-      if ( USE_OLD_ULV )
+      /** Create views Qv = [Q1, Q2] for Q. */
+      Qv.Set( false, Q );
+      Qv.Partition1x2( Q1, Q2, tau.size(), LEFT );
+      /** Sanity check for Q1'Q1 and Q2'Q2 and Q1'Q2. */
+      Data<T> C = Q;
+      Data<T> D = Q;
+
+      xgemm( "Transpose", "No Transpose", C.row(), C.col(), Q.row(),
+          1.0, Q.data(), Q.row(), 
+               Q.data(), Q.row(),
+          0.0, C.data(), C.row() );
+
+      xgemm( "No Transpose", "Transpose", D.row(), D.col(), Q.row(),
+          1.0, Q.data(), Q.row(), 
+               Q.data(), Q.row(),
+          0.0, D.data(), D.row() );
+
+      for ( size_t j = 0; j < Q.col(); j ++ )
       {
-        xorgqr(
-            Q.row(), Q.col(), U.col(),
-            Q.data(), Q.row(), tau.data(), 
-            work.data(), work.size() );
+        for ( size_t i = 0; i < Q.row(); i ++ )
+        {
+          if ( i == j ) assert( std::fabs( C( i, j ) - 1 ) < 1E-5 );
+          else          assert( std::fabs( C( i, j ) - 0 ) < 1E-5 );
+        }
       }
-      else
+      for ( size_t j = 0; j < Q.col(); j ++ )
       {
-        /** Increase the rank of Q to full rank. */
-        Q.resize( U.row(), U.row() );
-        /** Generate the full orthonormal basis Q. */
-        xorgqr(
-            Q.row(), Q.col(), U.col(),
-            Q.data(), Q.row(), tau.data(), 
-            work.data(), work.size() );
-        /** Create views Qv = [Q1, Q2] for Q. */
-        Qv.Set( false, Q );
-        Qv.Partition1x2( Q1, Q2, tau.size(), LEFT );
-
-        /** Sanity check for Q1'Q1 and Q2'Q2 and Q1'Q2. */
-        Data<T> C = Q;
-        Data<T> D = Q;
-
-        xgemm( "Transpose", "No Transpose", C.row(), C.col(), Q.row(),
-            1.0, Q.data(), Q.row(), 
-                 Q.data(), Q.row(),
-            0.0, C.data(), C.row() );
-
-        xgemm( "No Transpose", "Transpose", D.row(), D.col(), Q.row(),
-            1.0, Q.data(), Q.row(), 
-                 Q.data(), Q.row(),
-            0.0, D.data(), D.row() );
-
-        for ( size_t j = 0; j < Q.col(); j ++ )
+        for ( size_t i = 0; i < Q.row(); i ++ )
         {
-          for ( size_t i = 0; i < Q.row(); i ++ )
-          {
-            if ( i == j ) assert( std::fabs( C( i, j ) - 1 ) < 1E-5 );
-            else          assert( std::fabs( C( i, j ) - 0 ) < 1E-5 );
-          }
+          if ( i == j ) assert( std::fabs( D( i, j ) - 1 ) < 1E-5 );
+          else          assert( std::fabs( D( i, j ) - 0 ) < 1E-5 );
         }
-        for ( size_t j = 0; j < Q.col(); j ++ )
-        {
-          for ( size_t i = 0; i < Q.row(); i ++ )
-          {
-            if ( i == j ) assert( std::fabs( D( i, j ) - 1 ) < 1E-5 );
-            else          assert( std::fabs( D( i, j ) - 0 ) < 1E-5 );
-          }
-        }
-
-        //printf("Q1 %lux%lu Q2 %lux%lu\n", Q1.row(), Q1.col(), Q2.row(), Q2.col() );
       }
 
-      
-      //printf( "Q\n" );
-      //Q.Print();
     };
 
 
@@ -1077,40 +1003,11 @@ class Factor
     }; /** changeBasis() */
 
 
-    /**
-     *  @brief here x is the return value
-     */ 
-    void ULVForwardSolve( View<T> &x )
-    {
-      /** get the view of right hand sides */
-      auto &b = bview;
-
-      if ( isleaf ) bskel = b.toData();
-      else          bskel = qskel;        
-
-      /** inv( L ) * b */
-      xtrsm( "Left", "Lower", "No transpose", "Non-unit", 
-          bskel.row(), bskel.col(), 
-          1.0, Z.data(), Z.row(), bskel.data(), bskel.row() );
-
-      if ( !isroot )
-      {
-        assert( Q.row() == bskel.row() );
-        /** x = Q' * bskel */
-        xgemm( "Transpose", "Non-transpose", x.row(), x.col(), Q.row(), 
-            1.0, Q.data(), Q.row(),
-            bskel.data(), bskel.row(),
-            0.0, x.data(), x.ld() );
-      }
-    }; /** end ULVForward() */
-
-
 
     void ULVForward()
     {
       /** For internal nodes, B has been initialized by children. */
       if ( isleaf ) B = bview.toData();
-
       /** B = Q' * B */
       ChangeBasis( LEFT, B );
       /** P * Bf */
@@ -1121,10 +1018,9 @@ class Factor
       /** Bc -= Lcf * Bf, where Lcf is Zbl. */
       xgemm( "No Transpose", "No Transpose", Bc.row(), Bc.col(), Bf.row(),
           -1.0, Zbl.data(), Zbl.ld(), Bf.data(), Bf.ld(), 1.0, Bc.data(), Bc.ld() );
-      /** Copy Bc to Bp (subview of parent's B). */
       //printf( "Bc %lux%lu Bp %lux%lu\n", Bc.row(), Bc.col(), Bp.row(), Bp.col() ); fflush( stdout );
+      /** Copy Bc to Bp (subview of parent's B). */
       Bp.CopyValuesFrom( Bc );
-  
     }; /** end ULVForward() */
 
 
@@ -1155,42 +1051,7 @@ class Factor
 
 
 
-    void ULVBackwardSolve( View<T> &x )
-    {
-      /** get the view of right hand sides */
-      auto &b = bview;
 
-      if ( !isroot )
-      {
-        /** bskel += Q * x */
-        xgemm( "Non-transpose", "Non-transpose",
-            bskel.row(), bskel.col(), Q.col(), 
-            1.0, Q.data(), Q.row(),
-            x.data(), x.ld(),
-            1.0, bskel.data(), bskel.row() );
-      }
-
-      /** inv( L' ) * bskel */
-      xtrsm( "Left", "Lower", "Transpose", "Non-unit", 
-          bskel.row(), bskel.col(), 
-          1.0, Z.data(), Z.row(), bskel.data(), bskel.row() );
-
-      if ( isleaf )
-      {
-        /** return */
-        for ( size_t j = 0; j < b.col(); j ++ )
-          for ( size_t i = 0; i < b.row(); i ++ )
-            b( i, j ) = bskel( i, j );
-      }
-      else
-      {
-        for ( size_t j = 0; j < bskel.col(); j ++ )
-          for ( size_t i = 0; i < bskel.row(); i ++ )
-            bskel( i, j ) -= qskel( i, j );
-      }
-    }; /** end ULVBackward() */
-
-    bool isleft = false;
 
     bool isleaf = false;
 
@@ -1208,62 +1069,41 @@ class Factor
 
     size_t sr = 0;
 
+
     /** Reduced system Z = [ I  VU   if ( HODLR || p-HSS )
      *                       VU  I ] */
     Data<T> Z;
     View<T> Zv;
     View<T> Ztl, Ztr, Zbl, Zbr;
 
-    /** pivoting rows (used in SMW) */
+    /** Partial pivoting order (used in GETRF). */
     vector<int> ipiv;
-    
-    /** U, n-by-s (SMW) or (sl+sr)-by-s (ULV) */
-    Data<T> U;
 
-    /** V, n-by-s (SMW) or 0-by-0 (ULV) */
-    Data<T> V; 
+    /** n-by-s (SMW) or (sl+sr)-by-s (ULV) */
+    Data<T> U, V;
 
-    /** Crl, sr-by-sl */
-    Data<T> Crl;
+    /** sr-by-sl and sl-by-sr, skeleton row and column basis. */
+    Data<T> Crl, Clr;
 
-    /** Clr, sl-by-sr or 0-by-0 (Symmetric) */
-    Data<T> Clr;
-
-    /** a correspinding view of the right hand side of this node */
+    /** A correspinding view of the right hand side of this node. */
     View<T> bview;
 
-    /** pointers to children's factors */
+    /** Pointers to children's factors */
     Data<T> *Ul = NULL;
     Data<T> *Ur = NULL;
     Data<T> *Vl = NULL;
     Data<T> *Vr = NULL;
 
-
-    /** ULV specific */
-
     /** Q, (sl+sr)-by-s (ULV) */
     Data<T> Q;
-    View<T> Qv;
-    View<T> Q1;
-    View<T> Q2;
+    View<T> Qv, Q1, Q2;
 
     /** tau, sl+sr (used in xgeqrf( U ) of ULV) */
     vector<T> tau;
 
-    /** (sl+sr)-by-nrhs, qskel = Q' * b */     
-    Data<T> qskel;
-    View<T> qview_myself;
-    View<T> qview_parent; 
-
-    /** (sl+sr)-by-nrhs, bskel = inv( L ) * qskel */
-    Data<T> bskel;
-    View<T> bskel_myself;
-    View<T> bskel_parent;
-
+    /** Temporary buffer for the solve. */
     Data<T> B;
-    View<T> Bv, Bp, Bf, Bc;
-
-
+    View<T> Bv, Bp, Bsibling, Bf, Bc;
 
   private: /** this class will be public inherit by gofmm::Data<T> */
 
@@ -1281,7 +1121,7 @@ template<typename NODE, typename T>
 void SetupFactor( NODE *node )
 {
   size_t n, nl, nr, s, sl, sr;
-  bool issymmetric, do_ulv_factorization, isleft;
+  bool issymmetric, do_ulv_factorization;
   
 
 #ifdef DEBUG_IGOFMM
@@ -1305,19 +1145,9 @@ void SetupFactor( NODE *node )
     sr = node->rchild->data.skels.size();
   }
 
-  isleft = false;
-  if ( node->parent )
-  {
-    if ( node == node->parent->lchild ) isleft = true;
-  }
 
-  node->data.SetupFactor
-  (
-    issymmetric, do_ulv_factorization,
-    isleft, node->isleaf, !node->l,
-    n, nl, nr,
-    s, sl, sr 
-  );
+  node->data.SetupFactor( issymmetric, do_ulv_factorization,
+    node->isleaf, !node->l, n, nl, nr, s, sl, sr );
 
 #ifdef DEBUG_IGOFMM
   printf( "end SetupFactor %lu\n", node->treelist_id ); fflush( stdout );
@@ -1338,12 +1168,10 @@ class SetupFactorTask : public Task
 
     void Set( NODE *user_arg )
     {
-      ostringstream ss;
       arg = user_arg;
       name = string( "sf" );
       label = to_string( arg->treelist_id );
       cost = 1.0;
-      //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
     };
 
     void GetEventRecord()
@@ -1367,9 +1195,43 @@ class SetupFactorTask : public Task
 
 
 
-/** 
- *  @brief This task creates an hierarchical tree view for a matrix.
- */
+
+template<typename NODE>
+void SolverTreeView( NODE *node )
+{
+  auto &data   = node->data;
+  auto *setup  = node->setup;
+  auto &input  = *(setup->input);
+  auto &output = *(setup->output);
+  /** Allocate working buffer for ULV solve. */
+  if ( node->isleaf ) data.B.resize( data.n, input.col() );
+  else data.B.resize( data.sl + data.sr, input.col() );
+
+  /** Partition B = [ Bf; Bc ] with matrix view. */
+  data.Bv.Set( data.B );
+  data.Bv.Partition2x1( data.Bf,
+                        data.Bc,  data.s, BOTTOM );
+
+  /** Create contigious matrix view for output at root level. */
+  if ( !node->parent ) data.bview.Set( output );
+
+  /** Hierarchical tree view. */
+  if ( !node->isleaf )
+  {
+    auto &ldata = node->lchild->data;
+    auto &rdata = node->rchild->data;
+    /** Partition b = [ bl; br; ] with matrix view. */
+    data.bview.Partition2x1( ldata.bview, 
+                             rdata.bview, data.nl, TOP );
+    data.Bv.Partition2x1( ldata.Bp,
+                          rdata.Bp, data.sl, TOP );
+  }
+}; /** end SolverTreeView() */
+
+
+
+
+/** @brief Creates an hierarchical tree view for a matrix. */
 template<typename NODE>
 class SolverTreeViewTask : public Task
 {
@@ -1379,12 +1241,10 @@ class SolverTreeViewTask : public Task
 
     void Set( NODE *user_arg )
     {
-      ostringstream ss;
-      name = string( "TreeView" );
       arg = user_arg;
+      name = string( "TreeView" );
+      label = to_string( arg->treelist_id );
       cost = 1.0;
-      ss << arg->treelist_id;
-      label = ss.str();
     };
 
     void GetEventRecord()
@@ -1393,85 +1253,10 @@ class SolverTreeViewTask : public Task
       event.Set( label + name, flops, mops );
     };
 
-    /** preorder dependencies (with a single source node) */
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( RW, this );
-      if ( arg->parent )
-        arg->parent->DependencyAnalysis( R, this );
-      this->TryEnqueue();
-    };
+    /** Preorder dependencies (with a single source node) */
+    void DependencyAnalysis() { arg->DependOnParent( this ); };
 
-    void Execute( Worker* user_worker )
-    {
-      //printf( "TreeView %lu\n", node->treelist_id );
-      auto *node   = arg;
-      auto &data   = node->data;
-      auto *setup  = node->setup;
-      auto &input  = *(setup->input);
-      auto &output = *(setup->output);
-
-      /** create contigious view for output at root level */
-      if ( !node->parent ) 
-      {
-        data.bview.Set( output );
-      }
-
-      /** tree view (hierarchical views) */
-      if ( !node->isleaf )
-      {
-        /** A = [ A1; A2; ] */
-        data.bview.Partition2x1
-        ( 
-          node->lchild->data.bview, 
-          node->rchild->data.bview, node->lchild->n, TOP 
-        );
-
-        /** ULV specific initialization */
-        if ( setup->do_ulv_factorization )
-        {
-          /** initialize qskel */
-          data.qskel.resize( data.sl + data.sr, input.col() );
-          /** create matrix view for qsekl */
-          data.qview_myself.Set( data.qskel );
-          /** [ lqskel; rqskel; ] = qskel */
-          data.qview_myself.Partition2x1
-          ( 
-            node->lchild->data.qview_parent,
-            node->rchild->data.qview_parent, data.sl, TOP
-          );
-        }
-      }
-
-      if ( setup->do_ulv_factorization )
-      {
-        if ( node->isleaf )
-        {
-          data.B.resize( data.n, input.col() );
-        }
-        else
-        {
-          data.B.resize( data.sl + data.sr, input.col() );
-        }
-
-
-
-        //data.B.resize( data.sl + data.sr, input.col() );
-        data.Bv.Set( data.B );
-        data.Bv.Partition2x1( data.Bf,
-                              data.Bc,  data.s, BOTTOM );
-        //printf( "Bf %lux%lu Bc %lux%lu\n", data.Bf.row(), data.Bf.col(), 
-        //    data.Bc.row(), data.Bc.col() ); fflush( stdout );
-
-        if ( !node->isleaf )
-        {
-          data.Bv.Partition2x1( node->lchild->data.Bp,
-                                node->rchild->data.Bp, data.sl, TOP );
-        }
-      }
-
-      //printf( "end TreeView %lu\n", node->treelist_id );
-    };
+    void Execute( Worker* user_worker ) { SolverTreeView( arg ); };
 
 }; /** end class TreeViewTask */
 
@@ -1582,14 +1367,8 @@ void Apply( NODE *node )
 
 
 
-template<typename NODE, typename T>
-void ULVForwardSolve( NODE *node )
-{
-  auto &data = node->data;
-  auto *setup = node->setup;
-  if ( USE_OLD_ULV ) data.ULVForwardSolve( data.qview_parent );
-  else               data.ULVForward();
-};
+//template<typename NODE, typename T>
+//void ULVForwardSolve( NODE *node ) { node->data.ULVForward(); };
 
 
 
@@ -1602,35 +1381,29 @@ class ULVForwardSolveTask : public Task
 
     void Set( NODE *user_arg )
     {
-      ostringstream ss;
       arg = user_arg;
       name = string( "ulvforward" );
       label = to_string( arg->treelist_id );
-      // Need an accurate cost model.
       cost = 1.0;
-
-      //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
     };
 
-    void DependencyAnalysis()
-    {      
-      arg->DependencyAnalysis( RW, this );
-      /** depend on two children */
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( R, this );
-        arg->rchild->DependencyAnalysis( R, this );
-      }
-      /** dispatch the task if there is no dependency */
-      this->TryEnqueue();
-    };
+    //void DependencyAnalysis()
+    //{      
+    //  arg->DependencyAnalysis( RW, this );
+    //  /** depend on two children */
+    //  if ( !arg->isleaf )
+    //  {
+    //    arg->lchild->DependencyAnalysis( R, this );
+    //    arg->rchild->DependencyAnalysis( R, this );
+    //  }
+    //  /** dispatch the task if there is no dependency */
+    //  this->TryEnqueue();
+    //};
 
-    void Execute( Worker* user_worker )
-    {
-      //printf( "ULVForwardSolveTask %lu\n", arg->treelist_id ); fflush( stdout );
-      ULVForwardSolve<NODE, T>( arg );
-      //printf( "end ULVForwardSolveTask %lu\n", arg->treelist_id ); fflush( stdout );
-    };
+    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+
+
+    void Execute( Worker* user_worker ) { arg->data.ULVForward(); };
     
 }; /** end class ULVForwardSolveTask */
 
@@ -1638,32 +1411,7 @@ class ULVForwardSolveTask : public Task
 
 
 template<typename NODE, typename T>
-void ULVBackwardSolve( NODE *node )
-{
-  auto &data = node->data;
-  auto *setup = node->setup;
-
-  data.bskel_myself.Set( data.bskel );
-
-  if ( !node->isleaf )
-  {
-    data.bskel_myself.Partition2x1
-    ( 
-      node->lchild->data.bskel_parent, 
-      node->rchild->data.bskel_parent, data.sl, TOP 
-    );
-  };
-
-  if ( USE_OLD_ULV ) data.ULVBackwardSolve( data.bskel_parent );
-  else               data.ULVBackward();
-
-}; /** end ULVBackwardSolve() */
-
-
-
-
-template<typename NODE, typename T>
-class ULVBackwardSolveTask : public hmlp::Task
+class ULVBackwardSolveTask : public Task
 {
   public:
 
@@ -1671,34 +1419,28 @@ class ULVBackwardSolveTask : public hmlp::Task
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "ulvbackward" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-      // Need an accurate cost model.
+      name = string( "ulvbackward" );
+      label = std::to_string( arg->treelist_id );
       cost = 1.0;
 
       //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
     };
 
-    void DependencyAnalysis()
-    {
-      /** depend on parent */
-      if ( arg->parent )
-        arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-      /** dispatch the task if there is no dependency */
-      this->TryEnqueue();
-    };
+    //void DependencyAnalysis()
+    //{
+    //  /** depend on parent */
+    //  if ( arg->parent )
+    //    arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
+    //  arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
+    //  /** dispatch the task if there is no dependency */
+    //  this->TryEnqueue();
+    //};
 
-    void Execute( Worker* user_worker )
-    {
-      //printf( "ULVBackwardSolveTask %lu\n", arg->treelist_id ); fflush( stdout );
-      ULVBackwardSolve<NODE, T>( arg );
-      //printf( "end ULVBackwardSolveTask %lu\n", arg->treelist_id ); fflush( stdout );
-    };
+
+    void DependencyAnalysis() { arg->DependOnParent( this ); };
+
+    void Execute( Worker* user_worker ) { arg->data.ULVBackward(); };
     
 }; /** end class ULVBackwardSolveTask */
 
@@ -1757,21 +1499,17 @@ void Solve( NODE *node )
  *  @brief
  */ 
 template<bool TRANS, typename NODE, typename T>
-class SolveTask : public hmlp::Task
+class SolveTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = NULL;
 
     void Set( NODE *user_arg )
     {
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "sl" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-      // Need an accurate cost model.
+      name = string( "sl" );
+      label = to_string( arg->treelist_id );
       cost = 1.0;
 
       //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
@@ -1949,24 +1687,12 @@ void Factorize( NODE *node )
 
     if ( do_ulv_factorization )
     {
-      if ( USE_OLD_ULV )
-      {
-        /** LU factorization */
-        data.Factorize( Kaa );
-        /** U = inv( L ) * proj' */
-        data.Telescope( true, data.U, proj );
-        /** QR factorization */
-        data.Orthogonalization();
-      }
-      else
-      {
-        /** U = proj */
-        data.Telescope( false, data.U, proj );
-        /** QR factorization */
-        data.Orthogonalization();
-        /** LU factorization */
-        data.PartialFactorize( Kaa );
-      }
+      /** U = proj */
+      data.Telescope( false, data.U, proj );
+      /** QR factorization */
+      data.Orthogonalization();
+      /** LU factorization */
+      data.PartialFactorize( Kaa );
     }
     else
     {
@@ -1977,7 +1703,6 @@ void Factorize( NODE *node )
       /** V = proj' */
       data.Telescope( false, data.V, proj );
     }
-
   }
   else
   {
@@ -1988,38 +1713,21 @@ void Factorize( NODE *node )
     auto &Vr = node->rchild->data.V;
     auto &Zr = node->rchild->data.Zbr;
 
-
-
-    /** evluate the skeleton rows and columns */
+    /** Evluate the skeleton rows and columns. */
     auto &amap = node->lchild->data.skels;
     auto &bmap = node->rchild->data.skels;
 
-    /** get the skeleton rows and columns */
+    /** Get the skeleton rows and columns */
     node->data.Crl = K( bmap, amap );
-
 
     if ( do_ulv_factorization )
     {
-      if ( USE_OLD_ULV )
+      if ( !node->data.isroot )
       {
-        /** SMW factorization (LU or Cholesky) */
-        data.Factorize<true>( Ul, Ur, Vl, Vr );
-        if ( !node->data.isroot )
-        {
-          data.Telescope( true, data.U, proj, Ul, Ur );
-          data.Orthogonalization();
-        }
+        data.Telescope( false, data.U, proj, Ul, Ur );
+        data.Orthogonalization();
       }
-      else
-      {
-        //printf( "treelist_id %lu\n", node->treelist_id ); fflush( stdout );
-        if ( !node->data.isroot )
-        {
-          data.Telescope( false, data.U, proj, Ul, Ur );
-          data.Orthogonalization();
-        }
-        data.PartialFactorize( Zl, Zr, Ul, Ur, Vl, Vr );
-      }
+      data.PartialFactorize( Zl, Zr, Ul, Ur, Vl, Vr );
     }
     else
     {
@@ -2034,7 +1742,6 @@ void Factorize( NODE *node )
         data.Telescope( false, data.V, proj, Vl, Vr );
       }
     }
-
   }
 
 
@@ -2142,20 +1849,13 @@ class FactorizeTask : public Task
 
     NODE *arg = NULL;
 
-    bool do_ulv_factorization = false;
-
     void Set( NODE *user_arg )
     {
-      ostringstream ss;
       arg = user_arg;
-      name = std::string( "fa" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
+      name = string( "fa" );
+      label = to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
-
-      //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
     };
 
     void GetEventRecord()
@@ -2164,23 +1864,9 @@ class FactorizeTask : public Task
       event.Set( label + name, flops, mops );
     };
 
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( RW, this );
-      if ( !arg->isleaf )
-      {
-        arg->lchild->DependencyAnalysis( R, this );
-        arg->rchild->DependencyAnalysis( R, this );
-      }
-      this->TryEnqueue();
-    };
+    void DependencyAnalysis() { arg->DependOnChildren( this ); };
 
-    void Execute( Worker* user_worker )
-    { 
-      //printf( "%lu Enter Factorize\n", arg->treelist_id );
-      Factorize<NODE, T>( arg );
-      //printf( "%lu Exit  Factorize\n", arg->treelist_id );
-    };
+    void Execute( Worker* user_worker ) { Factorize<NODE, T>( arg ); };
 
 }; /** end class FactorizeTask */
 
@@ -2196,44 +1882,32 @@ class FactorizeTask : public Task
 
 
 
-/**
- *  @biref Top level factorization routine.
- */ 
-//template<typename NODE, typename T, typename TREE>
+/** @biref Top-level factorization routine. */
 template<typename T, typename TREE>
 void Factorize( TREE &tree, T lambda )
 {
   using NODE = typename TREE::NODE;
 
-  const bool AUTO_DEPENDENCY = true;
   const bool USE_RUNTIME = true;
 
   /** Clean up all dependencies on tree nodes. */
   tree.DependencyCleanUp();
 
-  /** all task instances */
-  SetupFactorTask<NODE, T> setupfactortask; 
-  FactorizeTask<NODE, T> factorizetask; 
-
-  /** Regularization parameter lambda */
+  /** Regularization parameter lambda. */
   tree.setup.lambda = lambda;
 
-  /** setup factorization type */
+  /** Perform ULV factorization. */
   tree.setup.do_ulv_factorization = true;
 
   /** Setup  */
+  SetupFactorTask<NODE, T> setupfactortask; 
   tree.TraverseUp<USE_RUNTIME>( setupfactortask );
-  if ( USE_RUNTIME ) hmlp_run();
-  //printf( "Execute setupfactortask\n" ); fflush( stdout );
-
-  /** Clean up all dependencies on tree nodes */
-  tree.DependencyCleanUp();
+  tree.ExecuteAllTasks();
 
   /** Factorization */
+  FactorizeTask<NODE, T> factorizetask; 
   tree.TraverseUp<USE_RUNTIME>( factorizetask );
-  //printf( "Create factorizetask\n" ); fflush( stdout );
-  if ( USE_RUNTIME ) hmlp_run();
-  //printf( "Execute factorizetask\n" ); fflush( stdout );
+  tree.ExecuteAllTasks();
 
 }; /** end Factorize() */
 

@@ -11,21 +11,44 @@ namespace hmlp
 {
 namespace mpi
 {
+
+template<typename T>
+int SendData( Data<T> &senddata, int dest, mpi::Comm comm )
+{
+  int m = senddata.row();
+  int n = senddata.col();
+  Send( &m, 1, dest, 0, comm );
+  Send( &n, 1, dest, 0, comm );
+  Send( senddata.data(), m * n, dest, 0, comm );
+  return 0;
+}; /** end SendData() */
+
+template<typename T>
+int RecvData( Data<T> &recvdata, int source, mpi::Comm comm )
+{
+  int m, n;
+  mpi::Status status;
+  Recv( &m, 1, source, 0, comm, &status );
+  Recv( &n, 1, source, 0, comm, &status );
+  recvdata.resize( m, n );
+  Recv( recvdata.data(), m * n, source, 0, comm, &status );
+  return 0;
+}; /** end RecvData() */
+
+
+  
 /**
  *  This interface supports hmlp::Data. [ m, n ] will be set
  *  after the routine.
  *
  */ 
 template<typename T>
-int AlltoallData(
-    size_t m,
+int AlltoallData( size_t m,
     vector<Data<T>> &sendvector, 
     vector<Data<T>> &recvvector, mpi::Comm comm )
 {
-  int size = 0;
-  int rank = 0;
-  Comm_size( comm, &size );
-  Comm_rank( comm, &rank );
+  int size = 0; Comm_size( comm, &size );
+  int rank = 0; Comm_rank( comm, &rank );
 
   assert( sendvector.size() == size );
   assert( recvvector.size() == size );
@@ -64,13 +87,10 @@ int AlltoallData(
         sendvector[ p ].end() );
   }
 
-  /** exchange sendcount */
+  /** Exchange sendcount. */
   Alltoall( sendcounts.data(), 1, recvcounts.data(), 1, comm );
 
-  //printf( "after Alltoall\n" ); fflush( stdout );
-
-
-  /** compute total receiving count */
+  /** Compute total receiving count. */
   size_t total_recvcount = 0;
   for ( size_t p = 0; p < size; p ++ )
   {
@@ -78,12 +98,11 @@ int AlltoallData(
     total_recvcount += recvcounts[ p ];
   }
 
-  /** resize receving buffer */
+  /** Resize receving buffer. */
   recvbuf.resize( total_recvcount );
 
-  Alltoallv(
-      sendbuf.data(), sendcounts.data(), sdispls.data(), 
-      recvbuf.data(), recvcounts.data(), rdispls.data(), comm );
+  Alltoallv( sendbuf.data(), sendcounts.data(), sdispls.data(), 
+             recvbuf.data(), recvcounts.data(), rdispls.data(), comm );
 
   //printf( "after Alltoallv\n" ); fflush( stdout );
 
@@ -164,10 +183,7 @@ class DistDataBase : public Data<T, Allocator>
     };
 
     /** Constrcut a zero matrix (but mpi::Comm is still required) */
-    DistDataBase( mpi::Comm comm )
-    {
-      DistDataBase( 0, 0, comm );
-    };
+    DistDataBase( mpi::Comm comm ) { DistDataBase( 0, 0, comm ); };
 
     /** MPI support */
     mpi::Comm GetComm() { return comm; };
@@ -288,6 +304,7 @@ class DistData<CIRC, CIRC, T> : public DistDataBase<T>
         };
       }
 
+      mpi::Barrier( comm );
       return (*this);
     };
 
@@ -516,6 +533,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
         };
       };
 
+      mpi::Barrier( comm );
       /** free all buffers and return */
       return (*this);
     };
@@ -559,8 +577,7 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
 
 
 
-    DistData( size_t m, size_t n, mpi::Comm comm ) : 
-      DistDataBase<T>( m, n, comm ) 
+    DistData( size_t m, size_t n, mpi::Comm comm ) : DistDataBase<T>( m, n, comm ) 
     {
       /** MPI */
       int size = this->GetSize();
@@ -581,7 +598,11 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
     T & operator () ( size_t i , size_t j )
     {
       /** assert that Kij is stored on this MPI process */
-      assert( i % this->GetSize() == this->GetRank() );
+      if ( i % this->GetSize() != this->GetRank() )
+      {
+        printf( "ERROR: accessing %lu on rank %d\n", i, this->GetRank() );
+        exit( 1 );
+      }
       /** return reference of Kij */
       return DistDataBase<T>::operator () ( i / this->GetSize(), j );
     };
@@ -621,20 +642,20 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
       int rank = this->GetRank();
 
       /** allocate buffer for ids */
-      std::vector<std::vector<size_t>> sendids = A.RBLKOwnership();
-      std::vector<std::vector<size_t>> recvids( size );
+      vector<vector<size_t>> sendids = A.RBLKOwnership();
+      vector<vector<size_t>> recvids( size );
 
-      /** exchange rids */
+      /** Exchange rids. */
       mpi::AlltoallVector( sendids, recvids, comm );
       
-      /** allocate buffer for data */
-      std::vector<std::vector<T, ALLOCATOR>> senddata( size );
-      std::vector<std::vector<T, ALLOCATOR>> recvdata( size );
+      /** Allocate buffer for data. */
+      vector<vector<T, ALLOCATOR>> senddata( size );
+      vector<vector<T, ALLOCATOR>> recvdata( size );
 
-      std::vector<size_t> bmap( this->col() );
+      vector<size_t> bmap( this->col() );
       for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
 
-      /** extract rows from A<RBLK,STAR> */
+      /** Extract rows from A<RBLK,STAR> */
       #pragma omp parallel for 
       for ( size_t p = 0; p < size; p ++ )
       {
@@ -660,6 +681,7 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
         };
       };
 
+      mpi::Barrier( comm );
       /** free all buffers and return */
       return (*this);
     };
@@ -891,6 +913,7 @@ class DistData<STAR, CIDS, T> : public DistDataBase<T>
         };
       };
 
+      mpi::Barrier( comm );
       return *this;
     };
 
@@ -1289,6 +1312,7 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
           }
         };
       };
+      mpi::Barrier( comm );
 
       return (*this);
     };

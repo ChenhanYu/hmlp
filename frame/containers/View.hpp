@@ -51,10 +51,7 @@ class View : public ReadWrite
     /** constructor for the buffer */
     View( Data<T> &buff ) { Set( buff ); };
 
-    View( bool TRANS, Data<T> &buff )
-    { 
-      Set( TRANS, buff );
-    };
+    View( bool TRANS, Data<T> &buff ) { Set( TRANS, buff ); };
 
 
     /** destructor */
@@ -81,11 +78,8 @@ class View : public ReadWrite
       this->buff  = &buff;
     };
 
-    void Set( Data<T> &buff )
-    {
-      /** default is none transpose  */
-      Set( false, buff );
-    };
+    /** (Default) is none transpose. */
+    void Set( Data<T> &buff ) { Set( false, buff ); };
 
     /** non-base case setup */
     void Set( size_t m, size_t n, size_t offm, size_t offn, View<T> *base )
@@ -159,11 +153,8 @@ class View : public ReadWrite
 
     /** [ A1;   = A 
      *    A2; ]     */
-    void Partition2x1
-    (
-      View<T> &A1,
-      View<T> &A2, size_t mb, SideType side 
-    )
+    void Partition2x1( View<T> &A1,
+                       View<T> &A2, size_t mb, SideType side )
     {
       /** readjust mb */
       if ( mb > m ) mb = m;
@@ -177,11 +168,8 @@ class View : public ReadWrite
 
     /** A = [ A1; 
      *        A2; ] */
-    void ContinueWith2x1
-    (
-      View<T> &A1,
-      View<T> &A2
-    )
+    void ContinueWith2x1( View<T> &A1,
+                          View<T> &A2 )
     {
       if ( A1.row() && A2.row() ) assert( A1.col() == A2.col() );
       (*this) = A1;
@@ -190,10 +178,7 @@ class View : public ReadWrite
     };
 
     /** [ A1, A2; ] = A */
-    void Partition1x2
-    (
-      View<T> &A1, View<T> &A2, size_t nb, SideType side
-    )
+    void Partition1x2( View<T> &A1, View<T> &A2, size_t nb, SideType side )
     {
       /** readjust mb */
       if ( nb > n ) nb = n;
@@ -205,10 +190,7 @@ class View : public ReadWrite
     };
 
     /** A = [ A1, A2; ] */
-    void ContinueWith1x2
-    (
-      View<T> &A1, View<T> &A2
-    )
+    void ContinueWith1x2( View<T> &A1, View<T> &A2 )
     {
       if ( A1.col() && A2.col() ) assert( A1.row() == A2.row() );
       (*this) = A1;
@@ -217,12 +199,9 @@ class View : public ReadWrite
     };
 
     /** A = [ A11, A12; A21, A22; ]; */
-    void Partition2x2
-    (
-      View<T> &A11, View<T> &A12,
-      View<T> &A21, View<T> &A22,
-      size_t mb, size_t nb, QuadrantType quadrant
-    )
+    void Partition2x2 ( View<T> &A11, View<T> &A12,
+                        View<T> &A21, View<T> &A22,
+                        size_t mb, size_t nb, QuadrantType quadrant )
     {
       if ( mb > m ) mb = m;
       if ( nb > n ) nb = n;
@@ -268,11 +247,8 @@ class View : public ReadWrite
     };
 
 
-    void ContinueWith2x2
-    (
-      View<T> &A11, View<T> &A12,
-      View<T> &A21, View<T> &A22
-    )
+    void ContinueWith2x2( View<T> &A11, View<T> &A12,
+                          View<T> &A21, View<T> &A22 )
     {
        assert( A11.row() == A12.row() );
        assert( A11.col() == A21.col() );
@@ -283,20 +259,11 @@ class View : public ReadWrite
        this->n = A11.col() + A12.col();
     };
 
-    bool IsTransposed()
-    {
-      return trans;
-    };
+    bool IsTransposed() { return trans; };
 
-    bool HasTheSameBuffer( Data<T> *target )
-    {
-      return ( target == buff );
-    };
+    bool HasTheSameBuffer( Data<T> *target ) { return ( target == buff ); };
 
-    bool HasUniformBlockSize()
-    {
-      return has_uniform_block_size;
-    };
+    bool HasUniformBlockSize() { return has_uniform_block_size; };
 
     void CreateLeafMatrixBlocks( size_t mb, size_t nb )
     {

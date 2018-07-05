@@ -33,6 +33,23 @@
 using namespace std;
 
 
+/**
+ *  @breif GOFMM relies on an arbitrary distance metric that
+ *         described the order between matrix element Kij.
+ *         Such metric can be the 
+ *         Euclidian distance i.e. "GEOMETRY_DISTANCE", or
+ *         arbitrary distances defined in the Gram vector space
+ *         i.e. "KERNEL_DISTANCE" or "ANGLE_DISTANCE"
+ */ 
+typedef enum 
+{ 
+  GEOMETRY_DISTANCE, 
+  KERNEL_DISTANCE, 
+  ANGLE_DISTANCE, 
+  USER_DISTANCE 
+} DistanceMetric;
+
+
 namespace hmlp
 {
 
@@ -56,10 +73,7 @@ class VirtualMatrix
 
     VirtualMatrix() {};
 
-    VirtualMatrix( size_t m, size_t n )
-    {
-      resize( m, n );
-    };
+    VirtualMatrix( size_t m, size_t n ) { resize( m, n ); };
 
     virtual void resize( size_t m, size_t n )
     {
@@ -77,13 +91,13 @@ class VirtualMatrix
     virtual T operator()( size_t i, size_t j ) = 0; 
 
     /** ESSENTIAL: return a submatrix */
-    virtual Data<T> operator()
-		  ( const vector<size_t> &I, const vector<size_t> &J )
+    virtual Data<T> operator() ( const vector<size_t> &I, 
+                                 const vector<size_t> &J )
     {
       Data<T> KIJ( I.size(), J.size() );
       for ( size_t j = 0; j < J.size(); j ++ )
         for ( size_t i = 0; i < I.size(); i ++ )
-          KIJ[ j * I.size() + i ] = (*this)( I[ i ], J[ j ] );
+          KIJ( i, j ) = (*this)( I[ i ], J[ j ] );
       return KIJ;
     };
 
@@ -91,6 +105,78 @@ class VirtualMatrix
                                        const vector<size_t> &J )
     {
       return (*this)( I, J );
+    };
+
+
+    virtual Data<T> KernelDistances( const vector<size_t> &I, 
+                                     const vector<size_t> &J )
+    {
+      auto KIJ = (*this)( I, J );
+      auto DII = Diagonal( I );
+      auto DJJ = Diagonal( J );
+      for ( size_t j = 0; j < J.size(); j ++ )
+      {
+        for ( size_t i = 0; i < I.size(); i ++ )
+        {
+          auto kij = KIJ( i, j );
+          auto kii = DII[ i ];
+          auto kjj = DJJ[ j ];
+          KIJ( i, j ) = kii - 2.0 * kij + kjj;
+        }
+      }
+      return KIJ;
+    };
+
+    virtual Data<T> AngleDistances( const vector<size_t> &I, 
+                                    const vector<size_t> &J )
+    {
+      auto KIJ = (*this)( I, J );
+      auto DII = Diagonal( I );
+      auto DJJ = Diagonal( J );
+      for ( size_t j = 0; j < J.size(); j ++ )
+      {
+        for ( size_t i = 0; i < I.size(); i ++ )
+        {
+          auto kij = KIJ( i, j );
+          auto kii = DII[ i ];
+          auto kjj = DJJ[ j ];
+          KIJ( i, j ) = 1.0 - ( kij * kij ) / ( kii * kjj );
+        }
+      }
+      return KIJ;
+    };
+
+    virtual Data<T> UserDistances( const vector<size_t> &I, 
+                                   const vector<size_t> &J )
+    {
+      printf( "UserDistances(): not defined.\n" ); exit( 1 );
+      return (*this)( I, J );
+    };
+    
+    virtual Data<T> GeometryDistances( const vector<size_t> &I, 
+                                       const vector<size_t> &J )
+    {
+      printf( "GeometricDistances(): not defined.\n" ); exit( 1 );
+      return (*this)( I, J );
+    };
+
+
+    virtual Data<T> Distances( DistanceMetric metric,
+                               const vector<size_t> &I, 
+                               const vector<size_t> &J )
+    {
+      switch ( metric )
+      {
+        case KERNEL_DISTANCE:   return KernelDistances( I, J );
+        case ANGLE_DISTANCE:    return AngleDistances( I, J );
+        case GEOMETRY_DISTANCE: return GeometryDistances( I, J );
+        case USER_DISTANCE:     return UserDistances( I, J );
+        default:
+        {
+          printf( "ERROR: Unknown distance type." );
+          exit( 1 );
+        }
+      }
     };
 
 		virtual Data<T> Diagonal( const vector<size_t> &I )
