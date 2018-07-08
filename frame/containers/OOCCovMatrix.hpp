@@ -151,8 +151,7 @@ class CovReduceTask : public Task
   
   
 template<typename T>
-class OOCCovMatrix : public VirtualMatrix<T>,
-                     public SPDMatrixMPISupport<T>
+class OOCCovMatrix : public VirtualMatrix<T>
 {
   public:
 

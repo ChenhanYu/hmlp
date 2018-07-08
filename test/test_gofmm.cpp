@@ -553,9 +553,12 @@ int main( int argc, char *argv[] )
     {
       /** no geometric coordinates provided */
       Data<T> *X = NULL;
+      printf( "Before resize\n" ); fflush( stdout );
       /** dense spd matrix format */
       SPDMatrix<T> K;
+      printf( "Before resize 2\n" ); fflush( stdout );
       K.resize( n, n );
+      printf( "After resize\n" ); fflush( stdout );
       /** random spd initialization */
       K.randspd<USE_LOWRANK>( 0.0, 1.0 );
       /** (optional) provide neighbors, leave uninitialized otherwise */

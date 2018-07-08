@@ -2,7 +2,7 @@
 #define DISTSPDMATRIX_HPP
 
 #include <containers/DistData.hpp>
-#include <containers/DistVirtualMatrix.hpp>
+#include <containers/VirtualMatrix.hpp>
 
 using namespace std;
 

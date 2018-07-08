@@ -141,11 +141,67 @@ class MortonHelper
 
 }; /** end class MortonHelper */
   
+
+template<typename T>
+bool less_first( const pair<T, size_t> &a, const pair<T, size_t> &b )
+{
+  return ( a.first < b.first );
+};
+template<typename T>
+bool less_second( const pair<T, size_t> &a, const pair<T, size_t> &b )
+{
+  return ( a.second < b.second );
+};
+template<typename T>
+bool equal_second( const pair<T, size_t> &a, const pair<T, size_t> &b )
+{
+  return ( a.second == b.second );
+};
   
   
-  
-  
-  
+
+template<typename T>
+void MergeNeighbors( size_t k, pair<T, size_t> *A, 
+    pair<T, size_t> *B, vector<pair<T, size_t>> &aux )
+{
+  /** Enlarge temporary buffer if it is too small. */
+  if ( aux.size() != 2 * k ) aux.resize( 2 * k );
+
+  for ( size_t i = 0; i < k; i++ ) aux[     i ] = A[ i ];
+  for ( size_t i = 0; i < k; i++ ) aux[ k + i ] = B[ i ];
+
+  sort( aux.begin(), aux.end(), less_second<T> );
+  auto it = unique( aux.begin(), aux.end(), equal_second<T> );
+  sort( aux.begin(), it, less_first<T> );
+
+  for ( size_t i = 0; i < k; i++ ) A[ i ] = aux[ i ];
+}; /** end MergeNeighbors() */
+
+
+template<typename T>
+void MergeNeighbors( size_t k, size_t n,
+  vector<pair<T, size_t>> &A, vector<pair<T, size_t>> &B )
+{
+  assert( A.size() >= n * k && B.size() >= n * k );
+	#pragma omp parallel
+  {
+    vector<pair<T, size_t> > aux( 2 * k );
+    #pragma omp for
+    for( size_t i = 0; i < n; i++ ) 
+    {
+      MergeNeighbors( k, &(A[ i * k ]), &(B[ i * k ]), aux );
+    }
+  }
+}; /** end MergeNeighbors() */
+
+
+
+
+
+
+
+
+
 namespace tree
 {
 /**

@@ -53,6 +53,20 @@ typedef enum
 namespace hmlp
 {
 
+template<typename T>
+class SPDMatrixMPISupport
+{
+  public:
+    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm ) {};
+    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status ) {};
+    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm ) {};
+    virtual void RequestColumns( vector<vector<size_t>> requ_cids ) {};
+    virtual void RedistributeWithPartner( vector<size_t> &gids, 
+        vector<size_t> &lhs, vector<size_t> &rhs, mpi::Comm comm ) {};
+}; /** end class SPDMatrixMPISupport */
+
+
+
 #ifdef HMLP_MIC_AVX512
 template<typename T, class Allocator = hbw::allocator<T> >
 #elif  HMLP_USE_CUDA
@@ -67,7 +81,7 @@ template<typename T, class Allocator = std::allocator<T> >
  *         be virtual. To inherit VirtualMatrix, you "must" implement
  *         the evaluation operator. Otherwise, the code won't compile.
  */ 
-class VirtualMatrix
+class VirtualMatrix : public SPDMatrixMPISupport<T>
 {
   public:
 
@@ -150,14 +164,14 @@ class VirtualMatrix
                                    const vector<size_t> &J )
     {
       printf( "UserDistances(): not defined.\n" ); exit( 1 );
-      return (*this)( I, J );
+      return Data<T>( I.size(), J.size(), 0 );
     };
     
     virtual Data<T> GeometryDistances( const vector<size_t> &I, 
                                        const vector<size_t> &J )
     {
       printf( "GeometricDistances(): not defined.\n" ); exit( 1 );
-      return (*this)( I, J );
+      return Data<T>( I.size(), J.size(), 0 );
     };
 
 
@@ -177,6 +191,36 @@ class VirtualMatrix
           exit( 1 );
         }
       }
+    };
+
+    virtual Data<pair<T, size_t>> NeighborSearch( 
+        DistanceMetric metric, size_t kappa, 
+        const vector<size_t> &Q,
+        const vector<size_t> &R, pair<T, size_t> init )
+    {
+      Data<pair<T, size_t>> NN( kappa, Q.size(), init );
+
+      /** Compute all pairwise distances. */
+      auto DRQ = Distances( metric, R, Q );
+      /** Sanity check: distance must be >= 0. */
+      for ( auto &dij: DRQ ) dij = std::min( dij, T(0) );
+
+      /** Loop over each query. */
+      for ( size_t j = 0; j < Q.size(); j ++ )
+      {
+        vector<pair<T, size_t>> candidates( R.size() );
+        for ( size_t i = 0; i < R.size(); i ++)
+        {
+          candidates[ i ].first  = DRQ( i, j );
+          candidates[ i ].second = R[ i ];
+        }
+        /** Sort the query according to distances. */
+        sort( candidates.begin(), candidates.end() );
+        /** Fill-in the neighbor list. */
+        for ( size_t i = 0; i < kappa; i ++ ) NN( i, j ) = candidates[ i ];
+      }
+
+      return NN;
     };
 
 		virtual Data<T> Diagonal( const vector<size_t> &I )
@@ -208,6 +252,63 @@ class VirtualMatrix
     size_t n = 0;
 
 }; /** end class VirtualMatrix */
+
+
+
+#ifdef HMLP_MIC_AVX512
+template<typename T, class Allocator = hbw::allocator<T> >
+#else
+template<typename T, class Allocator = std::allocator<T> >
+#endif
+/**
+ *  @brief DistVirtualMatrix is the abstract base class for matrix-free
+ *         access and operations. Most of the public functions will
+ *         be virtual. To inherit DistVirtualMatrix, you "must" implement
+ *         the evaluation operator. Otherwise, the code won't compile.
+ *
+ *         Two virtual functions must be implemented:
+ *
+ *         T operator () ( size_t i, size_t j ), and
+ *         Data<T> operator () ( vector<size_t> &I, vector<size_t> &J ).
+ *
+ *         These two functions can involve nonblocking MPI routines, but
+ *         blocking collborative communication routines are not allowed.
+ *         
+ *         DistVirtualMatrix inherits mpi::MPIObject, which is initalized
+ *         with the provided comm. MPIObject duplicates comm into
+ *         sendcomm and recvcomm, which allows concurrent multi-threaded 
+ *         nonblocking send/recv. 
+ *
+ *         For example, RequestKIJ( I, J, p ) sends I and J to rank-p,
+ *         requesting the submatrix. MPI process rank-p has at least
+ *         one thread will execute BackGroundProcess( do_terminate ),
+ *         waiting for incoming requests.
+ *         Rank-p then invoke K( I, J ) locally, and send the submatrix
+ *         back to the clients. Overall the pattern usually looks like
+ *
+ *         Data<T> operator () ( vector<size_t> &I, vector<size_t> &J ).
+ *         {
+ *           for each submatrix KAB entirely owned by p
+ *             KAB = RequestKIJ( A, B )
+ *             pack KAB back to KIJ
+ *
+ *           return KIJ 
+ *         }
+ *         
+ */ 
+class DistVirtualMatrix : public VirtualMatrix<T, Allocator>,
+                          public mpi::MPIObject
+{
+  public:
+
+    /** (Default) constructor  */
+    DistVirtualMatrix( size_t m, size_t n, mpi::Comm comm )
+      : VirtualMatrix<T, Allocator>( m, n ), mpi::MPIObject( comm )
+    {};
+
+
+}; /** end class DistVirtualMatrix */
+
 
 }; /** end namespace hmlp */
 

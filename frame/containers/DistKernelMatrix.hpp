@@ -41,7 +41,8 @@
 #include <containers/Cache.hpp>
 
 /** Use VirtualMatrix<T> as base */
-#include <containers/DistVirtualMatrix.hpp>
+//#include <containers/DistVirtualMatrix.hpp>
+#include <containers/VirtualMatrix.hpp>
 
 
 /** use STL templates */
@@ -489,7 +490,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
       return flopcount; 
     };
 
-    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
+    void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
     {
       int comm_rank; mpi::Comm_rank( comm, &comm_rank );
       //printf( "rank[%d %d] SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
@@ -499,7 +500,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
       //printf( "rank[%d %d] end SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
     };
 
-    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
+    void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
     {
       int comm_rank; mpi::Comm_rank( comm, &comm_rank );
       //printf( "rank[%d %d] RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
@@ -515,7 +516,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
     };
 
     /** Bcast cids from sender for K( :, cids ) evaluation. */
-    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
+    void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
     {
       int comm_rank; mpi::Comm_rank( comm, &comm_rank );
 
@@ -548,7 +549,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
 
     };
 
-    virtual void RequestColumns( vector<vector<size_t>> requ_cids )
+    void RequestColumns( vector<vector<size_t>> requ_cids )
     {
       mpi::Comm comm = this->GetComm();
       int comm_rank = this->Comm_rank();
@@ -602,7 +603,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
      *  P2P exchange parameters (or points) with partners in the local
      *  communicator.
      */
-    virtual void RedistributeWithPartner
+    void RedistributeWithPartner
     (
       vector<size_t> &gids, vector<size_t> &lhs, vector<size_t> &rhs, 
       mpi::Comm comm 

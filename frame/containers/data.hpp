@@ -428,10 +428,7 @@ class Data : public ReadWrite, public vector<T, Allocator>
       }
     };
 
-    void randn() 
-    { 
-      randn( 0.0, 1.0 ); 
-    };
+    void randn() { randn( 0.0, 1.0 ); };
 
     template<bool USE_LOWRANK>
     void randspd( T a, T b )

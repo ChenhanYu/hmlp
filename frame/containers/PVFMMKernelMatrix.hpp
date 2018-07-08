@@ -37,8 +37,7 @@ namespace hmlp
 {
 
 template <typename T> 
-class PVFMMKernelMatrix : public VirtualMatrix<T>,
-                          public SPDMatrixMPISupport<T>
+class PVFMMKernelMatrix : public VirtualMatrix<T>
 {
 
   public:

@@ -510,207 +510,6 @@ class Summary
 
 
 
-/** 
- *  @brief compute all2c (distance to the approximate centroid) 
- *
- *         Notice that DII and DCC are essentially vectors, which
- *         are not sensitive of either they are rows or columns.
- *         However, KIC is a mamtrix and its dimensions must match.
- */
-template<typename T>
-vector<T> AllToCentroid
-( 
-  DistanceMetric metric,
-  Data<T> &DII, /** diagonals of K( I, I ) */
-  Data<T> &KIC, /**              K( I, C ) */
-  Data<T> &DCC  /** diagonals of K( C, C ) */
-)
-{
-  /** distances from I to C */
-  vector<T> I2C( DII.size(), 0.0 );
-
-  switch ( metric )
-  {
-    case GEOMETRY_DISTANCE:
-    {
-      if ( KIC.row() == DII.size() && KIC.col() == DCC.size() )
-      {
-        for ( size_t j = 0; j < DCC.col(); j ++ )
-          for ( size_t i = 0; i < DII.row(); i ++ )
-            I2C[ i ] += KIC( i, j );
-      }
-      else
-      {
-        for ( size_t j = 0; j < DCC.col(); j ++ )
-          for ( size_t i = 0; i < DII.row(); i ++ )
-            I2C[ i ] += KIC( j, i );
-      }
-      break;
-    }
-    case KERNEL_DISTANCE:
-    {
-      for ( size_t i = 0; i < DII.size(); i ++ )
-        I2C[ i ] = DII[ i ];
-
-      if ( KIC.row() == DII.size() && KIC.col() == DCC.size() )
-      {
-        #pragma omp parallel for
-        for ( size_t i = 0; i < DII.size(); i ++ )
-          for ( size_t j = 0; j < DCC.size(); j ++ )
-            I2C[ i ] -= ( 2.0 / DCC.size() ) * KIC( i, j );
-      }
-      else
-      {
-        /** in this case, this is actually KCI */
-        auto &KCI = KIC;
-        #pragma omp parallel for
-        for ( size_t i = 0; i < DII.size(); i ++ )
-          for ( size_t j = 0; j < DCC.size(); j ++ )
-            I2C[ i ] -= ( 2.0 / DCC.size() ) * KCI( j, i );
-      }
-      break;
-    }
-    case ANGLE_DISTANCE:
-    {
-      if ( KIC.row() == DII.size() && KIC.col() == DCC.size() )
-      {
-        #pragma omp parallel for
-        for ( size_t i = 0; i < DII.size(); i ++ )
-          for ( size_t j = 0; j < DCC.size(); j ++ )
-            I2C[ i ] += ( 1.0 - ( KIC( i, j ) * KIC( i, j ) ) / 
-                ( DII[ i ] * DCC[ j ] ) );
-      }
-      else
-      {
-        printf( "bug!!!!!!!!!\n" ); fflush( stdout );
-        /** in this case, this is actually KCI */
-        auto &KCI = KIC;
-        for ( size_t i = 0; i < DII.size(); i ++ )
-          for ( size_t j = 0; j < DCC.size(); j ++ )
-            I2C[ i ] += ( 1.0 - ( KCI( j, i ) * KCI( j, i ) ) / 
-                ( DII[ i ] * DCC[ j ] ) );
-      }
-      break;
-    }
-    default:
-    {
-      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
-      exit( 1 );
-    }
-  } /** end switch ( metric ) */
-
-  return I2C;
-
-}; /** end AllToCentroid() */
-
-
-
-
-/** compute all2f (distance to the farthest point) */
-template<typename T>
-vector<T> AllToFarthest
-(
-  DistanceMetric metric,
-  Data<T> &DII, /**  */
-  Data<T> &KIP, /**  */
-  T       &kpp
-)
-{
-  /** distances from I to P */
-  vector<T> I2P( KIP.row(), 0.0 );
-
-  switch ( metric )
-  {
-    case GEOMETRY_DISTANCE:
-    {
-      #pragma omp parallel for
-      for ( size_t i = 0; i < KIP.row(); i ++ ) I2P[ i ] = KIP[ i ];
-      break;
-    }
-    case KERNEL_DISTANCE:
-    {
-      #pragma omp parallel for
-      for ( size_t i = 0; i < KIP.row(); i ++ )
-          I2P[ i ] = DII[ i ] - 2.0 * KIP[ i ] + kpp;
-
-      break;
-    }
-    case ANGLE_DISTANCE:
-    {
-      #pragma omp parallel for
-      for ( size_t i = 0; i < KIP.row(); i ++ )
-          I2P[ i ] = ( 1.0 - ( KIP[ i ] * KIP[ i ] ) / 
-              ( DII[ i ] * kpp ) );
-
-      break;
-    }
-    default:
-    {
-      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
-      exit( 1 );
-    }
-  } /** end switch ( metric ) */
-
-  return I2P;
-
-}; /** end AllToFarthest() */
-
-
-
-
-
-template<typename T>
-vector<T> AllToLeftRight
-( 
-  DistanceMetric metric,
-  Data<T> &DII,
-  Data<T> &KIP,
-  Data<T> &KIQ,
-  T       kpp,
-  T       kqq
-)
-{
-  /** distance differences between I to P and I to Q */
-  vector<T> I2PQ( KIP.row(), 0.0 );
-
-  switch ( metric )
-  {
-    case GEOMETRY_DISTANCE:
-    {
-      #pragma omp parallel for
-      for ( size_t i = 0; i < KIP.row(); i ++ ) I2PQ[ i ] = KIP[ i ] - KIQ[ i ];
-      break;
-    }
-    case KERNEL_DISTANCE:
-    {
-      #pragma omp parallel for
-      for ( size_t i = 0; i < KIP.row(); i ++ ) I2PQ[ i ] = KIP[ i ] - KIQ[ i ];
-
-      break;
-    }
-    case ANGLE_DISTANCE:
-    {
-      #pragma omp parallel for
-      for ( size_t i = 0; i < KIP.row(); i ++ )
-        I2PQ[ i ] = ( KIP[ i ] * KIP[ i ] ) / ( DII[ i ] * kpp ) - 
-                    ( KIQ[ i ] * KIQ[ i ] ) / ( DII[ i ] * kqq );
-
-      break;
-    }
-    default:
-    {
-      printf( "centersplit() invalid scheme\n" ); fflush( stdout );
-      exit( 1 );
-    }
-  } /** end switch ( metric ) */
-
-  return I2PQ;
-
-}; /** end AllToLeftRight() */
-
-
-
-
 
 
 /**
@@ -741,97 +540,48 @@ struct centersplit
     assert( N_SPLIT == 2 );
     assert( Kptr );
 
-    /** all timers */
-    double beg, d2c_time, d2f_time, projection_time, max_time;
 
     SPDMATRIX &K = *Kptr;
     vector<vector<size_t>> split( N_SPLIT );
     size_t n = gids.size();
     vector<T> temp( n, 0.0 );
 
-    beg = omp_get_wtime();
-
-
-    /** Collecting diagonal entries DII. */
-    auto DII = K.Diagonal( gids );
     /** Collecting column samples of K. */
     vector<size_t> column_samples( n_centroid_samples );
     for ( size_t j = 0; j < n_centroid_samples; j ++ )
-      /** just use the first few gids */
       column_samples[ j ] = gids[ j ];
-    /** Collecting diagonal entries DCC. */
-    auto DCC = K.Diagonal( column_samples );
 
-    /** Collecting sampled columns KIC. */
-    auto KIC = K( gids, column_samples );
+    /** Compute all pairwise distances. */
+    auto DIC = K.Distances( this->metric, gids, column_samples );
 
-    if ( metric == GEOMETRY_DISTANCE ) 
-    {
-      KIC = K.PairwiseDistances( gids, column_samples );
-    }
+    /** Zero out the temporary buffer. */
+    for ( auto & it : temp ) it = 0;
 
-    /** Compute all distances to the approximate centroid. */
-    temp = AllToCentroid( metric, DII, KIC, DCC );
+    /** Accumulate distances to the temporary buffer. */
+    for ( size_t j = 0; j < DIC.col(); j ++ )
+      for ( size_t i = 0; i < DIC.row(); i ++ ) 
+        temp[ i ] += DIC( i, j );
 
-    d2c_time = omp_get_wtime() - beg;
-
-    /** Find the farthest index from center. */
-    auto itf2c = std::max_element( temp.begin(), temp.end() );
-    auto idf2c = std::distance( temp.begin(), itf2c );
-    auto gidf2c = gids[ idf2c ];
-
-    /** compute the all2f (distance to farthest point) */
-    beg = omp_get_wtime();
+    /** Find the f2c (far most to center) from points owned */
+    auto idf2c = distance( temp.begin(), max_element( temp.begin(), temp.end() ) );
 
     /** Collecting KIP */
-    vector<size_t> P( 1, gidf2c );
-    auto KIP = K( gids, P );
+    vector<size_t> P( 1, gids[ idf2c ] );
 
-    if ( metric == GEOMETRY_DISTANCE ) 
-    {
-      KIP = K.PairwiseDistances( gids, P );
-    }
+    /** Compute all pairwise distances. */
+    auto DIP = K.Distances( this->metric, gids, P );
 
-
-    /** get diagonal entry kpp */
-    //T kpp = K( gidf2c, gidf2c );
-    auto kpp = K.Diagonal( P );
-
-    /** compute the all2f (distance to farthest point) */
-    temp = AllToFarthest( metric, DII, KIP, kpp[ 0 ] );
-
-    //temp = AllToFarthest( gids, gidf2c );
-    //
-    d2f_time = omp_get_wtime() - beg;
-
-    /** find f2f (far most to far most) */
-    beg = omp_get_wtime();
-    auto itf2f = std::max_element( temp.begin(), temp.end() );
-    auto idf2f = std::distance( temp.begin(), itf2f );
-    auto gidf2f = gids[ idf2f ];
-    max_time = omp_get_wtime() - beg;
-
-
-    /** compute all2leftright (projection i.e. dip - diq) */
-    beg = omp_get_wtime();
+    /** Find f2f (far most to far most) from owned points */
+    auto idf2f = distance( DIP.begin(), max_element( DIP.begin(), DIP.end() ) );
 
     /** collecting KIQ */
-    std::vector<size_t> Q( 1, gidf2f );
-    auto KIQ = K( gids, Q );
+    vector<size_t> Q( 1, gids[ idf2f ] );
 
-    if ( metric == GEOMETRY_DISTANCE ) 
-    {
-      KIQ = K.PairwiseDistances( gids, Q );
-    }
+    /** Compute all pairwise distances. */
+    auto DIQ = K.Distances( this->metric, gids, P );
 
-    /** get diagonal entry kpp */
-    auto kqq = K.Diagonal( Q );
-
-    /** compute all2leftright (projection i.e. dip - diq) */
-    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
-
-    projection_time = omp_get_wtime() - beg;
-
+    for ( size_t i = 0; i < temp.size(); i ++ )
+      temp[ i ] = DIP[ i ] - DIQ[ i ];
 
 
 
@@ -856,7 +606,7 @@ struct centersplit
     split[ 1 ].reserve( n / 2 + 1 );
 
     /** TODO: Can be parallelized */
-    std::vector<std::size_t> middle;
+    vector<std::size_t> middle;
     for ( size_t i = 0; i < n; i ++ )
     {
       //if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
@@ -926,55 +676,22 @@ struct randomsplit
     vector<vector<size_t> > split( N_SPLIT );
     vector<T> temp( n, 0.0 );
 
-    /** randomly select two points p and q */
+    /** Randomly select two points p and q. */
     size_t idf2c = std::rand() % n;
     size_t idf2f = std::rand() % n;
     while ( idf2c == idf2f ) idf2f = std::rand() % n;
 
-    /** now get their gids */
-    auto gidf2c = gids[ idf2c ];
-    auto gidf2f = gids[ idf2f ];
 
-    /** diagonal entries */
-    Data<T> DII( n, (size_t)1 );
-
-    /** collecting DII */
-    DII = K.Diagonal( gids );
-    //for ( size_t i = 0; i < gids.size(); i ++ )
-    //{
-    //  DII[ i ] = K( gids[ i ], gids[ i ] );
-    //}
+    vector<size_t> P( 1, gids[ idf2c ] );
+    vector<size_t> Q( 1, gids[ idf2f ] );
 
 
-    /** collecting KIP and KIQ */
-    vector<size_t> P( 1, gidf2c );
-    vector<size_t> Q( 1, gidf2f );
-		vector<size_t> PQ( 2 ); PQ[ 0 ] = gidf2c; PQ[ 1 ] = gidf2f;
-		auto KIPQ = K( gids, PQ );
-    //auto KIP = K( gids, P );
-    //auto KIQ = K( gids, Q );
+    /** Compute all pairwise distances. */
+    auto DIP = K.Distances( this->metric, gids, P );
+    auto DIQ = K.Distances( this->metric, gids, Q );
 
-		Data<T> KIP( n, (size_t)1 );
-		Data<T> KIQ( n, (size_t)1 );
-
-    if ( metric == GEOMETRY_DISTANCE ) 
-    {
-      KIPQ = K.PairwiseDistances( gids, PQ );
-    }
-
-
-    for ( size_t i = 0; i < gids.size(); i ++ )
-		{
-			KIP[ i ] = KIPQ( i, (size_t)0 );
-			KIQ[ i ] = KIPQ( i, (size_t)1 );
-		}
-
-    /** get diagonal entry kpp and kqq */
-    auto kpp = K.Diagonal( P );
-    auto kqq = K.Diagonal( Q );
-
-    /** compute all2leftright (projection i.e. dip - diq) */
-    temp = AllToLeftRight( metric, DII, KIP, KIQ, kpp[ 0 ], kqq[ 0 ] );
+    for ( size_t i = 0; i < temp.size(); i ++ )
+      temp[ i ] = DIP[ i ] - DIQ[ i ];
 
 
 
@@ -982,41 +699,6 @@ struct randomsplit
 
 
 
-
-//#ifdef DEBUG_SPDASKIT
-//    printf( "randomsplit idf2c %lu idf2f %lu\n", idf2c, idf2f );
-//#endif
-//
-//    /** compute projection */
-//    #pragma omp parallel for
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      switch ( metric )
-//      {
-//        case KERNEL_DISTANCE:
-//        {
-//          temp[ i ] = K( gids[ i ], gids[ idf2f ] ) - K( gids[ i ], gids[ idf2c ] );
-//          break;
-//        }
-//        case ANGLE_DISTANCE:
-//        {
-//          T kip = K( gids[ i ],     gids[ idf2f ] );
-//          T kiq = K( gids[ i ],     gids[ idf2c ] );
-//          T kii = K( gids[ i ],     gids[ i ] );
-//          T kpp = K( gids[ idf2f ], gids[ idf2f ] );
-//          T kqq = K( gids[ idf2c ], gids[ idf2c ] );
-//
-//          /** ingore 1 from both terms */
-//          temp[ i ] = ( kip * kip ) / ( kii * kpp ) - ( kiq * kiq ) / ( kii * kqq );
-//          break;
-//        }
-//        default:
-//        {
-//          printf( "randomsplit() invalid splitting scheme\n" ); fflush( stdout );
-//          exit( 1 );
-//        }
-//      }
-//    }
 
     /** parallel median search */
     T median;
@@ -1070,68 +752,61 @@ struct randomsplit
       }
     }
 
-//    std::vector<size_t> lflag( n, 0 );
-//    std::vector<size_t> rflag( n, 0 );
-//    std::vector<size_t> pscan( n + 1, 0 );
-//
-//    #pragma omp parallel for
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      if ( temp[ i ] > median ) rflag[ i ] = 1;
-//      else                      lflag[ i ] = 1;
-//    }
-//
-//    hmlp::tree::Scan( lflag, pscan );
-//    split[ 0 ].resize( pscan[ n ] );
-//    #pragma omp parallel for 
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      if ( lflag[ i ] ) split[ 0 ][ pscan[ i + 1 ] - 1 ] = i;
-//    }
-//
-//    hmlp::tree::Scan( rflag, pscan );
-//    split[ 1 ].resize( pscan[ n ] );
-//    #pragma omp parallel for 
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      if ( rflag[ i ] ) split[ 1 ][ pscan[ i + 1 ] - 1 ] = i;
-//    }
-
-
     return split;
   };
 }; // end struct randomsplit
 
 
-/**
- *  @brief This is the task wrapper of the exact KNN search we
- *         perform in the leaf node of the randomized tree.
- *         Currently our heap select cannot deal with duplicate
- *         id; thus, I need to use a std::set to check for the
- *         duplication before inserting the candidate into the
- *         heap.
- *
- *  @TODO  Improve the heap to deal with unique id.
- *
- */ 
-template<int NUM_TEST, class NODE, typename T>
-class KNNTask : public Task
+
+
+template<typename NODE>
+void FindNeighbors( NODE *node, DistanceMetric metric )
+{
+  /** Derive type T from NODE. */
+  using T = typename NODE::T;
+  auto & setup = *(node->setup);
+  auto & K = *(setup.K);
+  auto & NN = *(setup.NN);
+  auto & I = node->gids;
+  /** Number of neighbors to search for. */
+  size_t kappa = NN.row();
+  /** Initial value for the neighbor select. */
+  pair<T, size_t> init( numeric_limits<T>::max(), NN.col() );
+  /** k-nearest neighbor search kernel. */
+  auto candidates = K.NeighborSearch( metric, kappa, I, I, init );
+  /** Merge and update neighbors. */
+	#pragma omp parallel
+  {
+    vector<pair<T, size_t> > aux( 2 * kappa );
+    #pragma omp for
+    for ( size_t j = 0; j < I.size(); j ++ )
+    {
+      MergeNeighbors( kappa, NN.columndata( I[ j ] ), 
+          candidates.columndata( j ), aux );
+    }
+  }
+}; /** end FindNeighbors() */
+
+
+
+
+
+template<class NODE, typename T>
+class NeighborsTask : public Task
 {
   public:
 
     NODE *arg = NULL;
    
-	  /** (Default) using angle distance from the Gram vector space */
+	  /** (Default) using angle distance from the Gram vector space. */
 	  DistanceMetric metric = ANGLE_DISTANCE;
 
     void Set( NODE *user_arg )
     {
       arg = user_arg;
-      name = string( "nn" );
+      name = string( "Neighbors" );
       label = to_string( arg->treelist_id );
-      // TODO: Need an accurate cost model.
-      cost = 1.0;
-      /** use the same distance as the tree */
+      /** Use the same distance as the tree. */
       metric = arg->setup->MetricType();
 
       //--------------------------------------
@@ -1139,7 +814,7 @@ class KNNTask : public Task
       auto &gids = arg->gids;
       auto &NN = *arg->setup->NN;
       flops = gids.size();
-      flops *= 4.0 * gids.size();
+      flops *= ( 4.0 * gids.size() );
       // Heap select worst case
       mops = (size_t)std::log( NN.row() ) * gids.size();
       mops *= gids.size();
@@ -1147,163 +822,83 @@ class KNNTask : public Task
       mops += flops;
       event.Set( name + label, flops, mops );
       //--------------------------------------
+			
+      // TODO: Need an accurate cost model.
+      cost = mops / 1E+9;
     };
 
-    void Execute( Worker* user_worker )
-    {
-      auto &K = *arg->setup->K;
-      auto &X = *arg->setup->X;
-      auto &NN = *arg->setup->NN;
-      auto &gids = arg->gids;
+    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
 
-      #pragma omp parallel for
-      for ( size_t j = 0; j < gids.size(); j ++ )
-      {
-        set<size_t> NNset;
+    void Execute( Worker* user_worker ) { FindNeighbors( arg, metric ); };
 
-        for ( size_t i = 0; i < NN.row(); i ++ )
-        {
-          size_t jgid = gids[ j ];
-          NNset.insert( NN[ jgid * NN.row() + i ].second );
-        }
+}; /** end class NeighborsTask */
 
-        for ( size_t i = 0; i < gids.size(); i ++ )
-        {
-          size_t igid = gids[ i ];
-          size_t jgid = gids[ j ];
 
-          if ( !NNset.count( igid ) )
-          {
-            T dist = 0;
-            switch ( metric )
-            {
-              case GEOMETRY_DISTANCE:
-              {
-                size_t d = X.row();
-                for ( size_t p = 0; p < d; p ++ )
-								{
-									T xip = X[ igid * d + p ];
-									T xjp = X[ jgid * d + p ];
-									dist += ( xip - xjp ) * ( xip - xjp );
-								}
-                break;
-              }
-              case KERNEL_DISTANCE:
-              {
-                dist = K( igid, igid ) + K( jgid, jgid ) - 2.0 * K( igid, jgid );
-                break;
-              }
-              case ANGLE_DISTANCE:
-              {
-                T kij = K( igid, jgid );
-                T kii = K( igid, igid );
-                T kjj = K( jgid, jgid );
 
-                dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-                break;
-              }
-              default:
-              {
-                printf( "KNNTask() invalid splitting scheme\n" ); fflush( stdout );
-                exit( 1 );
-              }
-            }
-            std::pair<T, size_t> query( dist, igid );
-            hmlp::HeapSelect( 1, NN.row(), &query, NN.data() + jgid * NN.row() );
-          }
-          else
-          {
-            /** ignore duplication */
-          }
-        }
 
-      } /** end omp parallel for */
 
-#ifdef REPORT_ANN_ACCURACY
-      /** test the accuracy of NN with exhausted search */
-      double knn_acc = 0.0;
-      size_t num_acc = 0;
 
-      /** loop over all points in this leaf node */
-      for ( size_t j = 0; j < gids.size(); j ++ )
-      {
-        if ( gids[ j ] >= NUM_TEST ) continue;
 
-        std::set<size_t> NNset;
-        hmlp::Data<std::pair<T, size_t>> nn_test( NN.row(), 1 );
 
-        /** initialize nn_test to be the same as NN */
-        for ( size_t i = 0; i < NN.row(); i ++ )
-        {
-          nn_test[ i ] = NN( i, gids[ j ] );
-          NNset.insert( nn_test[ i ].second );
-        }
 
-        /** loop over all references */
-        for ( size_t i = 0; i < K.row(); i ++ )
-       {
-          size_t igid = i;
-          size_t jgid = gids[ j ];
-          if ( !NNset.count( igid ) )
-          {
-            T dist = 0;
-            switch ( metric )
-            {
-              case GEOMETRY_DISTANCE:
-							{
-                size_t d = X.row();
-                for ( size_t p = 0; p < d; p ++ )
-								{
-									T xip = X[ igid * d + p ];
-									T xjp = X[ jgid * d + p ];
-									dist += ( xip - xjp ) * ( xip - xjp );
-								}
-                break;
-							}
-              case KERNEL_DISTANCE:
-							{
-                dist = K( igid, igid ) + K( jgid, jgid ) - 2.0 * K( igid, jgid );
-                break;
-							}
-              case ANGLE_DISTANCE:
-              {
-                T kij = K( igid, jgid );
-                T kii = K( igid, igid );
-                T kjj = K( jgid, jgid );
 
-                dist = ( 1.0 - ( kij * kij ) / ( kii * kjj ) );
-                break;
-              }
-              default:
-							{
-                exit( 1 );
-							}
-            }
-            std::pair<T, size_t> query( dist, igid );
-            hmlp::HeapSelect( 1, NN.row(), &query, nn_test.data() );
-            NNset.insert( igid );
-          }
-        }
 
-        /** compute the acruracy */
-        size_t correct = 0;
-        NNset.clear();
-        for ( size_t i = 0; i < NN.row(); i ++ ) NNset.insert( nn_test[ i ].second );
-        for ( size_t i = 0; i < NN.row(); i ++ ) 
-        {
-          if ( NNset.count( NN( i, gids[ j ] ).second ) ) correct ++;
-        }
-        knn_acc += (double)correct / NN.row();
-        num_acc ++;
-      }
-      arg->data.knn_acc = knn_acc;
-      arg->data.num_acc = num_acc;
-#endif
 
-	};
 
-}; /** end class KNNTask */
 
+///**
+// *  @brief This is the task wrapper of the exact KNN search we
+// *         perform in the leaf node of the randomized tree.
+// *         Currently our heap select cannot deal with duplicate
+// *         id; thus, I need to use a std::set to check for the
+// *         duplication before inserting the candidate into the
+// *         heap.
+// *
+// *  @TODO  Improve the heap to deal with unique id.
+// *
+// */ 
+//template<int NUM_TEST, class NODE, typename T>
+//class KNNTask : public Task
+//{
+//  public:
+//
+//    NODE *arg = NULL;
+//   
+//	  /** (Default) using angle distance from the Gram vector space */
+//	  DistanceMetric metric = ANGLE_DISTANCE;
+//
+//    void Set( NODE *user_arg )
+//    {
+//      arg = user_arg;
+//      name = string( "nn" );
+//      label = to_string( arg->treelist_id );
+//      // TODO: Need an accurate cost model.
+//      cost = 1.0;
+//      /** use the same distance as the tree */
+//      metric = arg->setup->MetricType();
+//
+//      //--------------------------------------
+//      double flops, mops;
+//      auto &gids = arg->gids;
+//      auto &NN = *arg->setup->NN;
+//      flops = gids.size();
+//      flops *= 4.0 * gids.size();
+//      // Heap select worst case
+//      mops = (size_t)std::log( NN.row() ) * gids.size();
+//      mops *= gids.size();
+//      // Access K
+//      mops += flops;
+//      event.Set( name + label, flops, mops );
+//      //--------------------------------------
+//    };
+//
+//    void Execute( Worker* user_worker )
+//    {
+//      FindNeighbors( arg, metric );
+//	  };
+//
+//}; /** end class KNNTask */
+//
 
 
 /** @brief This is the ANN routine design for CSC matrices. */ 
@@ -2067,9 +1662,6 @@ class SkeletonizeTask : public Task
       size_t n = arg->data.proj.col();
       size_t m = 2 * n;
       size_t k = arg->data.proj.row();
-
-      /** Kab */
-      flops += K.flops( m, n );
 
       /** GEQP3 */
       flops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
@@ -3015,8 +2607,6 @@ class LeavesToLeavesTask : public Task
           flops += 2.0 * m * n * k;
           mops += m * k;
           mops += 2.0 * ( m * n + n * k + m * k );
-          /** the cost of Kab */
-          if ( !NearKab.size() ) flops += K.flops( m, k );
         }
         itptr ++;
       }
@@ -3266,8 +2856,6 @@ class CacheNearNodesTask : public Task
       {
         n += (*it)->gids.size();
       }
-      /** Kab */
-      flops += K.flops( m, n );
       /** setup the event */
       event.Set( label + name, flops, mops );
     };
@@ -4146,7 +3734,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   beg = omp_get_wtime();
   if ( NN.size() != n * k )
   {
-    gofmm::KNNTask<3, RKDTNODE, T> KNNtask;
+    NeighborsTask<RKDTNODE, T> KNNtask;
     NN = rkdt.AllNearestNeighbor( n_iter, k, 10, initNN, KNNtask );
   }
   else

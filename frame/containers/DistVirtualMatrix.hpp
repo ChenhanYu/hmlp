@@ -191,32 +191,32 @@ class DistVirtualMatrix : public mpi::MPIObject
 
 
 
-    /** 
-     *  (Clients) request KIJ from rank-p 
-     */
-		virtual Data<T> RequestKIJ
-		( 
-		  vector<size_t> &I, vector<size_t> &J, int p
-	  )
-    {
-      /** return values */
-      Data<T> KIJ( I.size(), J.size() );
-
-      int Itag = omp_get_thread_num() + 1 * background_tag_offset;
-      int Jtag = omp_get_thread_num() + 2 * background_tag_offset;
-      int Ktag = omp_get_thread_num();
-
-      /** issue a request to dest for I */
-      mpi::Send(   I.data(),   I.size(), p, Jtag, this->GetRecvComm() );
-      /** issue a request to dest for J */
-      mpi::Send(   J.data(),   J.size(), p, Jtag, this->GetRecvComm() );
-      /** wait to recv KIJ */
-      mpi::Status status;
-      mpi::Recv( KIJ.data(), KIJ.size(), p, Ktag, this->GetSendComm(), &status );
-
-      return KIJ;
-
-    }; /** end RequestKIJ() */
+//    /** 
+//     *  (Clients) request KIJ from rank-p 
+//     */
+//		virtual Data<T> RequestKIJ
+//		( 
+//		  vector<size_t> &I, vector<size_t> &J, int p
+//	  )
+//    {
+//      /** return values */
+//      Data<T> KIJ( I.size(), J.size() );
+//
+//      int Itag = omp_get_thread_num() + 1 * background_tag_offset;
+//      int Jtag = omp_get_thread_num() + 2 * background_tag_offset;
+//      int Ktag = omp_get_thread_num();
+//
+//      /** issue a request to dest for I */
+//      mpi::Send(   I.data(),   I.size(), p, Jtag, this->GetRecvComm() );
+//      /** issue a request to dest for J */
+//      mpi::Send(   J.data(),   J.size(), p, Jtag, this->GetRecvComm() );
+//      /** wait to recv KIJ */
+//      mpi::Status status;
+//      mpi::Recv( KIJ.data(), KIJ.size(), p, Ktag, this->GetSendComm(), &status );
+//
+//      return KIJ;
+//
+//    }; /** end RequestKIJ() */
 
 
     /**
@@ -379,15 +379,15 @@ class DistVirtualMatrix : public mpi::MPIObject
     size_t n = 0;
 
     /** we use tags >= 128 for */
-    const int background_tag_offset = 128;
+//    const int background_tag_offset = 128;
 
     /** for mpi::Ibarrier */
-    mpi::Request request;
-    int test_flag = 0;
-    bool has_Ibarrier = false;
+//    mpi::Request request;
+//    int test_flag = 0;
+//    bool has_Ibarrier = false;
 
     /** whether to terminate the background process */
-    bool do_terminate = false;
+//    bool do_terminate = false;
 
     /** 
      *  Importannt samples:
@@ -399,7 +399,7 @@ class DistVirtualMatrix : public mpi::MPIObject
      *  are stored in hmlp::Data<T> format.
      *   
      */
-    vector<tuple<map<size_t, size_t>, map<size_t, size_t>, Data<T>>> samples;
+//    vector<tuple<map<size_t, size_t>, map<size_t, size_t>, Data<T>>> samples;
 
 
 }; /** end class DistVirtualMatrix */

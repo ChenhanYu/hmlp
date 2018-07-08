@@ -388,12 +388,12 @@ int main( int argc, char *argv[] )
   {
     using T = float;
     {
-      OOCSPDMatrix<T> K( n, n, user_matrix_filename );
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
-      DistData<STAR, CBLK, T> *X = NULL;
-      test_gofmm_setup<T>
-      ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
+      //OOCSPDMatrix<T> K( n, n, user_matrix_filename );
+      ///** (optional) provide neighbors, leave uninitialized otherwise */
+      //DistData<STAR, CBLK, pair<T, size_t>> NN( 0, n, CommGOFMM );
+      //DistData<STAR, CBLK, T> *X = NULL;
+      //test_gofmm_setup<T>
+      //( X, K, NN, metric, n, m, k, s, stol, budget, nrhs, CommGOFMM );
     }
   }
 
