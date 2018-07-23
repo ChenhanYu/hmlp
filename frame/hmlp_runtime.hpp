@@ -66,50 +66,18 @@ namespace hmlp
 //  HMLP_SCHEDULE_HEFT
 //} SchedulePolicy;
 
+/** @brief */
 typedef enum { ALLOCATED, NOTREADY, QUEUED, RUNNING, EXECUTED, DONE, CANCELLED } TaskStatus;
 
+/** @brief */
 typedef enum { R, W, RW } ReadWriteType;
 
 
-//class range
-//{
-//  public:
-//
-//    range( int beg, int end, int inc );
-//
-//    int beg();
-//
-//    int end();
-//
-//    int inc();
-//
-//  private:
-//
-//    std::tuple<int, int, int > info;
-//
-//};
-//
-//range GetRange
-//( 
-//  SchedulePolicy strategy, 
-//  int beg, int end, int nb, 
-//  int tid, int nparts 
-//);
-//
-//range GetRange
-//( 
-//  int beg, int end, int nb, 
-//  int tid, int nparts 
-//);
-//
-//range GetRange
-//( 
-//  int beg, int end, int nb 
-//);
-
 /**
- * @brief Lock
+ *  class Lock
  */ 
+
+/** @brief Wrapper for omp or pthread mutex.  */ 
 class Lock
 {
   public:
@@ -128,18 +96,20 @@ class Lock
 #else
     omp_lock_t lock;
 #endif
-};
+}; /** end class Lock */
 
 
+
+/**
+ *  class Event
+ */ 
+
+/** @brief Events are attached to tasks to record specific activities. */
 class Event
 {
   public:
 
     Event(); 
-
-    //Event( float, float );
-    
-    //~Event();
 
     void Set( string, double, double );
 
@@ -188,6 +158,14 @@ class Event
 }; /** end class Event */
 
 
+
+
+
+/**
+ *  class Task
+ */ 
+
+/** @brief  */
 class Task
 {
   public:
@@ -196,7 +174,7 @@ class Task
 
     ~Task();
 
-    Worker *worker;
+    Worker *worker = NULL;
 
     string name;
 
@@ -204,7 +182,7 @@ class Task
 
     int taskid;
 
-    float cost;
+    float cost = 0;
 
     bool priority = false;
 
@@ -259,15 +237,14 @@ class Task
     Task *next = NULL;
 
     /** Preserve the current task in the call stack and context switch. */
-    bool ContextSwitchToNextTask( Worker* );
+    //bool ContextSwitchToNextTask( Worker* );
 
     /** If true, this task can be stolen */ 
     bool stealable = true;
 
-    /** If true, then this is an MPI task */
-    bool has_mpi_routines = false;
-
     int created_by = 0;
+
+    bool IsNested();
 
   private:
 
@@ -279,6 +256,7 @@ class Task
 }; /** end class Task */
 
 
+/** @brief This is a specific type of task that represents NOP. */
 template<typename ARGUMENT>
 class NULLTask : public Task
 {
@@ -291,6 +269,14 @@ class NULLTask : public Task
 }; /** end class NULLTask */
 
 
+
+
+
+/**
+ *  class MessageTask
+ */ 
+
+/** @brief This task is designed to take care MPI communications. */
 class MessageTask : public Task
 {
   public:
@@ -304,19 +290,21 @@ class MessageTask : public Task
     int key = 0;
 
     void Submit();
+}; /** end class MessageTask */
 
-};
 
+/** @brief This task is the abstraction for all tasks handled by Listeners. */
 class ListenerTask : public MessageTask
 {
   public:
 
     void Submit();
 
-    //virtual void Listen( int src, int key, mpi::Comm comm ) = 0;
     virtual void Listen() = 0;
-};
+}; /** end class ListenerTask */
 
+
+/** @brief  */
 template<typename T, typename ARG>
 class SendTask : public MessageTask
 {
@@ -344,7 +332,22 @@ class SendTask : public MessageTask
       /** "HIGH" priority */
       priority = true;
     };
-};
+
+    virtual void Pack() = 0;
+
+    void Execute( Worker *user_worker ) 
+    {
+      Pack();
+      mpi::Request req1, req2, req3;
+      mpi::Isend( this->send_sizes.data(), this->send_sizes.size(),
+          this->tar, this->key + 0, this->comm, &req1 ); 
+      //mpi::Isend( this->send_skels.data(), this->send_skels.size(),
+      //    this->tar, this->key + 1, this->comm, &req2 ); 
+      mpi::Isend( this->send_buffs.data(), this->send_buffs.size(),
+          this->tar, this->key + 2, this->comm, &req3 ); 
+    };
+}; /** end class SendTask */
+
 
 template<typename T, typename ARG>
 class RecvTask : public ListenerTask
@@ -372,6 +375,11 @@ class RecvTask : public ListenerTask
       event.Set( label + name, flops, mops );
     };
 
+    void DependencyAnalysis()
+    {
+      hmlp_msg_dependency_analysis( this->key, this->src, RW, this );
+    };
+
     void Listen()
     {
       int src = this->src;
@@ -385,25 +393,21 @@ class RecvTask : public ListenerTask
       mpi::Get_count( &status, HMLP_MPI_SIZE_T, &cnt );
       recv_sizes.resize( cnt );
       mpi::Recv( recv_sizes.data(), cnt, src, key + 0, comm, &status );
-      /** Receive recv_skels as well */
-      mpi::Probe( src, key + 1, comm, &status );
-      mpi::Get_count( &status, HMLP_MPI_SIZE_T, &cnt );
-      recv_skels.resize( cnt );
-      mpi::Recv( recv_skels.data(), cnt, src, key + 1, comm, &status );
       /** Calculate the total size of recv_buffs */
       cnt = 0;
       for ( auto c : recv_sizes ) cnt += c;
       recv_buffs.resize( cnt );
       /** Receive recv_buffs as well */
       mpi::Recv( recv_buffs.data(), cnt, src, key + 2, comm, &status );
-      //printf( "rank %d Listen src %d key %d, recv_sizes %lu recv_skels.sizes %lu recv_buffs %lu\n", 
-      //    tar, src, key, recv_sizes.size(), recv_skels.size(), recv_buffs.size() ); 
-      //fflush( stdout );
     };
 
-    /** User still need to provide a concrete Execute() function */
-    //virtual void Execute( Worker *worker );
-};
+    virtual void Unpack() = 0;
+
+    void Execute( Worker *user_worker ) { Unpack(); };
+
+}; /** end class RecvTask */
+
+
 
 
 
@@ -456,13 +460,11 @@ void RecuTaskExecute( ARG *arg, TASK& dummy, Args&... dummyargs )
 
 
 
+/**
+ *  class ReadWrite
+ */ 
 
-
-
-
-
-
-
+/** @brief This class provides the ability to perform dependency analysis. */
 class ReadWrite
 {
   public:
@@ -485,6 +487,13 @@ class ReadWrite
 
 
 
+
+
+/**
+ *  class MatrixReadWrite
+ */ 
+
+/** @brief This class creates 2D grids for 2D matrix partition. */
 class MatrixReadWrite
 {
   public:
@@ -513,6 +522,13 @@ class MatrixReadWrite
 
 
 
+
+
+/**
+ *  class Scheduler
+ */ 
+
+/** @brief */
 class Scheduler
 {
   public:
@@ -521,38 +537,32 @@ class Scheduler
     
     ~Scheduler();
 
-    void Init( int n_worker, int n_nested_worker );
+    void Init( int n_worker );
 
     void Finalize();
 
     int n_worker = 0;
 
-    /** number of tasks that has been completed */
-    int n_task = 0;
-    Lock n_task_lock;
-
     size_t timeline_tag;
 
     double timeline_beg;
 
-    /** Ready queues for normal tasks */
+    /** Ready queues for normal tasks. */
     deque<Task*> ready_queue[ MAX_WORKER ];
-    deque<Task*> tasklist;
+    /** The tasklist records all tasks created in this epoch. */
+    //deque<Task*> tasklist;
+    /** Accessing ready_queue requires exclusive right to avoid race condition. */
     Lock ready_queue_lock[ MAX_WORKER ];
 
-    /** The ready queue for nested tasks */
+    /** The ready queue for nested tasks. */
     deque<Task*> nested_queue[ MAX_WORKER ];
-    //deque<Task*> nested_queue;
-    deque<Task*> nested_tasklist;
+    /** The tasklist records all nested tasks created in this epoch. */
+    //deque<Task*> nested_tasklist;
+    /** Accessing nested_ready_queue requires exclusive right to avoid race condition. */
     Lock nested_queue_lock[ MAX_WORKER ];
-    //Lock nested_queue_lock;
 
-    /** The ready queue for MPI tasks */
-    deque<Task*> mpi_queue;
-    deque<Task*> mpi_tasklist;
-    Lock mpi_queue_lock;
 
-    /** The hashmap for asynchronous MPI tasks */
+    /** The hashmap for asynchronous MPI tasks. */
     vector<unordered_map<int, ListenerTask*>> listener_tasklist;
     Lock listener_queue_lock;
 
@@ -571,27 +581,41 @@ class Scheduler
 
     void NewListenerTask( ListenerTask *task );
 
-    Task *TryDispatchFromNestedQueue();
+    void ExecuteNestedTasksWhileWaiting( Worker *me, Task *waiting_task );
 
     void Summary();
 
-    /** Global varibles for async distributed concensus */
-		bool do_terminate = false;
-    bool has_ibarrier = false;
-    mpi::Request ibarrier_request;
-    int ibarrier_consensus = 0;
 
   private:
 
+    /** Main worker entry for the main iteration. */
     static void* EntryPoint( void* );
 
-    Task *TryDispatch( int tid );
+    /** The tasklist records all tasks created in this epoch. */
+    deque<Task*> tasklist;
 
-    Task *TryDispatchFromMPIQueue();
+    /** The tasklist records all nested tasks created in this epoch. */
+    deque<Task*> nested_tasklist;
 
-    //Task *TryDispatchFromNestedQueue();
+    /** This mutex grants exclusive right to modify tasklists. */
+    Lock tasklist_lock;
 
-    Task *TryStealFromQueue( size_t target );
+    /** Number of tasks and nested tasks that have been completed. */
+    int n_task_completed = 0;
+    int n_nested_task_completed = 0;
+
+    /** Mutex for updating n_task_completed and n_nested_task_completed. */
+    Lock n_task_lock;
+
+    vector<Task*> DispatchFromNormalQueue( int tid );
+
+    vector<Task*> DispatchFromNestedQueue( int tid );
+
+    vector<Task*> StealFromOther();
+
+    Task *StealFromQueue( size_t target );
+
+    bool ConsumeTasks( Worker *me, vector<Task*> &batch );
 
     bool ConsumeTasks( Worker *me, Task *batch, bool is_nested );
 
@@ -605,19 +629,34 @@ class Scheduler
 
     Lock gpu_lock;
 
-    Lock tasklist_lock;
-
-		/** background task */
-		Task *bgtask = NULL;
-
-    /** Global communicator used between listeners */
+    /** Global communicator used between listeners. */
     mpi::Comm comm;
 
+    /** This maps a key to a vector of p ReadWrite objects. */
     unordered_map<int, vector<ReadWrite>> msg_dependencies;
 
-};
+    /** If the flag is set, then there is a local conseneus. */
+		bool do_terminate = false;
+
+    /** If the flag is set, then an Ibarrier is post. */
+    bool has_ibarrier = false;
+
+    /** MPI request for Ibarrier. */
+    mpi::Request ibarrier_request;
+
+    /** If the flag is set, then there is a global consensus. */
+    int ibarrier_consensus = 0;
+}; /** end class Scheduler */
 
 
+
+
+
+/**
+ *  class RunTime
+ */ 
+
+/** @brief RunTime is statically created in hmlp_runtime.cpp. */
 class RunTime
 {
   public:
@@ -632,10 +671,10 @@ class RunTime
 
     void Finalize();
 
-    /** whether the runtime is in a epoch session */
+    /** Whether the runtime is in a epoch session. */
     bool IsInEpochSession();
 
-    /** consuming nested tasks while in a epoch session */
+    /** Consuming nested tasks while in a epoch session. */
     void ExecuteNestedTasksWhileWaiting( Task *waiting_task );
 
     //void pool_init();
@@ -644,11 +683,9 @@ class RunTime
 
     //void release_memory( void* ptr );
 
-    int n_worker;
+    int n_worker = 0;
 
-    int n_max_worker;
-
-    int n_nested_worker = 1;
+    int n_max_worker = 0;
 
     int n_background_worker = 1;
 
@@ -670,7 +707,7 @@ class RunTime
 
 }; /** end class Runtime */
 
-}; // end namespace hmlp
+}; /** end namespace hmlp */
 
 hmlp::RunTime *hmlp_get_runtime_handle();
 
@@ -685,10 +722,5 @@ void hmlp_set_num_background_worker( int n_background_worker );
 void hmlp_msg_dependency_analysis( 
     int key, int p, hmlp::ReadWriteType type, hmlp::Task *task );
 
-void hmlp_redistribute_workers( 
-		int n_worker, 
-		int n_background_worker,
-		int n_nested_worker );
 
-
-#endif // define HMLP_RUNTIME_HPP
+#endif /** define HMLP_RUNTIME_HPP */

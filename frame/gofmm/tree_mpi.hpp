@@ -632,7 +632,7 @@ class Node : public tree::Node<SETUP, NODEDATA>
     
     int GetCommRank() { return rank; };
 
-    /** Support dependency analysis. */
+    /** @brief Support dependency analysis. */
     void DependOnChildren( Task *task )
     {
       this->DependencyAnalysis( RW, task );
@@ -647,8 +647,9 @@ class Node : public tree::Node<SETUP, NODEDATA>
       }
       /** Try to enqueue if there is no dependency. */
       task->TryEnqueue();
-    };
+    }; /** end DependOnChildren() */
 
+    /** @brief */
     void DependOnParent( Task *task )
     {
       this->DependencyAnalysis( R, task );
@@ -663,7 +664,7 @@ class Node : public tree::Node<SETUP, NODEDATA>
       }
       /** Try to enqueue if there is no dependency. */
       task->TryEnqueue();
-    };
+    }; /** end DependOnParent() */
 
     void Print()
     {
@@ -1499,6 +1500,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     }; /** end DependencyCleanUp() */
 
 
+    /** @brief */
     void ExecuteAllTasks()
     {
       hmlp_run();
@@ -1506,6 +1508,31 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
       DependencyCleanUp();
     }; /** end ExecuteAllTasks() */
 
+    /** @brief */
+    void DependOnNearInteractions( int p, Task *task )
+    {
+      /** Describe the dependencies of rank p. */
+      for ( auto it : NearSentToRank[ p ] )
+      {
+        auto *node = this->morton2node[ it ];
+        node->DependencyAnalysis( R, task );
+      }
+      /** Try to enqueue if there is no dependency. */
+      task->TryEnqueue();
+    }; /** end DependOnNearInteractions() */
+
+    /** @brief */
+    void DependOnFarInteractions( int p, Task *task )
+    {
+      /** Describe the dependencies of rank p. */
+      for ( auto it : FarSentToRank[ p ] )
+      {
+        auto *node = this->morton2node[ it ];
+        node->DependencyAnalysis( R, task );
+      }
+      /** Try to enqueue if there is no dependency. */
+      task->TryEnqueue();
+    }; /** end DependOnFarInteractions() */
 
 
 

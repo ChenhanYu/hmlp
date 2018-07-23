@@ -283,6 +283,8 @@ class Worker
 
     class Device *GetDevice();
 
+    //bool Execute( vector<hmlp::Task*> &batch );
+
     bool Execute( class Task *task );
 
     void WaitExecute();

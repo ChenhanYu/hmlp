@@ -2512,7 +2512,6 @@ void PackNear( TREE &tree, string option, int p,
         sendbuffs[ offset + j ] = w_leaf[ j ];
     }
   }
-
 };
 
 
@@ -2582,7 +2581,149 @@ void PackFar( TREE &tree, string option, int p,
       sendbuffs.insert( sendbuffs.end(), w_skel.begin(), w_skel.end() );
     }
   }
-};
+}; /** end PackFar() */
+
+
+
+
+
+
+
+
+
+
+
+
+/** @brief Pack a list of weights and their sizes to two messages. */
+template<typename TREE, typename T>
+void PackWeights( TREE &tree, int p, 
+    vector<T> &sendbuffs, vector<size_t> &sendsizes )
+{
+  for ( auto it : tree.NearSentToRank[ p ] )
+  {
+    auto *node = tree.morton2node[ it ];
+    auto w_leaf = node->data.w_view.toData();
+    sendbuffs.insert( sendbuffs.end(), w_leaf.begin(), w_leaf.end() );
+    sendsizes.push_back( w_leaf.size() );
+  }
+}; /** end PackWeights() */
+
+
+/** @brief Unpack a list of weights and their sizes. */
+template<typename TREE, typename T>
+void UnpackWeights( TREE &tree, int p,
+    const vector<T> recvbuffs, const vector<size_t> &recvsizes )
+{
+  vector<size_t> offsets( 1, 0 );
+  for ( auto it : recvsizes ) offsets.push_back( offsets.back() + it );
+
+  for ( auto it : tree.NearRecvFromRank[ p ] )
+  {
+    /** Get LET node pointer. */
+    auto *node = tree.morton2node[ it.first ];
+    /** Number of right hand sides */
+    size_t nrhs = tree.setup.w->col();
+    auto &w_leaf = node->data.w_leaf;
+    size_t i = it.second;
+    w_leaf.resize( recvsizes[ i ] / nrhs, nrhs );
+    for ( uint64_t j  = offsets[ i + 0 ], jj = 0; 
+                   j  < offsets[ i + 1 ]; 
+                   j ++,                  jj ++ )
+    {
+      w_leaf[ jj ] = recvbuffs[ j ];
+    }
+  }
+}; /** end UnpackWeights() */
+
+
+
+/** @brief Pack a list of skeletons and their sizes to two messages. */
+template<typename TREE>
+void PackSkeletons( TREE &tree, int p,
+    vector<size_t> &sendbuffs, vector<size_t> &sendsizes )
+{
+  for ( auto it : tree.FarSentToRank[ p ] )
+  {
+    /** Get LET node pointer. */
+    auto *node = tree.morton2node[ it ];
+    auto &skels = node->data.skels;
+    sendbuffs.insert( sendbuffs.end(), skels.begin(), skels.end() );
+    sendsizes.push_back( skels.size() );
+  }
+}; /** end PackSkeletons() */
+
+
+/** @brief Unpack a list of skeletons and their sizes. */
+template<typename TREE>
+void UnpackSkeletons( TREE &tree, int p,
+    const vector<size_t> recvbuffs, const vector<size_t> &recvsizes )
+{
+  vector<size_t> offsets( 1, 0 );
+  for ( auto it : recvsizes ) offsets.push_back( offsets.back() + it );
+
+  for ( auto it : tree.FarRecvFromRank[ p ] )
+  {
+    /** Get LET node pointer. */
+    auto *node = tree.morton2node[ it.first ];
+    auto &skels = node->data.skels;
+    size_t i = it.second;
+    skels.clear();
+    skels.reserve( recvsizes[ i ] );
+    for ( uint64_t j  = offsets[ i + 0 ]; 
+                   j  < offsets[ i + 1 ]; 
+                   j ++ )
+    {
+      skels.push_back( recvskels[ j ] );
+    }
+  }
+}; /** end UnpackSkeletons() */
+
+
+
+/** @brief Pack a list of skeleton weights and their sizes to two messages. */
+template<typename TREE, typename T>
+void PackSkeletonWeights( TREE &tree, int p,
+    vector<T> &sendbuffs, vector<size_t> &sendsizes )
+{
+  for ( auto it : tree.FarSentToRank[ p ] )
+  {
+    auto *node = tree.morton2node[ it ];
+    auto &w_skel = node->data.w_skel;
+    sendbuffs.insert( sendbuffs.end(), w_skel.begin(), w_skel.end() );
+    sendsizes.push_back( w_skel.size() );
+  }
+}; /** end PackSkeletonWeights() */
+
+
+/** @brief Unpack a list of skeletons and their sizes. */
+template<typename TREE, typename T>
+void UnpackSkeletonWeights( TREE &tree, int p,
+    const vector<T> recvbuffs, const vector<size_t> &recvsizes )
+{
+  vector<size_t> offsets( 1, 0 );
+  for ( auto it : recvsizes ) offsets.push_back( offsets.back() + it );
+
+  for ( auto it : tree.FarRecvFromRank[ p ] )
+  {
+    /** Get LET node pointer. */
+    auto *node = tree.morton2node[ it.first ];
+    /** Number of right hand sides */
+    size_t nrhs = tree.setup.w->col();
+    auto &w_skel = node->data.w_skel;
+    size_t i = it.second;
+    w_skel.resize( recvsizes[ i ] / nrhs, nrhs );
+    for ( uint64_t j  = offsets[ i + 0 ], jj = 0; 
+                   j  < offsets[ i + 1 ]; 
+                   j ++,                  jj ++ )
+    {
+      w_skel[ jj ] = recvbuffs[ j ];
+    }
+  }
+}; /** end UnpackSkeletonWeights() */
+
+
+
+
 
 
 template<typename T, typename TREE>
@@ -2639,51 +2780,20 @@ class PackNearTask : public SendTask<T, TREE>
 {
   public:
 
-    string option;
-
     void DependencyAnalysis()
     {
-      option = "leafweights";
-      PackNear( *this->arg, option, this->tar,
-          this->send_sizes, this->send_skels, this->send_buffs );
-
       TREE &tree = *(this->arg);
-      for ( auto it : tree.NearSentToRank[ this->tar ] )
-      {
-        auto *node = tree.morton2node[ it ];
-        node->DependencyAnalysis( R, this );
-      }
-      this->TryEnqueue();
+      tree.DependOnNearInteractions( this->tar, this );
     };
 
-    void Execute( Worker *user_worker ) 
+    /** Instansiate Pack() for SendTask. */
+    void Pack()
     {
-      double beg = omp_get_wtime();
-
-      mpi::Request req1, req2, req3;
-      //option = "leafweights";
-      //PackNear( *this->arg, option, this->tar,
-      //    this->send_sizes, this->send_skels, this->send_buffs );
-
-      //printf( "Beg PackNear src %d, tar %d, key %d send_sizes %lu send_skels %lu send_buff %lu\n", 
-      //    this->src, this->tar, this->key, 
-      //    this->send_sizes.size(), this->send_skels.size(), this->send_buffs.size() ); 
-      //fflush( stdout );
-
-
-      mpi::Isend( this->send_sizes.data(), this->send_sizes.size(),
-          this->tar, this->key + 0, this->comm, &req1 ); 
-      mpi::Isend( this->send_skels.data(), this->send_skels.size(),
-          this->tar, this->key + 1, this->comm, &req2 ); 
-      mpi::Isend( this->send_buffs.data(), this->send_buffs.size(),
-          this->tar, this->key + 2, this->comm, &req3 ); 
-      //printf( "End PackNear src %d\n", this->src ); fflush( stdout );
-      double pack_time = omp_get_wtime() - beg;
-      //printf( "PackNear src %d, tar %d, key %d time %lfs\n",  
-      //    this->src, this->tar, this->key, pack_time ); fflush( stdout );
-     
+      PackWeights( *this->arg, this->tar, 
+          this->send_buffs, this->send_sizes );
     };
-};
+
+}; /** end class PackNearTask */
 
 
 
@@ -2704,131 +2814,50 @@ class UnpackLeafTask : public RecvTask<T, TREE>
 {
   public:
 
-    string option;
-
-    void DependencyAnalysis()
+    void Unpack()
     {
-      TREE &tree = *(this->arg);
-      /** Read and write NearRecvFrom[ this->src ]. */
-      hmlp_msg_dependency_analysis( this->key, this->src, RW, this );
-      /** All L2L tasks may dependent on this task. */
-      //for ( auto it : tree.NearRecvFromRank[ this->src ] )
-      //{
-      //  auto *node = tree.morton2node[ it.first ];
-      //  node->DependencyAnalysis( RW, this );
-      //}
+      UnpackWeights( *this->arg, this->src, 
+          this->recv_buffs, this->recv_sizes );
     };
 
-    void Execute( Worker *user_worker ) 
-    {
-      //printf( "Begin UnpackLeaf src %d\n", this->src ); fflush( stdout );
-      double beg = omp_get_wtime();
-      option = "leafweights";
-      UnpackLeaf( *this->arg, option, this->src,
-          this->recv_sizes, this->recv_skels, this->recv_buffs );
-      double unpack_time = omp_get_wtime() - beg;
-      //printf( "UnpackNear src %d tar %d key %d time %lfs\n",
-      //    this->src, this->tar, this->key, unpack_time ); fflush( stdout );
-
-      //printf( "Beg UnpackNear src %d, tar %d, key %d recv_sizes %lu recv_skels %lu recv_buff %lu\n", 
-      //    this->src, this->tar, this->key, 
-      //    this->recv_sizes.size(), this->recv_skels.size(), this->recv_buffs.size() ); 
-      //fflush( stdout );
-    };
-};
+}; /** end class UnpackLeafTask */
 
 
-
+/** @brief */
 template<typename T, typename TREE>
 class PackFarTask : public SendTask<T, TREE>
 {
   public:
 
-    string option;
-
     void DependencyAnalysis()
     {
       TREE &tree = *(this->arg);
-      for ( auto it : tree.FarSentToRank[ this->tar ] )
-      {
-        auto *node = tree.morton2node[ it ];
-        node->DependencyAnalysis( R, this );
-      }
-      this->TryEnqueue();
+      tree.DependOnFarInteractions( this->tar, this );
     };
 
-    void Execute( Worker *user_worker ) 
+    /** Instansiate Pack() for SendTask. */
+    void Pack()
     {
-      double beg = omp_get_wtime();
-
-      mpi::Request req1, req2, req3;
-      option = "skelweights";
-      PackFar( *this->arg, option, this->tar,
-          this->send_sizes, this->send_skels, this->send_buffs );
-
-      //printf( "Beg PackFar src %d, tar %d, key %d send_sizes %lu send_skels %lu send_buff %lu\n", 
-      //    this->src, this->tar, this->key, 
-      //    this->send_sizes.size(), this->send_skels.size(), this->send_buffs.size() ); 
-      //fflush( stdout );
-
-      mpi::Isend( this->send_sizes.data(), this->send_sizes.size(),
-          this->tar, this->key + 0, this->comm, &req1 ); 
-      mpi::Isend( this->send_skels.data(), this->send_skels.size(),
-          this->tar, this->key + 1, this->comm, &req2 ); 
-      mpi::Isend( this->send_buffs.data(), this->send_buffs.size(),
-          this->tar, this->key + 2, this->comm, &req3 ); 
-
-      double pack_time = omp_get_wtime() - beg;
-      //printf( "PackFar src %d, tar %d, key %d time %lfs\n",  
-      //    this->src, this->tar, this->key, pack_time ); fflush( stdout );
+      PackSkeletonWeights( *this->arg, this->tar, 
+          this->send_buffs, this->send_sizes );
     };
-};
+
+}; /** end class PackFarTask */
 
 
+/** @brief */
 template<typename T, typename TREE>
 class UnpackFarTask : public RecvTask<T, TREE>
 {
   public:
 
-    string option;
-
-    void DependencyAnalysis()
+    void Unpack()
     {
-      /** Read and write NearRecvFrom[ this->src ]. */
-      hmlp_msg_dependency_analysis( this->key, this->src, RW, this );
-      /** All L2L tasks may dependent on this task. */
-
-
-
-      //TREE &tree = *(this->arg);
-      //for ( auto it : tree.FarRecvFromRank[ this->src ] )
-      //{
-      //  auto *node = tree.morton2node[ it.first ];
-      //  node->DependencyAnalysis( RW, this );
-      //}
-
-
+      UnpackSkeletonWeights( *this->arg, this->src, 
+          this->recv_buffs, this->recv_sizes );
     };
 
-    void Execute( Worker *user_worker ) 
-    {
-      //printf( "End UnpackFar src %d, tar %d, key %d\n", 
-      //    this->src, this->tar, this->key );
-      //fflush( stdout );
-      double beg = omp_get_wtime();
-      option = "skelweights";
-      UnpackFar( *this->arg, option, this->src,
-          this->recv_sizes, this->recv_skels, this->recv_buffs );
-      double unpack_time = omp_get_wtime() - beg;
-      //printf( "UnpackFar src %d tar %d key %d time %lfs\n",
-      //    this->src, this->tar, this->key, unpack_time ); fflush( stdout );
-
-      //printf( "End UnpackFar src %d, tar %d, key %d recv_sizes %lu recv_skels %lu recv_buff %lu\n", 
-      //    this->src, this->tar, this->key, 
-      //    this->recv_sizes.size(), this->recv_skels.size(), this->recv_buffs.size() ); 
-      //fflush( stdout );
-    };
-};
+}; /** end class UnpackFarTask */
 
 
 
@@ -3135,19 +3164,11 @@ class MergeFarNodesTask : public Task
 
     void Set( NODE *user_arg )
     {
-      /** this task contains MPI routines */
-      //this->has_mpi_routines = true;
-
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "merge" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-
+      name = string( "merge" );
+      label = to_string( arg->treelist_id );
       /** we don't know the exact cost here */
       cost = 5.0;
-
       /** high priority */
       priority = true;
     };
@@ -3307,19 +3328,11 @@ class DistMergeFarNodesTask : public Task
 
     void Set( NODE *user_arg )
     {
-      /** this task contains MPI routines */
-      //this->has_mpi_routines = true;
-
-      std::ostringstream ss;
       arg = user_arg;
-      name = std::string( "dist-merge" );
-      //label = std::to_string( arg->treelist_id );
-      ss << arg->treelist_id;
-      label = ss.str();
-
+      name = string( "dist-merge" );
+      label = to_string( arg->treelist_id );
       /** we don't know the exact cost here */
       cost = 5.0;
-
       /** high priority */
       priority = true;
     };

@@ -22,6 +22,8 @@
 #include <hmlp_device.hpp>
 #include <hmlp_runtime.hpp>
 
+using namespace std;
+
 namespace hmlp
 {
 

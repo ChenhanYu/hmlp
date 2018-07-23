@@ -569,6 +569,32 @@ void Worker::SetDevice( class Device *device ) { this->device = device; };
 class Device* Worker::GetDevice() { return device; };
 
 
+//bool Worker::Execute( vector<Task*> & batch )
+//{
+//  /** Loop over each task in the batch. */
+//  for ( auto task : batch )
+//  {
+//    assert( task->GetStatus() == RUNNING );
+//    task->worker = this;
+//    task->event.Begin( this->tid );
+//    /** Notice that this may be an asynchronous execution. */
+//    task->Execute( this );
+//  }
+//
+//  /** Wait for all tasks in the batch to terminate. */
+//  WaitExecute();
+//
+//  /** Loop over each task in the batch. */
+//  for ( auto task : batch )
+//  {
+//    task->event.Terminate();
+//    task->GetEventRecord();
+//  }
+//  return true;
+//}; /** end Worker::Execute() */
+
+
+
 /**
  *  @brief The work executes the task in the runtime system. I left some
  *         code commented out because there is no GPU support now.
@@ -629,4 +655,4 @@ float Worker::EstimateCost( class Task *task ) { return task->cost; };
 
 
 
-}; // end namespace hmlp
+}; /** end namespace hmlp */
