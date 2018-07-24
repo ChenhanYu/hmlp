@@ -23,27 +23,8 @@
 #ifndef IGOFMM_HPP
 #define IGOFMM_HPP
 
-#include <assert.h>
-#include <typeinfo>
-#include <algorithm>
-#include <random>
 
-
-#include <hmlp.h>
-#include <hmlp_blas_lapack.h>
-#include <hmlp_util.hpp>
-#include <hmlp_thread.hpp>
-#include <hmlp_runtime.hpp>
-
-#include <containers/View.hpp>
-
-#include <gofmm/tree.hpp>
-#include <gofmm/gofmm.hpp>
-
-//#define DEBUG_IGOFMM 1
-
-#define USE_OLD_ULV 0
-
+/** Use STL and HMLP namespaces. */
 using namespace std;
 using namespace hmlp;
 
@@ -161,12 +142,6 @@ class Factor
           min_diag, max_diag, min_diag / max_diag );
     };
 
-
-
-    /**
-     *
-     *
-     **/ 
     void Factorize( Data<T> &Kaa ) 
     {
       assert( isleaf );

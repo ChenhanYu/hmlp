@@ -24,11 +24,10 @@
 #ifndef VIEW_HPP
 #define VIEW_HPP
 
-#include <containers/data.hpp>
+#include <Data.hpp>
 
 using namespace std;
 using namespace hmlp;
-
 
 namespace hmlp
 {

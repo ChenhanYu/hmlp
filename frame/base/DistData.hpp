@@ -1,7 +1,7 @@
 #ifndef DISTDATA_HPP
 #define DISTDATA_HPP
 
-#include <containers/data.hpp>
+#include <Data.hpp>
 #include <hmlp_mpi.hpp>
 
 using namespace std;

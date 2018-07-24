@@ -20,7 +20,7 @@
 
 
 /** Use GOFMM templates. */
-#include <gofmm/gofmm.hpp>
+#include <gofmm.hpp>
 /** Use dense SPD matrices. */
 #include <containers/SPDMatrix.hpp>
 /** Use implicit kernel matrices (only coordinates are stored). */

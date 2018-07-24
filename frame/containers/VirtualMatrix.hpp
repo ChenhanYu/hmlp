@@ -28,7 +28,7 @@
 #endif
 
 /** Use hmlp::Data<T> for a concrete dense submatrix */
-#include <containers/data.hpp>
+#include <Data.hpp>
 
 using namespace std;
 

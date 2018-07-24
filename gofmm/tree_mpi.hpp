@@ -22,17 +22,13 @@
 #ifndef MPITREE_HPP
 #define MPITREE_HPP
 
-#include <algorithm>
-#include <functional>
-#include <type_traits>
-#include <cstdint>
-
-
-#include <hmlp_mpi.hpp>
-#include <containers/DistData.hpp>
-
+/** Inherit most of the classes from shared-memory GOFMM. */
 #include <tree.hpp>
-
+/** Use HMLP related support. */
+#include <hmlp_mpi.hpp>
+/** Use distributed matrices inspired by the Elemental notation. */
+#include <DistData.hpp>
+/** Use STL and HMLP namespaces. */
 using namespace std;
 using namespace hmlp;
 
@@ -41,37 +37,6 @@ namespace hmlp
 {
 namespace mpitree
 {
-
-
-//template<size_t LEVELOFFSET=4>
-//int Morton2Rank( size_t it, mpi::Comm comm )
-//{
-//  /**
-//   *  MPI communicator size
-//   */ 
-//  int size = 0;
-//  mpi::Comm_size( &size, comm );
-//
-//  size_t filter = ( 1 << LEVELOFFSET ) - 1;
-//  size_t itlevel = it & filter;
-//  size_t mpilevel = 0;
-//
-//  size_t tmp = size;
-//  while ( tmp )
-//  {
-//    mpilevel ++;
-//    tmp /= 2;
-//  }
-//
-//  if ( ( 1 << itlevel ) > size ) itlevel = mpilevel;
-//
-//  return it >> ( ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET );
-//
-//}; /** end Morton2rank() */
-
-
-
-
 
 
 
@@ -452,103 +417,66 @@ class Node : public tree::Node<SETUP, NODEDATA>
     /** Inherit all parameters from tree::Node */
 
 
-    /** Constructor for inner node (gids and n unassigned) */
+    /** (Default) constructor for inner nodes (gids and n unassigned) */
     Node( SETUP *setup, size_t n, size_t l, 
         Node *parent,
         unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton2node,
         Lock *treelock, mpi::Comm comm ) 
-    /** Inherits the constructor from tree::Node */
       : tree::Node<SETUP, NODEDATA>( setup, n, l, 
           parent, morton2node, treelock ) 
     {
-      /** local communicator */
+      /** Local communicator */
       this->comm = comm;
-      
-      /** get size and rank */
+      /** Get MPI size and rank. */
       mpi::Comm_size( comm, &size );
       mpi::Comm_rank( comm, &rank );
     };
 
-
-
-    /** 
-     *  Constructor for root 
-     */
+    /** (Default) constructor for root. */
     Node( SETUP *setup, size_t n, size_t l, vector<size_t> &gids, 
         Node *parent, 
         unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton2node,
         Lock *treelock, mpi::Comm comm ) 
-    /** 
-     *  Inherits the constructor from tree::Node
-     */
       : Node<SETUP, NODEDATA>( setup, n, l, parent, 
           morton2node, treelock, comm ) 
     {
-      /** 
-       *  Notice that "gids.size() < n" 
-       */
+      /** Notice that "gids.size() < n". */
       this->gids = gids;
     };
 
-
+    /** (Default) constructor for LET nodes. */
     Node( size_t morton ) : tree::Node<SETUP, NODEDATA>( morton )
     { 
     };
 
 
-    void SetupChild( class Node *child )
-    {
-      this->kids[ 0 ] = child;
-      this->child = child;
-    };
+    //void SetupChild( class Node *child )
+    //{
+    //  this->kids[ 0 ] = child;
+    //  this->child = child;
+    //};
 
 
 
-    /**
-     *  TODO: need to redistribute the parameters of K as well
-     */ 
+    /** */ 
     void Split()
     {
-      assert( N_CHILDREN == 2 );
-
-      /** Reduce to get the total size of gids */
+      /** Reduce to get the total size of gids. */
       int num_points_total = 0;
       int num_points_owned = (this->gids).size();
-
-      /** n = sum( num_points_owned ) over all MPI processes in comm */
+      /** n = sum( num_points_owned ) over all MPI processes in comm. */
       mpi::Allreduce( &num_points_owned, &num_points_total, 1, MPI_SUM, comm );
       this->n = num_points_total;
 
-
-
-
-
-
-
-      //printf( "rank %d n %lu gids.size() %lu --", 
-      //    rank, this->n, this->gids.size() ); fflush( stdout );
-      //for ( size_t i = 0; i < this->gids.size(); i ++ )
-      //  printf( "%lu ", this->gids[ i ] );
-      //printf( "\n" ); fflush( stdout );
-
-
-
-
-
       if ( child )
       {
-				//printf( "Split(): n %lu  \n", this->n ); fflush( stdout );
-
         /** The local communicator of this node contains at least 2 processes. */
         assert( size > 1 );
 
-        /** Distributed splitter */
+        /** Invoke distributed splitter. */
         auto split = this->setup->splitter( this->gids, comm );
 
-				//printf( "Finish Split(): n %lu  \n", this->n ); fflush( stdout );
-
-
-        /** Get partner rank */
+        /** Get partner MPI rank. */
         int partner_rank = 0;
         int sent_size = 0; 
         int recv_size = 0;
@@ -586,51 +514,45 @@ class Node : public tree::Node<SETUP, NODEDATA>
         }
         assert( partner_rank >= 0 );
 
-        //printf( "rank %d partner_arnk %d\n", rank, partner_rank ); fflush( stdout );
 
 
-        /** exchange recv_gids.size() */
-        mpi::Sendrecv( 
-            &sent_size, 1, MPI_INT, partner_rank, 10,
-            &recv_size, 1, MPI_INT, partner_rank, 10,
-            comm, &status );
 
-        printf( "rank %d kept_size %lu sent_size %d recv_size %d\n", 
-            rank, kept_gids.size(), sent_size, recv_size ); fflush( stdout );
 
-        /** resize recv_gids */
-        recv_gids.resize( recv_size );
+        ///** Exchange recv_gids.size(). */
+        //mpi::Sendrecv( &sent_size, 1, partner_rank, 10,
+        //               &recv_size, 1, partner_rank, 10, comm, &status );
 
-        /** Exchange recv_gids.size() */
-        mpi::Sendrecv( 
-            sent_gids.data(), sent_size, MPI_INT, partner_rank, 20,
-            recv_gids.data(), recv_size, MPI_INT, partner_rank, 20,
-            comm, &status );
+        //printf( "rank %d kept_size %lu sent_size %d recv_size %d\n", 
+        //    rank, kept_gids.size(), sent_size, recv_size ); fflush( stdout );
 
-        /** Enlarge kept_gids */
-        kept_gids.reserve( kept_gids.size() + recv_gids.size() );
-        for ( size_t i = 0; i < recv_gids.size(); i ++ )
-          kept_gids.push_back( recv_gids[ i ] );
+        ///** resize recv_gids */
+        //recv_gids.resize( recv_size );
+
+        ///** Exchange recv_gids.size() */
+        //mpi::Sendrecv( 
+        //    sent_gids.data(), sent_size, MPI_INT, partner_rank, 20,
+        //    recv_gids.data(), recv_size, MPI_INT, partner_rank, 20,
+        //    comm, &status );
+
+        /** Exchange gids with my partner. */
+        mpi::ExchangeVector( sent_gids, partner_rank, 20,
+                             recv_gids, partner_rank, 20, comm, &status );
+        /** kept_gids += recv_gids. */
+        for ( auto it : recv_gids ) kept_gids.push_back( it );
+        //kept_gids.reserve( kept_gids.size() + recv_gids.size() );
+        //for ( size_t i = 0; i < recv_gids.size(); i ++ )
+        //  kept_gids.push_back( recv_gids[ i ] );
         
 
       }
 			else
 			{
         tree::Node<SETUP, NODEDATA>::Split();
-		  } /** end if ( child ) */
-      
+		  }
       /** Synchronize within local communicator */
       mpi::Barrier( comm );
-
     }; /** end Split() */
 
-
-
-    mpi::Comm GetComm() { return comm; };
-
-    int GetCommSize() { return size; };
-    
-    int GetCommRank() { return rank; };
 
     /** @brief Support dependency analysis. */
     void DependOnChildren( Task *task )
@@ -666,62 +588,35 @@ class Node : public tree::Node<SETUP, NODEDATA>
       task->TryEnqueue();
     }; /** end DependOnParent() */
 
-    void Print()
-    {
-      int global_rank = 0;
-      mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
-      //printf( "grank %d l %lu lrank %d offset %lu n %lu\n", 
-      //    global_rank, this->l, this->rank, this->offset, this->n );
-      //hmlp_print_binary( this->morton );
-    };
 
+    /** Preserve for debugging. */
+    void Print() {};
+
+    /** Return local MPI communicator. */
+    mpi::Comm GetComm() { return comm; };
+    /** Return local MPI size. */
+    int GetCommSize() { return size; };
+    /** Return local MPI rank. */
+    int GetCommRank() { return rank; };
+
+    /** Distributed tree nodes only have one child. */
     Node *child = NULL;
 
   private:
 
-    /** initialize with all processes */
+    /** Initialize with all processes. */
     mpi::Comm comm = MPI_COMM_WORLD;
 
-    /** mpi status */
+    /** MPI status. */
     mpi::Status status;
 
-    /** subcommunicator size */
+    /** Subcommunicator size. */
     int size = 1;
 
-    /** subcommunicator rank */
+    /** Subcommunicator rank. */
     int rank = 0;
 
 }; /** end class Node */
-
-
-
-
-
-
-/**
- *
- */ 
-template<typename SETUP, typename NODEDATA>
-class LetNode : public tree::Node<SETUP, NODEDATA>
-{
-  public:
-
-    /** inherit all parameters from hmlp::tree::Node */
-
-    LetNode( SETUP *setup, size_t morton )
-      : tree::Node<SETUP, NODEDATA>
-        ( setup, (size_t)0, (size_t)1, NULL, NULL, NULL ) 
-    {
-      this->morton = morton;
-    };
-
-  private:
-
-
-}; /** end class LetNode */
-
-
-
 
 
 
@@ -778,10 +673,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
     
     /** (Default) Tree constructor */ 
-    Tree() : tree::Tree<SETUP, NODEDATA>::Tree()
+    Tree( mpi::Comm comm ) : tree::Tree<SETUP, NODEDATA>::Tree()
     {
-			/** Create a new comm_world for */
-      mpi::Comm_dup( MPI_COMM_WORLD, &comm );
+      this->comm = comm;
 			/** Get size and rank */
       mpi::Comm_size( comm, &size );
       mpi::Comm_rank( comm, &rank );
@@ -815,7 +709,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
      */ 
     void CleanUp()
     {
-      /** free all local tree nodes */
+      /** Free all local tree nodes */
       if ( this->treelist.size() )
       {
         for ( size_t i = 0; i < this->treelist.size(); i ++ )
@@ -823,7 +717,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
       }
       this->treelist.clear();
 
-      /** free all distributed tree nodes */
+      /** Free all distributed tree nodes */
       if ( mpitreelists.size() )
       {
         for ( size_t i = 0; i < mpitreelists.size() - 1; i ++ )
@@ -831,28 +725,13 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
       }
       mpitreelists.clear();
 
-      ///** free all local essential tree nodes */
-      //if ( lettreelist.size() )
-      //{
-      //  for ( size_t i = 0; i < lettreelist.size(); i ++ )
-      //    if ( lettreelist[ i ] ) delete lettreelist[ i ];
-      //}
-      //lettreelist.clear();
-
     }; /** end CleanUp() */
 
-	
 
-
-
-
-
-
-
-    /** @breif Allocate distributed tree node. */
+    /** @breif Allocate all distributed tree nodse. */
     void AllocateNodes( vector<size_t> &gids )
     {
-      /** Decide the number of distributed tree level according to mpi size. */
+      /** Decide the depth of the distributed tree according to mpi size. */
       auto mycomm  = comm;
       int mysize  = size;
       int myrank  = rank;
@@ -892,7 +771,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
         /** Create the sibling in type NODE but not MPINODE. */
         child->sibling = new NODE( (size_t)0 ); // Node morton is computed later.
         /** Setup parent's children */
-        parent->SetupChild( child );
+        //parent->SetupChild( child );
+        parent->kids[ 0 ] = child;
+        parent->child = child;
         /** Push to the mpi treelist */
         mpitreelists.push_back( child );
       }
@@ -930,7 +811,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
 
 
-    /** */
+    /** Perform approximate kappa neighbor search. */
     template<typename KNNTASK>
     DistData<STAR, CBLK, pair<T, size_t>>
     AllNearestNeighbor( size_t n_tree, size_t n, size_t k,
@@ -979,7 +860,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
 
 
-      /** Metric tree partitioning */
+      /** Metric tree partitioning. */
       DistSplitTask<MPINODE> mpisplittask;
       tree::SplitTask<NODE>  seqsplittask;
       DependencyCleanUp();
@@ -1126,6 +1007,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     }; /** end TreePartition() */
 
 
+    /** Assign MortonID to each node recursively. */
     void RecursiveMorton( MPINODE *node, MortonHelper::Recursor r ) 
     {
       /** MPI Support. */ 
@@ -1196,146 +1078,11 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
 
 
-//    /** @brief Compute MortonIDs for distributed tree nodes. */ 
-//    template<size_t LEVELOFFSET=5>
-//    void Morton( MPINODE *node, size_t morton )
-//    {
-//      /** MPI Support. */ 
-//      int comm_size; mpi::Comm_size( comm, &comm_size );
-//      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
-//
-//      /** Compute the correct shift. */
-//      size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
-//
-//      if ( node->parent )
-//      {
-//        /** Compute sibling's node MortonID. */
-//        if ( morton % 2 )
-//          node->sibling->morton = ( ( morton - 1 ) << shift ) + node->l;
-//        else
-//          node->sibling->morton = ( ( morton + 1 ) << shift ) + node->l;
-//
-//        /** Add sibling and its morton to the map */
-//        //(*node->morton2node)[ node->sibling->morton ] = node->sibling;
-//      }
-//
-//      /** 
-//       *  Call shared memory MortonID
-//       */
-//      if ( node->GetCommSize() < 2 )
-//      {
-//        tree::Tree<SETUP, NODEDATA>::Morton( node, morton );
-//        //printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
-//        //    node->l, comm_rank, comm_size, 
-//        //    node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
-//        /**
-//         *  Exchange MortonIDs in 3-step:
-//         *
-//         *  1. Allgather leafnode MortonIDs, each rank sends num_of_leaves.
-//         *  
-//         *  2. Allgather leafnode sizes, each rank sends num_of_leaves.
-//         *
-//         *  3. Allgather gids
-//         */
-//        auto *local_root = this->treelist[ 0 ];
-//        int send_gids_size = local_root->gids.size();
-//        vector<int> recv_gids_size( comm_size );
-//        vector<int> recv_gids_disp( comm_size, 0 );
-//        vector<size_t> send_mortons( send_gids_size );
-//        vector<size_t> recv_mortons( this->n );
-//        vector<size_t> recv_gids( this->n );
-//
-//        /**
-//         *  Gather MortonIDs I own
-//         */ 
-//        for ( size_t i = 0; i < send_gids_size; i ++ )
-//        {
-//          send_mortons[ i ] = this->setup.morton[ local_root->gids[ i ] ];
-//        }
-//
-//        /**
-//         *  Recv gids_size and compute gids_disp
-//         */ 
-//        mpi::Allgather( &send_gids_size, 1, recv_gids_size.data(), 1, comm );
-//        for ( size_t p = 1; p < comm_size; p ++ )
-//        {
-//          recv_gids_disp[ p ] = recv_gids_disp[ p - 1 ] + recv_gids_size[ p - 1 ];
-//        }
-//        size_t total_gids = 0;
-//        for ( size_t p = 0; p < comm_size; p ++ ) total_gids += recv_gids_size[ p ];
-//        assert( total_gids == this->n );
-//
-//        /**
-//         *  Recv gids and MortonIDs
-//         */ 
-//        mpi::Allgatherv( local_root->gids.data(), send_gids_size, 
-//            recv_gids.data(), 
-//            recv_gids_size.data(), recv_gids_disp.data(), comm );
-//        mpi::Allgatherv( send_mortons.data(), send_gids_size, 
-//            recv_mortons.data(), 
-//            recv_gids_size.data(), recv_gids_disp.data(), comm );
-//
-//        /** 
-//         *  Update local MortonIDs
-//         */ 
-//        for ( size_t i = 0; i < recv_gids.size(); i ++ )
-//        {
-//          this->setup.morton[ recv_gids[ i ] ] = recv_mortons[ i ];
-//        }
-//      }
-//      else
-//      {
-//        /** Set the node MortonID. */
-//        node->morton = ( morton << shift ) + node->l;
-//        /** child is the left child */
-//        if ( node->GetCommRank() < node->GetCommSize() / 2 )
-//          Morton( node->child, ( morton << 1 ) + 0 );
-//        /** child is the right child */
-//        else                   
-//          Morton( node->child, ( morton << 1 ) + 1 );
-//      }
-//
-//
-//      /** Print information */
-//      //if ( node->parent )
-//      //{
-//      //  printf( "level %lu rank %d size %d morton %8lu morton2rank %d sib_morton %8lu morton2rank %d\n", 
-//      //      node->l, comm_rank, comm_size, 
-//      //      node->morton, Morton2Rank( node->morton ),
-//      //      node->sibling->morton, Morton2Rank( node->sibling->morton ) ); fflush( stdout );
-//      //}
-//      //else
-//      //{
-//      //  printf( "level %lu rank %d size %d morton %8lu morton2rank %d\n", 
-//      //      node->l, comm_rank, comm_size, 
-//      //      node->morton, Morton2Rank( node->morton ) ); fflush( stdout );
-//      //}
-//
-//    }; /** end Morton() */
-//
 
-    /**
-     *
-     *
-     */ 
-    template<size_t LEVELOFFSET=5>
+    /** */ 
     int Morton2Rank( size_t it )
     {
-      size_t filter = ( 1 << LEVELOFFSET ) - 1;
-      size_t itlevel = it & filter;
-      size_t mpilevel = 0;
-
-      size_t tmp = size;
-      while ( tmp > 1 )
-      {
-        mpilevel ++;
-        tmp /= 2;
-      }
-
-      if ( ( 1 << itlevel ) > size ) itlevel = mpilevel;
-
-      return ( it >> ( ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET ) ) << ( mpilevel - itlevel );
-
+      return MortonHelper::Morton2Rank( it, size );
     }; /** end Morton2rank() */
 
 

@@ -4,8 +4,8 @@
 /** MPI support. */
 #include <hmlp_mpi.hpp>
 /** Shared-memory Inv-GOFMM templates. */
-#include <gofmm/igofmm.hpp>
-
+#include <igofmm.hpp>
+/** Use STL and HMLP namespaces. */
 using namespace std;
 using namespace hmlp;
 
@@ -14,14 +14,6 @@ namespace hmlp
 {
 namespace mpigofmm
 {
-
-//template<typename T>
-//class DistFactor : public Factor<T>
-//{
-//  public:
-//  private:
-//}; /** end class DistFactor */
-
 
 template<typename NODE, typename T>
 class DistSetupFactorTask : public Task

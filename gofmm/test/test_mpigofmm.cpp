@@ -42,11 +42,11 @@
 #endif
 
 /** MPI support */
-#include <hmlp_mpi.hpp>
+//#include <hmlp_mpi.hpp>
 /** GOFMM templates */
 #include <gofmm_mpi.hpp>
 /** INV-GOFMM templates */
-#include <igofmm_mpi.hpp>
+//#include <igofmm_mpi.hpp>
 
 /** Use dense SPD matrices. */
 #include <containers/SPDMatrix.hpp>
@@ -63,7 +63,7 @@
 /** Use an OOC covariance matrices. */
 #include <containers/OOCCovMatrix.hpp>
 /** Use dense distributed matrices. */
-#include <containers/DistData.hpp>
+//#include <containers/DistData.hpp>
 
 
 

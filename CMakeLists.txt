@@ -287,11 +287,6 @@ if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
 endif()
 
 
-# Pthread runtime
-# ---------------------------
-# set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_PTHREAD_RUNTIME")
-
-
 # Dump analysis data to google site
 # ---------------------------
 if ($ENV{HMLP_ANALYSIS_DATA} MATCHES "true")
@@ -304,31 +299,10 @@ endif()
 set (CMAKE_C_FLAGS        "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
 set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS} -std=c++11")
 
-
-# Linking infos.
-# ---------------------------
-#if (($ENV{HMLP_USE_BLAS} MATCHES "true") OR ($ENV{HMLP_USE_VML} MATCHES "true"))
-#  if ($ENV{HMLP_USE_INTEL} MATCHES "true")
-#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
-#    include_directories ("${MKL_DIR}/include")
-#  else ($ENV{HMLP_USE_INTEL} MATCHES "true")
-#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-#  endif ()
-#endif ()
-
-#if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm"))
-#  if (DEFINED QSML_DIR)
-#    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-0.15.0 -lsymphony-cpu -lsymphonypower")
-#    #set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${QSML_DIR}/lib -lQSML-sequential-0.15.0 -lsymphony-cpu -lsymphonypower")
-#    include_directories ("${QSML_DIR}/include")
-#  endif()
-#endif()
-
-
-
 # Headers
 # ---------------------------
-include_directories ("include" "frame" "frame/containers" "frame/mpi" "frame/gofmm")
+include_directories ("include" "frame" "gofmm")
+include_directories ("frame/base" "frame/containers" "frame/mpi")
 include_directories ("kernel/reference" "kernel/${HMLP_ARCH}")
 
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
@@ -341,10 +315,8 @@ install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 
 # Library dependencies
 # ---------------------------
-if ($ENV{HMLP_USE_BLAS} MATCHES "true")
-  file (GLOB FRAME_CC_SRC    ${CMAKE_SOURCE_DIR}/frame/*.c ${CMAKE_SOURCE_DIR}/frame/external/*.c)
-endif ()
-file (GLOB FRAME_CXX_SRC     ${CMAKE_SOURCE_DIR}/frame/*.cpp)
+file (GLOB FRAME_CC_SRC      ${CMAKE_SOURCE_DIR}/frame/external/*.c)
+file (GLOB FRAME_CXX_SRC     ${CMAKE_SOURCE_DIR}/frame/base/*.cpp)
 file (GLOB FRAME_MPI_CXX_SRC ${CMAKE_SOURCE_DIR}/frame/mpi/*.cpp)
 file (GLOB FRAME_CU_SRC      ${CMAKE_SOURCE_DIR}/frame/*.cu)
 file (GLOB GOFMM_CU_SRC      ${CMAKE_SOURCE_DIR}/frame/gofmm/*.cu)
@@ -354,10 +326,8 @@ file (GLOB PACKAGE_CXX_SRC   ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
 file (GLOB PACKAGE_CU_SRC    ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
 
-#SET(CMAKE_ASM_COMPILE_OBJECT "<CMAKE_ASM_COMPILER> -o <OBJECT> <SOURCE>")
-
-
-# Build the static library.
+# Build the shared library.
+# ---------------------------
 if ($ENV{HMLP_USE_CUDA} MATCHES "true")
   cuda_add_library (hmlp SHARED ${FRAME_CC_SRC} 
     ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
@@ -366,23 +336,12 @@ else ()
   add_library (hmlp SHARED ${FRAME_CC_SRC} 
     ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
-  #if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND NOT ($ENV{HMLP_USE_INTEL} MATCHES "true"))
-  #  target_link_libraries (hmlp ${BLAS_LIBRARIES})
-  #endif ()
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 
-# add_library (dyhmlp SHARED ${FRAME_CC_SRC} ${FRAME_CXX_SRC} ${KERNEL_SRC}
-#     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
-# if (($ENV{HMLP_USE_BLAS} MATCHES "true") AND ($ENV{HMLP_USE_INTEL} MATCHES "true"))
-#   target_link_libraries (dyhmlp -mkl=parallel)
-# endif()
-
-
-
-# Build the executable files.
+# Build GOFMM executables.
 # ---------------------------
-file (GLOB TEST_CXX_SRC    ${CMAKE_SOURCE_DIR}/test/*.cpp)
+file (GLOB TEST_CXX_SRC    ${CMAKE_SOURCE_DIR}/gofmm/test/*.cpp)
 foreach( testsrc ${TEST_CXX_SRC} )
   string( REPLACE ".cpp" ".x" testexe ${testsrc} )
   get_filename_component( testexe ${testsrc} NAME_WE )
@@ -399,8 +358,14 @@ foreach( testsrc ${TEST_CXX_SRC} )
   endif()
 endforeach()
 
+# Install GOFMM shell script
+# ---------------------------
+file (GLOB GOFMM_SCRIPTS ${CMAKE_SOURCE_DIR}/gofmm/test/*.sh)
+install (FILES ${GOFMM_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
 
-## Also build the target paper artifact
+
+
+## Build paper artifacts
 # ---------------------------
 set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
 if (ARTIFACT_PATH MATCHES "sc17gofmm")
@@ -423,7 +388,7 @@ if (ARTIFACT_PATH MATCHES "sc17gofmm")
 endif()
 
 
-## Also build the sandbox
+## Build the sandbox
 # ---------------------------
 set(BUILD_SANDBOX $ENV{HMLP_BUILD_SANDBOX})
 if (BUILD_SANDBOX MATCHES "true")
@@ -459,35 +424,6 @@ if (BUILD_SANDBOX MATCHES "true")
   install(DIRECTORY ${CMAKE_SOURCE_DIR}/kernel DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
   install(DIRECTORY ${CMAKE_SOURCE_DIR}/include DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
 endif()
-
-
-
-
-# add_executable (test_dgsks_list.x ${CMAKE_SOURCE_DIR}/test/test_dgsks_list.cpp)
-# target_link_libraries(test_dgsks_list.x gsks)
-
-
-
-# Build GPU GKMX test suit
-if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  # add_executable (test_spdaskit_gpu.x ${CMAKE_SOURCE_DIR}/test/test_spdaskit_gpu.cu)
-  # target_link_libraries(test_spdaskit_gpu.x hmlp)
-  # cuda_add_cublas_to_target(test_spdaskit_gpu.x)
-endif ()
-if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-  target_link_libraries(test_gkmm_gpu.x magma)
-  target_link_libraries(test_strassen_gpu.x magma)
-endif()
-
-
-
-
-
-
-# Install shell script
-# ---------------------------
-file (GLOB HMLP_SCRIPTS ${CMAKE_SOURCE_DIR}/test/*.sh)
-install (FILES ${HMLP_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
 
 
 # Report

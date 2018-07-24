@@ -28,7 +28,7 @@
 #include <hmlp_runtime.hpp>
 
 /** Use matrix view to employ SuperMatrix style task parallelism. */
-#include <containers/View.hpp>
+#include <View.hpp>
 
 using namespace std;
 using namespace hmlp;

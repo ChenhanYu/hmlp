@@ -18,7 +18,6 @@
  *
  **/  
 
-
 #ifndef GOFMM_HPP
 #define GOFMM_HPP
 
@@ -27,7 +26,6 @@
 #include <future>
 #include <thread>
 #include <chrono>
-
 #include <set>
 #include <vector>
 #include <map>
@@ -53,25 +51,26 @@
 #include <hmlp_util.hpp>
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
-
-
-
-
+#include <Data.hpp>
+#include <View.hpp>
+/** Use HMLP primitives. */
 #include <primitives/lowrank.hpp>
 #include <primitives/combinatorics.hpp>
 #include <primitives/gemm.hpp>
-
+/** Use HMLP containers. */
 #include <containers/VirtualMatrix.hpp>
-#include <containers/data.hpp>
 #include <containers/SPDMatrix.hpp>
-#include <gofmm/tree.hpp>
-#include <gofmm/igofmm.hpp>
-
+/** GOFMM templates. */
+#include <tree.hpp>
+#include <igofmm.hpp>
 /** gpu related */
 #ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>
-#include <gofmm/gofmm_gpu.hpp>
+#include <gofmm_gpu.hpp>
 #endif
+/** Use STL and HMLP namespaces. */
+using namespace std;
+using namespace hmlp;
 
 
 /** by default, we use binary tree */
@@ -95,8 +94,6 @@
 #define OMPRECTASK 0
 #define OMPDAGTASK 0
 
-using namespace std;
-using namespace hmlp;
 
 /**
  *  @breif GOFMM relies on an arbitrary distance metric that
@@ -547,9 +544,9 @@ struct centersplit
     vector<T> temp( n, 0.0 );
 
     /** Collecting column samples of K. */
-    vector<size_t> column_samples( n_centroid_samples );
-    for ( size_t j = 0; j < n_centroid_samples; j ++ )
-      column_samples[ j ] = gids[ j ];
+    auto column_samples = combinatorics::SampleWithoutReplacement( 
+        n_centroid_samples, gids );
+
 
     /** Compute all pairwise distances. */
     auto DIC = K.Distances( this->metric, gids, column_samples );

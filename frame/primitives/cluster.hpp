@@ -6,9 +6,9 @@
 #include <hmlp.h>
 
 /** GOFMM templates */
-#include <gofmm/gofmm.hpp>
+#include <gofmm.hpp>
 
-#include <containers/data.hpp>
+#include <Data.hpp>
 #include <containers/KernelMatrix.hpp>
 #include <primitives/lanczos.hpp>
 

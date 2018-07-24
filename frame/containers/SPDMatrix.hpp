@@ -2,8 +2,8 @@
 #ifndef SPDMATRIX_HPP
 #define SPDMATRIX_HPP
 
-#include<containers/data.hpp>
-#include<containers/VirtualMatrix.hpp>
+#include<Data.hpp>
+#include<VirtualMatrix.hpp>
 
 using namespace std;
 using namespace hmlp;

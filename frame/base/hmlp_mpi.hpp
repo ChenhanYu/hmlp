@@ -278,14 +278,24 @@ class MPIObject
 {
   public:
 
-    MPIObject( mpi::Comm comm )
+    MPIObject() {};
+
+    MPIObject( mpi::Comm comm ) { AssignCommunicator( comm ); };
+
+    void AssignCommunicator( mpi::Comm &comm )
     {
       this->comm = comm;
 			mpi::Comm_dup( comm, &recvcomm );
 			mpi::Comm_dup( comm, &sendcomm );
+      mpi::Comm_size( comm, &size );
+      mpi::Comm_rank( comm, &rank );
     };
 
     mpi::Comm GetComm() { return comm; };
+
+    int GetCommSize() { return size; };
+
+    int GetCommRank() { return rank; };
 
 		mpi::Comm GetRecvComm() { return recvcomm; };
 
@@ -313,6 +323,8 @@ class MPIObject
   private:
 
     mpi::Comm comm = MPI_COMM_WORLD;
+    int size = 1;
+    int rank = 0;
 		/** This communicator is duplicated from comm */
 		mpi::Comm recvcomm;
 		/** This communicator is duplicated from comm */

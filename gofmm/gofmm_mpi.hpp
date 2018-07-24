@@ -22,24 +22,14 @@
 #ifndef GOFMM_MPI_HPP
 #define GOFMM_MPI_HPP
 
-/** Use STL future, thread, and chrono. */
-#include <future>
-#include <thread>
-#include <chrono>
-
-#include <hmlp_util.hpp>
 /** Inherit most of the classes from shared-memory GOFMM. */
-#include <gofmm/gofmm.hpp>
+#include <gofmm.hpp>
 /** Use distributed metric trees. */
 #include <tree_mpi.hpp>
+#include <igofmm_mpi.hpp>
 /** Use distributed matrices inspired by the Elemental notation. */
 #include <DistData.hpp>
-/** Use distributed median select and mergesort. */
-#include <primitives/combinatorics.hpp>
-/** Use SuperMatrix style task-based GEMM. */
-#include <primitives/gemm.hpp>
-
-
+/** Use STL and HMLP namespaces. */
 using namespace std;
 using namespace hmlp;
 
@@ -330,6 +320,7 @@ class DistTreeViewTask : public Task
 
 
 
+/** @brief Split values into two halfs accroding to the median. */ 
 template<typename T>
 vector<vector<size_t>> MedianSplit( vector<T> &values, mpi::Comm comm )
 {
@@ -404,7 +395,7 @@ vector<vector<size_t>> MedianSplit( vector<T> &values, mpi::Comm comm )
   }
 
   return split;
-};
+}; /** end MedianSplit() */
 
 
 
@@ -414,10 +405,6 @@ vector<vector<size_t>> MedianSplit( vector<T> &values, mpi::Comm comm )
  *         First compute the approximate center using subsamples.
  *         Then find the two most far away points to do the 
  *         projection.
- *
- *  @TODO  This splitter often fails to produce an even split when
- *         the matrix is sparse.
- *
  */ 
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
@@ -440,32 +427,17 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     int size; mpi::Comm_size( comm, &size );
     int rank; mpi::Comm_rank( comm, &rank );
     auto &K = *(this->Kptr);
-    //vector<vector<size_t>> split( N_SPLIT );
-
-//    /** Reduce to get the total size of gids. */
-//    int n = 0;
-//    int num_points_owned = gids.size();
-//    /** n = sum( num_points_owned ) over all MPI processes in comm */
-//    mpi::Allreduce( &num_points_owned, &n, 1, MPI_SUM, comm );
-//    /** Early return if n = 0. */
-//    if ( n == 0 ) return split;
 
     /** */
     vector<T> temp( gids.size(), 0.0 );
 
+    /** Collecting column samples of K. */
+    auto column_samples = combinatorics::SampleWithoutReplacement( 
+        this->n_centroid_samples, gids );
 
-    /** Collecting column samples of K and DCC. */
-    vector<size_t> column_samples( this->n_centroid_samples );
-    for ( size_t j = 0; j < this->n_centroid_samples; j ++ )
-    {
-      /** just use the first few gids */
-      column_samples[ j ] = gids[ j ];
-    }
-
-    /** Bcast from rank 0. */
+    /** Bcast column_samples from rank 0. */
     mpi::Bcast( column_samples.data(), column_samples.size(), 0, comm );
     K.BcastColumns( column_samples, 0, comm );
-
 
     /** Compute all pairwise distances. */
     auto DIC = K.Distances( this->metric, gids, column_samples );
@@ -532,103 +504,14 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
     /** Compute all pairwise distances. */
     auto DIQ = K.Distances( this->metric, gids, P );
 
+    /** We use relative distances (dip - diq) for clustering. */
     for ( size_t i = 0; i < temp.size(); i ++ )
       temp[ i ] = DIP[ i ] - DIQ[ i ];
 
-
-    /** parallel median select */
-//    T  median = combinatorics::Select( n / 2, temp, comm );
-//    //printf( "kic_t %lfs, a2c_t %lfs, kip_t %lfs, select_t %lfs\n", 
-//		//		kic_t, a2c_t, kip_t, select_t ); fflush( stdout );
-//
-//    //printf( "rank %d median %E\n", rank, median ); fflush( stdout );
-//
-//    vector<size_t> middle;
-//    middle.reserve( gids.size() );
-//    split[ 0 ].reserve( gids.size() );
-//    split[ 1 ].reserve( gids.size() );
-//
-//    /** TODO: Can be parallelized */
-//    for ( size_t i = 0; i < gids.size(); i ++ )
-//    {
-//      auto val = temp[ i ];
-//
-//      if ( std::fabs( val - median ) < 1E-6 && !std::isinf( val ) && !std::isnan( val) )
-//      {
-//        middle.push_back( i );
-//      }
-//      else if ( val < median ) 
-//      {
-//        split[ 0 ].push_back( i );
-//      }
-//      else
-//      {
-//        split[ 1 ].push_back( i );
-//      }
-//    }
-//
-//    int nmid = 0;
-//    int nlhs = 0;
-//    int nrhs = 0;
-//    int num_mid_owned = middle.size();
-//    int num_lhs_owned = split[ 0 ].size();
-//    int num_rhs_owned = split[ 1 ].size();
-//
-//    /** nmid = sum( num_mid_owned ) over all MPI processes in comm */
-//    mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
-//    mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
-//    mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
-//
-//    //printf( "rank %d [ %d %d %d ] global [ %d %d %d ]\n",
-//    //    global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
-//    //    nlhs, nmid, nrhs ); fflush( stdout );
-//
-//    /** assign points in the middle to left or right */
-//    if ( nmid )
-//    {
-//      int nlhs_required, nrhs_required;
-//
-//			if ( nlhs > nrhs )
-//			{
-//        nlhs_required = ( n - 1 ) / 2 + 1 - nlhs;
-//        nrhs_required = nmid - nlhs_required;
-//			}
-//			else
-//			{
-//        nrhs_required = ( n - 1 ) / 2 + 1 - nrhs;
-//        nlhs_required = nmid - nrhs_required;
-//			}
-//
-//      assert( nlhs_required >= 0 );
-//      assert( nrhs_required >= 0 );
-//
-//      /** now decide the portion */
-//			double lhs_ratio = ( (double)nlhs_required ) / nmid;
-//      int nlhs_required_owned = num_mid_owned * lhs_ratio;
-//      int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
-//
-//
-//      //printf( "rank %d [ %d %d ] [ %d %d ]\n",
-//      //  global_rank, 
-//      //	nlhs_required_owned, nlhs_required,
-//      //	nrhs_required_owned, nrhs_required ); fflush( stdout );
-//
-//
-//      assert( nlhs_required_owned >= 0 );
-//      assert( nrhs_required_owned >= 0 );
-//
-//      for ( size_t i = 0; i < middle.size(); i ++ )
-//      {
-//        if ( i < nlhs_required_owned ) split[ 0 ].push_back( middle[ i ] );
-//        else                           split[ 1 ].push_back( middle[ i ] );
-//      }
-//    };
-
-
+    /** Split gids into two clusters using median split. */
     auto split = MedianSplit( temp, comm );
 
-
-    /** perform P2P redistribution */
+    /** Perform P2P redistribution. */
     K.RedistributeWithPartner( gids, split[ 0 ], split[ 1 ], comm );
 
     return split;
@@ -651,7 +534,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     return gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>::operator() ( gids );
   };
 
-  /** Distributed operator */
+  /** Distributed operator. */
   inline vector<vector<size_t> > operator() ( vector<size_t>& gids, mpi::Comm comm ) const 
   {
     /** All assertions */
@@ -665,7 +548,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
     mpi::Comm_size( MPI_COMM_WORLD, &global_size );
     SPDMATRIX &K = *(this->Kptr);
-    vector<vector<size_t>> split( N_SPLIT );
+    //vector<vector<size_t>> split( N_SPLIT );
 
     if ( size == global_size )
     {
@@ -685,7 +568,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     mpi::Allreduce( &num_points_owned, &n, 1, MPI_INT, MPI_SUM, comm );
 
     /** Early return */
-    if ( n == 0 ) return split;
+    //if ( n == 0 ) return split;
 
     /** Randomly select two points p and q */
     size_t gidf2c, gidf2f;
@@ -723,119 +606,15 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     auto DIP = K.Distances( this->metric, gids, P );
     auto DIQ = K.Distances( this->metric, gids, Q );
 
+    /** We use relative distances (dip - diq) for clustering. */
     for ( size_t i = 0; i < temp.size(); i ++ )
       temp[ i ] = DIP[ i ] - DIQ[ i ];
 
+    /** Split gids into two clusters using median split. */
+    auto split = MedianSplit( temp, comm );
 
-    /** compute all2leftright (projection i.e. dip - diq) */
-    T  median = hmlp::combinatorics::Select( n / 2, temp, comm );
-
-    vector<size_t> middle;
-    middle.reserve( gids.size() );
-    split[ 0 ].reserve( gids.size() );
-    split[ 1 ].reserve( gids.size() );
-
-    /** TODO: Can be parallelized */
-    for ( size_t i = 0; i < gids.size(); i ++ )
-    {
-      auto val = temp[ i ];
-
-      if ( std::fabs( val - median ) < 1E-6 && !std::isinf( val ) && !std::isnan( val) )
-      {
-        middle.push_back( i );
-      }
-      else if ( val < median ) 
-      {
-        split[ 0 ].push_back( i );
-      }
-      else
-      {
-        split[ 1 ].push_back( i );
-      }
-    }
-
-    int nmid = 0;
-    int nlhs = 0;
-    int nrhs = 0;
-    int num_mid_owned = middle.size();
-    int num_lhs_owned = split[ 0 ].size();
-    int num_rhs_owned = split[ 1 ].size();
-
-    /** nmid = sum( num_mid_owned ) over all MPI processes in comm */
-    mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
-    mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
-    mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
-
-    mpi::Barrier( comm );
-    //if ( rank == 0 )
-    //{
-      printf( "rank %d [ %d %d %d ] global [ %d %d %d ] median %E\n",
-          global_rank, num_lhs_owned, num_mid_owned, num_rhs_owned,
-          nlhs, nmid, nrhs, median ); fflush( stdout );
-      fflush( stdout );
-    //}
-
-
-    /** assign points in the middle to left or right */
-    if ( nmid )
-    {
-      int nlhs_required, nrhs_required;
-
-			if ( nlhs > nrhs )
-			{
-        nlhs_required = ( n - 1 ) / 2 + 1 - nlhs;
-        nrhs_required = nmid - nlhs_required;
-			}
-			else
-			{
-        nrhs_required = ( n - 1 ) / 2 + 1 - nrhs;
-        nlhs_required = nmid - nrhs_required;
-			}
-
-      assert( nlhs_required >= 0 );
-      assert( nrhs_required >= 0 );
-
-      /** Now decide the portion */
-			double lhs_ratio = ( (double)nlhs_required ) / nmid;
-      int nlhs_required_owned = num_mid_owned * lhs_ratio;
-      int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
-
-
-      printf( "rank %d [ %d %d ] [ %d %d ]\n",
-        global_rank, 
-				nlhs_required_owned, nlhs_required,
-				nrhs_required_owned, nrhs_required ); fflush( stdout );
-
-
-      assert( nlhs_required_owned >= 0 );
-      assert( nrhs_required_owned >= 0 );
-
-      for ( size_t i = 0; i < middle.size(); i ++ )
-      {
-        if ( i < nlhs_required_owned ) 
-          split[ 0 ].push_back( middle[ i ] );
-        else                           
-          split[ 1 ].push_back( middle[ i ] );
-      }
-    };
-
-    //mpi::Barrier( comm );
-    //if ( rank == 0 )
-    //{
-    //  printf( "rank %2d Begin  RedistributeWithPartner lhr %lu rhs %lu\n", 
-    //      global_rank, split[ 0 ].size(), split[ 1 ].size() ); 
-    //  fflush( stdout );
-    //}
-
-    /** Perform P2P redistribution */
+    /** Perform P2P redistribution. */
     K.RedistributeWithPartner( gids, split[ 0 ], split[ 1 ], comm );
-
-    //mpi::Barrier( comm );
-    //if ( rank == 0 )
-    //{
-    //  printf( "rank %2d Finish RedistributeWithPartner\n", global_rank ); 
-    //  fflush( stdout );
-    //}
 
     return split;
   };
@@ -4386,7 +4165,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   /** Iterative all nearnest-neighbor (ANN). */
   const size_t n_iter = 20;
   pair<T, size_t> initNN( numeric_limits<T>::max(), n );
-  mpitree::Tree<RKDTSETUP, DATA> rkdt;
+  mpitree::Tree<RKDTSETUP, DATA> rkdt( MPI_COMM_WORLD );
   rkdt.setup.FromConfiguration( config, K, rkdtsplitter, NN_cblk, X_cblk );
   beg = omp_get_wtime();
   gofmm::NeighborsTask<RKDTNODE, T> knntask;
@@ -4397,7 +4176,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 
 
   /** Initialize metric ball tree using approximate center split. */
-  auto *tree_ptr = new mpitree::Tree<SETUP, DATA>();
+  auto *tree_ptr = new mpitree::Tree<SETUP, DATA>( MPI_COMM_WORLD );
 	auto &tree = *tree_ptr;
 
 	/** Global configuration for the metric tree. */

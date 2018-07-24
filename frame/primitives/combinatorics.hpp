@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
+#include <random>
+#include <algorithm>
 
 /** Use MPI support. */
 #include <hmlp_mpi.hpp>
@@ -17,6 +19,23 @@ namespace hmlp
 namespace combinatorics
 {
 
+
+template<typename T>
+vector<T> SampleWithoutReplacement( int l, vector<T> v )
+{
+  if ( l >= v.size() ) return v;
+  random_device rd;
+  std::mt19937 generator( rd() );
+  shuffle( v.begin(), v.end(), generator );
+  vector<T> ret( l );
+  for ( int i = 0; i < l; i ++ ) ret[ i ] = v[ i ];
+  return ret;
+}; /** end SampleWithoutReplacement() */
+
+
+
+
+
 #ifdef HMLP_MIC_AVX512
 /** use hbw::allocator for Intel Xeon Phi */
 template<class T, class Allocator = hbw::allocator<T> >
@@ -27,7 +46,7 @@ template<class T, class Allocator = thrust::system::cuda::experimental::pinned_a
 /** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >
 #endif
-std::vector<T> Sum( size_t d, size_t n, std::vector<T, Allocator> &X, std::vector<size_t> &gids )
+vector<T> Sum( size_t d, size_t n, vector<T, Allocator> &X, vector<size_t> &gids )
 {
   bool do_general_stride = ( gids.size() == n );
 
@@ -70,19 +89,18 @@ template<class T, class Allocator = thrust::system::cuda::experimental::pinned_a
 /** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >
 #endif
-std::vector<T> Sum( size_t d, size_t n, std::vector<T, Allocator> &X,
-    hmlp::mpi::Comm comm )
+vector<T> Sum( size_t d, size_t n, vector<T, Allocator> &X, mpi::Comm comm )
 {
   size_t num_points_owned = X.size() / d;
 
   /** gids */
-  std::vector<std::size_t> dummy_gids;
+  vector<size_t> dummy_gids;
 
   /** local sum */
   auto local_sum = Sum( d, num_points_owned, X, dummy_gids );
 
   /** total sum */
-  std::vector<T> total_sum( d, 0 );
+  vector<T> total_sum( d, 0 );
 
   /** Allreduce */
   hmlp::mpi::Allreduce(

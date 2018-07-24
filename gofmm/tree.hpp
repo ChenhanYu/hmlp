@@ -21,19 +21,31 @@
 #ifndef TREE_HPP
 #define TREE_HPP
 
+
 #include <assert.h>
 #include <typeinfo>
+#include <type_traits>
 #include <algorithm>
+#include <functional>
 #include <set>
 #include <vector>
 #include <deque>
 #include <iostream>
 #include <random>
-#include <hmlp.h>
+#include <cstdint>
 
+
+
+
+/** Use HMLP related support. */
+#include <hmlp.h>
 #include <hmlp_runtime.hpp>
-#include <containers/data.hpp>
+#include <Data.hpp>
+/** Use HMLP primitives. */
 #include <primitives/combinatorics.hpp>
+/** Use STL and HMLP namespaces. */
+using namespace std;
+using namespace hmlp;
 
 #define REPORT_ANN_STATUS 0
 
@@ -43,8 +55,6 @@
 bool has_uneven_split = false;
 
 
-using namespace std;
-using namespace hmlp;
 
 
 namespace hmlp
@@ -74,7 +84,7 @@ class MortonHelper
     static size_t MortonID( Recursor r )
     {
       /** Compute the correct shift. */
-      size_t shift = ( 1 << LEVELOFFSET ) - r.second + LEVELOFFSET;
+      size_t shift = Shift( r.second );
       /** Append the depth of the tree. */
       return ( r.first << shift ) + r.second;
     };
@@ -82,20 +92,25 @@ class MortonHelper
     static size_t SiblingMortonID( Recursor r )
     {
       /** Compute the correct shift. */
-      size_t shift = ( 1 << LEVELOFFSET ) - r.second + LEVELOFFSET;
+      size_t shift = Shift( r.second );
+      /** Append the depth of the tree. */
       if ( r.first % 2 )
         return ( ( r.first - 1 ) << shift ) + r.second;
       else
         return ( ( r.first + 1 ) << shift ) + r.second;
     };
 
-    //static size_t MortonID( size_t recursive_morton, size_t depth )
-    //{
-    //  /** Compute the correct shift. */
-    //  size_t shift = ( 1 << LEVELOFFSET ) - depth + LEVELOFFSET;
-    //  /** Append the depth of the tree. */
-    //  return ( recursive_morton << shift ) + depth;
-    //};
+    /** @brief return the MPI rank that owns it. */
+    static int Morton2Rank( size_t it, int size )
+    {
+      size_t itdepth = Depth( it );
+      size_t mpidepth = 0;
+      while ( size >>= 1 ) mpidepth ++;
+      if ( itdepth > mpidepth ) itdepth = mpidepth;
+      size_t itshift = Shift( itdepth );
+      return ( it >> itshift ) << ( mpidepth - itdepth );
+    }; /** end Morton2rank() */
+
 
     /**
      *  @brief Check if ``it'' is ``me'''s ancestor by checking two facts.
@@ -110,10 +125,9 @@ class MortonHelper
      */ 
     static bool IsMyParent( size_t me, size_t it )
     {
-      size_t filter = ( 1 << LEVELOFFSET ) - 1;
-      size_t itlevel = it & filter;
-      size_t mylevel = me & filter;
-      size_t itshift = ( 1 << LEVELOFFSET ) - itlevel + LEVELOFFSET;
+      size_t itlevel = Depth( it );
+      size_t mylevel = Depth( me );
+      size_t itshift = Shift( itlevel );
       bool is_my_parent = !( ( me ^ it ) >> itshift ) && ( itlevel <= mylevel );
     #ifdef DEBUG_TREE
       hmlp_print_binary( me );
@@ -136,6 +150,17 @@ class MortonHelper
 
 
   private:
+
+    static size_t Depth( size_t it ) 
+    {
+      size_t filter = ( 1 << LEVELOFFSET ) - 1;
+      return it & filter;
+    }; /** end Depth() */
+
+    static size_t Shift( size_t depth )
+    {
+      return ( 1 << LEVELOFFSET ) - depth + LEVELOFFSET;
+    }; /** end Shift() */
 
     const static int LEVELOFFSET = 5;
 

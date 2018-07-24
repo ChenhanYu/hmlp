@@ -5,7 +5,7 @@
 #include <functional>
 
 #include <hmlp.h>
-#include <containers/data.hpp>
+#include <Data.hpp>
 #include <containers/KernelMatrix.hpp>
 
 namespace hmlp

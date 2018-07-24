@@ -21,7 +21,7 @@
 
 
 
-#include <gofmm/gofmm.hpp>
+#include <gofmm.hpp>
 
 using namespace std;
 using namespace hmlp;
