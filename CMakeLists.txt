@@ -76,8 +76,13 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
-  # try to detect and link BLAS/LAPACK
+  # Try to detect and link BLAS/LAPACK
   if ($ENV{HMLP_USE_BLAS} MATCHES "true")
+
+		if ( APPLE )
+			set (BLAS_DIR "/usr/lib/" )
+			set (LAPACK_DIR "/usr/lib/" )
+		endif()
 
     find_package (BLAS REQUIRED)
     find_package (LAPACK REQUIRED)
