@@ -322,7 +322,7 @@ class DistTreeViewTask : public Task
 
 /** @brief Split values into two halfs accroding to the median. */ 
 template<typename T>
-vector<vector<size_t>> MedianSplit( vector<T> &values, mpi::Comm comm )
+vector<vector<size_t>> DistMedianSplit( vector<T> &values, mpi::Comm comm )
 {
   int n = 0;
   int num_points_owned = values.size();
@@ -437,7 +437,7 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
     /** Bcast column_samples from rank 0. */
     mpi::Bcast( column_samples.data(), column_samples.size(), 0, comm );
-    K.BcastColumns( column_samples, 0, comm );
+    K.BcastIndices( column_samples, 0, comm );
 
     /** Compute all pairwise distances. */
     auto DIC = K.Distances( this->metric, gids, column_samples );
@@ -473,7 +473,7 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
     /** Collecting KIP and kpp */
     vector<size_t> P( 1, gidf2c );
-    K.BcastColumns( P, max_pair.key, comm );
+    K.BcastIndices( P, max_pair.key, comm );
 
     /** Compute all pairwise distances. */
     auto DIP = K.Distances( this->metric, gids, P );
@@ -499,7 +499,7 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
     /** Collecting KIQ and kqq */
     vector<size_t> Q( 1, gidf2f );
-    K.BcastColumns( Q, max_pair.key, comm );
+    K.BcastIndices( Q, max_pair.key, comm );
 
     /** Compute all pairwise distances. */
     auto DIQ = K.Distances( this->metric, gids, P );
@@ -509,10 +509,26 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
       temp[ i ] = DIP[ i ] - DIQ[ i ];
 
     /** Split gids into two clusters using median split. */
-    auto split = MedianSplit( temp, comm );
+    auto split = DistMedianSplit( temp, comm );
 
     /** Perform P2P redistribution. */
-    K.RedistributeWithPartner( gids, split[ 0 ], split[ 1 ], comm );
+    mpi::Status status;
+    vector<size_t> sent_gids;
+    int partner = ( rank + size / 2 ) % size;
+    if ( rank < size / 2 )
+    {
+      for ( auto it : split[ 1 ] ) 
+        sent_gids.push_back( gids[ it ] );
+      K.SendIndices( sent_gids, partner, comm );
+      K.RecvIndices( partner, comm, &status );
+    }
+    else
+    {
+      for ( auto it : split[ 0 ] ) 
+        sent_gids.push_back( gids[ it ] );
+      K.RecvIndices( partner, comm, &status );
+      K.SendIndices( sent_gids, partner, comm );
+    }
 
     return split;
   };
@@ -589,7 +605,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     /** Bcast gidf2c from the rank that has the most gids */
     mpi::Bcast( &gidf2c, 1, max_pair.key, comm );
     vector<size_t> P( 1, gidf2c );
-    K.BcastColumns( P, max_pair.key, comm );
+    K.BcastIndices( P, max_pair.key, comm );
 
     /** Choose the second MPI rank */
     if ( rank == max_pair.key ) local_max_pair.val = 0;
@@ -600,7 +616,7 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     /** Bcast gidf2c from the rank that has the most gids */
     mpi::Bcast( &gidf2f, 1, max_pair.key, comm );
     vector<size_t> Q( 1, gidf2f );
-    K.BcastColumns( Q, max_pair.key, comm );
+    K.BcastIndices( Q, max_pair.key, comm );
 
 
     auto DIP = K.Distances( this->metric, gids, P );
@@ -611,10 +627,26 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
       temp[ i ] = DIP[ i ] - DIQ[ i ];
 
     /** Split gids into two clusters using median split. */
-    auto split = MedianSplit( temp, comm );
+    auto split = DistMedianSplit( temp, comm );
 
     /** Perform P2P redistribution. */
-    K.RedistributeWithPartner( gids, split[ 0 ], split[ 1 ], comm );
+    mpi::Status status;
+    vector<size_t> sent_gids;
+    int partner = ( rank + size / 2 ) % size;
+    if ( rank < size / 2 )
+    {
+      for ( auto it : split[ 1 ] ) 
+        sent_gids.push_back( gids[ it ] );
+      K.SendIndices( sent_gids, partner, comm );
+      K.RecvIndices( partner, comm, &status );
+    }
+    else
+    {
+      for ( auto it : split[ 0 ] ) 
+        sent_gids.push_back( gids[ it ] );
+      K.RecvIndices( partner, comm, &status );
+      K.SendIndices( sent_gids, partner, comm );
+    }
 
     return split;
   };
@@ -1750,7 +1782,7 @@ void FindNearInteractions( TREE &tree )
       } /** end pragma omp critical */
     }
   } /** end for each leaf owned leaf node in the local tree */
-  mpi::PrintProgress( "Finish FindNearInteractions ...\n", tree.comm );
+  mpi::PrintProgress( "Finish FindNearInteractions ...\n", tree.GetComm() );
 }; /** end FindNearInteractions() */
 
 
@@ -1791,8 +1823,8 @@ void SymmetrizeNearInteractions( TREE & tree )
   /** Derive type NODE from TREE. */
   using NODE = typename TREE::NODE;
   /** MPI Support */
-  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
-  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
+  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
 
   vector<vector<pair<size_t, size_t>>> sendlist( comm_size );
   vector<vector<pair<size_t, size_t>>> recvlist( comm_size );
@@ -1835,13 +1867,13 @@ void SymmetrizeNearInteractions( TREE & tree )
     } /** end pragma omp critical*/
   }; /** end pargma omp parallel */
 
-  //mpi::Barrier( tree.comm );
+  //mpi::Barrier( tree.GetComm() );
   //printf( "rank %d finish first part\n", comm_rank ); fflush( stdout );
 
 
 
   /** Alltoallv */
-  mpi::AlltoallVector( sendlist, recvlist, tree.comm );
+  mpi::AlltoallVector( sendlist, recvlist, tree.GetComm() );
 
 
   //printf( "rank %d finish AlltoallVector\n", comm_rank ); fflush( stdout );
@@ -1870,8 +1902,8 @@ void SymmetrizeNearInteractions( TREE & tree )
       }
     }; /** end pargma omp parallel for */
   }
-  mpi::Barrier( tree.comm );
-  mpi::PrintProgress( "Finish SymmetrizeNearInteractions ...\n", tree.comm ); 
+  mpi::Barrier( tree.GetComm() );
+  mpi::PrintProgress( "Finish SymmetrizeNearInteractions ...\n", tree.GetComm() ); 
 }; /** end SymmetrizeNearInteractions() */
 
 
@@ -1881,8 +1913,8 @@ void SymmetrizeFarInteractions( TREE & tree )
   /** Derive type NODE from TREE. */
   using NODE = typename TREE::NODE;
   /** MPI Support. */
-  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
-  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
+  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
 
   vector<vector<pair<size_t, size_t>>> sendlist( comm_size );
   vector<vector<pair<size_t, size_t>>> recvlist( comm_size );
@@ -1967,7 +1999,7 @@ void SymmetrizeFarInteractions( TREE & tree )
   }
 
   /** Alltoallv */
-  mpi::AlltoallVector( sendlist, recvlist, tree.comm );
+  mpi::AlltoallVector( sendlist, recvlist, tree.GetComm() );
 
   /** Loop over queries */
   for ( int p = 0; p < comm_size; p ++ )
@@ -1996,8 +2028,8 @@ void SymmetrizeFarInteractions( TREE & tree )
     } /** end pargma omp parallel for */
   }
 
-  mpi::Barrier( tree.comm );
-  mpi::PrintProgress( "Finish SymmetrizeFarInteractions ...\n", tree.comm ); 
+  mpi::Barrier( tree.GetComm() );
+  mpi::PrintProgress( "Finish SymmetrizeFarInteractions ...\n", tree.GetComm() ); 
 }; /** end SymmetrizeFarInteractions() */
 
 
@@ -2023,8 +2055,8 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
   /** Derive type T from TREE. */
   using T = typename TREE::T;
   /** MPI Support. */
-  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
-  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
+  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
 
   /** Interaction set per rank in MortonID. */
   vector<set<size_t>> lists( comm_size );
@@ -2079,7 +2111,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
     }
 
     /** Use buffer recvlist to catch Alltoallv results. */
-    mpi::AlltoallVector( tree.NearSentToRank, recvlist, tree.comm );
+    mpi::AlltoallVector( tree.NearSentToRank, recvlist, tree.GetComm() );
 
     /** Cast vector of vectors to vector of maps */
     #pragma omp parallel for
@@ -2159,7 +2191,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
 
 
     /** Use buffer recvlist to catch Alltoallv results. */
-    mpi::AlltoallVector( tree.FarSentToRank, recvlist, tree.comm );
+    mpi::AlltoallVector( tree.FarSentToRank, recvlist, tree.GetComm() );
 
     /** Cast vector of vectors to vector of maps */
     #pragma omp parallel for
@@ -2168,7 +2200,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
         tree.FarRecvFromRank[ p ][ recvlist[ p ][ i ] ] = i;
   }
 
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
 }; /** BuildInteractionListPerRank() */
 
 
@@ -2176,8 +2208,8 @@ template<typename TREE>
 pair<double, double> NonCompressedRatio( TREE &tree )
 {
   /** Tree MPI communicator */
-  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
-  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
+  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
 
   /** Use double for accumulation. */
   double ratio_n = 0.0;
@@ -2228,8 +2260,8 @@ pair<double, double> NonCompressedRatio( TREE &tree )
 
   /** Allreduce total evaluations from all MPI processes. */
   pair<double, double> ret( 0, 0 );
-  mpi::Allreduce( &ratio_n, &(ret.first),  1, MPI_SUM, tree.comm );
-  mpi::Allreduce( &ratio_f, &(ret.second), 1, MPI_SUM, tree.comm );
+  mpi::Allreduce( &ratio_n, &(ret.first),  1, MPI_SUM, tree.GetComm() );
+  mpi::Allreduce( &ratio_f, &(ret.second), 1, MPI_SUM, tree.GetComm() );
 
   return ret;
 };
@@ -2661,8 +2693,8 @@ void ExchangeLET( TREE &tree, string option )
   /** Derive type T from TREE. */
   using T = typename TREE::T;
   /** MPI Support. */
-  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
-  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
+  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
 
   /** Buffers for sizes and skeletons */
   vector<vector<size_t>> sendsizes( comm_size );
@@ -2692,18 +2724,18 @@ void ExchangeLET( TREE &tree, string option )
   }
 
   /** Alltoallv */
-  mpi::AlltoallVector( sendsizes, recvsizes, tree.comm );
+  mpi::AlltoallVector( sendsizes, recvsizes, tree.GetComm() );
   if ( !option.compare( string( "skelgids" ) ) ||
        !option.compare( string( "leafgids" ) ) )
   {
     auto &K = *tree.setup.K;
-    mpi::AlltoallVector( sendskels, recvskels, tree.comm );
-    K.RequestColumns( recvskels );
+    mpi::AlltoallVector( sendskels, recvskels, tree.GetComm() );
+    K.RequestIndices( recvskels );
   }
   else
   {
     double beg = omp_get_wtime();
-    mpi::AlltoallVector( sendbuffs, recvbuffs, tree.comm );
+    mpi::AlltoallVector( sendbuffs, recvbuffs, tree.GetComm() );
     double a2av_time = omp_get_wtime() - beg;
     if ( comm_rank == 0 ) printf( "a2av_time %lfs\n", a2av_time );
   }
@@ -2737,8 +2769,8 @@ template<typename T, typename TREE>
 void AsyncExchangeLET( TREE &tree, string option )
 {
   /** MPI */
-  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
-  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
+  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
 
   /** Create sending tasks. */
   for ( int p = 0; p < comm_size; p ++ )
@@ -2800,8 +2832,8 @@ void AsyncExchangeLET( TREE &tree, string option )
 template<typename T, typename TREE>
 void ExchangeNeighbors( TREE &tree )
 {
-  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
-  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
+  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
 
   /** Alltoallv buffers */
   vector<vector<size_t>> send_buff( comm_size );
@@ -2835,9 +2867,9 @@ void ExchangeNeighbors( TREE &tree )
 
   /** Redistribute K */
   auto &K = *tree.setup.K;
-  K.RequestColumns( send_buff );
+  K.RequestIndices( send_buff );
 
-  mpi::PrintProgress( "Finish ExchangeNeighbors ...\n", tree.comm );
+  mpi::PrintProgress( "Finish ExchangeNeighbors ...\n", tree.GetComm() );
 }; /** end ExchangeNeighbors() */
 
 
@@ -3410,7 +3442,7 @@ void DistSkeletonKIJ( NODE *node )
       /** Receive rskel from my sibling. */
       mpi::RecvVector( rskel, size / 2, 10, comm, &status );
       /** Correspondingly, we need to redistribute the matrix K. */
-      K.RecvColumns( size / 2, comm, &status );
+      K.RecvIndices( size / 2, comm, &status );
       /** Concatinate [ lskels, rskels ]. */
       candidate_cols.insert( candidate_cols.end(), rskel.begin(), rskel.end() );
 			/** Use two times of skeletons */
@@ -3431,7 +3463,7 @@ void DistSkeletonKIJ( NODE *node )
       mpi::RecvVector( recv_rsnids, size / 2, 30, comm, &status );
       mpi::RecvVector( recv_rpnids, size / 2, 40, comm, &status );
       /** Correspondingly, we need to redistribute the matrix K. */
-      K.RecvColumns( size / 2, comm, &status );
+      K.RecvIndices( size / 2, comm, &status );
 
 
       /** Merge snids and update the smallest distance. */
@@ -3461,7 +3493,7 @@ void DistSkeletonKIJ( NODE *node )
       /** Send rskel to rank 0. */
       mpi::SendVector( child->data.skels, 0, 10, comm );
       /** Correspondingly, we need to redistribute the matrix K. */
-      K.SendColumns( child->data.skels, 0, comm );
+      K.SendIndices( child->data.skels, 0, comm );
 
       /** Gather rsnids */
       auto &rsnids = node->child->data.snids;
@@ -3495,7 +3527,7 @@ void DistSkeletonKIJ( NODE *node )
 
 
       /** Correspondingly, we need to redistribute the matrix K. */
-      K.SendColumns( send_rsnids, 0, comm );
+      K.SendIndices( send_rsnids, 0, comm );
     }
 
 		/** Bcast nsamples. */
@@ -3907,8 +3939,8 @@ template<bool NNPRUNE = true, typename TREE, typename T>
 DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
 {
   /** MPI Support. */
-  int size; mpi::Comm_size( tree.comm, &size );
-  int rank; mpi::Comm_rank( tree.comm, &rank );
+  int size; mpi::Comm_size( tree.GetComm(), &size );
+  int rank; mpi::Comm_rank( tree.GetComm(), &rank );
   /** Derive type NODE and MPINODE from TREE. */
   using NODE    = typename TREE::NODE;
   using MPINODE = typename TREE::MPINODE;
@@ -3928,7 +3960,7 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
 
   /** Potentials must be in [RIDS,STAR] distribution */
   auto &gids_owned = tree.treelist[ 0 ]->gids;
-  DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, tree.comm );
+  DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, tree.GetComm() );
   potentials.setvalue( 0.0 );
 
   /** Provide pointers. */
@@ -3957,7 +3989,7 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
   mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
 
     /** Global barrier and timer */
-    mpi::Barrier( tree.comm );
+    mpi::Barrier( tree.GetComm() );
 
     //{
     //  /** Stage 1: TreeView and upward telescoping */
@@ -3968,15 +4000,15 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
     //  tree.LocaTraverseUp( seqN2Stask );
     //  tree.DistTraverseUp( mpiN2Stask );
     //  hmlp_run();
-    //  mpi::Barrier( tree.comm );
+    //  mpi::Barrier( tree.GetComm() );
     //  telescope_time = omp_get_wtime() - beg;
 
     //  /** Stage 2: LET exchange */
     //  beg = omp_get_wtime();
     //  ExchangeLET<T>( tree, string( "skelweights" ) );
-    //  mpi::Barrier( tree.comm );
+    //  mpi::Barrier( tree.GetComm() );
     //  ExchangeLET<T>( tree, string( "leafweights" ) );
-    //  mpi::Barrier( tree.comm );
+    //  mpi::Barrier( tree.GetComm() );
     //  let_exchange_time = omp_get_wtime() - beg;
 
     //  /** Stage 3: L2L */
@@ -3984,7 +4016,7 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
     //  tree.DependencyCleanUp();
     //  tree.LocaTraverseLeafs( seqL2LReducetask2 );
     //  hmlp_run();
-    //  mpi::Barrier( tree.comm );
+    //  mpi::Barrier( tree.GetComm() );
     //  direct_evaluation_time = omp_get_wtime() - beg;
 
     //  /** Stage 4: S2S and downward telescoping */
@@ -3995,14 +4027,14 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
     //  tree.DistTraverseDown( mpiS2Ntask );
     //  tree.LocaTraverseDown( seqS2Ntask );
     //  hmlp_run();
-    //  mpi::Barrier( tree.comm );
+    //  mpi::Barrier( tree.GetComm() );
     //  computeall_time = omp_get_wtime() - beg;
     //}
 
 
   /** Global barrier and timer */
   potentials.setvalue( 0.0 );
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
   
   /** Stage 1: TreeView and upward telescoping */
   beg = omp_get_wtime();
@@ -4010,7 +4042,7 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
   tree.DistTraverseDown( mpiVIEWtask );
   tree.LocaTraverseDown( seqVIEWtask );
   tree.ExecuteAllTasks();
-  mpi::PrintProgress( "Finish TreeView\n", tree.comm );
+  mpi::PrintProgress( "Finish TreeView\n", tree.GetComm() );
   /** Stage 2: redistribute weights from IDS to LET. */
   AsyncExchangeLET<T>( tree, string( "leafweights" ) );
   /** Stage 3: N2S. */
@@ -4087,13 +4119,13 @@ DistData<RBLK, STAR, T> Evaluate( TREE &tree, DistData<RBLK, STAR, T> &w_rblk )
   size_t n    = w_rblk.row();
   size_t nrhs = w_rblk.col();
   /** Redistribute weights from RBLK to RIDS. */
-  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, tree.comm );
+  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, tree.GetComm() );
   w_rids = w_rblk;
   /** Evaluation with RIDS distribution. */
   auto u_rids = Evaluate<NNPRUNE>( tree, w_rids );
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
   /** Redistribute potentials from RIDS to RBLK. */
-  DistData<RBLK, STAR, T> u_rblk( n, nrhs, tree.comm );
+  DistData<RBLK, STAR, T> u_rblk( n, nrhs, tree.GetComm() );
   u_rblk = u_rids;
   /** Return potentials in RBLK distribution. */
   return u_rblk;
@@ -4199,7 +4231,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 
 
   /** Redistribute neighbors i.e. NN[ *, CIDS ] = NN[ *, CBLK ]; */
-  DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, tree.comm );
+  DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, tree.GetComm() );
   NN = NN_cblk;
   tree.setup.NN = &NN;
   beg = omp_get_wtime();
@@ -4226,13 +4258,13 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   DistMergeFarNodesTask<true, MPINODE, T> mpiMERGEtask;
   tree.LocaTraverseUp( seqMERGEtask );
   hmlp_run();
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
   tree.DependencyCleanUp();
   tree.DistTraverseUp( mpiMERGEtask );
   hmlp_run();
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
   mergefarnodes_time += omp_get_wtime() - beg;
-  mpi::PrintProgress( "Finish MergeFarNodes ...\n", tree.comm ); 
+  mpi::PrintProgress( "Finish MergeFarNodes ...\n", tree.GetComm() ); 
 
   /**
    *  Symmetrize far interaction list:
@@ -4271,9 +4303,9 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   //tree.LocaTraverseLeafs( seqNEARKIJtask );
 
   hmlp_run();
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
   skel_time = omp_get_wtime() - beg;
-  mpi::PrintProgress( "Finish skeletonization and interpolation ...\n", tree.comm ); 
+  mpi::PrintProgress( "Finish skeletonization and interpolation ...\n", tree.GetComm() ); 
 
 
 
@@ -4282,7 +4314,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   tree.DistTraverseUp<false>( mpiGETMTXtask, mpiSKELtask );
   tree.DistTraverseUnOrdered( mpiPROJtask );
   hmlp_run();
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
   mpi_skel_time = omp_get_wtime() - beg;
 
 
@@ -4302,7 +4334,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   //tree.DistTraverseUnOrdered( mpiFARKIJtask );
   cachefarnodes_time = omp_get_wtime() - beg;
   hmlp_run();
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
   cachefarnodes_time = omp_get_wtime() - beg;
 
 
@@ -4352,7 +4384,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   /** Cleanup all w/r dependencies on tree nodes */
   tree_ptr->DependencyCleanUp();
   /** Global barrier to make sure all processes have completed */
-  mpi::Barrier( tree.comm );
+  mpi::Barrier( tree.GetComm() );
 
   return tree_ptr;
 
@@ -4363,8 +4395,8 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 template<typename TREE, typename T>
 pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials )
 {
-  int comm_rank; mpi::Comm_rank( tree.comm, &comm_rank );
-  int comm_size; mpi::Comm_size( tree.comm, &comm_size );
+  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
+  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
 
   /** ( sum of square errors, square 2-norm of true values ) */
   pair<T, T> ret( 0, 0 );
@@ -4376,7 +4408,7 @@ pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials )
   auto &J = tree.treelist[ 0 ]->gids;
 
   /** Bcast gid and its parameter to all MPI processes. */
-  K.BcastColumns( I, gid % comm_size, tree.comm );
+  K.BcastIndices( I, gid % comm_size, tree.GetComm() );
 
 	Data<T> Kab = K( I, J );
 
@@ -4390,7 +4422,7 @@ pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials )
 
   /** Allreduce u( gid, : ) = K( gid, CBLK ) * w( RBLK, : ) */
   mpi::Allreduce( loc_exact.data(), glb_exact.data(), 
-      loc_exact.size(), MPI_SUM, tree.comm );
+      loc_exact.size(), MPI_SUM, tree.GetComm() );
 
   for ( uint64_t j = 0; j < w.col(); j ++ )
   {
@@ -4419,8 +4451,8 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   /** Derive type T from TREE. */
   using T = typename TREE::T;
   /** MPI Support. */
-  int rank; mpi::Comm_rank( tree.comm, &rank );
-  int size; mpi::Comm_size( tree.comm, &size );
+  int rank; mpi::Comm_rank( tree.GetComm(), &rank );
+  int size; mpi::Comm_size( tree.GetComm(), &size );
   /** Size of right hand sides. */
   size_t n = tree.n;
   /** Shrink ntest if ntest > n. */
@@ -4429,8 +4461,8 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   vector<size_t> all_rhs( nrhs );
   for ( size_t rhs = 0; rhs < nrhs; rhs ++ ) all_rhs[ rhs ] = rhs;
   /** Input and output in RIDS and RBLK. */
-  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, tree.comm );
-  DistData<RBLK, STAR, T> u_rblk( n, nrhs, tree.comm );
+  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, tree.GetComm() );
+  DistData<RBLK, STAR, T> u_rblk( n, nrhs, tree.GetComm() );
   /** Initialize with random N( 0, 1 ). */
   w_rids.randn();
   /** Evaluate u ~ K * w. */
@@ -4456,7 +4488,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
     Data<T> potentials( (size_t)1, nrhs );
     if ( rank == ( tar % size ) ) potentials = u_rblk( vector<size_t>( 1, tar ), all_rhs );
     /** Bcast potentials to all MPI processes. */
-    mpi::Bcast( potentials.data(), nrhs, tar % size, tree.comm );
+    mpi::Bcast( potentials.data(), nrhs, tar % size, tree.GetComm() );
     /** Compare potentials with exact MATVEC. */
     auto sse_ssv = mpigofmm::ComputeError( tree, tar, potentials );
     /** Compute element-wise 2-norm error. */

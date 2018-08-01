@@ -12,6 +12,7 @@
 #include <hmlp_mpi.hpp>
 
 using namespace std;
+using namespace hmlp;
 
 
 namespace hmlp
@@ -381,6 +382,51 @@ T Select( size_t k, std::vector<T> &x, hmlp::mpi::Comm comm )
   }
 
 }; /** end Select() */
+
+
+
+template<typename T>
+vector<vector<size_t>> MedianThreeWaySplit( vector<T> &v, T tol )
+{
+  size_t n = v.size();
+  auto median = Select( n, n / 2, v );
+  /** Split indices of v into 3-way: lhs, rhs, and mid. */
+  vector<vector<size_t>> three_ways( 3 );
+  auto & lhs = three_ways[ 0 ];
+  auto & rhs = three_ways[ 1 ];
+  auto & mid = three_ways[ 2 ];
+  for ( size_t i = 0; i < v.size(); i ++ )
+  {
+    if ( std::fabs( v[ i ] - median ) < tol ) mid.push_back( i );
+    else if ( v[ i ] < median ) lhs.push_back( i );
+    else rhs.push_back( i );
+  }
+  return three_ways;
+}; /** end MedianTreeWaySplit() */
+
+
+
+/** @brief Split values into two halfs accroding to the median. */ 
+template<typename T>
+vector<vector<size_t>> MedianSplit( vector<T> &v )
+{
+  auto three_ways = MedianThreeWaySplit( v, (T)1E-6 );
+  vector<vector<size_t>> two_ways( 2 );
+  two_ways[ 0 ] = three_ways[ 0 ];
+  two_ways[ 1 ] = three_ways[ 1 ];  
+  auto & lhs = two_ways[ 0 ];
+  auto & rhs = two_ways[ 1 ];
+  auto & mid = three_ways[ 2 ];
+  for ( auto it : mid )
+  {
+    if ( lhs.size() < rhs.size() ) lhs.push_back( it );
+    else rhs.push_back( it );
+  }
+  return two_ways;
+}; /** end MedianSplit() */
+
+
+
 
 
 

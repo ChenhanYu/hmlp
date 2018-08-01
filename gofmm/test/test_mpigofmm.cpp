@@ -18,20 +18,6 @@
  *
  **/  
 
-
-
-/** Use STL, and OpenMP. */
-#include <tuple>
-#include <cmath>
-#include <algorithm>
-#include <stdio.h>
-#include <iomanip>
-#include <stdlib.h>
-#include <omp.h>
-#include <math.h>
-#include <limits>
-
-
 #ifdef HMLP_AVX512
 /** this is for hbw_malloc() and hnw_free */
 #include <hbwmalloc.h>
@@ -41,13 +27,8 @@
 #include <mkl.h>
 #endif
 
-/** MPI support */
-//#include <hmlp_mpi.hpp>
 /** GOFMM templates */
 #include <gofmm_mpi.hpp>
-/** INV-GOFMM templates */
-//#include <igofmm_mpi.hpp>
-
 /** Use dense SPD matrices. */
 #include <containers/SPDMatrix.hpp>
 /** use implicit kernel matrices (only coordinates are stored). */
@@ -62,22 +43,12 @@
 #include <containers/MLPGaussNewton.hpp>
 /** Use an OOC covariance matrices. */
 #include <containers/OOCCovMatrix.hpp>
-/** Use dense distributed matrices. */
-//#include <containers/DistData.hpp>
 
-
-
-
-
-
-#ifdef HMLP_USE_CUDA
-#include <hmlp_gpu.hpp>
-#endif
 
 #define GFLOPS 1073741824 
 #define TOLERANCE 1E-13
 
-/** By default, we use binary tree */
+/** By default, we use binary tree. */
 #define N_CHILDREN 2
 
 
@@ -85,56 +56,9 @@ using namespace std;
 using namespace hmlp;
 
 
-template<
-  typename    SPLITTER, 
-  typename    RKDTSPLITTER, 
-  typename    T, 
-  typename    SPDMATRIX>
-void test_gofmm
-( 
-  DistData<STAR, CBLK, T> *X,
-  SPDMATRIX &K, 
-  DistData<STAR, CBLK, pair<T, size_t>> &NN,
-  DistanceMetric metric,
-  SPLITTER splitter, 
-  RKDTSPLITTER rkdtsplitter,
-  size_t n, size_t m, size_t k, size_t s, 
-  double stol, double budget, size_t nrhs, 
-  mpi::Comm CommGOFMM
-)
-{
-	/** Create configuration for all user-define arguments. */
-  gofmm::Configuration<T> config( metric, n, m, k, s, stol, budget );
-
-  /** Compress matrix K. */
-  auto *tree_ptr = mpigofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
-  auto &tree = *tree_ptr;
-
-  /** Examine accuracies. */
-  SelfTesting( tree, 100, nrhs );
-
-//  /** Factorization */
-//  T lambda = 10.0;
-//  mpigofmm::DistFactorize( tree, lambda ); 
-//  mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
-
-	/** Delete tree_ptr. */
-  delete tree_ptr;
-}; /** end test_gofmm() */
 
 
-
-
-
-
-
-
-
-
-
-/**
- *  @brief Instantiate the splitters here.
- */ 
+/** @brief Instantiate the splitters here. */ 
 template<typename T, typename SPDMATRIX>
 void test_gofmm_setup
 ( 
@@ -147,47 +71,36 @@ void test_gofmm_setup
   mpi::Comm CommGOFMM
 )
 {
-  switch ( metric )
-  {
-    case GEOMETRY_DISTANCE:
-    //{
-    //  assert( X );
-		//	/** using geometric splitters from hmlp::tree */
-    //  using SPLITTER     = mpitree::centersplit<N_CHILDREN, T>;
-    //  using RKDTSPLITTER = mpitree::randomsplit<N_CHILDREN, T>;
-		//	/** GOFMM tree splitter */
-    //  SPLITTER splitter;
-    //  splitter.Coordinate = X;
-		//	/** randomized tree splitter */
-    //  RKDTSPLITTER rkdtsplitter;
-    //  rkdtsplitter.Coordinate = X;
-    //  test_gofmm<SPLITTER, RKDTSPLITTER, T>
-    //  ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs, CommGOFMM );
-    //  break;
-    //}
-    case KERNEL_DISTANCE:
-    case ANGLE_DISTANCE:
-    {
-			/** using geometric-oblivious splitters from hmlp::gofmm */
-      using SPLITTER     = mpigofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
-      using RKDTSPLITTER = mpigofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
-			/** GOFMM tree splitter */
-      SPLITTER splitter;
-      splitter.Kptr = &K;
-			splitter.metric = metric;
-			/** randomized tree splitter */
-      RKDTSPLITTER rkdtsplitter;
-      rkdtsplitter.Kptr = &K;
-			rkdtsplitter.metric = metric;
-      test_gofmm<SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs, CommGOFMM );
-      break;
-    }
-    default:
-    {
-      exit( 1 );
-    }
-  }
+  /** Use geometric-oblivious splitters. */
+  using SPLITTER     = mpigofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
+  using RKDTSPLITTER = mpigofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
+  /** GOFMM tree splitter. */
+  SPLITTER splitter;
+  splitter.Kptr = &K;
+  splitter.metric = metric;
+  /** Randomized tree splitter. */
+  RKDTSPLITTER rkdtsplitter;
+  rkdtsplitter.Kptr = &K;
+  rkdtsplitter.metric = metric;
+
+	/** Create configuration for all user-define arguments. */
+  gofmm::Configuration<T> config( metric, n, m, k, s, stol, budget );
+
+  /** Compress matrix K. */
+  auto *tree_ptr = mpigofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
+  auto &tree = *tree_ptr;
+
+  /** Examine accuracies. */
+  SelfTesting( tree, 100, nrhs );
+
+
+//  /** Factorization */
+//  T lambda = 10.0;
+//  mpigofmm::DistFactorize( tree, lambda ); 
+//  mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
+
+	/** Delete tree_ptr. */
+  delete tree_ptr;
 }; /** end test_gofmm_setup() */
 
 

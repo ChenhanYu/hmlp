@@ -504,11 +504,6 @@ class Summary
 
 
 
-
-
-
-
-
 /**
  *  @brief This the main splitter used to build the Spd-Askit tree.
  *         First compute the approximate center using subsamples.
@@ -580,61 +575,7 @@ struct centersplit
     for ( size_t i = 0; i < temp.size(); i ++ )
       temp[ i ] = DIP[ i ] - DIQ[ i ];
 
-
-
-
-
-
-    /** parallel median search */
-    T median;
-
-    if ( 1 )
-    {
-      median = hmlp::combinatorics::Select( n, n / 2, temp );
-    }
-    else
-    {
-      auto temp_copy = temp;
-      std::sort( temp_copy.begin(), temp_copy.end() );
-      median = temp_copy[ n / 2 ];
-    }
-
-    split[ 0 ].reserve( n / 2 + 1 );
-    split[ 1 ].reserve( n / 2 + 1 );
-
-    /** TODO: Can be parallelized */
-    vector<std::size_t> middle;
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      //if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
-      //else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-      //else                               middle.push_back( i );
-
-      auto val = temp[ i ];
-
-      if ( std::fabs( val - median ) < 1E-6 && !std::isinf( val ) && !std::isnan( val) )
-      {
-        middle.push_back( i );
-      }
-      else if ( val < median ) 
-      {
-        split[ 0 ].push_back( i );
-      }
-      else
-      {
-        split[ 1 ].push_back( i );
-      }
-    }
-
-    for ( size_t i = 0; i < middle.size(); i ++ )
-    {
-      if ( split[ 0 ].size() <= split[ 1 ].size() ) 
-        split[ 0 ].push_back( middle[ i ] );
-      else                                          
-        split[ 1 ].push_back( middle[ i ] );
-    }
-
-    return split;
+    return combinatorics::MedianSplit( temp );
   };
 }; /** end struct centersplit */
 
@@ -690,68 +631,10 @@ struct randomsplit
     for ( size_t i = 0; i < temp.size(); i ++ )
       temp[ i ] = DIP[ i ] - DIQ[ i ];
 
+    return combinatorics::MedianSplit( temp );
 
-
-
-
-
-
-
-    /** parallel median search */
-    T median;
-    if ( 1 )
-    {
-      median = hmlp::combinatorics::Select( n, n / 2, temp );
-    }
-    else
-    {
-      auto temp_copy = temp;
-      std::sort( temp_copy.begin(), temp_copy.end() );
-      median = temp_copy[ n / 2 ];
-    }
-
-    split[ 0 ].reserve( n / 2 + 1 );
-    split[ 1 ].reserve( n / 2 + 1 );
-
-    /** TODO: Can be parallelized */
-    std::vector<std::size_t> middle;
-		middle.reserve( n );
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      auto val = temp[ i ];
-      //if      ( temp[ i ] < median ) split[ 0 ].push_back( i );
-      //else if ( temp[ i ] > median ) split[ 1 ].push_back( i );
-      //else                           middle.push_back( i );
-
-      if ( std::fabs( val - median ) < 1E-6 && !std::isinf( val ) && !std::isnan( val) )
-      {
-        middle.push_back( i );
-      }
-      else if ( val < median ) 
-      {
-        split[ 0 ].push_back( i );
-      }
-      else
-      {
-        split[ 1 ].push_back( i );
-      }
-    }
-
-    for ( size_t i = 0; i < middle.size(); i ++ )
-    {
-      if ( split[ 0 ].size() <= split[ 1 ].size() )
-      {
-        split[ 0 ].push_back( middle[ i ] );
-      }
-      else
-      {
-        split[ 1 ].push_back( middle[ i ] );
-      }
-    }
-
-    return split;
   };
-}; // end struct randomsplit
+}; /** end struct randomsplit */
 
 
 

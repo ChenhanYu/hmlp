@@ -124,7 +124,7 @@ export HMLP_BUILD_SANDBOX=true
 
 ## Decide whether to compile the runtime system or not
 export HMLP_HAVE_RUNTIME=true
-if [ ! -f $PWD/frame/hmlp_runtime.cpp ]; then
+if [ ! -f $PWD/frame/base/hmlp_runtime.cpp ]; then
   echo "Disable HMLP runtime system"
   export HMLP_HAVE_RUNTIME=false
 fi

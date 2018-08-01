@@ -57,12 +57,10 @@ template<typename T>
 class SPDMatrixMPISupport
 {
   public:
-    virtual void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm ) {};
-    virtual void RecvColumns( int root, mpi::Comm comm, mpi::Status *status ) {};
-    virtual void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm ) {};
-    virtual void RequestColumns( vector<vector<size_t>> requ_cids ) {};
-    virtual void RedistributeWithPartner( vector<size_t> &gids, 
-        vector<size_t> &lhs, vector<size_t> &rhs, mpi::Comm comm ) {};
+    virtual void SendIndices( vector<size_t> ids, int dest, mpi::Comm comm ) {};
+    virtual void RecvIndices( int src, mpi::Comm comm, mpi::Status *status ) {};
+    virtual void BcastIndices( vector<size_t> ids, int root, mpi::Comm comm ) {};
+    virtual void RequestIndices( vector<vector<size_t>> ids ) {};
 }; /** end class SPDMatrixMPISupport */
 
 

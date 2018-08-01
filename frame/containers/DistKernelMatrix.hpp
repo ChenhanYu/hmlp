@@ -490,228 +490,93 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
       return flopcount; 
     };
 
-    void SendColumns( vector<size_t> cids, int dest, mpi::Comm comm )
+    void SendIndices( vector<size_t> ids, int dest, mpi::Comm comm )
     {
-      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
-      //printf( "rank[%d %d] SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
-      Data<TP> send_para = sources_user( all_dimensions, cids );
-      mpi::SendVector(      cids, dest, 90, comm );
-      mpi::SendVector( send_para, dest, 90, comm );
-      //printf( "rank[%d %d] end SendColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+      auto param = sources_user( all_dimensions, ids );
+      mpi::SendVector(   ids, dest, 90, comm );
+      mpi::SendVector( param, dest, 90, comm );
     };
 
-    void RecvColumns( int root, mpi::Comm comm, mpi::Status *status )
+    void RecvIndices( int src, mpi::Comm comm, mpi::Status *status )
     {
-      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
-      //printf( "rank[%d %d] RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
-      vector<size_t> cids;
-      Data<TP> recv_para;
-      mpi::RecvVector(      cids, root, 90, comm, status );
-      mpi::RecvVector( recv_para, root, 90, comm, status );
-      assert( recv_para.size() == cids.size() * dim() );
-      recv_para.resize( dim(), recv_para.size() / dim() );
+      vector<size_t> ids;
+      Data<TP> param;
+      mpi::RecvVector(   ids, src, 90, comm, status );
+      mpi::RecvVector( param, src, 90, comm, status );
+      assert( param.size() == ids.size() * dim() );
+      param.resize( dim(), param.size() / dim() );
       /** Insert into hash table */
-      sources_user.InsertColumns( cids, recv_para );
-      //printf( "rank[%d %d] end RecvColumns\n", comm_rank, this->Comm_rank() ); fflush( stdout );
+      sources_user.InsertColumns( ids, param );
     };
+
 
     /** Bcast cids from sender for K( :, cids ) evaluation. */
-    void BcastColumns( vector<size_t> cids, int root, mpi::Comm comm )
+    void BcastIndices( vector<size_t> ids, int root, mpi::Comm comm )
     {
-      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
-
+      int rank; mpi::Comm_rank( comm, &rank );
       /** Bcast size of cids from root */
-      size_t recv_size = cids.size();
+      size_t recv_size = ids.size();
       mpi::Bcast( &recv_size, 1, root, comm );
-      
-      //printf( "rank %d, before Bcast root %d\n", comm_rank, root ); fflush( stdout );
-      mpi::Barrier( comm );
       /** Resize to receive cids and parameters */
-      Data<TP> recv_para;
-      if ( comm_rank == root )
+      Data<TP> param;
+      if ( rank == root )
       {
-         recv_para = sources_user( all_dimensions, cids );
+         param = sources_user( all_dimensions, ids );
       }
       else
       {
-         cids.resize( recv_size );
-         recv_para.resize( dim(), recv_size );
+         ids.resize( recv_size );
+         param.resize( dim(), recv_size );
       }
-      //printf( "rank %d, after Bcast root %d\n", comm_rank, root ); fflush( stdout );
-      mpi::Barrier( comm );
-
       /** Bcast cids and parameters from root */
-      mpi::Bcast( cids.data(), recv_size, root, comm );
-      mpi::Bcast( recv_para.data(), dim() * recv_size, root, comm );
-
+      mpi::Bcast( ids.data(), recv_size, root, comm );
+      mpi::Bcast( param.data(), dim() * recv_size, root, comm );
       /** Insert into hash table */
-      sources_user.InsertColumns( cids, recv_para );
-
+      sources_user.InsertColumns( ids, param );
     };
 
-    void RequestColumns( vector<vector<size_t>> requ_cids )
+    void RequestIndices( vector<vector<size_t>> ids )
     {
-      mpi::Comm comm = this->GetComm();
-      int comm_rank = this->Comm_rank();
-      int comm_size = this->Comm_size();
+      auto comm = this->GetComm();
+      auto rank = this->GetCommRank();
+      auto size = this->GetCommSize();
 
-      assert( requ_cids.size() == comm_size );
+      assert( ids.size() == size );
 
-      vector<vector<size_t>> recv_cids( comm_size );
-      vector<vector<TP>>     send_para( comm_size );
-      vector<vector<TP>>     recv_para( comm_size );
+      vector<vector<size_t>> recv_ids( size );
+      vector<vector<TP>>     send_para( size );
+      vector<vector<TP>>     recv_para( size );
 
       /** Send out cids request to each rank. */
-      mpi::AlltoallVector( requ_cids, recv_cids, comm );
-      //printf( "Finish all2allv requ_cids\n" ); fflush( stdout );
+      mpi::AlltoallVector( ids, recv_ids, comm );
 
-      for ( int p = 0; p < comm_size; p ++ )
+      for ( int p = 0; p < size; p ++ )
       {
-        Data<TP> para = sources_user( all_dimensions, recv_cids[ p ] );
+        Data<TP> para = sources_user( all_dimensions, recv_ids[ p ] );
         send_para[ p ].insert( send_para[ p ].end(), para.begin(), para.end() );
+        //send_para[ p ] = sources_user( all_dimensions, recv_ids[ p ] );
       }
 
-      /** Send out parameters */
+      /** Exchange out parameters. */
       mpi::AlltoallVector( send_para, recv_para, comm );
-      //printf( "Finish all2allv send_para\n" ); fflush( stdout );
 
-      for ( int p = 0; p < comm_size; p ++ )
+      for ( int p = 0; p < size; p ++ )
       {
-        assert( recv_para[ p ].size() == dim() * requ_cids[ p ].size() );
-        if ( p != comm_rank && requ_cids[ p ].size() )
+        assert( recv_para[ p ].size() == dim() * ids[ p ].size() );
+        if ( p != rank && ids[ p ].size() )
         {
           Data<TP> para;
           para.insert( para.end(), recv_para[ p ].begin(), recv_para[ p ].end() );
           para.resize( dim(), para.size() / dim() );
-          sources_user.InsertColumns( requ_cids[ p ], para );
+          sources_user.InsertColumns( ids[ p ], para );
         }
       }
-
     };
 
 
 
 
 
-    //virtual void Redistribute( bool enforce_ordered, vector<size_t> &cids )
-    //{
-    //}; /** end Redistribute() */
-
-    
-
-    /** 
-     *  P2P exchange parameters (or points) with partners in the local
-     *  communicator.
-     */
-    void RedistributeWithPartner
-    (
-      vector<size_t> &gids, vector<size_t> &lhs, vector<size_t> &rhs, 
-      mpi::Comm comm 
-    )
-    {
-      mpi::Status status;
-      int loc_size; mpi::Comm_size( comm, &loc_size );
-      int loc_rank; mpi::Comm_rank( comm, &loc_rank );
-
-      //printf( "RedistributeWithPartner loc_rank %d loc_size %d glb_size %d\n", 
-      //    loc_rank, loc_size, this->Comm_size() ); fflush( stdout );
-
-
-      /** 
-       *  At the root level, starts from sources<STAR, CBLK>. We use
-       *  dynamic_sources as buffer space.
-       */
-      if ( loc_size == this->Comm_size() )
-      {
-        dynamic_sources = *sources;
-        //printf( "dynamic_sources %lu %lu, sources %lu %lu %lu\n",
-        //    dynamic_sources.row(), dynamic_sources.col(), 
-        //    sources->row(), sources->col(), sources->col_owned() ); fflush( stdout );
-      }
-
-      /** Use cylic order for p2p exchange */
-      int par_rank = ( loc_rank + loc_size / 2 ) % loc_size;
-      vector<size_t> send_gids, keep_gids, recv_gids;
-      Data<TP> Xsend, Xkeep;
-
-      send_gids.reserve( gids.size() );
-      recv_gids.reserve( gids.size() );
-
-      /** Split parameters (or points) into lhs and rhs. */
-      if ( loc_rank < loc_size / 2 )
-      {
-        for ( auto it = lhs.begin(); it != lhs.end(); it ++ )
-          keep_gids.push_back( gids[ *it ] );
-        for ( auto it = rhs.begin(); it != rhs.end(); it ++ )
-          send_gids.push_back( gids[ *it ] );
-        Xkeep = dynamic_sources( all_dimensions, lhs );
-        Xsend = dynamic_sources( all_dimensions, rhs );
-      }
-      else
-      {
-        for ( auto it = lhs.begin(); it != lhs.end(); it ++ )
-          send_gids.push_back( gids[ *it ] );
-        for ( auto it = rhs.begin(); it != rhs.end(); it ++ )
-          keep_gids.push_back( gids[ *it ] );
-        Xsend = dynamic_sources( all_dimensions, lhs );
-        Xkeep = dynamic_sources( all_dimensions, rhs );
-      }
-      dynamic_sources = Xkeep;
-
-
-
-      //mpi::Barrier( comm );
-      //if ( loc_rank == 0 )
-      //{
-      //  printf( "rank %2d RedistributeWithPartner Checkpoint#1\n", 
-      //      this->Comm_rank() ); 
-      //  fflush( stdout );
-      //}
-
-
-      /** Overwrite Xkeep */
-      mpi::ExchangeVector( 
-          send_gids, par_rank, 0,
-          recv_gids, par_rank, 0, comm, &status );
-      mpi::ExchangeVector( 
-        Xsend, par_rank, 1, 
-        Xkeep, par_rank, 1, comm, &status );
-
-      /** Resize Xkeep to adjust its row() and col(). */
-      Xkeep.resize( Xkeep.row(), Xkeep.size() / Xkeep.row() );
-
-
-      //mpi::Barrier( comm );
-      //if ( loc_rank == 0 )
-      //{
-      //  printf( "rank %2d RedistributeWithPartner Checkpoint#2\n", 
-      //      this->Comm_rank() ); 
-      //  fflush( stdout );
-      //}
-
-      /** Insert received parameters into table */
-      sources_user.InsertColumns( recv_gids, Xkeep );
-
-      //mpi::Barrier( comm );
-      //if ( loc_rank == 0 )
-      //{
-      //  printf( "rank %2d RedistributeWithPartner Checkpoint#3\n", 
-      //      this->Comm_rank() ); 
-      //  fflush( stdout );
-      //}
-
-      /** Concatenate */
-      dynamic_sources.insert( dynamic_sources.end(), Xkeep.begin(), Xkeep.end() );
-
-      //mpi::Barrier( comm );
-      //if ( loc_rank == 0 )
-      //{
-      //  printf( "rank %2d RedistributeWithPartner Checkpoint#4\n", 
-      //      this->Comm_rank() ); 
-      //  fflush( stdout );
-      //}
-
-    }; /** end RedistributeWithPartner() */
 
 
   private:
@@ -733,10 +598,6 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
 
     /** [ 0, 1, ..., d-1 ] */
     vector<size_t> all_dimensions;
-
-    /** Temporary buffer for P2P exchange during tree partition */
-    Data<TP> dynamic_sources;
-
 
 }; /** end class DistKernelMatrix_ver2 */
 

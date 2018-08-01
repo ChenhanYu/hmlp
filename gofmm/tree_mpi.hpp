@@ -248,17 +248,7 @@ class DistSplitTask : public Task
       this->TryEnqueue();
 		};
 
-    void Execute( Worker* user_worker )
-    {
-	    int global_rank;
-	    mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
-      //printf( "rank %d level %lu DistSplit begin\n", global_rank, arg->l ); fflush( stdout );
-			double beg = omp_get_wtime();
-      arg->Split();
-			double split_t = omp_get_wtime() - beg;;
-      //printf( "rank %d level %lu DistSplit   end %lfs\n", 
-			//		global_rank, arg->l, split_t ); fflush( stdout );
-    };
+    void Execute( Worker* user_worker ) { arg->Split(); };
 
 }; /** end class DistSplitTask */
 
@@ -632,7 +622,8 @@ class Node : public tree::Node<SETUP, NODEDATA>
  *         with some additional MPI data structure and function call.
  */ 
 template<class SETUP, class NODEDATA>
-class Tree : public tree::Tree<SETUP, NODEDATA>
+class Tree : public tree::Tree<SETUP, NODEDATA>,
+             public mpi::MPIObject
 {
   public:
 
@@ -673,15 +664,18 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
     
     /** (Default) Tree constructor */ 
-    Tree( mpi::Comm comm ) : tree::Tree<SETUP, NODEDATA>::Tree()
+    Tree( mpi::Comm comm ) : tree::Tree<SETUP, NODEDATA>::Tree(),
+                             mpi::MPIObject( comm )
     {
-      this->comm = comm;
+      //this->comm = comm;
 			/** Get size and rank */
-      mpi::Comm_size( comm, &size );
-      mpi::Comm_rank( comm, &rank );
+      //mpi::Comm_size( comm, &size );
+      //mpi::Comm_rank( comm, &rank );
       /** Create a ReadWrite object per rank */
-      NearRecvFrom.resize( size );
-      FarRecvFrom.resize( size );
+      //NearRecvFrom.resize( size );
+      NearRecvFrom.resize( this->GetCommSize() );
+      //FarRecvFrom.resize( size );
+      FarRecvFrom.resize( this->GetCommSize() );
     };
 
     /** (Default) Tree destructor.  */
@@ -732,9 +726,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     void AllocateNodes( vector<size_t> &gids )
     {
       /** Decide the depth of the distributed tree according to mpi size. */
-      auto mycomm  = comm;
-      int mysize  = size;
-      int myrank  = rank;
+      //auto mycomm  = comm;
+      auto mycomm  = this->GetComm();
+      //int mysize  = size;
+      int mysize  = this->GetCommSize();
+      //int myrank  = rank;
+      int myrank  = this->GetCommRank();
       int mycolor = 0;
       size_t mylevel = 0;
 
@@ -778,7 +775,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
         mpitreelists.push_back( child );
       }
       /** Global synchronization. */
-      mpi::Barrier( comm );
+      this->Barrier();
 
 			/** Allocate local tree nodes. */
       auto *local_tree_root = mpitreelists.back();
@@ -793,7 +790,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     {
       vector<size_t> perm_loc, perm_glb;
       perm_loc = tree::Tree<SETUP, NODEDATA>::GetPermutation();
-      mpi::GatherVector( perm_loc, perm_glb, 0, comm );
+      mpi::GatherVector( perm_loc, perm_glb, 0, this->GetComm() );
 
       //if ( rank == 0 )
       //{
@@ -817,12 +814,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     AllNearestNeighbor( size_t n_tree, size_t n, size_t k,
       pair<T, size_t> initNN, KNNTASK &dummy )
     {
-      mpi::PrintProgress( "[BEG] NeighborSearch ...\n", comm );
+      mpi::PrintProgress( "[BEG] NeighborSearch ...\n", this->GetComm() );
 
       /** Get the problem size from setup->K->row(). */
       this->n = n;
       /** k-by-N, column major. */
-      DistData<STAR, CBLK, pair<T, size_t>> NN( k, n, initNN, comm );
+      DistData<STAR, CBLK, pair<T, size_t>> NN( k, n, initNN, this->GetComm() );
       /** Use leaf size = 4 * k.  */
       this->setup.m = 4 * k;
       if ( this->setup.m < 512 ) this->setup.m = 512;
@@ -830,18 +827,22 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
 
       /** Local problem size (assuming Round-Robin) */
-      num_points_owned = ( n - 1 ) / size + 1;
+      //num_points_owned = ( n - 1 ) / size + 1;
+      num_points_owned = ( n - 1 ) / this->GetCommSize() + 1;
 
       /** Edge case */
-      if ( n % size )
+      if ( n % this->GetCommSize() )
       {
-        if ( rank >= ( n % size ) ) num_points_owned -= 1;
+        //if ( rank >= ( n % size ) ) num_points_owned -= 1;
+        if ( this->GetCommRank() >= ( n % this->GetCommSize() ) ) 
+          num_points_owned -= 1;
       }
 
       /** Initial gids distribution (asssuming Round-Robin) */
       vector<size_t> gids( num_points_owned, 0 );
       for ( size_t i = 0; i < num_points_owned; i ++ )
-        gids[ i ] = i * size + rank;
+        //gids[ i ] = i * size + rank;
+        gids[ i ] = i * this->GetCommSize() + this->GetCommRank();
 
       /** Allocate distributed tree nodes in advance. */
       AllocateNodes( gids );
@@ -875,12 +876,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
       for ( size_t t = 0; t < n_tree; t ++ )
       {
-        mpi::Barrier( comm );
-        if ( rank == 0 ) printf( "Iteration #%lu\n", t );
+        this->Barrier();
+        if ( this->GetCommRank() == 0 ) printf( "Iteration #%lu\n", t );
 
         /** Query neighbors computed in CIDS distribution.  */
         DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
-            this->treelist[ 0 ]->gids, initNN, comm );
+            this->treelist[ 0 ]->gids, initNN, this->GetComm() );
         /** Pass in neighbor pointer. */
         this->setup.NN = &Q_cids;
         /** Overlap */
@@ -889,15 +890,11 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
           DependencyCleanUp();
           DistTraverseDown<false>( mpisplittask );
           ExecuteAllTasks();
-          //hmlp_run();
-          //mpi::Barrier( comm );
         }
         //DependencyCleanUp();
         LocaTraverseLeafs( dummy );
         LocaTraverseDown( seqsplittask );
         ExecuteAllTasks();
-        //hmlp_run();
-        //mpi::Barrier( comm );
 
         if ( t == 0 )
         {
@@ -907,7 +904,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
         else
         {
           /** Queries computed in CBLK distribution */
-          DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->n, comm );
+          DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->n, this->GetComm() );
           /** Redistribute from CIDS to CBLK */
           Q_cblk = Q_cids;
           /** Merge Q_cblk into NN (sort and remove duplication) */
@@ -931,7 +928,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
         }
       }
 
-      mpi::PrintProgress( "[END] NeighborSearch ...\n", comm );
+      mpi::PrintProgress( "[END] NeighborSearch ...\n", this->GetComm() );
       return NN;
     }; /** end AllNearestNeighbor() */
 
@@ -941,14 +938,15 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     /** @brief partition n points using a distributed binary tree. */ 
     void TreePartition() 
     {
-      mpi::PrintProgress( "[BEG] TreePartitioning ...\n", comm );
+      mpi::PrintProgress( "[BEG] TreePartitioning ...\n", this->GetComm() );
 
       /** Set up total problem size n and leaf node size m. */
       this->n = this->setup.ProblemSize();
       this->m = this->setup.LeafNodeSize();
 
       /** Initial gids distribution (asssuming Round-Robin). */
-      for ( size_t i = rank; i < this->n; i += size ) 
+      //for ( size_t i = rank; i < this->n; i += size ) 
+      for ( size_t i = this->GetCommRank(); i < this->n; i += this->GetCommSize() ) 
         this->global_indices.push_back( i );
       /** Local problem size (assuming Round-Robin). */
       num_points_owned = this->global_indices.size();
@@ -1002,8 +1000,8 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
         if ( node->l ) this->morton2node[ sibling->morton ] = sibling;
       }
 
-      mpi::Barrier( comm );
-      mpi::PrintProgress( "[END] TreePartitioning ...\n", comm ); 
+      this->Barrier();
+      mpi::PrintProgress( "[END] TreePartitioning ...\n", this->GetComm() ); 
     }; /** end TreePartition() */
 
 
@@ -1011,8 +1009,10 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     void RecursiveMorton( MPINODE *node, MortonHelper::Recursor r ) 
     {
       /** MPI Support. */ 
-      int comm_size; mpi::Comm_size( comm, &comm_size );
-      int comm_rank; mpi::Comm_rank( comm, &comm_rank );
+      //int comm_size; mpi::Comm_size( comm, &comm_size );
+      //int comm_rank; mpi::Comm_rank( comm, &comm_rank );
+      int comm_size = this->GetCommSize();
+      int comm_rank = this->GetCommRank();
       int node_size = node->GetCommSize(); 
       int node_rank = node->GetCommRank(); 
 
@@ -1042,7 +1042,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
         /** Exchange send_pairs.size(). */
         int send_size = send_pairs.size();
-        mpi::Allgather( &send_size, 1, recv_size.data(), 1, comm );
+        mpi::Allgather( &send_size, 1, recv_size.data(), 1, this->GetComm() );
         /** Compute displacement for Allgatherv. */
         for ( size_t p = 1; p < comm_size; p ++ )
         {
@@ -1057,7 +1057,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
         assert( total_gids == this->n );
         /** Exchange all pairs. */
         mpi::Allgatherv( send_pairs.data(), send_size, 
-            recv_pairs.data(), recv_size.data(), recv_disp.data(), comm );
+            recv_pairs.data(), recv_size.data(), recv_disp.data(), this->GetComm() );
         /** Fill in all MortonIDs. */
         for ( auto it : recv_pairs ) this->setup.morton[ it.first ] = it.second;
       }
@@ -1082,7 +1082,8 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     /** */ 
     int Morton2Rank( size_t it )
     {
-      return MortonHelper::Morton2Rank( it, size );
+      //return MortonHelper::Morton2Rank( it, size );
+      return MortonHelper::Morton2Rank( it, this->GetCommSize() );
     }; /** end Morton2rank() */
 
 
@@ -1251,7 +1252,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
     void ExecuteAllTasks()
     {
       hmlp_run();
-      mpi::Barrier( comm );
+      this->Barrier();
       DependencyCleanUp();
     }; /** end ExecuteAllTasks() */
 
@@ -1289,9 +1290,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>
 
 
     /** Global communicator, size, and rank */
-    mpi::Comm comm = MPI_COMM_WORLD;
-    int size = 1;
-    int rank = 0;
+    //mpi::Comm comm = MPI_COMM_WORLD;
+    //int size = 1;
+    //int rank = 0;
 
     /**
      *  Interaction lists per rank
