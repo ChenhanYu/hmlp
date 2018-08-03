@@ -87,12 +87,6 @@ class OOCSPDMatrix : public OOCData<T>, public SPDMatrixMPISupport<T>
       return DII;
     };
 
-    /** Need additional support for pairwise distances. */
-    Data<T> PairwiseDistances( const vector<size_t> &I, 
-                               const vector<size_t> &J )
-    {
-      return (*this)( I, J );
-    };
 
  private:
 

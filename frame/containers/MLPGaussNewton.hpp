@@ -391,14 +391,6 @@ class MLPGaussNewton : public VirtualMatrix<T>,
       return KIJ;
     };
 
-    virtual Data<T> PairwiseDistances
-    ( 
-      const vector<size_t> &I, const vector<size_t> &J 
-    )
-    {
-      return (*this)( I, J );
-    };
-
 
   private:
 

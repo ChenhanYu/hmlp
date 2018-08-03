@@ -887,11 +887,11 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         /** Overlap */
         if ( t != n_tree - 1 )
         {
-          DependencyCleanUp();
+          //DependencyCleanUp();
           DistTraverseDown<false>( mpisplittask );
-          ExecuteAllTasks();
+          //ExecuteAllTasks();
         }
-        //DependencyCleanUp();
+        DependencyCleanUp();
         LocaTraverseLeafs( dummy );
         LocaTraverseDown( seqsplittask );
         ExecuteAllTasks();

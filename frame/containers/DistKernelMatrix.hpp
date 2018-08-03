@@ -232,16 +232,10 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
     }; /** end operator () */
 
 
-    virtual Data<T> PairwiseDistances( const vector<size_t> &I, 
+    /** */
+    virtual Data<T> GeometryDistances( const vector<size_t> &I, 
                                        const vector<size_t> &J )
     {
-      /** 
-       *  Return values
-       * 
-       *  NOTICE: even KIJ can be an 0-by-0 matrix for this MPI rank,
-       *  yet early return is not allowed. All MPI process must execute
-       *  all collaborative communication routines to avoid deadlock.
-       */
       Data<T> KIJ( I.size(), J.size() );
 
 			/** Early return. */
@@ -303,14 +297,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
     virtual Data<T> operator() ( vector<size_t> &I, 
                                  vector<size_t> &J )
     {
-      /** 
-       *  Return values
-       * 
-       *  NOTICE: even KIJ can be an 0-by-0 matrix for this MPI rank,
-       *  yet early return is not allowed. All MPI process must execute
-       *  all collaborative communication routines to avoid deadlock.
-       */
-      Data<T> KIJ = PairwiseDistances( I, J );
+      Data<T> KIJ = GeometryDistances( I, J );
 
 			/** Early return */
 			if ( !I.size() || !J.size() ) return KIJ;

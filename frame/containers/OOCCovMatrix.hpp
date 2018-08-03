@@ -276,14 +276,6 @@ class OOCCovMatrix : public VirtualMatrix<T>
       return KIJ;
     };
 
-    virtual Data<T> PairwiseDistances
-    ( 
-      const vector<size_t> &I, 
-      const vector<size_t> &J 
-    )
-    {
-      return (*this)( I, J );
-    };
 
     template<typename TINDEX>
     double flops( TINDEX na, TINDEX nb ) 

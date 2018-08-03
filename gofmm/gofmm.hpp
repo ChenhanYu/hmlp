@@ -643,7 +643,7 @@ struct centersplit
   /** (Default) use angle distance from the Gram vector space. */
   DistanceMetric metric = ANGLE_DISTANCE;
   /** Number samples to approximate centroid. */
-  size_t n_centroid_samples = 1;
+  size_t n_centroid_samples = 5;
   
 
 	/** Overload the operator (). */

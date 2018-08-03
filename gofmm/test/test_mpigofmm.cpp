@@ -91,19 +91,19 @@ int main( int argc, char *argv[] )
   /** Run the matrix file provided by users. */
   if ( !cmd.spdmatrix_type.compare( "dense" ) )
   {
-    //using T = float;
-    ///** Dense spd matrix format */
-    //SPDMatrix<T> K( n, n );
-    //K.read( n, n, cmd.user_matrix_filename );
-		///** (optional) provide coordinates */
-    //DistData<STAR, CBLK, T> *X = NULL;
-    //if ( cmd.user_points_filename.size() )
-    //{
-    //  X = new DistData<STAR, CBLK, T>( d, n, CommGOFMM, 
-    //      cmd.user_points_filename );
-    //}
-    ///** Launch self-testing routine. */
-    //mpigofmm::LaunchHelper( X, K, cmd, CommGOFMM );
+    using T = float;
+    /** Dense spd matrix format */
+    SPDMatrix<T> K( n, n );
+    K.read( n, n, cmd.user_matrix_filename );
+		/** (optional) provide coordinates */
+    DistData<STAR, CBLK, T> *X = NULL;
+    if ( cmd.user_points_filename.size() )
+    {
+      X = new DistData<STAR, CBLK, T>( d, n, CommGOFMM, 
+          cmd.user_points_filename );
+    }
+    /** Launch self-testing routine. */
+    mpigofmm::LaunchHelper( X, K, cmd, CommGOFMM );
   }
 
 
@@ -124,7 +124,7 @@ int main( int argc, char *argv[] )
   /** Generate a kernel matrix from the coordinates. */
   if ( !cmd.spdmatrix_type.compare( "kernel" ) )
   {
-    using T = double;
+    using T = float;
     /** read the coordinates from the file */
     DistData<STAR, CBLK, T> X( d, n, CommGOFMM, cmd.user_points_filename );
     /** Setup the kernel object. */

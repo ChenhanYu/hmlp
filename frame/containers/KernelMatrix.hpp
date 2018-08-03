@@ -91,6 +91,9 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
     ~KernelMatrix() {};
 
 
+
+
+
     void ComputeSquare2Norm()
     {
       source_sqnorms.resize( this->col(), 0.0 );
