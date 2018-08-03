@@ -204,7 +204,7 @@ class Task
 
     void Enqueue( size_t tid );
 
-    void TryEnqueue();
+    bool TryEnqueue();
 
     void ForceEnqueue( size_t tid );
 
@@ -230,8 +230,11 @@ class Task
     deque<Task*> in;
     deque<Task*> out;
 
-    /** task lock */
-    Lock task_lock;
+    /** Task lock */
+    void Acquire();
+    void Release();
+    
+    Lock* task_lock = NULL;
 
     /** The next task in the batch job */
     Task *next = NULL;
@@ -240,9 +243,9 @@ class Task
     //bool ContextSwitchToNextTask( Worker* );
 
     /** If true, this task can be stolen */ 
-    bool stealable = true;
+    volatile bool stealable = true;
 
-    int created_by = 0;
+    volatile int created_by = 0;
 
     bool IsNested();
 
@@ -251,7 +254,7 @@ class Task
     volatile TaskStatus status;
 
     /** If true, then this is a nested task */
-    bool is_created_in_epoch_session = false;
+    volatile bool is_created_in_epoch_session = false;
 
 }; /** end class Task */
 
@@ -284,10 +287,13 @@ class MessageTask : public Task
     /** MPI communicator will be provided during Submit(). */
     mpi::Comm comm;
 
-    /** Provided by Set(). */
+    /** Provided during the construction. */
     int tar = 0;
     int src = 0;
     int key = 0;
+
+    /** (Default) constructor. */
+    MessageTask( int src, int tar, int key );
 
     void Submit();
 }; /** end class MessageTask */
@@ -297,6 +303,9 @@ class MessageTask : public Task
 class ListenerTask : public MessageTask
 {
   public:
+
+    /** (Default) constructor. */
+    ListenerTask( int src, int tar, int key );
 
     void Submit();
 
@@ -315,6 +324,11 @@ class SendTask : public MessageTask
     vector<size_t> send_sizes;
     vector<size_t> send_skels;
     vector<T>      send_buffs;
+
+    SendTask( ARG *user_arg, int src, int tar, int key ) : MessageTask( src, tar, key )
+    {
+      this->arg = user_arg;
+    };
 
     /** Override Set() */
     void Set( ARG *user_arg, int src, int tar, int key )
@@ -359,6 +373,9 @@ class RecvTask : public ListenerTask
     vector<size_t> recv_sizes;
     vector<size_t> recv_skels;
     vector<T>      recv_buffs;
+
+    RecvTask( ARG *user_arg, int src, int tar, int key ) 
+      : ListenerTask( src, tar, key ) { this->arg = user_arg; };
 
     /** Override Set() */
     void Set( ARG *user_arg, int src, int tar, int key )
@@ -533,7 +550,7 @@ class Scheduler
 {
   public:
 
-    Scheduler();
+    Scheduler( mpi::Comm comm );
     
     ~Scheduler();
 
@@ -623,6 +640,8 @@ class Scheduler
 
     void Listen( Worker* );
 
+    Lock task_lock[ 2 * MAX_WORKER ];
+
     Lock run_lock[ MAX_WORKER ];
 
     Lock pci_lock;
@@ -665,7 +684,7 @@ class RunTime
 
     ~RunTime();
 
-    void Init();
+    void Init( mpi::Comm comm );
 
     void Run();
 

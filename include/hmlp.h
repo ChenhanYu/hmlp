@@ -22,9 +22,11 @@
 #ifndef HMLP_H
 #define HMLP_H
 
+#include <mpi_prototypes.hpp>
 
-/** HMLP runtime API */
+/** HMLP runtime API. */
 void hmlp_init();
+void hmlp_init( MPI_Comm comm );
 void hmlp_set_num_workers( int n_worker );
 void hmlp_run();
 void hmlp_finalize();

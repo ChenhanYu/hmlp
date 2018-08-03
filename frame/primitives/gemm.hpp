@@ -81,7 +81,7 @@ class xgemmTask : public Task
       A.DependencyAnalysis( R,  this );
       B.DependencyAnalysis( R,  this );
       C.DependencyAnalysis( RW, this );
-      this->TryEnqueue();
+      assert( !this->TryEnqueue() );
     };
 
     void Execute( Worker* user_worker )
@@ -135,6 +135,7 @@ class xgemmBarrierTask : public Task
     {
       /** Main arguments */
       this->C = C;
+      this->stealable = false;
 
       /** Name and label */
       name = string( "gemmBarrier" );
@@ -306,6 +307,27 @@ void xgemm_var3( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 template<size_t NB = 512, typename T>
 void xgemm( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 {
+  //string transA, transB;
+  //if ( A.IsTransposed() ) transA = "Transpose";
+  //else                    transA = "No transpose";
+  //if ( B.IsTransposed() ) transB = "Transpose";
+  //else                    transB = "No transpose";
+  //size_t m = C.row();
+  //size_t n = C.col();
+  //size_t k = A.col();
+  //assert( A.row() == m );
+  //assert( B.row() == k );
+  //assert( B.col() == n );
+  //hmlp::xgemm( transA.data(), transB.data(), m, n, k,
+  //  alpha, A.data(), A.ld(),
+  //         B.data(), B.ld(),
+  //  beta,  C.data(), C.ld() );
+  //return;
+
+
+
+
+
   /** try to  */
   A.CreateLeafMatrixBlocks( NB, NB );
   B.CreateLeafMatrixBlocks( NB, NB );

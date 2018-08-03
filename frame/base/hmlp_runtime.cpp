@@ -231,6 +231,17 @@ Task::Task()
 /** @brief (Default) Task destructor. */ 
 Task::~Task() {};
 
+/** @brief (Default) MessageTask constructor. */ 
+MessageTask::MessageTask( int src, int tar, int key )
+{
+  this->src = src;
+  this->tar = tar;
+  this->key = key;
+}; /** end MessageTask::MessageTask() */
+
+/** @brief (Default) ListenerTask constructor. */ 
+ListenerTask::ListenerTask( int src, int tar, int key ) : MessageTask( src, tar, key ) {};
+
 /** @brief Status is a private member. */
 TaskStatus Task::GetStatus() { return status; };
 
@@ -274,11 +285,12 @@ void Task::DependenciesUpdate()
   while ( out.size() )
   {
     Task *child = out.front();
+    /** There should be at least "one" remaining dependency to satisfy. */
+    assert( child->n_dependencies_remaining > 0 && child->GetStatus() == NOTREADY );
     /** Acquire execlusive right to modify the task. */
-    child->task_lock.Acquire();
+    //assert( child->task_lock );
+    child->Acquire();
     {
-      /** There should be at least "one" remaining dependency to satisfy. */
-      assert( child->n_dependencies_remaining > 0 && child->GetStatus() == NOTREADY );
       child->n_dependencies_remaining --;
       /** If there is no dependency left, enqueue the task. */
       if ( !child->n_dependencies_remaining )
@@ -288,7 +300,7 @@ void Task::DependenciesUpdate()
         else          child->Enqueue();
       }
     }
-    child->task_lock.Release();
+    child->Release();
     /** Remove this out-going edge. */
     out.pop_front();
   }
@@ -297,6 +309,25 @@ void Task::DependenciesUpdate()
 }; /** end Task::DependenciesUpdate() */
 
 
+void Task::Acquire() 
+{ 
+  if ( !task_lock ) 
+  {
+    cout << name << " not submitted" << endl;
+    assert( task_lock );
+  }
+  task_lock->Acquire(); 
+};
+
+void Task::Release() 
+{ 
+  if ( !task_lock ) 
+  {
+    cout << name << " not submitted" << endl;
+    assert( task_lock );
+  }
+  task_lock->Release(); 
+};
 
 
 /** All virtual functions. */
@@ -305,9 +336,14 @@ void Task::Prefetch( Worker *user_worker ) {};
 void Task::DependencyAnalysis() {};
 
 /** @brief Try to dispatch the task if there is no dependency left. */
-void Task::TryEnqueue()
+bool Task::TryEnqueue()
 {
-  if ( GetStatus() == NOTREADY && !n_dependencies_remaining ) Enqueue();
+  if ( GetStatus() == NOTREADY && !n_dependencies_remaining ) 
+  {
+    Enqueue();
+    return true;
+  }
+  else return false;
 };
 
 void Task::Enqueue() { Enqueue( 0 ); };
@@ -343,6 +379,7 @@ void Task::Enqueue( size_t tid )
   /** Dispatch to nested queue if created in the epoch session. */
   if ( is_created_in_epoch_session )
   {
+    assert( created_by < rt.n_worker );
     rt.scheduler->nested_queue_lock[ created_by ].Acquire();
     {
       /** Move forward to next status "QUEUED". */
@@ -478,13 +515,14 @@ void MatrixReadWrite::DependencyCleanUp()
  */ 
 
 /**  @brief (Default) Scheduler constructor. */ 
-Scheduler::Scheduler() : timeline_tag( 500 )
+Scheduler::Scheduler( mpi::Comm comm ) : timeline_tag( 500 )
 {
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler()\n" );
 #endif
   /** MPI support (use a private COMM_WORLD). */
-  mpi::Comm_dup( MPI_COMM_WORLD, &comm );
+  this->comm = comm;
+  //mpi::Comm_dup( MPI_COMM_WORLD, &comm );
   int size; mpi::Comm_size( comm, &size );
   listener_tasklist.resize( size );
   /** Set now as the begining of the time table. */
@@ -572,9 +610,14 @@ void Scheduler::NewTask( Task *task )
   {
     if ( rt.IsInEpochSession() ) 
     {
+      task->task_lock = &(task_lock[ nested_tasklist.size() % ( 2 * MAX_WORKER ) ]);
       nested_tasklist.push_back( task );
     }
-    else tasklist.push_back( task );
+    else 
+    {
+      task->task_lock = &(task_lock[ tasklist.size() % ( 2 * MAX_WORKER ) ]);
+      tasklist.push_back( task );
+    }
   }
   tasklist_lock.Release();
 }; /** end Scheduler::NewTask()  */
@@ -586,6 +629,7 @@ void Scheduler::NewMessageTask( MessageTask *task )
   tasklist_lock.Acquire();
   {
     task->comm = comm;
+    task->task_lock = &(task_lock[ tasklist.size() % ( 2 * MAX_WORKER ) ]);
     /** Counted toward termination criteria. */
     tasklist.push_back( task );
     //printf( "NewMessageTask src %d tar %d key %d tasklist.size() %lu\n",
@@ -601,6 +645,7 @@ void Scheduler::NewListenerTask( ListenerTask *task )
   tasklist_lock.Acquire();
   {
     task->comm = comm;
+    task->task_lock = &(task_lock[ tasklist.size() % ( 2 * MAX_WORKER ) ]);
     listener_tasklist[ task->src ][ task->key ] = task;
     /** Counted toward termination criteria. */
     tasklist.push_back( task );
@@ -649,7 +694,7 @@ void Scheduler::Finalize()
   /** Reset listener_tasklist  */
   try
   {
-    for ( auto p : listener_tasklist ) p.clear();
+    for ( auto & plist : listener_tasklist ) plist.clear();
   }
   catch ( exception & e ) { cout << e.what() << endl; };
   //printf( "End   Scheduler::Finalize() [cleanup listener_tasklist]\n" );
@@ -681,19 +726,19 @@ void Scheduler::DependencyAdd( Task *source, Task *target )
   /** Avoid self-loop. */
   if ( source == target ) return;
   /** Update the source out-going edges. */
-  source->task_lock.Acquire();
+  source->Acquire();
   {
     source->out.push_back( target );
   }
-  source->task_lock.Release();
+  source->Release();
   /** Update the target incoming edges. */
-  target->task_lock.Acquire();
+  target->Acquire();
   {
     target->in.push_back( source );
     /** Only increase the dependency count for incompleted tasks. */
     if ( source->GetStatus() != DONE ) target->n_dependencies_remaining ++;
   }
-  target->task_lock.Release();
+  target->Release();
 }; /** end Scheduler::DependencyAdd() */
 
 
@@ -895,6 +940,7 @@ bool Scheduler::ConsumeTasks( Worker *me, vector<Task*> &batch )
 /** @brief */
 void Scheduler::ExecuteNestedTasksWhileWaiting( Worker *me, Task *waiting_task )
 {
+  assert( me->tid == omp_get_thread_num() );
   while ( waiting_task->GetStatus() != DONE )
   {
     /** Try to get a nested task. */
@@ -1130,6 +1176,10 @@ void Scheduler::Listen( Worker *me )
 /** @brief */
 void Scheduler::Summary()
 {
+  int total_normal_tasks = tasklist.size();
+  int total_nested_tasks = nested_tasklist.size();
+  int total_listen_tasks = 0;
+  for ( auto list : listener_tasklist ) total_listen_tasks += list.size();
   double total_flops = 0.0, total_mops = 0.0;
   time_t rawtime;
   struct tm * timeinfo;
@@ -1147,17 +1197,25 @@ void Scheduler::Summary()
     total_mops  += tasklist[ i ]->event.GetMops();
   }
 
-
 #ifdef HMLP_USE_MPI
-	/** in the MPI environment, reduce all flops and mops */
+	/** In the MPI environment, reduce all flops and mops. */
 	int rank = 0;
+  int global_normal_tasks = 0, global_listen_tasks = 0, global_nested_tasks = 0;
 	double global_flops = 0.0, global_mops = 0.0;
-	mpi::Comm_rank( MPI_COMM_WORLD, &rank );
-	mpi::Reduce( &total_flops, &global_flops, 1, MPI_SUM, 0, MPI_COMM_WORLD );
-	mpi::Reduce( &total_mops,  &global_mops,  1, MPI_SUM, 0, MPI_COMM_WORLD );
-	if ( rank == 0 ) printf( "Epoch summary: flops %E mops %E\n", global_flops, global_mops );
+	mpi::Comm_rank( comm, &rank );
+	mpi::Reduce( &total_flops, &global_flops, 1, MPI_SUM, 0, comm );
+	mpi::Reduce( &total_mops,  &global_mops,  1, MPI_SUM, 0, comm );
+	mpi::Reduce( &total_normal_tasks, &global_normal_tasks, 1, MPI_SUM, 0, comm );
+	mpi::Reduce( &total_listen_tasks, &global_listen_tasks, 1, MPI_SUM, 0, comm );
+	mpi::Reduce( &total_nested_tasks, &global_nested_tasks, 1, MPI_SUM, 0, comm );
+	if ( rank == 0 ) 
+  {
+    printf( "Epoch summary: %5d [normal] %5d [listen]  %5d [nested] %5.3E flops %5.3E mops\n", 
+      global_normal_tasks, global_listen_tasks, global_nested_tasks, global_flops, global_mops );
+  }
 #else
-  printf( "Epoch summary: flops %E mops %E\n", total_flops, total_mops );
+  printf( "Epoch summary: %5d [normal] %5d [nested] %5.3E flops %5.3E mops\n", 
+      total_normal_tasks, total_nested_tasks, total_flops, total_mops );
 #endif
 
 
@@ -1219,7 +1277,7 @@ RunTime::RunTime() {};
 RunTime::~RunTime() {};
 
 /** @brief */
-void RunTime::Init()
+void RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
 {
   #pragma omp critical (init)
   {
@@ -1227,7 +1285,7 @@ void RunTime::Init()
     {
       n_worker = omp_get_max_threads();
       n_max_worker = n_worker;
-      scheduler = new Scheduler();
+      scheduler = new Scheduler( comm );
 #ifdef HMLP_USE_CUDA
       /** TODO: detect devices */
       device[ 0 ] = new hmlp::gpu::Nvidia( 0 );
@@ -1318,6 +1376,10 @@ hmlp::Device *hmlp_get_device_host() { return &(hmlp::rt.host); };
 
 /** @brief */
 void hmlp_init() { hmlp::rt.Init(); };
+void hmlp_init( mpi::Comm comm = MPI_COMM_WORLD ) 
+{ 
+  hmlp::rt.Init( comm );
+};
 
 /** @brief */
 void hmlp_set_num_workers( int n_worker ) { hmlp::rt.n_worker = n_worker; };

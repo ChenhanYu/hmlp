@@ -371,9 +371,9 @@ void DistFactorize( TREE &tree, T lambda )
   DistFactorizeTask<MPINODE, T> parFACTORIZEtask; 
   tree.LocaTraverseUp( seqFACTORIZEtask );
   tree.DistTraverseUp( parFACTORIZEtask );
-  mpi::PrintProgress( "[PREP] DistFactorize ...\n", tree.comm ); 
+  mpi::PrintProgress( "[PREP] DistFactorize ...\n", tree.GetComm() ); 
   tree.ExecuteAllTasks();
-  mpi::PrintProgress( "[DONE] DistFactorize ...\n", tree.comm ); 
+  mpi::PrintProgress( "[DONE] DistFactorize ...\n", tree.GetComm() ); 
 
 }; /** end DistFactorize() */
 
@@ -402,9 +402,9 @@ void DistSolve( TREE &tree, Data<T> &input )
   tree.DistTraverseUp( parFORWARDtask );
   tree.DistTraverseDown( parBACKWARDtask );
   tree.LocaTraverseDown( seqBACKWARDtask );
-  mpi::PrintProgress( "[PREP] DistSolve ...\n", tree.comm ); 
+  mpi::PrintProgress( "[PREP] DistSolve ...\n", tree.GetComm() ); 
   tree.ExecuteAllTasks();
-  mpi::PrintProgress( "[DONE] DistSolve ...\n", tree.comm ); 
+  mpi::PrintProgress( "[DONE] DistSolve ...\n", tree.GetComm() ); 
 
 }; /** end DistSolve() */
 

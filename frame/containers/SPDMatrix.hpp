@@ -19,8 +19,6 @@ namespace hmlp
  */ 
 template<typename T>
 class SPDMatrix : public VirtualMatrix<T>
-                  //public Data<T>, 
-                  //public SPDMatrixMPISupport<T>
 {
   public:
 
@@ -37,7 +35,7 @@ class SPDMatrix : public VirtualMatrix<T>
       K.resize( m, n );
     };
 
-    template<bool USE_LOWRANK>
+    template<bool USE_LOWRANK=true>
     void randspd( T a, T b ) { K.randspd<USE_LOWRANK>( a, b ); };
 
     void read( size_t m, size_t n, string &filename ) 
@@ -56,40 +54,6 @@ class SPDMatrix : public VirtualMatrix<T>
     T* data() noexcept { return K.data(); };
 
     const T* data() const noexcept { return K.data(); };
-
-
-//    /** Need additional support for diagonal evaluation */
-//    Data<T> Diagonal( const vector<size_t> &I )
-//    {
-//      /** Due to positive definiteness, Kii must be larger than 0. */
-//      uint64_t num_illegal_values = 0;
-//
-//      Data<T> DII( I.size(), 1 );
-//      for ( size_t i = 0; i < I.size(); i ++ )
-//      {
-//        DII[ i ] = (*this)( I[ i ], I[ i ] );
-//        if ( DII[ i ] <= 0 )
-//        {
-//          num_illegal_values ++;
-//          DII[ i ] = 1.0;
-//        }
-//      }
-//
-//      if ( num_illegal_values ) 
-//      {
-//        printf( "Illegal diagonal entries %lu\n", num_illegal_values );
-//        fflush( stdout );
-//      }
-//
-//      return DII;
-//    };
-//
-//    /** Need additional support for pairwise distances. */
-//    Data<T> PairwiseDistances( const vector<size_t> &I, 
-//                               const vector<size_t> &J )
-//    {
-//      return (*this)( I, J );
-//    };
 
   private:
 

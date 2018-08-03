@@ -1,105 +1,8 @@
 #ifndef HMLP_MPI_HPP
 #define HMLP_MPI_HPP
+#include <mpi_prototypes.hpp>
 
 #include <vector>
-
-using namespace std;
-
-#ifdef HMLP_USE_MPI
-/** Use vender mpi.h */
-#include <mpi.h>
-#else
-/** Use self-defined MPI interface. */
-#warning MPI routines are disable (-HMLP_USE_MPI=false)
-
-/* For supported thread levels. */
-#define MPI_THREAD_SINGLE 0
-#define MPI_THREAD_FUNNELED 1
-#define MPI_THREAD_SERIALIZED 2
-#define MPI_THREAD_MULTIPLE 3
-
-/** Define MPI macros. */
-#define MPI_COMM_WORLD              0
-#define MPI_SUCCESS                 0
-#define MPI_BYTE                    2
-#define MPI_INT                    18
-#define MPI_LONG                   18
-#define MPI_FLOAT                  19
-#define MPI_DOUBLE                 20
-#define MPI_FLOAT_INT              29
-#define MPI_DOUBLE_INT             30
-#define MPI_2FLOAT                 35
-#define MPI_2DOUBLE                36
-#define MPI_2INT                   37
-#define MPI_UNDEFINED              -1
-#define MPI_ERR_IN_STATUS          67
-#define MPI_ANY_SOURCE             -1
-#define MPI_ANY_TAG                -1
-#define MPI_REQUEST_NULL           -1
-#define MPI_COMM_SELF               1
-#define MPI_COMM_NULL              -1
-#define MPI_PROC_NULL              -3
-#define MPI_ERRORS_RETURN           0
-#define MPI_ERRORS_ARE_FATAL        1
-#define MPI_MAX_PROCESSOR_NAME     24
-
-#define MPI_UNSIGNED_CHAR           2
-#define MPI_UNSIGNED_SHORT          5
-#define MPI_UNSIGNED                7 
-#define MPI_UNSIGNED_LONG           9
-#define MPI_UNSIGNED_LONG_LONG     13
-
-//#define MPI_FLOAT_INT              17
-//#define MPI_DOUBLE_INT             18
-//#define MPI_LONG_INT               19
-//#define MPI_SHORT_INT              20
-//#define MPI_2INT                   21
-//#define MPI_LONG_DOUBLE_INT        22
-
-
-typedef int MPI_Op;
-
-#define MPI_MAX    (MPI_Op)(100)
-#define MPI_MIN    (MPI_Op)(101)
-#define MPI_SUM    (MPI_Op)(102)
-#define MPI_PROD   (MPI_Op)(103)
-#define MPI_LAND   (MPI_Op)(104)
-#define MPI_BAND   (MPI_Op)(105)
-#define MPI_LOR    (MPI_Op)(106)
-#define MPI_BOR    (MPI_Op)(107)
-#define MPI_LXOR   (MPI_Op)(108)
-#define MPI_BXOR   (MPI_Op)(109)
-#define MPI_MINLOC (MPI_Op)(110)
-#define MPI_MAXLOC (MPI_Op)(111)
-
-
-/* Permanent key values */
-/** 
- *  C Versions (return pointer to value),
- *  Fortran Versions (return integer value).
- *  Handled directly by the attribute value routine
- *
- *  DO NOT CHANGE THESE.  The values encode:
- *  builtin kind (0x1 in bit 30-31)
- *  Keyval object (0x9 in bits 26-29)
- *  for communicator (0x1 in bits 22-25)
- *
- *  Fortran versions of the attributes are formed by
- *  adding one to the C version.
- */
-#define MPI_TAG_UB           0x64400001
-#define MPI_HOST             0x64400003
-#define MPI_IO               0x64400005
-#define MPI_WTIME_IS_GLOBAL  0x64400007
-#define MPI_UNIVERSE_SIZE    0x64400009
-#define MPI_LASTUSEDCODE     0x6440000b
-#define MPI_APPNUM           0x6440000d
-
-
-#endif /** ifdef HMLP_USE_MPI */
-
-
-
 #include <stdlib.h>
 #include <stdint.h>
 #include <limits.h>
@@ -130,52 +33,20 @@ typedef int MPI_Op;
 #endif // ifdef HMLP}_MIC_AVX512
 
 
-
-//#include <hmlp_runtime.hpp>
-
-
-
-
-//#include <containers/data.hpp>
-
+using namespace std;
 
 namespace hmlp
 {
 /** MPI compatable interface */
 namespace mpi
 {
-
-/** MPI 1.0 functionality */ 
-
-
-#ifdef HMLP_USE_MPI
 typedef MPI_Status Status;
 typedef MPI_Request Request;
 typedef MPI_Comm Comm;
 typedef MPI_Datatype Datatype;
 typedef MPI_Op Op;
-#else
-/** If there is no generic MPI support, use the following definition */
-typedef struct 
-{
-  int count;
-  int cancelled;
-  int MPI_SOURCE;
-  int MPI_TAG;
-  int MPI_ERROR;
-} Status;
 
-#define MPI_STATUS_IGNORE   (mpi::Status *)NULL
-#define MPI_STATUSES_IGNORE (mpi::Status *)NULL
-
-typedef int Request;
-typedef int Comm;
-typedef int Datatype;
-typedef int Op;
-
-#endif /** ifdef HMLP_USE_MPI */
-
-
+/** MPI 1.0 functionality */ 
 int Init( int *argc, char ***argv );
 
 int Finalize( void );

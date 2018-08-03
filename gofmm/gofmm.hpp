@@ -111,6 +111,127 @@ namespace hmlp
 namespace gofmm
 {
 
+class CommandLineHelper
+{
+  public:
+
+    /** (Default) constructor. */
+    CommandLineHelper( int argc, char *argv[] )
+    {
+      /** Number of columns and rows, i.e. problem size. */
+      sscanf( argv[ 1 ], "%lu", &n );
+      /** On-diagonal block size, such that the tree has log(n/m) levels. */
+      sscanf( argv[ 2 ], "%lu", &m );
+      /** Number of neighbors to use. */
+      sscanf( argv[ 3 ], "%lu", &k );
+      /** Maximum off-diagonal ranks. */
+      sscanf( argv[ 4 ], "%lu", &s );
+      /** Number of right-hand sides. */
+      sscanf( argv[ 5 ], "%lu", &nrhs );
+      /** Desired approximation accuracy. */
+      sscanf( argv[ 6 ], "%lf", &stol );
+      /** The maximum percentage of direct matrix-multiplication. */
+      sscanf( argv[ 7 ], "%lf", &budget );
+      /** Specify distance type. */
+      distance_type = argv[ 8 ];
+      if ( !distance_type.compare( "geometry" ) )
+      {
+        metric = GEOMETRY_DISTANCE;
+      }
+      else if ( !distance_type.compare( "kernel" ) )
+      {
+        metric = KERNEL_DISTANCE;
+      }
+      else if ( !distance_type.compare( "angle" ) )
+      {
+        metric = ANGLE_DISTANCE;
+      }
+      else
+      {
+        printf( "%s is not supported\n", argv[ 8 ] );
+        exit( 1 );
+      }
+      /** Specify what kind of spdmatrix is used. */
+      spdmatrix_type = argv[ 9 ];
+      if ( !spdmatrix_type.compare( "testsuit" ) )
+      {
+        /** NOP */
+      }
+      else if ( !spdmatrix_type.compare( "userdefine" ) )
+      {
+        /** NOP */
+      }
+      else if ( !spdmatrix_type.compare( "pvfmm" ) )
+      {
+        /** NOP */
+      }
+      else if ( !spdmatrix_type.compare( "dense" ) || !spdmatrix_type.compare( "ooc" ) )
+      {
+        /** (Optional) provide the path to the matrix file. */
+        user_matrix_filename = argv[ 10 ];
+        if ( argc > 11 ) 
+        {
+          /** (Optional) provide the path to the data file. */
+          user_points_filename = argv[ 11 ];
+          /** Dimension of the data set. */
+          sscanf( argv[ 12 ], "%lu", &d );
+        }
+      }
+      else if ( !spdmatrix_type.compare( "mlp" ) )
+      {
+        hidden_layers = argv[ 10 ];
+        user_points_filename = argv[ 11 ];
+        /** Number of attributes (dimensions). */
+        sscanf( argv[ 12 ], "%lu", &d );
+      }
+      else if ( !spdmatrix_type.compare( "cov" ) )
+      {
+        kernelmatrix_type = argv[ 10 ];
+        user_points_filename = argv[ 11 ];
+        /** Number of attributes (dimensions) */
+        sscanf( argv[ 12 ], "%lu", &d );
+        /** Block size (in dimensions) per file */
+        sscanf( argv[ 13 ], "%lu", &nb );
+      }
+      else if ( !spdmatrix_type.compare( "kernel" ) )
+      {
+        kernelmatrix_type = argv[ 10 ];
+        user_points_filename = argv[ 11 ];
+        /** Number of attributes (dimensions) */
+        sscanf( argv[ 12 ], "%lu", &d );
+        /** (Optional) provide Gaussian kernel bandwidth */
+        if ( argc > 13 ) sscanf( argv[ 13 ], "%lf", &h );
+      }
+      else
+      {
+        printf( "%s is not supported\n", argv[ 9 ] );
+        exit( 1 );
+      }
+    }; /** end CommentLineSupport() */
+
+    /** Basic GOFMM parameters. */
+    size_t n, m, k, s, nrhs;
+    /** (Default) user-defined approximation toleratnce and budget. */
+    double stol = 1E-3;
+    double budget = 0.0;
+    /** (Default) geometric-oblivious scheme. */
+    DistanceMetric metric = ANGLE_DISTANCE;
+
+    /** (Optional) */
+    size_t d, nb; 
+    /** (Optional) set the default Gaussian kernel bandwidth. */
+    double h = 1.0;
+    string distance_type;
+    string spdmatrix_type;
+    string kernelmatrix_type;
+    string hidden_layers;
+    string user_matrix_filename;
+    string user_points_filename;
+}; /** end class CommandLineHelper */
+
+
+
+
 /** @brief Configuration contains all user-defined parameters. */ 
 template<typename T>
 class Configuration
@@ -4020,6 +4141,117 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials )
 
   return err / nrm2;
 }; /** end ComputeError() */
+
+
+template<typename TREE>
+void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
+{
+  /** Derive type T from TREE. */
+  using T = typename TREE::T;
+  /** Size of right hand sides. */
+  size_t n = tree.n;
+  /** Shrink ntest if ntest > n. */
+  if ( ntest > n ) ntest = n;
+  /** all_rhs = [ 0, 1, ..., nrhs - 1 ]. */
+  vector<size_t> all_rhs( nrhs );
+  for ( size_t rhs = 0; rhs < nrhs; rhs ++ ) all_rhs[ rhs ] = rhs;
+
+
+  /** Evaluate u ~ K * w. */
+  Data<T> w( n, nrhs ); w.rand();
+  auto u = Evaluate<true, false, true, true>( tree, w );
+
+  /** Examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM. */
+  T nnerr_avg = 0.0;
+  T nonnerr_avg = 0.0;
+  T fmmerr_avg = 0.0;
+  printf( "========================================================\n");
+  printf( "Accuracy report\n" );
+  printf( "========================================================\n");
+  for ( size_t i = 0; i < ntest; i ++ )
+  {
+    Data<T> potentials;
+    /** ASKIT treecode with NN pruning. */
+    Evaluate<false, true>( tree, i, potentials );
+    auto nnerr = ComputeError( tree, i, potentials );
+    /** ASKIT treecode without NN pruning. */
+    Evaluate<false, false>( tree, i, potentials );
+    auto nonnerr = ComputeError( tree, i, potentials );
+    /** Get results from GOFMM */
+    //potentials = u( vector<size_t>( i ), all_rhs );
+    for ( size_t p = 0; p < potentials.col(); p ++ )
+    {
+      potentials[ p ] = u( i, p );
+    }
+    auto fmmerr = ComputeError( tree, i, potentials );
+
+    /** Only print 10 values. */
+    if ( i < 10 )
+    {
+      printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+          i, nnerr, nonnerr, fmmerr );
+    }
+    nnerr_avg += nnerr;
+    nonnerr_avg += nonnerr;
+    fmmerr_avg += fmmerr;
+  }
+  printf( "========================================================\n");
+  printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+      nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
+  printf( "========================================================\n");
+
+  /** Factorization */
+  T lambda = 5.0;
+  gofmm::Factorize( tree, lambda ); 
+  /** Compute error. */
+  gofmm::ComputeError( tree, lambda, w, u );
+
+}; /** end SelfTesting() */
+
+
+/** @brief Instantiate the splitters here. */ 
+template<typename T, typename SPDMATRIX>
+void LaunchHelper
+( 
+  Data<T> *X,
+  SPDMATRIX &K, 
+  CommandLineHelper &cmd
+)
+{
+  const int N_CHILDREN = 2;
+  /** Use geometric-oblivious splitters. */
+  using SPLITTER     = gofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
+  using RKDTSPLITTER = gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
+  /** GOFMM tree splitter. */
+  SPLITTER splitter;
+  splitter.Kptr = &K;
+  splitter.metric = cmd.metric;
+  /** Randomized tree splitter. */
+  RKDTSPLITTER rkdtsplitter;
+  rkdtsplitter.Kptr = &K;
+  rkdtsplitter.metric = cmd.metric;
+	/** Create configuration for all user-define arguments. */
+  gofmm::Configuration<T> config( cmd.metric, 
+      cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget );
+  /** (Optional) provide neighbors, leave uninitialized otherwise. */
+  Data<pair<T, size_t>> NN;
+  /** Compress K. */
+  auto *tree_ptr = gofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
+	auto &tree = *tree_ptr;
+  /** Examine accuracies. */
+  gofmm::SelfTesting( tree, 100, cmd.nrhs );
+
+
+//  //#ifdef DUMP_ANALYSIS_DATA
+//  gofmm::Summary<NODE> summary;
+//  tree.Summary( summary );
+//  summary.Print();
+
+	/** delete tree_ptr */
+  delete tree_ptr;
+}; /** end LaunchHelper() */
+
+
 
 
 

@@ -944,13 +944,16 @@ class S2STask2 : public Task
 
     Lock *lock = NULL;
 
-    void Set( NODE *user_arg, vector<LETNODE*> user_src, int user_p, Lock *user_lock )
+    int *num_arrived_subtasks;
+
+    void Set( NODE *user_arg, vector<LETNODE*> user_src, int user_p, Lock *user_lock,
+        int *user_num_arrived_subtasks )
     {
-      assert( user_arg && user_lock );
       arg = user_arg;
       Sources = user_src;
       p = user_p;
       lock = user_lock;
+      num_arrived_subtasks = user_num_arrived_subtasks;
       name = string( "S2S" );
       label = to_string( arg->treelist_id );
 
@@ -1035,6 +1038,8 @@ class S2STask2 : public Task
           u_skel[ i ] += u[ i ];
       }
       lock->Release();
+      #pragma omp atomic update
+      *num_arrived_subtasks += 1;
     };
 }; 
 
@@ -1048,6 +1053,8 @@ class S2SReduceTask2 : public Task
     vector<S2STask2<NODE, LETNODE, T>*> subtasks;
 
     Lock lock;
+
+    int num_arrived_subtasks = 0;
 
     const size_t batch_size = 2;
 
@@ -1078,7 +1085,7 @@ class S2SReduceTask2 : public Task
           {
             subtasks.push_back( new S2STask2<NODE, LETNODE, T>() );
             subtasks.back()->Submit();
-            subtasks.back()->Set( user_arg, Sources, p, &lock );
+            subtasks.back()->Set( user_arg, Sources, p, &lock, &num_arrived_subtasks );
             subtasks.back()->DependencyAnalysis();
             Sources.clear();
           }
@@ -1087,7 +1094,7 @@ class S2SReduceTask2 : public Task
         {
           subtasks.push_back( new S2STask2<NODE, LETNODE, T>() );
           subtasks.back()->Submit();
-          subtasks.back()->Set( user_arg, Sources, p, &lock );
+          subtasks.back()->Set( user_arg, Sources, p, &lock, &num_arrived_subtasks );
           subtasks.back()->DependencyAnalysis();
           Sources.clear();
         }
@@ -1108,7 +1115,11 @@ class S2SReduceTask2 : public Task
       this->TryEnqueue();
     };
 
-    void Execute( Worker* user_worker ) { /** Place holder */ };
+    void Execute( Worker* user_worker ) 
+    { 
+      /** Place holder */ 
+      assert( num_arrived_subtasks == subtasks.size() );
+    };
 };
 
 
@@ -1294,12 +1305,16 @@ class L2LTask2 : public Task
     /** Write lock */
     Lock *lock = NULL;
 
-    void Set( NODE *user_arg, vector<NODE*> user_src, int user_p, Lock *user_lock )
+    int *num_arrived_subtasks;
+
+    void Set( NODE *user_arg, vector<NODE*> user_src, int user_p, Lock *user_lock, 
+        int* user_num_arrived_subtasks )
     {
       arg = user_arg;
       Sources = user_src;
       p = user_p;
       lock = user_lock;
+      num_arrived_subtasks = user_num_arrived_subtasks;
       name = string( "L2L" );
       label = to_string( arg->treelist_id );
 
@@ -1413,6 +1428,8 @@ class L2LTask2 : public Task
       double GFLOPS = 2.0 * u.row() * u.col() * k / ( 1E+9 * gemm_time );
       //printf( "GEMM %4lu %4lu %4lu %lf GFLOPS, lock(%lf/%lf)\n", 
       //    u.row(), u.col(), k, GFLOPS, lock_time, gemm_time ); fflush( stdout );
+      #pragma omp atomic update
+      *num_arrived_subtasks += 1;
     };
 };
 
@@ -1429,6 +1446,8 @@ class L2LReduceTask2 : public Task
     vector<L2LTask2<NODE, T>*> subtasks;
 
     Lock lock;
+
+    int num_arrived_subtasks = 0;
 
     const size_t batch_size = 2;
 
@@ -1449,7 +1468,7 @@ class L2LReduceTask2 : public Task
           {
             subtasks.push_back( new L2LTask2<NODE, T>() );
             subtasks.back()->Submit();
-            subtasks.back()->Set( user_arg, Sources, p, &lock );
+            subtasks.back()->Set( user_arg, Sources, p, &lock, &num_arrived_subtasks );
             subtasks.back()->DependencyAnalysis();
             Sources.clear();
           }
@@ -1458,7 +1477,7 @@ class L2LReduceTask2 : public Task
         {
           subtasks.push_back( new L2LTask2<NODE, T>() );
           subtasks.back()->Submit();
-          subtasks.back()->Set( user_arg, Sources, p, &lock );
+          subtasks.back()->Set( user_arg, Sources, p, &lock, &num_arrived_subtasks );
           subtasks.back()->DependencyAnalysis();
           Sources.clear();
         }
@@ -1482,7 +1501,10 @@ class L2LReduceTask2 : public Task
       this->TryEnqueue();
     };
 
-    void Execute( Worker* user_worker ) {};
+    void Execute( Worker* user_worker ) 
+    { 
+      assert( num_arrived_subtasks == subtasks.size() );
+    };
 };
 
 
@@ -2591,6 +2613,14 @@ class PackNearTask : public SendTask<T, TREE>
 {
   public:
 
+    PackNearTask( TREE *tree, int src, int tar, int key ) 
+      : SendTask<T, TREE>( tree, src, tar, key ) 
+    {
+      /** Submit and perform dependency analysis automaticallu. */
+      this->Submit();
+      this->DependencyAnalysis();
+    };
+
     void DependencyAnalysis()
     {
       TREE &tree = *(this->arg);
@@ -2625,6 +2655,14 @@ class UnpackLeafTask : public RecvTask<T, TREE>
 {
   public:
 
+    UnpackLeafTask( TREE *tree, int src, int tar, int key ) 
+      : RecvTask<T, TREE>( tree, src, tar, key ) 
+    {
+      /** Submit and perform dependency analysis automaticallu. */
+      this->Submit();
+      this->DependencyAnalysis();
+    };
+
     void Unpack()
     {
       UnpackWeights( *this->arg, this->src, 
@@ -2639,6 +2677,14 @@ template<typename T, typename TREE>
 class PackFarTask : public SendTask<T, TREE>
 {
   public:
+
+    PackFarTask( TREE *tree, int src, int tar, int key ) 
+      : SendTask<T, TREE>( tree, src, tar, key ) 
+    {
+      /** Submit and perform dependency analysis automaticallu. */
+      this->Submit();
+      this->DependencyAnalysis();
+    };
 
     void DependencyAnalysis()
     {
@@ -2661,6 +2707,14 @@ template<typename T, typename TREE>
 class UnpackFarTask : public RecvTask<T, TREE>
 {
   public:
+
+    UnpackFarTask( TREE *tree, int src, int tar, int key ) 
+      : RecvTask<T, TREE>( tree, src, tar, key )
+    {
+      /** Submit and perform dependency analysis automaticallu. */
+      this->Submit();
+      this->DependencyAnalysis();
+    };
 
     void Unpack()
     {
@@ -2777,19 +2831,19 @@ void AsyncExchangeLET( TREE &tree, string option )
   {
     if ( !option.compare( 0, 4, "leaf" ) )
     {
-      auto *task = new PackNearTask<T, TREE>();
+      auto *task = new PackNearTask<T, TREE>( &tree, comm_rank, p, 300 );
       /** Set src, tar, and key (tags). */
-      task->Set( &tree, comm_rank, p, 300 );
-      task->DependencyAnalysis();
-      task->Submit();
+      //task->Set( &tree, comm_rank, p, 300 );
+      //task->Submit();
+      //task->DependencyAnalysis();
     }
     else if ( !option.compare( 0, 4, "skel" ) )
     {
-      auto *task = new PackFarTask<T, TREE>();
+      auto *task = new PackFarTask<T, TREE>( &tree, comm_rank, p, 306 );
       /** Set src, tar, and key (tags). */
-      task->Set( &tree, comm_rank, p, 306 );
-      task->DependencyAnalysis();
-      task->Submit();
+      //task->Set( &tree, comm_rank, p, 306 );
+      //task->Submit();
+      //task->DependencyAnalysis();
     }
     else
     {
@@ -2803,19 +2857,19 @@ void AsyncExchangeLET( TREE &tree, string option )
   {
     if ( !option.compare( 0, 4, "leaf" ) )
     {
-      auto *task = new UnpackLeafTask<T, TREE>();
+      auto *task = new UnpackLeafTask<T, TREE>( &tree, p, comm_rank, 300 );
       /** Set src, tar, and key (tags). */
-      task->Set( &tree, p, comm_rank, 300 );
-      task->DependencyAnalysis();
-      task->Submit();
+      //task->Set( &tree, p, comm_rank, 300 );
+      //task->Submit();
+      //task->DependencyAnalysis();
     }
     else if ( !option.compare( 0, 4, "skel" ) )
     {
-      auto *task = new UnpackFarTask<T, TREE>();
+      auto *task = new UnpackFarTask<T, TREE>( &tree, p, comm_rank, 306 );
       /** Set src, tar, and key (tags). */
-      task->Set( &tree, p, comm_rank, 306 );
-      task->DependencyAnalysis();
-      task->Submit();
+      //task->Set( &tree, p, comm_rank, 306 );
+      //task->Submit();
+      //task->DependencyAnalysis();
     }
     else
     {
@@ -4050,11 +4104,26 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
   tree.DistTraverseUp( mpiN2Stask );
   /** Stage 4: redistribute skeleton weights from IDS to LET. */
   AsyncExchangeLET<T>( tree, string( "skelweights" ) );
+
+
+  //tree.ExecuteAllTasks();
+  //tree.DependencyCleanUp();
+
+
   /** Stage 5: L2L */
   tree.LocaTraverseLeafs( seqL2LReducetask2 );
+
+  //tree.ExecuteAllTasks();
+  //tree.DependencyCleanUp();
+
+
   /** Stage 6: S2S */
   tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
   tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
+
+  //tree.ExecuteAllTasks();
+  //tree.DependencyCleanUp();
+
   /** Stage 7: S2N */
   tree.DistTraverseDown( mpiS2Ntask );
   tree.LocaTraverseDown( seqS2Ntask );
@@ -4514,9 +4583,51 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
         0.0, 0.0, sqrt( sse_2norm / ssv_2norm ) );
     printf( "========================================================\n");
   }
+
+  /** Factorization */
+  T lambda = 10.0;
+  mpigofmm::DistFactorize( tree, lambda ); 
+  mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
 }; /** end SelfTesting() */
 
 
+/** @brief Instantiate the splitters here. */ 
+template<typename T, typename SPDMATRIX>
+void LaunchHelper
+( 
+  DistData<STAR, CBLK, T> *X,
+  SPDMATRIX &K, 
+  gofmm::CommandLineHelper &cmd,
+  mpi::Comm CommGOFMM
+)
+{
+  const int N_CHILDREN = 2;
+  /** Use geometric-oblivious splitters. */
+  using SPLITTER     = mpigofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
+  using RKDTSPLITTER = mpigofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
+  /** GOFMM tree splitter. */
+  SPLITTER splitter;
+  splitter.Kptr = &K;
+  splitter.metric = cmd.metric;
+  /** Randomized tree splitter. */
+  RKDTSPLITTER rkdtsplitter;
+  rkdtsplitter.Kptr = &K;
+  rkdtsplitter.metric = cmd.metric;
+	/** Create configuration for all user-define arguments. */
+  gofmm::Configuration<T> config( cmd.metric, 
+      cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget );
+  /** (Optional) provide neighbors, leave uninitialized otherwise */
+  DistData<STAR, CBLK, pair<T, size_t>> NN( 0, cmd.n, CommGOFMM );
+  /** Compress matrix K. */
+  auto *tree_ptr = mpigofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
+  auto &tree = *tree_ptr;
+
+  /** Examine accuracies. */
+  mpigofmm::SelfTesting( tree, 100, cmd.nrhs );
+
+	/** Delete tree_ptr. */
+  delete tree_ptr;
+}; /** end test_gofmm_setup() */
 
 
 }; /** end namespace gofmm */
