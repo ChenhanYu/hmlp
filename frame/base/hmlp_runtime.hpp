@@ -546,7 +546,7 @@ class MatrixReadWrite
  */ 
 
 /** @brief */
-class Scheduler
+class Scheduler : public mpi::MPIObject
 {
   public:
 
@@ -648,9 +648,6 @@ class Scheduler
 
     Lock gpu_lock;
 
-    /** Global communicator used between listeners. */
-    mpi::Comm comm;
-
     /** This maps a key to a vector of p ReadWrite objects. */
     unordered_map<int, vector<ReadWrite>> msg_dependencies;
 
@@ -736,7 +733,11 @@ bool hmlp_is_in_epoch_session();
 
 //bool hmlp_is_nested_queue_empty();
 
-void hmlp_set_num_background_worker( int n_background_worker );
+//void hmlp_set_num_background_worker( int n_background_worker );
+
+int hmlp_get_mpi_rank();
+
+int hmlp_get_mpi_size();
 
 void hmlp_msg_dependency_analysis( 
     int key, int p, hmlp::ReadWriteType type, hmlp::Task *task );

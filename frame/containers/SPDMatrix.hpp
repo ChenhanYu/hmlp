@@ -24,9 +24,14 @@ class SPDMatrix : public VirtualMatrix<T>
 
     SPDMatrix() : VirtualMatrix<T>() {};
 
-    SPDMatrix( size_t m, size_t n ) : VirtualMatrix<T>( m, n )
+    SPDMatrix( size_t m, size_t n ) 
+      : VirtualMatrix<T>( m, n ) { K.resize( m, n ); };
+
+    SPDMatrix( size_t m, size_t n, string filename )
+      : VirtualMatrix<T>( m, n )
     {
       K.resize( m, n );
+      K.read( m, n, filename );
     };
 
     void resize( size_t m, size_t n )
@@ -65,32 +70,27 @@ class SPDMatrix : public VirtualMatrix<T>
 
 
 template<typename T>
-class OOCSPDMatrix : public OOCData<T>, public SPDMatrixMPISupport<T>
+class OOCSPDMatrix : public VirtualMatrix<T>
 {
   public:
 
     OOCSPDMatrix( size_t m, size_t n, string filename )
-    :
-    OOCData<T>( m, n, filename ), SPDMatrixMPISupport<T>()
+      : VirtualMatrix<T>( m, n )
     {
-      assert( m == n );
-      D.resize( n );
-      for ( size_t i = 0; i < n; i ++ ) D[ i ] = (*this)( i, i );
+      K.Set( m, n, filename );
     };
 
-    /** Need additional support for diagonal evaluation */
-    Data<T> Diagonal( const vector<size_t> &I )
-    {
-      Data<T> DII( I.size(), 1 );
-      for ( auto i = 0; i < I.size(); i ++ ) DII[ i ] = D[ I[ i ] ];
-        //DII[ i ] = (*this)( I[ i ], I[ i ] );
-      return DII;
-    };
+    T operator()( size_t i, size_t j ) { return K( i, j ); };
 
+    Data<T> operator() ( const vector<size_t> &I, 
+                         const vector<size_t> &J )
+    {
+      return K( I, J );
+    };
 
  private:
 
-    vector<T> D;
+    OOCData<T> K;
 
 }; /** end class OOCSPDMatrix */
 

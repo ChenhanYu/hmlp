@@ -515,16 +515,18 @@ void MatrixReadWrite::DependencyCleanUp()
  */ 
 
 /**  @brief (Default) Scheduler constructor. */ 
-Scheduler::Scheduler( mpi::Comm comm ) : timeline_tag( 500 )
+Scheduler::Scheduler( mpi::Comm user_comm ) 
+  : mpi::MPIObject( user_comm ), timeline_tag( 500 )
 {
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler()\n" );
 #endif
-  /** MPI support (use a private COMM_WORLD). */
-  this->comm = comm;
+  /** MPI support (use a private communicator). */
+  //mpi::Comm_dup( user_comm, &comm );
+  //this->comm = comm;
   //mpi::Comm_dup( MPI_COMM_WORLD, &comm );
-  int size; mpi::Comm_size( comm, &size );
-  listener_tasklist.resize( size );
+  //int size; mpi::Comm_size( comm, &size );
+  listener_tasklist.resize( this->GetCommSize() );
   /** Set now as the begining of the time table. */
   timeline_beg = omp_get_wtime();
 };
@@ -586,17 +588,10 @@ void Scheduler::Init( int user_n_worker )
 void Scheduler::MessageDependencyAnalysis( 
     int key, int p, ReadWriteType type, Task *task )
 {
-  int size; mpi::Comm_size( comm, &size );
-
-  //auto it = msg_dependencies.find( key );
-
-  //if ( it == msg_dependencies.end() )
   if ( msg_dependencies.find( key ) == msg_dependencies.end() )
   {
-    //printf( "Create msg ReadWrite object %d\n", key ); fflush( stdout );
-    msg_dependencies[ key ] = vector<ReadWrite>( size );
+    msg_dependencies[ key ] = vector<ReadWrite>( this->GetCommSize() );
   }
-  //printf( "Add rank %d to object %d\n", p, key ); fflush( stdout );
   msg_dependencies[ key ][ p ].DependencyAnalysis( type, task );
 }; /** end Scheduler::MessageDependencyAnalysis() */
 
@@ -628,7 +623,8 @@ void Scheduler::NewMessageTask( MessageTask *task )
 {
   tasklist_lock.Acquire();
   {
-    task->comm = comm;
+    /** We use a duplicated (private) communicator to handle message tasks. */
+    task->comm = this->GetPrivateComm();
     task->task_lock = &(task_lock[ tasklist.size() % ( 2 * MAX_WORKER ) ]);
     /** Counted toward termination criteria. */
     tasklist.push_back( task );
@@ -644,7 +640,8 @@ void Scheduler::NewListenerTask( ListenerTask *task )
 {
   tasklist_lock.Acquire();
   {
-    task->comm = comm;
+    /** We use a duplicated (private) communicator to handle message tasks. */
+    task->comm = this->GetPrivateComm();
     task->task_lock = &(task_lock[ tasklist.size() % ( 2 * MAX_WORKER ) ]);
     listener_tasklist[ task->src ][ task->key ] = task;
     /** Counted toward termination criteria. */
@@ -1074,9 +1071,10 @@ void* Scheduler::EntryPoint( void* arg )
 /** @brief Listen for asynchronous incoming MPI messages. */
 void Scheduler::Listen( Worker *me )
 {
-  /** MPI Support. */
-  int size; mpi::Comm_size( comm, &size );
-  int rank; mpi::Comm_rank( comm, &rank );
+  /** We use a duplicated (private) communicator to handle message tasks. */
+  auto comm = this->GetPrivateComm();
+  auto size = this->GetCommSize();
+  auto rank = this->GetCommRank();
 
   /** Iprobe flag and recv status */
   int probe_flag = 0;
@@ -1086,7 +1084,6 @@ void Scheduler::Listen( Worker *me )
   while ( 1 ) 
   {
     ListenerTask *task = NULL;
-
     /** Only one thread will probe and recv message at a time. */
     #pragma omp critical
     {
@@ -1199,22 +1196,20 @@ void Scheduler::Summary()
 
 #ifdef HMLP_USE_MPI
 	/** In the MPI environment, reduce all flops and mops. */
-	int rank = 0;
   int global_normal_tasks = 0, global_listen_tasks = 0, global_nested_tasks = 0;
 	double global_flops = 0.0, global_mops = 0.0;
-	mpi::Comm_rank( comm, &rank );
-	mpi::Reduce( &total_flops, &global_flops, 1, MPI_SUM, 0, comm );
-	mpi::Reduce( &total_mops,  &global_mops,  1, MPI_SUM, 0, comm );
-	mpi::Reduce( &total_normal_tasks, &global_normal_tasks, 1, MPI_SUM, 0, comm );
-	mpi::Reduce( &total_listen_tasks, &global_listen_tasks, 1, MPI_SUM, 0, comm );
-	mpi::Reduce( &total_nested_tasks, &global_nested_tasks, 1, MPI_SUM, 0, comm );
-	if ( rank == 0 ) 
+	mpi::Reduce( &total_flops, &global_flops, 1, MPI_SUM, 0, this->GetPrivateComm() );
+	mpi::Reduce( &total_mops,  &global_mops,  1, MPI_SUM, 0, this->GetPrivateComm() );
+	mpi::Reduce( &total_normal_tasks, &global_normal_tasks, 1, MPI_SUM, 0, this->GetPrivateComm() );
+	mpi::Reduce( &total_listen_tasks, &global_listen_tasks, 1, MPI_SUM, 0, this->GetPrivateComm() );
+	mpi::Reduce( &total_nested_tasks, &global_nested_tasks, 1, MPI_SUM, 0, this->GetPrivateComm() );
+	if ( this->GetCommRank() == 0 ) 
   {
-    printf( "Epoch summary: %5d [normal] %5d [listen]  %5d [nested] %5.3E flops %5.3E mops\n", 
+    printf( "[ RT] %5d [normal] %5d [listen]  %5d [nested] %5.3E flops %5.3E mops\n", 
       global_normal_tasks, global_listen_tasks, global_nested_tasks, global_flops, global_mops );
   }
 #else
-  printf( "Epoch summary: %5d [normal] %5d [nested] %5.3E flops %5.3E mops\n", 
+  printf( "[ RT] %5d [normal] %5d [nested] %5.3E flops %5.3E mops\n", 
       total_normal_tasks, total_nested_tasks, total_flops, total_mops );
 #endif
 
@@ -1390,30 +1385,18 @@ void hmlp_run() { hmlp::rt.Run(); };
 
 void hmlp_finalize() { hmlp::rt.Finalize(); };
 
-hmlp::RunTime *hmlp_get_runtime_handle()
-{
-  return &hmlp::rt;
-};
+hmlp::RunTime *hmlp_get_runtime_handle() { return &hmlp::rt; };
 
-hmlp::Device *hmlp_get_device( int i )
-{
-  return hmlp::rt.device[ i ];
-};
+hmlp::Device *hmlp_get_device( int i ) { return hmlp::rt.device[ i ]; };
 
-bool hmlp_is_in_epoch_session()
-{
-  return hmlp::rt.IsInEpochSession();
-};
+bool hmlp_is_in_epoch_session() { return hmlp::rt.IsInEpochSession(); };
 
-//bool hmlp_is_nested_queue_empty()
-//{
-//  return !hmlp::rt.scheduler->nested_queue.size();
-//};
+int hmlp_get_mpi_rank() { return hmlp::rt.scheduler->GetCommRank(); };
 
-void hmlp_msg_dependency_analysis( 
-    int key, int p, ReadWriteType type, Task *task )
+int hmlp_get_mpi_size() { return hmlp::rt.scheduler->GetCommSize(); };
+
+void hmlp_msg_dependency_analysis( int key, int p, ReadWriteType type, Task *task )
 {
-  hmlp::rt.scheduler->MessageDependencyAnalysis(
-      key, p, type, task );
+  hmlp::rt.scheduler->MessageDependencyAnalysis( key, p, type, task );
 };
 

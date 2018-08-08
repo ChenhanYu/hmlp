@@ -78,8 +78,8 @@ class DistSetupFactorTask : public Task
       data.SetupFactor( issymmetric, do_ulv_factorization,
         node->isleaf, !node->l, n, nl, nr, s, sl, sr );
 
-      printf( "n %lu nl %lu nr %lu s %lu sl %lu sr %lu\n",
-          n, nl, nr, s, sl, sr ); fflush( stdout );
+      //printf( "n %lu nl %lu nr %lu s %lu sl %lu sr %lu\n",
+      //    n, nl, nr, s, sl, sr ); fflush( stdout );
     };
 };
 
@@ -123,7 +123,7 @@ class DistFactorizeTask : public Task
         /** Recv Ur from my sibling.*/
         Data<T> Ur, &Ul = node->child->data.U;
         mpi::RecvData( Ur, size / 2, comm );
-        printf( "Ur %lux%lu\n", Ur.row(), Ur.col() ); fflush( stdout );
+        //printf( "Ur %lux%lu\n", Ur.row(), Ur.col() ); fflush( stdout );
         /** TODO: implement symmetric ULV factorization. */
         Data<T> Vl, Vr;
         /** Recv Zr from my sibing. */
@@ -362,18 +362,20 @@ void DistFactorize( TREE &tree, T lambda )
   gofmm::SetupFactorTask<NODE, T> seqSETUPFACTORtask; 
   DistSetupFactorTask<MPINODE, T> parSETUPFACTORtask;
 
+  mpi::PrintProgress( "[BEG] DistFactorize setup ...\n", tree.GetComm() ); 
   tree.DependencyCleanUp();
   tree.LocaTraverseUp( seqSETUPFACTORtask );
   tree.DistTraverseUp( parSETUPFACTORtask );
   tree.ExecuteAllTasks();
+  mpi::PrintProgress( "[END] DistFactorize setup ...\n", tree.GetComm() ); 
 
+  mpi::PrintProgress( "[BEG] DistFactorize ...\n", tree.GetComm() ); 
   gofmm::FactorizeTask<   NODE, T> seqFACTORIZEtask; 
   DistFactorizeTask<MPINODE, T> parFACTORIZEtask; 
   tree.LocaTraverseUp( seqFACTORIZEtask );
   tree.DistTraverseUp( parFACTORIZEtask );
-  mpi::PrintProgress( "[PREP] DistFactorize ...\n", tree.GetComm() ); 
   tree.ExecuteAllTasks();
-  mpi::PrintProgress( "[DONE] DistFactorize ...\n", tree.GetComm() ); 
+  mpi::PrintProgress( "[END] DistFactorize ...\n", tree.GetComm() ); 
 
 }; /** end DistFactorize() */
 
@@ -419,10 +421,14 @@ void ComputeError( TREE &tree, T lambda, Data<T> weights, Data<T> potentials )
   using NODE    = typename TREE::NODE;
   using MPINODE = typename TREE::MPINODE;
 
+  auto comm = tree.GetComm();
+  auto size = tree.GetCommSize();
+  auto rank = tree.GetCommRank();
+
+
   size_t n    = weights.row();
   size_t nrhs = weights.col();
 
-  printf( "Shift lambda\n" ); fflush( stdout );
   /** Shift lambda and make it a column vector. */
   Data<T> rhs( n, nrhs );
   for ( size_t j = 0; j < nrhs; j ++ )
@@ -434,53 +440,56 @@ void ComputeError( TREE &tree, T lambda, Data<T> weights, Data<T> potentials )
 
 
   /** Compute relative error = sqrt( err / nrm2 ) for each rhs. */
-  printf( "========================================================\n" );
-  printf( "Inverse accuracy report\n" );
-  printf( "========================================================\n" );
-  printf( "#rhs,  max err,        @,  min err,        @,  relative \n" );
-  printf( "========================================================\n" );
+  if ( rank == 0 )
+  {
+    printf( "========================================================\n" );
+    printf( "Inverse accuracy report\n" );
+    printf( "========================================================\n" );
+    printf( "#rhs,  max err,        @,  min err,        @,  relative \n" );
+    printf( "========================================================\n" );
+  }
+
   size_t ntest = 10;
   T total_err  = 0.0;
+  T total_nrm  = 0.0;
+  T total_max  = 0.0;
+  T total_min  = 0.0;
   for ( size_t j = 0; j < std::min( nrhs, ntest ); j ++ )
   {
     /** Counters */
     T nrm2 = 0.0, err2 = 0.0;
     T max2 = 0.0, min2 = std::numeric_limits<T>::max(); 
-    /** indecies */
-    size_t maxi = 0, mini = 0;
 
     for ( size_t i = 0; i < n; i ++ )
     {
       T sse = rhs( i, j ) - weights( i, j );
       assert( rhs( i, j ) == rhs( i, j ) );
       sse = sse * sse;
-
       nrm2 += weights( i, j ) * weights( i, j );
       err2 += sse;
-
-      //printf( "%lu %3.1E\n", i, sse );
-
-
-      if ( sse > max2 ) { max2 = sse; maxi = i; }
-      if ( sse < min2 ) { min2 = sse; mini = i; }
+      max2 = std::max( max2, sse );
+      min2 = std::min( min2, sse );
     }
 
+    mpi::Allreduce( &err2, &total_err, 1, MPI_SUM, comm );
+    mpi::Allreduce( &nrm2, &total_nrm, 1, MPI_SUM, comm );
+    mpi::Allreduce( &max2, &total_max, 1, MPI_MAX, comm );
+    mpi::Allreduce( &min2, &total_min, 1, MPI_MIN, comm );
 
+    total_err += std::sqrt( total_err / total_nrm );
+    total_max  = std::sqrt( total_max );
+    total_min  = std::sqrt( total_min );
 
-    total_err += std::sqrt( err2 / nrm2 );
-
-    printf( "%4lu,  %3.1E,  %7lu,  %3.1E,  %7lu,   %3.1E\n", 
-        j, std::sqrt( max2 ), maxi, std::sqrt( min2 ), mini, 
-        std::sqrt( err2 / nrm2 ) );
+    if ( rank == 0 )
+    {
+      printf( "%4lu,  %3.1E,  %7lu,  %3.1E,  %7lu,   %3.1E\n", 
+          j, total_max, (size_t)0,  total_min, (size_t)0, total_err );
+    }
   }
-  printf( "========================================================\n" );
-  printf( "                             avg over %2lu rhs,   %3.1E \n",
-      std::min( nrhs, ntest ), total_err / std::min( nrhs, ntest ) );
-  printf( "========================================================\n\n" );
-
-
-
-
+  if ( rank == 0 )
+  {
+    printf( "========================================================\n" );
+  }
 };
 
 

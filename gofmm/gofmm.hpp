@@ -21,7 +21,6 @@
 #ifndef GOFMM_HPP
 #define GOFMM_HPP
 
-
 /** Use STL future, thread, chrono */
 #include <future>
 #include <thread>
@@ -73,37 +72,17 @@ using namespace std;
 using namespace hmlp;
 
 
-/** by default, we use binary tree */
-//#define N_CHILDREN 2
 
 /** this parameter is used to reserve space for std::vector */
 #define MAX_NRHS 1024
-
 /** the block size we use for partitioning GEMM tasks */
 #define GEMM_NB 256
 
 
 //#define DEBUG_SPDASKIT 1
 #define REPORT_ANN_ACCURACY 1
-
 #define REPORT_COMPRESS_STATUS 1
 #define REPORT_EVALUATE_STATUS 1
-
-
-#define OMPLEVEL 0
-#define OMPRECTASK 0
-#define OMPDAGTASK 0
-
-
-/**
- *  @breif GOFMM relies on an arbitrary distance metric that
- *         described the order between matrix element Kij.
- *         Such metric can be the 
- *         Euclidian distance i.e. "GEOMETRY_DISTANCE", or
- *         arbitrary distances defined in the Gram vector space
- *         i.e. "KERNEL_DISTANCE" or "ANGLE_DISTANCE"
- */ 
-//typedef enum { GEOMETRY_DISTANCE, KERNEL_DISTANCE, ANGLE_DISTANCE } DistanceMetric;
 
 
 namespace hmlp
@@ -111,6 +90,7 @@ namespace hmlp
 namespace gofmm
 {
 
+/** @brief This is a helper class that parses the arguments from command lines. */
 class CommandLineHelper
 {
   public:
@@ -367,11 +347,7 @@ class Setup : public tree::Setup<SPLITTER, T>,
 }; /** end class Setup */
 
 
-/**
- *  @brief This class contains all GOFMM related data.
- *         For Inv-GOFMM, all factors are inherit from Factor<T>.
- *
- */ 
+/** @brief This class contains all GOFMM related data carried by a tree node. */ 
 template<typename T>
 class NodeData : public Factor<T>
 {
@@ -425,13 +401,6 @@ class NodeData : public Factor<T>
     Data<T> NearKab;
     Data<T> FarKab;
 
-    /** Interaction list (in morton) per MPI rank. */
-    set<int> NearDependents;
-    set<int> FarDependents;
-
-    /** Timers */
-    double merge_neighbors_time = 0.0;
-    double id_time = 0.0;
 
     /** recorded events (for HMLP Runtime) */
     Event skeletonize;
@@ -450,10 +419,7 @@ class NodeData : public Factor<T>
 
 
 
-/** 
- *  @brief This task creates an hierarchical tree view for
- *         weights<RIDS> and potentials<RIDS>.
- */
+/** @brief This task creates an hierarchical tree view for w<RIDS> and u<RIDS>. */
 template<typename NODE>
 class TreeViewTask : public Task
 {
@@ -512,7 +478,6 @@ class TreeViewTask : public Task
                         WR, node->lchild->n, TOP );
       }
     };
-
 }; /** end class TreeViewTask */
 
 
@@ -544,10 +509,6 @@ class Summary
 
     deque<Statistic> rank;
 
-    deque<Statistic> merge_neighbors_time;
-
-    deque<Statistic> id_time;
-
     deque<Statistic> skeletonize;
 
     /** n2s */
@@ -569,15 +530,11 @@ class Summary
       if ( rank.size() <= node->l )
       {
         rank.push_back( hmlp::Statistic() );
-        merge_neighbors_time.push_back( hmlp::Statistic() );
-        id_time.push_back( hmlp::Statistic() );
         skeletonize.push_back( hmlp::Statistic() );
         updateweight.push_back( hmlp::Statistic() );
       }
 
       rank[ node->l ].Update( (double)node->data.skels.size() );
-      merge_neighbors_time[ node->l ].Update( node->data.merge_neighbors_time );
-      id_time[ node->l ].Update( node->data.id_time );
       skeletonize[ node->l ].Update( node->data.skeletonize.GetDuration() );
       updateweight[ node->l ].Update( node->data.updateweight.GetDuration() );
 
@@ -607,8 +564,6 @@ class Summary
       {
         printf( "@SUMMARY\n" );
         printf( "level %2lu, ", l ); rank[ l ].Print();
-        //printf( "merge_neig: " ); merge_neighbors_time[ l ].Print();
-        //printf( "id_t:       " ); id_time[ l ].Print();
         //printf( "skel_t:     " ); skeletonize[ l ].Print();
         //printf( "... ... ...\n" );
         //printf( "n2s_t:      " ); updateweight[ l ].Print();
@@ -630,10 +585,6 @@ class Summary
  *         First compute the approximate center using subsamples.
  *         Then find the two most far away points to do the 
  *         projection.
- *
- *  @TODO  This splitter often fails to produce an even split when
- *         the matrix is sparse.
- *
  */ 
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct centersplit
@@ -709,13 +660,7 @@ struct centersplit
 
 
 
-/**
- *  @brief This the splitter used in the randomized tree.
- *
- *  @TODO  This splitter often fails to produce an even split when
- *         the matrix is sparse.
- *
- */ 
+/** @brief This the splitter used in the randomized tree.  */ 
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct randomsplit
 {
@@ -836,72 +781,6 @@ class NeighborsTask : public Task
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-///**
-// *  @brief This is the task wrapper of the exact KNN search we
-// *         perform in the leaf node of the randomized tree.
-// *         Currently our heap select cannot deal with duplicate
-// *         id; thus, I need to use a std::set to check for the
-// *         duplication before inserting the candidate into the
-// *         heap.
-// *
-// *  @TODO  Improve the heap to deal with unique id.
-// *
-// */ 
-//template<int NUM_TEST, class NODE, typename T>
-//class KNNTask : public Task
-//{
-//  public:
-//
-//    NODE *arg = NULL;
-//   
-//	  /** (Default) using angle distance from the Gram vector space */
-//	  DistanceMetric metric = ANGLE_DISTANCE;
-//
-//    void Set( NODE *user_arg )
-//    {
-//      arg = user_arg;
-//      name = string( "nn" );
-//      label = to_string( arg->treelist_id );
-//      // TODO: Need an accurate cost model.
-//      cost = 1.0;
-//      /** use the same distance as the tree */
-//      metric = arg->setup->MetricType();
-//
-//      //--------------------------------------
-//      double flops, mops;
-//      auto &gids = arg->gids;
-//      auto &NN = *arg->setup->NN;
-//      flops = gids.size();
-//      flops *= 4.0 * gids.size();
-//      // Heap select worst case
-//      mops = (size_t)std::log( NN.row() ) * gids.size();
-//      mops *= gids.size();
-//      // Access K
-//      mops += flops;
-//      event.Set( name + label, flops, mops );
-//      //--------------------------------------
-//    };
-//
-//    void Execute( Worker* user_worker )
-//    {
-//      FindNeighbors( arg, metric );
-//	  };
-//
-//}; /** end class KNNTask */
-//
-
-
 /** @brief This is the ANN routine design for CSC matrices. */ 
 template<bool DOAPPROXIMATE, bool SORTED, typename T, typename CSCMATRIX>
 Data<pair<T, size_t>> SparsePattern( size_t n, size_t k, CSCMATRIX &K )
@@ -977,23 +856,12 @@ Data<pair<T, size_t>> SparsePattern( size_t n, size_t k, CSCMATRIX &K )
     }
     printf( "Done.\n" ); fflush( stdout );
   }
-  
-//  for ( size_t j = 0; j < NN.col(); j ++ )
-//  {
-//	for ( size_t i = 0; i < NN.row(); i ++ )
-//	{
-//	  printf( "%4lu ", NN[ j * k + i ].second );
-//	}
-//	printf( "\n" );
-//  }
 
   return NN;
 }; /** end SparsePattern() */
 
 
-/*
- * @brief Helper functions for sorting sampling neighbors.
- */ 
+/* @brief Helper functions for sorting sampling neighbors. */ 
 template<typename TA, typename TB>
 pair<TB, TA> flip_pair( const pair<TA, TB> &p )
 {
@@ -1142,14 +1010,13 @@ multimap<TB, TA> flip_map( const map<TA, TB> &src )
 
 
 
-/**
- *  @brief Compute the cofficient matrix by R11^{-1} * proj.
- *
- */ 
-template<typename NODE, typename T>
+/** @brief Compute the cofficient matrix by R11^{-1} * proj. */ 
+template<typename NODE>
 void Interpolate( NODE *node )
 {
-  /** early return */
+  /** Derive type T from NODE. */
+  using T = typename NODE::T;
+  /** Early return if possible. */
   if ( !node ) return;
 
   auto &K = *node->setup->K;
@@ -1160,14 +1027,14 @@ void Interpolate( NODE *node )
   auto s = proj.row();
   auto n = proj.col();
 
-  /** early return if the node is incompressible or all zeros */
+  /** Early return if the node is incompressible or all zeros. */
   if ( !data.isskel || proj[ 0 ] == 0 ) return;
 
   assert( s );
   assert( s <= n );
   assert( jpvt.size() == n );
 
-  /** if is skeletonized, reserve space for w_skel and u_skel */
+  /** If is skeletonized, reserve space for w_skel and u_skel */
   if ( data.isskel )
   {
     data.w_skel.reserve( skels.size(), MAX_NRHS );
@@ -1205,10 +1072,8 @@ void Interpolate( NODE *node )
 }; /** end Interpolate() */
 
 
-/**
- *  @brief
- */ 
-template<typename NODE, typename T>
+/** @brief The correponding task of Interpolate(). */ 
+template<typename NODE>
 class InterpolateTask : public Task
 {
   public:
@@ -1224,20 +1089,9 @@ class InterpolateTask : public Task
       cost = 1.0;
     };
 
-    void GetEventRecord()
-    {
-      double flops = 0.0, mops = 0.0;
-      event.Set( label + name, flops, mops );
-    };
-
     void DependencyAnalysis() { arg->DependOnNoOne( this ); };
 
-    void Execute( Worker* user_worker )
-    {
-      //printf( "%lu Interpolate beg\n", arg->treelist_id );
-      Interpolate<NODE, T>( arg );
-      //printf( "%lu Interpolate end\n", arg->treelist_id );
-    };
+    void Execute( Worker* user_worker ) { Interpolate( arg ); };
 
 }; /** end class InterpolateTask */
 
@@ -1433,55 +1287,12 @@ void SkeletonKIJ( NODE *node )
     nsamples = 2 * node->setup->LeafNodeSize();
 
   /** Sample off-diagonal rows. */
-  //RowSamples<NODE, T>( node, nsamples );
   RowSamples( node, nsamples );
   
   /** Compute (or fetch) submatrix KIJ. */
   KIJ = K( candidate_rows, candidate_cols );
 
 
-
-//  /** 
-//   *  get KIJ for skeletonization 
-//   *
-//   *  notice that operator () may involve MPI collaborative communication.
-//   *
-//   */
-//  //KIJ = K( candidate_rows, candidate_cols );
-//  size_t over_size_rank = node->setup->MaximumRank() + 20;
-//  //if ( candidate_rows.size() <= over_size_rank )
-//  if ( 1 )
-//  {
-//    //printf( "Get KIJ treelist_id %lu I %lu J %lu\n", node->treelist_id, candidate_rows.size(), candidate_cols.size() ); fflush( stdout );
-//    KIJ = K( candidate_rows, candidate_cols );
-//    //printf( "End KIJ treelist_id %lu I %lu J %lu\n", node->treelist_id, candidate_rows.size(), candidate_cols.size() ); fflush( stdout );
-//  }
-//  else
-//  {
-//    auto Ksamples = K( candidate_rows, candidate_cols );
-//    /**
-//     *  Compute G * KIJ
-//     */
-//    KIJ.resize( over_size_rank, candidate_cols.size() );
-//    Data<T> G( over_size_rank, nsamples ); G.randn( 0, 1 );
-//
-//
-//    View<T> Ksamples_v( false, Ksamples );
-//    View<T> KIJ_v( false, KIJ );
-//    View<T> G_v( false, G );
-//
-//    /** KIJ = G * Ksamples */
-//    gemm::xgemm<GEMM_NB>( (T)1.0, G_v, Ksamples_v, (T)0.0, KIJ_v );
-//
-//    //xgemm
-//    //(
-//    //  "No transpose", "No transpose",
-//    //  over_size_rank, candidate_cols.size(), nsamples,
-//    //  1.0, G.data(), G.row(),
-//    //  Ksamples.data(), Ksamples.row(),
-//    //  0.0, KIJ.data(), KIJ.row()
-//    //);
-//  }
 
 }; /** end SkeletonKIJ() */
 
@@ -1519,32 +1330,6 @@ class SkeletonKIJTask : public Task
 }; /** end class SkeletonKIJTask */ 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /** @brief Compress with interpolative decomposition (ID). */ 
 template<typename NODE>
 void Skeletonize( NODE *node )
@@ -1554,7 +1339,7 @@ void Skeletonize( NODE *node )
   /** Early return if we do not need to skeletonize. */
   if ( !node->parent ) return;
 
-  /** Gather shared data and create reference */
+  /** Gather shared data and create reference. */
   auto &K   = *(node->setup->K);
   auto &NN  = *(node->setup->NN);
   auto maxs = node->setup->MaximumRank();
@@ -1562,7 +1347,7 @@ void Skeletonize( NODE *node )
   bool secure_accuracy = node->setup->SecureAccuracy();
   bool use_adaptive_ranks = node->setup->UseAdaptiveRanks();
 
-  /** Gather per node data and create reference */
+  /** Gather per node data and create reference. */
   auto &data  = node->data;
   auto &skels = data.skels;
   auto &proj  = data.proj;
@@ -1587,18 +1372,14 @@ void Skeletonize( NODE *node )
     }
   }
 
-
   /** Bill's l2 norm scaling factor. */
   T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
   /** Account for uniform sampling. */
   scaled_stol *= std::sqrt( (T)q / N );
 
-  lowrank::id
-  ( 
-    use_adaptive_ranks, secure_accuracy,
-    KIJ.row(), KIJ.col(), maxs, scaled_stol,
-    KIJ, skels, proj, jpvt
-  );
+  /** Call adaptive interpolative decomposition primitive. */
+  lowrank::id( use_adaptive_ranks, secure_accuracy,
+    KIJ.row(), KIJ.col(), maxs, scaled_stol, KIJ, skels, proj, jpvt );
 
   /** free KIJ for spaces */
   KIJ.resize( 0, 0 );
@@ -1611,17 +1392,12 @@ void Skeletonize( NODE *node )
   }
   else
   {
-    assert( skels.size() );
-    assert( proj.size() );
-    assert( jpvt.size() );
+    assert( skels.size() && proj.size() && jpvt.size() );
     data.isskel = true;
   }
   
   /** Relabel skeletions with the real gids. */
-  for ( size_t i = 0; i < skels.size(); i ++ )
-  {
-    skels[ i ] = candidate_cols[ skels[ i ] ];
-  }
+  for ( size_t i = 0; i < skels.size(); i ++ ) skels[ i ] = candidate_cols[ skels[ i ] ];
 
   /** Update pruning neighbor list. */
   data.pnids.clear();
@@ -1632,11 +1408,6 @@ void Skeletonize( NODE *node )
 }; /** end Skeletonize() */
 
 
-
-
-/**
- *
- */ 
 template<typename NODE, typename T>
 class SkeletonizeTask : public Task
 {
@@ -1721,26 +1492,19 @@ class SkeletonizeTask : public Task
 
 
 
-/**
- *  @brief 
- */
-template<typename NODE, typename T>
+/** @brief Compute skeleton weights for each node. */
+template<typename NODE>
 void UpdateWeights( NODE *node )
 {
-#ifdef DEBUG_SPDASKIT
-  printf( "%lu UpdateWeight\n", node->treelist_id ); fflush( stdout );
-#endif
-  /** early return */
+  /** Derive type T from NODE. */
+  using T = typename NODE::T;
+  /** Early return if possible. */
   if ( !node->parent || !node->data.isskel ) return;
 
-  /** eanble nested parallelism */
-  //int num_threads = omp_get_num_threads();
-  //if ( node->l < 4 ) omp_set_num_threads( 4 );
-
-  /** gather shared data and create reference */
+  /** Gather shared data and create reference */
   auto &w = *node->setup->w;
 
-  /** gather per node data and create reference */
+  /** Gather per node data and create reference */
   auto &data = node->data;
   auto &proj = data.proj;
   auto &skels = data.skels;
@@ -1759,16 +1523,6 @@ void UpdateWeights( NODE *node )
 
   if ( node->isleaf )
   {
-    //double beg = omp_get_wtime();
-    //double w_leaf_time = omp_get_wtime() - beg;
-
-#ifdef DEBUG_SPDASKIT
-    printf( "m %lu n %lu k %lu\n", 
-      w_skel.row(), w_skel.col(), w_leaf.col());
-    printf( "proj.row() %lu w_leaf.row() %lu w_skel.row() %lu\n", 
-        proj.row(), w_leaf.row(), w_skel.row() );
-#endif
-
     if ( w_leaf.size() )
     {
       //printf( "%8lu w_leaf allocated [%lu %lu]\n", 
@@ -1852,23 +1606,7 @@ void UpdateWeights( NODE *node )
       gemm::xgemm<GEMM_NB>( (T)1.0, PR, WR, (T)1.0, W );
       //W.DependencyCleanUp();
     }
-
-    //double update_leaf_time = omp_get_wtime() - beg;
-    //printf( "%lu, total %.3E\n", 
-    //  node->treelist_id, update_leaf_time );
   }
-
-  //if ( w_skel.HasIllegalValue() )
-  //{
-  //  printf( "Illegal value in w_skel\n" ); fflush( stdout );
-  //}
-
-
-
-#ifdef DEBUG_SPDASKIT
-  printf( "%lu UpdateWeight done\n", node->treelist_id ); fflush( stdout );
-#endif
-
 }; /** end UpdateWeights() */
 
 
@@ -1964,11 +1702,6 @@ class UpdateWeightsTask : public Task
 #endif
     };
 
-    void GetEventRecord()
-    {
-      arg->data.updateweight = event;
-    };
-
     void DependencyAnalysis() { arg->DependOnChildren( this ); };
 
     void Execute( Worker* user_worker )
@@ -1979,7 +1712,7 @@ class UpdateWeightsTask : public Task
       if ( device ) gpu::UpdateWeights( device, arg );
       else               UpdateWeights<NODE, T>( arg );
 #else
-      UpdateWeights<NODE, T>( arg );
+      UpdateWeights( arg );
 #endif
     };
 
@@ -1993,19 +1726,17 @@ class UpdateWeightsTask : public Task
  *         there is a SkeletonstoAll function to be called.
  *
  */ 
-template<bool NNPRUNE, typename NODE, typename T>
+template<typename NODE>
 void SkeletonsToSkeletons( NODE *node )
 {
-#ifdef DEBUG_SPDASKIT
-  printf( "%lu Skel2Skel \n", node->treelist_id ); fflush( stdout );
-#endif
-
+  /** Derive type T from NODE. */
+  using T = typename NODE::T;
+  /** Early return if possible. */
   if ( !node->parent || !node->data.isskel ) return;
 
   double beg, u_skel_time, s2s_time;
 
-  auto *FarNodes = &node->FarNodes;
-  if ( NNPRUNE ) FarNodes = &node->NNFarNodes;
+  auto *FarNodes = &node->NNFarNodes;
 
   auto &K = *node->setup->K;
   auto &data = node->data;
@@ -2085,17 +1816,7 @@ void SkeletonsToSkeletons( NODE *node )
     }
   }
 
-
-  //if ( u_skel.HasIllegalValue() )
-  //{
-  //  printf( "Illegal value in u_skel\n" ); fflush( stdout );
-  //}
-
-
-
-  //printf( "u_skel %.3E s2s %.3E\n", u_skel_time, s2s_time );
-
-}; // end void SkeletonsToSkeletons()
+}; /** end SkeletonsToSkeletons() */
 
 
 
@@ -2153,31 +1874,15 @@ class SkeletonsToSkeletonsTask : public Task
       priority = true;
     };
 
-    void GetEventRecord()
-    {
-      arg->data.s2s = event;
-    };
-
     void DependencyAnalysis()
     {
-      for ( auto p : arg->data.FarDependents )
-        hmlp_msg_dependency_analysis( 306, p, R, this );
-
-      set<NODE*> *FarNodes;
-      FarNodes = &arg->NNFarNodes;
-      for ( auto it : *FarNodes )
-      {
-        it->DependencyAnalysis( R, this );
-      }
+      for ( auto it : arg->NNFarNodes ) it->DependencyAnalysis( R, this );
       arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
     };
 
-    void Execute( Worker* user_worker )
-    {
-      SkeletonsToSkeletons<NNPRUNE, NODE, T>( arg );
-    };
-}; // end class SkeletonsToSkeletonsTask
+    void Execute( Worker* user_worker ) { SkeletonsToSkeletons( arg ); };
+}; /** end class SkeletonsToSkeletonsTask */
 
 
 /**
@@ -2185,22 +1890,17 @@ class SkeletonsToSkeletonsTask : public Task
  *         dependency on u_skel.
  *         
  */ 
-template<bool NNPRUNE, typename NODE, typename T>
+template<typename NODE>
 void SkeletonsToNodes( NODE *node )
 {
-#ifdef DEBUG_SPDASKIT
-  printf( "%lu Skel2Node u_skel.row() %lu\n", 
-      node->treelist_id, node->data.u_skel.row() ); 
-  fflush( stdout );
-#endif
+  /** Derive type T from NODE. */
+  using T = typename NODE::T;
 
-  double beg, u_leaf_time, before_writeback_time, after_writeback_time;
-
-  /** gather shared data and create reference */
+  /** Gather shared data and create reference. */
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
 
-  /** Gather per node data and create reference */
+  /** Gather per node data and create reference. */
   auto &gids = node->gids;
   auto &data = node->data;
   auto &proj = data.proj;
@@ -2258,10 +1958,6 @@ void SkeletonsToNodes( NODE *node )
         );
       }
     }
-    after_writeback_time = omp_get_wtime() - beg;
-
-    //printf( "u_leaf %.3E before %.3E after %.3E\n",
-    //    u_leaf_time, before_writeback_time, after_writeback_time );
   }
   else
   {
@@ -2413,11 +2109,6 @@ class SkeletonsToNodesTask : public Task
 #endif
     };
 
-    void GetEventRecord()
-    {
-      arg->data.s2n = event;
-    };
-
     void DependencyAnalysis() { arg->DependOnParent( this ); };
 
     void Execute( Worker* user_worker )
@@ -2428,11 +2119,11 @@ class SkeletonsToNodesTask : public Task
       if ( device ) gpu::SkeletonsToNodes<NNPRUNE, NODE, T>( device, arg );
       else               SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
 #else
-    SkeletonsToNodes<NNPRUNE, NODE, T>( arg );
+    SkeletonsToNodes( arg );
 #endif
     };
 
-}; // end class SkeletonsToNodesTask
+}; /** end class SkeletonsToNodesTask */
 
 
 
@@ -2704,13 +2395,13 @@ multimap<size_t, size_t> NearNodeBallots( NODE *node )
         {
           if ( ballot.find( neighbor_morton ) != ballot.end() )
           {
-            ballot[ neighbor_morton ] ++;
-            //ballot[ neighbor_morton ] += weighted_ballot;
+            //ballot[ neighbor_morton ] ++;
+            ballot[ neighbor_morton ] += weighted_ballot;
           }
           else
           {
-            ballot[ neighbor_morton ] = 1;
-            //ballot[ neighbor_morton ] = weighted_ballot;
+            //ballot[ neighbor_morton ] = 1;
+            ballot[ neighbor_morton ] = weighted_ballot;
           }
         }
       }
@@ -3804,7 +3495,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   beg = omp_get_wtime();
   gofmm::SkeletonKIJTask<NODE, T> GETMTXtask;
   gofmm::SkeletonizeTask<NODE, T> SKELtask;
-  gofmm::InterpolateTask<NODE, T> PROJtask;
+  gofmm::InterpolateTask<NODE> PROJtask;
   tree.DependencyCleanUp();
   tree.TraverseUp( GETMTXtask, SKELtask );
   tree.TraverseUnOrdered<true>( PROJtask );
@@ -3818,17 +3509,6 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   skel_time = omp_get_wtime() - beg;
 
 
-  /** (optional for comparison) parallel level-by-level traversal */
-  beg = omp_get_wtime();
-  ref_time = omp_get_wtime() - beg;
- 
-  /** (optional for comparison) sekeletonization with omp task. */
-  beg = omp_get_wtime();
-  omptask_time = omp_get_wtime() - beg;
-
-  /** (optional for comparison) sekeletonization with omp task. */
-  beg = omp_get_wtime();
-  omptask45_time = omp_get_wtime() - beg;
 
 
   /** MergeFarNodes */
@@ -3852,14 +3532,6 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   /** plot iteraction matrix */  
   auto exact_ratio = hmlp::gofmm::DrawInteraction<true>( tree );
 
-#ifdef HMLP_AVX512
-  //mkl_set_dynamic( 1 );
-  //mkl_set_num_threads( omp_get_max_threads() );
-#else
-  //mkl_set_dynamic( 1 );
-  //mkl_set_num_threads( omp_get_max_threads() );
-#endif
-
   compress_time += ann_time;
   compress_time += tree_time;
   compress_time += skel_time;
@@ -3873,10 +3545,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     printf( "========================================================\n");
     printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
     printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
-    printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
-    printf( "                (Level-by-Level ) ----- %5.2lfs\n", ref_time );
-    printf( "                (omp task       ) ----- %5.2lfs\n", omptask_time );
-    printf( "                (Omp task depend) ----- %5.2lfs\n", omptask45_time );
+    printf( "Skeletonization ----------------------- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
     printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
     printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
     printf( "========================================================\n");
@@ -3885,11 +3554,10 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     printf( "========================================================\n\n");
   }
 
-  /** clean up all r/w dependencies left on tree nodes */
+  /** Clean up all r/w dependencies left on tree nodes. */
   tree_ptr->DependencyCleanUp();
 
-  /** return the hierarhical compreesion of K as a binary tree */
-  //return tree;
+  /** Return the hierarhical compreesion of K as a binary tree. */
   return tree_ptr;
 
 }; /** end Compress() */
@@ -4143,6 +3811,7 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials )
 }; /** end ComputeError() */
 
 
+
 template<typename TREE>
 void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
 {
@@ -4156,6 +3825,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   vector<size_t> all_rhs( nrhs );
   for ( size_t rhs = 0; rhs < nrhs; rhs ++ ) all_rhs[ rhs ] = rhs;
 
+  //auto A = tree.CheckAllInteractions();
 
   /** Evaluate u ~ K * w. */
   Data<T> w( n, nrhs ); w.rand();
@@ -4170,26 +3840,27 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   printf( "========================================================\n");
   for ( size_t i = 0; i < ntest; i ++ )
   {
+    size_t tar = i * 500;
     Data<T> potentials;
     /** ASKIT treecode with NN pruning. */
-    Evaluate<false, true>( tree, i, potentials );
-    auto nnerr = ComputeError( tree, i, potentials );
+    Evaluate<false, true>( tree, tar, potentials );
+    auto nnerr = ComputeError( tree, tar, potentials );
     /** ASKIT treecode without NN pruning. */
-    Evaluate<false, false>( tree, i, potentials );
-    auto nonnerr = ComputeError( tree, i, potentials );
+    Evaluate<false, false>( tree, tar, potentials );
+    auto nonnerr = ComputeError( tree, tar, potentials );
     /** Get results from GOFMM */
     //potentials = u( vector<size_t>( i ), all_rhs );
     for ( size_t p = 0; p < potentials.col(); p ++ )
     {
-      potentials[ p ] = u( i, p );
+      potentials[ p ] = u( tar, p );
     }
-    auto fmmerr = ComputeError( tree, i, potentials );
+    auto fmmerr = ComputeError( tree, tar, potentials );
 
     /** Only print 10 values. */
     if ( i < 10 )
     {
       printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-          i, nnerr, nonnerr, fmmerr );
+          tar, nnerr, nonnerr, fmmerr );
     }
     nnerr_avg += nnerr;
     nonnerr_avg += nonnerr;

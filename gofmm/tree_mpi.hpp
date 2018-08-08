@@ -596,13 +596,10 @@ class Node : public tree::Node<SETUP, NODEDATA>
 
     /** Initialize with all processes. */
     mpi::Comm comm = MPI_COMM_WORLD;
-
     /** MPI status. */
     mpi::Status status;
-
     /** Subcommunicator size. */
     int size = 1;
-
     /** Subcommunicator rank. */
     int rank = 0;
 
@@ -814,7 +811,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     AllNearestNeighbor( size_t n_tree, size_t n, size_t k,
       pair<T, size_t> initNN, KNNTASK &dummy )
     {
-      mpi::PrintProgress( "[BEG] NeighborSearch ...\n", this->GetComm() );
+      mpi::PrintProgress( "[BEG] NeighborSearch ...", this->GetComm() );
 
       /** Get the problem size from setup->K->row(). */
       this->n = n;
@@ -847,20 +844,6 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** Allocate distributed tree nodes in advance. */
       AllocateNodes( gids );
 
-
-
-      ///** Initial gids distribution (asssuming Round-Robin). */
-      //for ( size_t i = rank; i < n; i += size ) this->global_indices.push_back( i );
-      ///** Local problem size (assuming Round-Robin). */
-      //num_points_owned = this->global_indices.size();
-      ///** Allocate distributed tree nodes in advance. */
-      //AllocateNodes( this->global_indices );
-
-
-
-
-
-
       /** Metric tree partitioning. */
       DistSplitTask<MPINODE> mpisplittask;
       tree::SplitTask<NODE>  seqsplittask;
@@ -868,16 +851,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       DistTraverseDown<false>( mpisplittask );
       LocaTraverseDown( seqsplittask );
       ExecuteAllTasks();
-      //hmlp_run();
-      //mpi::Barrier( comm );
-
-
 
 
       for ( size_t t = 0; t < n_tree; t ++ )
       {
         this->Barrier();
-        if ( this->GetCommRank() == 0 ) printf( "Iteration #%lu\n", t );
+        //if ( this->GetCommRank() == 0 ) printf( "Iteration #%lu\n", t );
 
         /** Query neighbors computed in CIDS distribution.  */
         DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
@@ -928,7 +907,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         }
       }
 
-      mpi::PrintProgress( "[END] NeighborSearch ...\n", this->GetComm() );
+      mpi::PrintProgress( "[END] NeighborSearch ...", this->GetComm() );
       return NN;
     }; /** end AllNearestNeighbor() */
 
@@ -938,7 +917,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     /** @brief partition n points using a distributed binary tree. */ 
     void TreePartition() 
     {
-      mpi::PrintProgress( "[BEG] TreePartitioning ...\n", this->GetComm() );
+      mpi::PrintProgress( "[BEG] TreePartitioning ...", this->GetComm() );
 
       /** Set up total problem size n and leaf node size m. */
       this->n = this->setup.ProblemSize();
@@ -1001,7 +980,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       }
 
       this->Barrier();
-      mpi::PrintProgress( "[END] TreePartitioning ...\n", this->GetComm() ); 
+      mpi::PrintProgress( "[END] TreePartitioning ...", this->GetComm() ); 
     }; /** end TreePartition() */
 
 
@@ -1009,8 +988,6 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     void RecursiveMorton( MPINODE *node, MortonHelper::Recursor r ) 
     {
       /** MPI Support. */ 
-      //int comm_size; mpi::Comm_size( comm, &comm_size );
-      //int comm_rank; mpi::Comm_rank( comm, &comm_rank );
       int comm_size = this->GetCommSize();
       int comm_rank = this->GetCommRank();
       int node_size = node->GetCommSize(); 
@@ -1073,6 +1050,131 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         }
       }
     }; /** end RecursiveMorton() */
+
+
+
+
+    Data<int> CheckAllInteractions()
+    {
+      /** Get the total depth of the tree. */
+      int total_depth = this->treelist.back()->l;
+      /** Number of total leaf nodes. */
+      int num_leafs = 1 << total_depth;
+      /** Create a 2^l-by-2^l table to check all interactions. */
+      Data<int> A( num_leafs, num_leafs, 0 );
+      Data<int> B( num_leafs, num_leafs, 0 );
+      /** Now traverse all tree nodes (excluding the root). */
+      for ( int t = 1; t < this->treelist.size(); t ++ )
+      {
+        auto *node = this->treelist[ t ];
+        ///** Loop over all near interactions. */
+        //for ( auto it : node->NNNearNodeMortonIDs )
+        //{
+        //  auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+        //  auto J = MortonHelper::Morton2Offsets(   it, total_depth );
+        //  for ( auto i : I ) for ( auto j : J ) A( i, j ) += 1; 
+        //}
+        ///** Loop over all far interactions. */
+        //for ( auto it : node->NNFarNodeMortonIDs )
+        //{
+        //  auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+        //  auto J = MortonHelper::Morton2Offsets(   it, total_depth );
+        //  for ( auto i : I ) for ( auto j : J ) A( i, j ) += 1; 
+        //}
+
+        for ( int p = 0; p < this->GetCommSize(); p ++ )
+        {
+          if ( node->isleaf )
+          {
+            for ( auto & it : node->DistNear[ p ] )
+            {
+              auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+              auto J = MortonHelper::Morton2Offsets(   it.first, total_depth );
+              for ( auto i : I ) for ( auto j : J ) 
+              {
+                assert( i < num_leafs && j < num_leafs );
+                A( i, j ) += 1; 
+              }
+            }
+          }
+          for ( auto & it : node->DistFar[ p ] )
+          {
+            auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+            auto J = MortonHelper::Morton2Offsets(   it.first, total_depth );
+            for ( auto i : I ) for ( auto j : J ) 
+            {
+              assert( i < num_leafs && j < num_leafs );
+              A( i, j ) += 1; 
+            }
+          }
+        }
+      }
+
+      for ( auto *node : mpitreelists )
+      {
+        ///** Loop over all near interactions. */
+        //for ( auto it : node->NNNearNodeMortonIDs )
+        //{
+        //  auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+        //  auto J = MortonHelper::Morton2Offsets(   it, total_depth );
+        //  for ( auto i : I ) for ( auto j : J ) A( i, j ) += 1; 
+        //}
+        ///** Loop over all far interactions. */
+        //for ( auto it : node->NNFarNodeMortonIDs )
+        //{
+        //  auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+        //  auto J = MortonHelper::Morton2Offsets(   it, total_depth );
+        //  for ( auto i : I ) for ( auto j : J ) A( i, j ) += 1; 
+        //}
+        for ( int p = 0; p < this->GetCommSize(); p ++ )
+        {
+          if ( node->isleaf )
+          {
+          for ( auto & it : node->DistNear[ p ] )
+          {
+            auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+            auto J = MortonHelper::Morton2Offsets(   it.first, total_depth );
+            for ( auto i : I ) for ( auto j : J ) 
+            {
+              assert( i < num_leafs && j < num_leafs );
+              A( i, j ) += 1; 
+            }
+          }
+          }
+          for ( auto & it : node->DistFar[ p ] )
+          {
+            auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+            auto J = MortonHelper::Morton2Offsets(   it.first, total_depth );
+            for ( auto i : I ) for ( auto j : J ) 
+            {
+              assert( i < num_leafs && j < num_leafs );
+              A( i, j ) += 1; 
+            }
+          }
+        }
+      }
+
+      /** Reduce */
+      mpi::Reduce( A.data(), B.data(), A.size(), MPI_SUM, 0, this->GetComm() );
+
+      if ( this->GetCommRank() == 0 )
+      {
+        for ( size_t i = 0; i < num_leafs; i ++ )
+        {
+          for ( size_t j = 0; j < num_leafs; j ++ ) printf( "%d", B( i, j ) );
+          printf( "\n" );
+        }
+      }
+
+      return B;
+    }; /** end CheckAllInteractions() */
+
+
+
+
+
+
+
 
 
 
@@ -1284,16 +1386,6 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 
 
-
-
-
-
-
-    /** Global communicator, size, and rank */
-    //mpi::Comm comm = MPI_COMM_WORLD;
-    //int size = 1;
-    //int rank = 0;
-
     /**
      *  Interaction lists per rank
      *
@@ -1311,10 +1403,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     
   private:
 
-    /** global communicator error message */
+    /** global communicator error message. */
     int ierr = 0;
-
-    /** n = sum( num_points_owned ) from all MPI processes */
+    /** n = sum( num_points_owned ) from all MPI processes. */
     size_t num_points_owned = 0;
 
 }; /** end class Tree */

@@ -400,7 +400,16 @@ void xgemm( hmlpOperation_t transA, hmlpOperation_t transB,
 
   xgemm( alpha, Aview, Bview, beta, Cview );
   
-}; /** xgemm() */
+}; /** end xgemm() */
+
+
+template<typename T>
+void xgemm( T alpha, Data<T> &A, Data<T> &B, T beta,  Data<T> &C ) 
+{
+  xgemm( HMLP_OP_N, HMLP_OP_N, alpha, A, B, beta, C );
+}; /** end xgemm() */
+
+
 
 
 }; /** end namespace gemm */

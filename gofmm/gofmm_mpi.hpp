@@ -696,7 +696,7 @@ void DistUpdateWeights( NODE *node )
   if ( size < 2 )
   {
     /** This is the root of the local tree. */
-    gofmm::UpdateWeights<NODE, T>( node );
+    gofmm::UpdateWeights( node );
   }
   else
   {
@@ -845,91 +845,91 @@ class DistUpdateWeightsTask : public Task
 /**
  *
  */ 
-template<bool NNPRUNE, typename NODE, typename T>
-class DistSkeletonsToSkeletonsTask : public Task
-{
-  public:
-
-    NODE *arg = NULL;
-
-    void Set( NODE *user_arg )
-    {
-      arg = user_arg;
-      name = string( "DistS2S" );
-      label = to_string( arg->treelist_id );
-      /** compute flops and mops */
-      double flops = 0.0, mops = 0.0;
-      auto &w = *arg->setup->w;
-      size_t m = arg->data.skels.size();
-      size_t n = w.col();
-
-      auto *FarNodes = &arg->FarNodes;
-      if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
-
-      for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
-      {
-        size_t k = (*it)->data.skels.size();
-        flops += 2.0 * m * n * k;
-        mops  += m * k; // cost of Kab
-        mops  += 2.0 * ( m * n + n * k + k * n );
-      }
-
-      /** setup the event */
-      event.Set( label + name, flops, mops );
-
-      /** assume computation bound */
-      cost = flops / 1E+9;
-
-      /** "LOW" priority */
-      priority = false;
-    };
-
-
-
-    void DependencyAnalysis()
-    {
-      for ( auto p : arg->data.FarDependents )
-        hmlp_msg_dependency_analysis( 306, p, R, this );
-
-      auto *FarNodes = &arg->FarNodes;
-      if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
-      for ( auto it : *FarNodes ) it->DependencyAnalysis( R, this );
-
-      arg->DependencyAnalysis( RW, this );
-      this->TryEnqueue();
-    };
-
-    /**
-     *  @brief Notice that S2S depends on all Far interactions, which
-     *         may include local tree nodes or let nodes. 
-     *         For HSS case, the only Far interaction is the sibling.
-     *         Skeleton weight of the sibling will always be exchanged
-     *         by default in N2S. Thus, currently we do not need 
-     *         a distributed S2S, because the skeleton weight is already
-     *         in place.
-     *
-     */ 
-    void Execute( Worker* user_worker )
-    {
-      auto *node = arg;
-      /** MPI Support. */
-      auto comm = node->GetComm();
-      auto size = node->GetCommSize();
-      auto rank = node->GetCommRank();
-
-      if ( size < 2 )
-      {
-        gofmm::SkeletonsToSkeletons<NNPRUNE, NODE, T>( node );
-      }
-      else
-      {
-        /** Only 0th rank (owner) will execute this task. */
-        if ( rank == 0 ) gofmm::SkeletonsToSkeletons<NNPRUNE, NODE, T>( node );
-      }
-    };
-
-}; /** end class DistSkeletonsToSkeletonsTask */
-
+//template<bool NNPRUNE, typename NODE, typename T>
+//class DistSkeletonsToSkeletonsTask : public Task
+//{
+//  public:
+//
+//    NODE *arg = NULL;
+//
+//    void Set( NODE *user_arg )
+//    {
+//      arg = user_arg;
+//      name = string( "DistS2S" );
+//      label = to_string( arg->treelist_id );
+//      /** compute flops and mops */
+//      double flops = 0.0, mops = 0.0;
+//      auto &w = *arg->setup->w;
+//      size_t m = arg->data.skels.size();
+//      size_t n = w.col();
+//
+//      auto *FarNodes = &arg->FarNodes;
+//      if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
+//
+//      for ( auto it = FarNodes->begin(); it != FarNodes->end(); it ++ )
+//      {
+//        size_t k = (*it)->data.skels.size();
+//        flops += 2.0 * m * n * k;
+//        mops  += m * k; // cost of Kab
+//        mops  += 2.0 * ( m * n + n * k + k * n );
+//      }
+//
+//      /** setup the event */
+//      event.Set( label + name, flops, mops );
+//
+//      /** assume computation bound */
+//      cost = flops / 1E+9;
+//
+//      /** "LOW" priority */
+//      priority = false;
+//    };
+//
+//
+//
+//    void DependencyAnalysis()
+//    {
+//      for ( auto p : arg->data.FarDependents )
+//        hmlp_msg_dependency_analysis( 306, p, R, this );
+//
+//      auto *FarNodes = &arg->FarNodes;
+//      if ( NNPRUNE ) FarNodes = &arg->NNFarNodes;
+//      for ( auto it : *FarNodes ) it->DependencyAnalysis( R, this );
+//
+//      arg->DependencyAnalysis( RW, this );
+//      this->TryEnqueue();
+//    };
+//
+//    /**
+//     *  @brief Notice that S2S depends on all Far interactions, which
+//     *         may include local tree nodes or let nodes. 
+//     *         For HSS case, the only Far interaction is the sibling.
+//     *         Skeleton weight of the sibling will always be exchanged
+//     *         by default in N2S. Thus, currently we do not need 
+//     *         a distributed S2S, because the skeleton weight is already
+//     *         in place.
+//     *
+//     */ 
+//    void Execute( Worker* user_worker )
+//    {
+//      auto *node = arg;
+//      /** MPI Support. */
+//      auto comm = node->GetComm();
+//      auto size = node->GetCommSize();
+//      auto rank = node->GetCommRank();
+//
+//      if ( size < 2 )
+//      {
+//        gofmm::SkeletonsToSkeletons<NNPRUNE, NODE, T>( node );
+//      }
+//      else
+//      {
+//        /** Only 0th rank (owner) will execute this task. */
+//        if ( rank == 0 ) gofmm::SkeletonsToSkeletons<NNPRUNE, NODE, T>( node );
+//      }
+//    };
+//
+//}; /** end class DistSkeletonsToSkeletonsTask */
+//
 
 template<typename NODE, typename LETNODE, typename T>
 class S2STask2 : public Task
@@ -979,8 +979,7 @@ class S2STask2 : public Task
 
     void DependencyAnalysis()
     {
-      int rank; mpi::Comm_rank( MPI_COMM_WORLD, &rank );
-      if ( p == rank )
+      if ( p == hmlp_get_mpi_rank() )
       {
         for ( auto src : Sources ) src->DependencyAnalysis( R, this );
       }
@@ -1015,13 +1014,14 @@ class S2STask2 : public Task
 
         assert( w.col() == nrhs );
         assert( w.row() == J.size() );
-        xgemm
-        (
-          "N", "N", u.row(), u.col(), w.row(),
-          1.0, KIJ.data(), KIJ.row(),
-                 w.data(),   w.row(),
-          1.0,   u.data(),   u.row()
-        );
+        //xgemm
+        //(
+        //  "N", "N", u.row(), u.col(), w.row(),
+        //  1.0, KIJ.data(), KIJ.row(),
+        //         w.data(),   w.row(),
+        //  1.0,   u.data(),   u.row()
+        //);
+        gemm::xgemm( (T)1.0, KIJ, w, (T)1.0, u );
 
         /** Free KIJ, if !is_cached. */
         if ( !is_cached ) 
@@ -1074,8 +1074,7 @@ class S2SReduceTask2 : public Task
       }
 
       /** Create subtasks */
-      int size; mpi::Comm_size( MPI_COMM_WORLD, &size );
-      for ( int p = 0; p < size; p ++ )
+      for ( int p = 0; p < hmlp_get_mpi_size(); p ++ )
       {
         vector<LETNODE*> Sources;
         for ( auto &it : arg->DistFar[ p ] )
@@ -1110,7 +1109,6 @@ class S2SReduceTask2 : public Task
     void DependencyAnalysis()
     {
       for ( auto task : subtasks ) Scheduler::DependencyAdd( task, this );
-      //if ( arg->NNFarNodes.size() ) 
       arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
     };
@@ -1164,7 +1162,7 @@ void DistSkeletonsToNodes( NODE *node )
   if ( size < 2 )
   {
     /** Call the shared-memory implementation. */
-    gofmm::SkeletonsToNodes<NNPRUNE, NODE, T>( node );
+    gofmm::SkeletonsToNodes( node );
   }
   else
   {
@@ -1340,17 +1338,9 @@ class L2LTask2 : public Task
 
     void DependencyAnalysis()
     {
-      int rank; mpi::Comm_rank( MPI_COMM_WORLD, &rank );
-      //if ( p == rank ) 
-      //{
-      //  for ( auto src : Sources ) src->DependencyAnalysis( R, this );
-      //}
-      //else hmlp_msg_dependency_analysis( 300, p, R, this );
-
-
-
       /** If p is a distributed process, then depends on the message. */
-      if ( p != rank ) hmlp_msg_dependency_analysis( 300, p, R, this );
+      if ( p != hmlp_get_mpi_rank() ) 
+        hmlp_msg_dependency_analysis( 300, p, R, this );
       this->TryEnqueue();
     };
 
@@ -1457,8 +1447,7 @@ class L2LReduceTask2 : public Task
       name = string( "L2LR" );
       label = to_string( arg->treelist_id );
       /** Create subtasks */
-      int size; mpi::Comm_size( MPI_COMM_WORLD, &size );
-      for ( int p = 0; p < size; p ++ )
+      for ( int p = 0; p < hmlp_get_mpi_size(); p ++ )
       {
         vector<NODE*> Sources;
         for ( auto &it : arg->DistNear[ p ] )
@@ -1523,210 +1512,6 @@ class L2LReduceTask2 : public Task
 
 
 
-
-
-
-
-
-
-template<bool NNPRUNE, typename NODE, typename T>
-void DistLeavesToLeaves( NODE *node )
-{
-  assert( node->isleaf );
-
-  /** gather shared data and create reference */
-  auto &K = *node->setup->K;
-  auto &w = *node->setup->w;
-
-  //auto &gids = node->gids;
-  auto &data = node->data;
-  //auto &amap = node->gids;
-  auto &KIJ = data.NearKab;
-  size_t nrhs = w.col();
-
-  auto *NearNodes = &node->NearNodes;
-  if ( NNPRUNE ) NearNodes = &node->NNNearNodes;
-
-  /** Get U view of this treenode. */
-  View<T> &U = node->data.u_view;
-
-  //if ( KIJ.HasIllegalValue() ) 
-  //{
-  //  printf( "KIJ has illegal value in DistLeavesToLeaves\n" ); fflush( stdout );
-  //}
-
-
-  bool iscached = data.NearKab.size();
-  size_t offset = 0;
-
-  for ( auto it  = NearNodes->begin(); 
-             it != NearNodes->end(); it ++ )
-  {
-    /** Get W view of this treenode. (available for non-LET nodes) */
-    View<T> &W = (*it)->data.w_view;
-
-    /** Evaluate KIJ if not cached */
-    if ( !iscached ) KIJ = K( node->gids, (*it)->gids );
-
-    if ( W.col() == nrhs )
-    {
-      //printf( "%8lu l2l %8lu U[%lu %lu %lu] W[%lu %lu %lu] KIJ[%lu %lu]\n",
-      //    node->morton, (*it)->morton,
-      //    U.row(), U.col(), U.ld(),
-      //    W.row(), W.col(), W.ld(),
-      //    KIJ.row(), KIJ.col() );
-
-
-      assert( W.ld() >= (*it)->gids.size() );
-
-      xgemm
-      (
-        "N", "N", U.row(), U.col(), W.row(),
-        1.0, KIJ.data() + offset * KIJ.row(), KIJ.row(),
-               W.data(),                        W.ld(),
-        1.0,   U.data(),                        U.ld()
-      );
-    }
-    else
-    {
-      /** LET nodes have w_leaf stored in Data<T>. */
-      auto &w_leaf = (*it)->data.w_leaf;
-      assert( w_leaf.col() == nrhs );
-      if ( w_leaf.row() != (*it)->gids.size() )
-      {
-        printf( "w_leaf.row() %lu gids.size() %lu\n", w_leaf.row(), (*it)->gids.size() );
-        fflush( stdout );
-      }
-
-      //for ( int i = 0; i < (*it)->gids.size(); i ++ )
-      //{
-      //  if ( w_leaf[ i ] != (*it)->gids[ i ] )
-      //  {
-      //    printf( "%8lu l2l %8lu, w_leaf[ %d ] %E != %lu\n",
-      //    node->morton, (*it)->morton, i, 
-      //    w_leaf[ i ], (*it)->gids[ i ] ); fflush( stdout );
-      //    break;
-      //  }
-      //}
-
-      //printf( "%8lu l2l %8lu U[%lu %lu %lu] w_leaf[%lu %lu] KIJ[%lu %lu]\n",
-      //    node->morton, (*it)->morton,
-      //    U.row(), U.col(), U.ld(),
-      //    w_leaf.row(), w_leaf.col(),
-      //    KIJ.row(), KIJ.col() );
-
-      xgemm
-      (
-        "N", "N", U.row(), U.col(), w_leaf.row(),
-        1.0, KIJ.data() + offset * KIJ.row(), KIJ.row(),
-             w_leaf.data(),                w_leaf.row(),
-        1.0,   U.data(),                        U.ld()
-      );
-    }
-
-    /** Move forward if cached */
-    if ( iscached ) offset += (*it)->gids.size();
-  }
-
-  /** Clean up */
-  if ( !iscached ) data.NearKab.resize( 0, 0 );
-
-}; /** end LeavesToLeaves() */
-
-
-
-
-template<bool NNPRUNE, typename NODE, typename T>
-class DistLeavesToLeavesTask : public Task
-{
-  public:
-
-    NODE *arg = NULL;
-
-    void Set( NODE *user_arg )
-    {
-      arg = user_arg;
-      name = string( "DistL2L" );
-      {
-        //label = std::to_string( arg->treelist_id );
-        ostringstream ss;
-        ss << arg->treelist_id;
-        label = ss.str();
-      }
-
-      double flops = 0.0;
-      double mops = 0.0;
-
-
-      auto &gids = arg->gids;
-      auto &skels = arg->data.skels;
-      auto &w = *arg->setup->w;
-
-      size_t m = gids.size();
-      size_t n = w.col();
-
-      set<NODE*> *NearNodes;
-      if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
-      else           NearNodes = &arg->NearNodes;
-
-      for ( auto it  = NearNodes->begin(); 
-                 it != NearNodes->end(); it ++ )
-      {
-        size_t k = (*it)->gids.size();
-        flops += 2.0 * m * n * k;
-        mops += m * k;
-        mops += 2.0 * ( m * n + n * k + m * k );
-      }
-
-      /** setup the event */
-      event.Set( label + name, flops, mops );
-
-      /** asuume computation bound */
-      cost = flops / 1E+9;
-
-      /** "LOW" priority */
-      priority = false;
-    };
-
-
-    void DependencyAnalysis()
-    {
-      /** Deal with "RAW" dependencies on distributed messages */
-      for ( auto p : arg->data.NearDependents )
-        hmlp_msg_dependency_analysis( 300, p, R, this );
-
-      set<NODE*> *NearNodes;
-      if ( NNPRUNE ) NearNodes = &arg->NNNearNodes;
-      else           NearNodes = &arg->NearNodes;
-      for ( auto it : *NearNodes )
-      {
-        it->DependencyAnalysis( R, this );
-      }
-
-      arg->DependencyAnalysis( RW, this );
-      this->TryEnqueue();
-    };
-
-    void Execute( Worker* user_worker )
-    {
-      DistLeavesToLeaves<NNPRUNE, NODE, T>( arg );
-    };
-
-}; /** end class DistSkeletonsToNodesTask */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  *  @brief (FMM specific) Compute Near( leaf nodes ). This is just like
  *         the neighbor list but the granularity is in nodes but not points.
@@ -1746,6 +1531,7 @@ class DistLeavesToLeavesTask : public Task
 template<typename TREE>
 void FindNearInteractions( TREE &tree )
 {
+  mpi::PrintProgress( "[BEG] Finish FindNearInteractions ...", tree.GetComm() );
   /** Derive type NODE from TREE. */
   using NODE = typename TREE::NODE;
   auto &setup = tree.setup;
@@ -1771,7 +1557,6 @@ void FindNearInteractions( TREE &tree )
     size_t n_nodes = ( 1 << node->l );
 
     /** Add myself to the near interaction list.  */
-    node->NearNodes.insert( node );
     node->NNNearNodes.insert( node );
     node->NNNearNodeMortonIDs.insert( node->morton );
 
@@ -1795,6 +1580,7 @@ void FindNearInteractions( TREE &tree )
       {
         if ( !(*node->morton2node).count( (*it).second ) )
         {
+          /** Create a LET node. */
           (*node->morton2node)[ (*it).second ] = new NODE( (*it).second );
         }
         /** Insert */
@@ -1804,7 +1590,7 @@ void FindNearInteractions( TREE &tree )
       } /** end pragma omp critical */
     }
   } /** end for each leaf owned leaf node in the local tree */
-  mpi::PrintProgress( "Finish FindNearInteractions ...\n", tree.GetComm() );
+  mpi::PrintProgress( "[END] Finish FindNearInteractions ...", tree.GetComm() );
 }; /** end FindNearInteractions() */
 
 
@@ -1842,6 +1628,8 @@ void FindFarNodes( MortonHelper::Recursor r, NODE *target )
 template<typename TREE>
 void SymmetrizeNearInteractions( TREE & tree )
 {
+  mpi::PrintProgress( "[BEG] SymmetrizeNearInteractions ...", tree.GetComm() ); 
+
   /** Derive type NODE from TREE. */
   using NODE = typename TREE::NODE;
   /** MPI Support */
@@ -1870,12 +1658,12 @@ void SymmetrizeNearInteractions( TREE & tree )
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
       auto *node = *(level_beg + node_ind);
-      auto & NearMortonIDs = node->NNNearNodeMortonIDs;
-      for ( auto it = NearMortonIDs.begin(); it != NearMortonIDs.end(); it ++ )
+      //auto & NearMortonIDs = node->NNNearNodeMortonIDs;
+      for ( auto it : node->NNNearNodeMortonIDs )
       {
-        int dest = tree.Morton2Rank( *it );
-        if ( dest >= comm_size ) printf( "%8lu dest %d\n", *it, dest );
-        list[ tree.Morton2Rank( *it ) ].push_back( make_pair( *it, node->morton ) );
+        int dest = tree.Morton2Rank( it );
+        if ( dest >= comm_size ) printf( "%8lu dest %d\n", it, dest );
+        list[ dest ].push_back( make_pair( it, node->morton ) );
       }
     } /** end pramga omp for */
 
@@ -1889,16 +1677,10 @@ void SymmetrizeNearInteractions( TREE & tree )
     } /** end pragma omp critical*/
   }; /** end pargma omp parallel */
 
-  //mpi::Barrier( tree.GetComm() );
-  //printf( "rank %d finish first part\n", comm_rank ); fflush( stdout );
-
-
 
   /** Alltoallv */
   mpi::AlltoallVector( sendlist, recvlist, tree.GetComm() );
 
-
-  //printf( "rank %d finish AlltoallVector\n", comm_rank ); fflush( stdout );
 
   /** Loop over queries. */
   for ( int p = 0; p < comm_size; p ++ )
@@ -1912,8 +1694,6 @@ void SymmetrizeNearInteractions( TREE & tree )
         if ( !tree.morton2node.count( query.second ) )
         {
           tree.morton2node[ query.second ] = new NODE( query.second );
-          //printf( "rank %d, %8lu level %lu creates near LET %8lu (symmetrize)\n", 
-          //    comm_rank, node->morton, node->l, query.second );
         }
         node->data.lock.Acquire();
         {
@@ -1925,29 +1705,29 @@ void SymmetrizeNearInteractions( TREE & tree )
     }; /** end pargma omp parallel for */
   }
   mpi::Barrier( tree.GetComm() );
-  mpi::PrintProgress( "Finish SymmetrizeNearInteractions ...\n", tree.GetComm() ); 
+  mpi::PrintProgress( "[END] SymmetrizeNearInteractions ...", tree.GetComm() ); 
 }; /** end SymmetrizeNearInteractions() */
 
 
 template<typename TREE>
 void SymmetrizeFarInteractions( TREE & tree )
 {
+  mpi::PrintProgress( "[BEG] SymmetrizeFarInteractions ...", tree.GetComm() ); 
+
   /** Derive type NODE from TREE. */
   using NODE = typename TREE::NODE;
-  /** MPI Support. */
-  int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
-  int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
+  ///** MPI Support. */
+  //int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
+  //int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
 
-  vector<vector<pair<size_t, size_t>>> sendlist( comm_size );
-  vector<vector<pair<size_t, size_t>>> recvlist( comm_size );
+  vector<vector<pair<size_t, size_t>>> sendlist( tree.GetCommSize() );
+  vector<vector<pair<size_t, size_t>>> recvlist( tree.GetCommSize() );
 
   /** Local traversal */ 
   #pragma omp parallel 
   {
-    /**
-     *  Create a per thread list. Merge them into sendlist afterward.
-     */ 
-    vector<vector<pair<size_t, size_t>>> list( comm_size );
+    /** Create a per thread list. Merge them into sendlist afterward. */ 
+    vector<vector<pair<size_t, size_t>>> list( tree.GetCommSize() );
 
     #pragma omp for
     for ( size_t i = 1; i < tree.treelist.size(); i ++ )
@@ -1966,14 +1746,14 @@ void SymmetrizeFarInteractions( TREE & tree )
           node->NNFarNodes.insert( tree.morton2node[ *it ] );
         }
         int dest = tree.Morton2Rank( *it );
-        if ( dest >= comm_size ) printf( "%8lu dest %d\n", *it, dest );
+        if ( dest >= tree.GetCommSize() ) printf( "%8lu dest %d\n", *it, dest );
         list[ dest ].push_back( make_pair( *it, node->morton ) );
       }
     }
 
     #pragma omp critical
     {
-      for ( int p = 0; p < comm_size; p ++ )
+      for ( int p = 0; p < tree.GetCommSize(); p ++ )
       {
         sendlist[ p ].insert( sendlist[ p ].end(), 
             list[ p ].begin(), list[ p ].end() );
@@ -1986,7 +1766,7 @@ void SymmetrizeFarInteractions( TREE & tree )
   #pragma omp parallel 
   {
     /** Create a per thread list. Merge them into sendlist afterward. */ 
-    vector<vector<pair<size_t, size_t>>> list( comm_size );
+    vector<vector<pair<size_t, size_t>>> list( tree.GetCommSize() );
 
     #pragma omp for
     for ( size_t i = 0; i < tree.mpitreelists.size(); i ++ )
@@ -2005,14 +1785,14 @@ void SymmetrizeFarInteractions( TREE & tree )
           node->NNFarNodes.insert( tree.morton2node[ *it ] );
         }
         int dest = tree.Morton2Rank( *it );
-        if ( dest >= comm_size ) printf( "%8lu dest %d\n", *it, dest ); fflush( stdout );
+        if ( dest >= tree.GetCommSize() ) printf( "%8lu dest %d\n", *it, dest ); fflush( stdout );
         list[ dest ].push_back( make_pair( *it, node->morton ) );
       }
     }
 
     #pragma omp critical
     {
-      for ( int p = 0; p < comm_size; p ++ )
+      for ( int p = 0; p < tree.GetCommSize(); p ++ )
       {
         sendlist[ p ].insert( sendlist[ p ].end(), 
             list[ p ].begin(), list[ p ].end() );
@@ -2024,7 +1804,7 @@ void SymmetrizeFarInteractions( TREE & tree )
   mpi::AlltoallVector( sendlist, recvlist, tree.GetComm() );
 
   /** Loop over queries */
-  for ( int p = 0; p < comm_size; p ++ )
+  for ( int p = 0; p < tree.GetCommSize(); p ++ )
   {
     //#pragma omp parallel for
     for ( auto & query : recvlist[ p ] )
@@ -2045,13 +1825,13 @@ void SymmetrizeFarInteractions( TREE & tree )
           node->NNFarNodeMortonIDs.insert( query.second );
         }
         node->data.lock.Release();
-        assert( tree.Morton2Rank( node->morton ) == comm_rank );
+        assert( tree.Morton2Rank( node->morton ) == tree.GetCommRank() );
       } /** end pragma omp critical */
     } /** end pargma omp parallel for */
   }
 
   mpi::Barrier( tree.GetComm() );
-  mpi::PrintProgress( "Finish SymmetrizeFarInteractions ...\n", tree.GetComm() ); 
+  mpi::PrintProgress( "[END] SymmetrizeFarInteractions ...", tree.GetComm() ); 
 }; /** end SymmetrizeFarInteractions() */
 
 
@@ -2100,16 +1880,12 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
         auto *node = *(level_beg + node_ind);
         auto & NearMortonIDs = node->NNNearNodeMortonIDs;
         node->DistNear.resize( comm_size );
-        for ( auto it = NearMortonIDs.begin(); it != NearMortonIDs.end(); it ++ )
+        for ( auto it : NearMortonIDs )
         {
-          int dest = tree.Morton2Rank( *it );
-          if ( dest >= comm_size ) printf( "%8lu dest %d\n", *it, dest );
-          if ( dest != comm_rank ) 
-          {
-            list[ dest ].insert( node->morton );
-            node->data.NearDependents.insert( dest );
-          }
-          node->DistNear[ dest ][ *it ] = Data<T>();
+          int dest = tree.Morton2Rank( it );
+          if ( dest >= comm_size ) printf( "%8lu dest %d\n", it, dest );
+          if ( dest != comm_rank ) list[ dest ].insert( node->morton );
+          node->DistNear[ dest ][ it ] = Data<T>();
         }
       } /** end pramga omp for */
 
@@ -2162,7 +1938,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
           if ( dest != comm_rank ) 
           {
             list[ dest ].insert( node->morton );
-            node->data.FarDependents.insert( dest );
+            //node->data.FarDependents.insert( dest );
           }
           node->DistFar[ dest ][ *it ] = Data<T>();
         }
@@ -2185,7 +1961,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
             if ( dest != comm_rank ) 
             {
               list[ dest ].insert( node->morton );
-              node->data.FarDependents.insert( dest );
+              //node->data.FarDependents.insert( dest );
             }
             node->DistFar[ dest ][ *it ]  = Data<T>();
           }
@@ -2223,7 +1999,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
   }
 
   mpi::Barrier( tree.GetComm() );
-}; /** BuildInteractionListPerRank() */
+}; /** end BuildInteractionListPerRank() */
 
 
 template<typename TREE>
@@ -2310,20 +2086,6 @@ void PackNear( TREE &tree, string option, int p,
     else
     {
       auto &w_view = node->data.w_view;
-      //auto  w_leaf = w_view.toData();
-      ////printf( "%d send w_leaf to %d [%lu %lu]\n", comm_rank, p, w_leaf.row(), w_leaf.col() );
-
-      //if ( !w_leaf.size() )
-      //{
-      //  printf( "send w_leaf to %d [%lu %lu] gids %lu\n", 
-      //      p, w_leaf.row(), w_leaf.col(), gids.size() );
-      //  fflush( stdout );
-      //}
-
-      //sendsizes.push_back( w_leaf.size() );
-      //sendbuffs.insert( sendbuffs.end(), w_leaf.begin(), w_leaf.end() );
-
-
       sendsizes.push_back( gids.size() * w_view.col() );
       offsets.push_back( sendsizes.back() + offsets.back() );
     }
@@ -2815,7 +2577,7 @@ void ExchangeLET( TREE &tree, string option )
   }
 
 
-}; /** ExchangeLET() */
+}; /** end ExchangeLET() */
 
 
 
@@ -2886,6 +2648,8 @@ void AsyncExchangeLET( TREE &tree, string option )
 template<typename T, typename TREE>
 void ExchangeNeighbors( TREE &tree )
 {
+  mpi::PrintProgress( "[BEG] ExchangeNeighbors ...", tree.GetComm() );
+
   int comm_rank; mpi::Comm_rank( tree.GetComm(), &comm_rank );
   int comm_size; mpi::Comm_size( tree.GetComm(), &comm_size );
 
@@ -2897,33 +2661,28 @@ void ExchangeNeighbors( TREE &tree )
   unordered_set<size_t> requested_gids;
   auto &NN = *tree.setup.NN;
 
-  /** Remove duplication */
-  for ( auto it = NN.begin(); it != NN.end(); it ++ )
+  /** Remove duplication. */
+  for ( auto & it : NN )
   {
-    if ( (*it).second >= 0 && (*it).second < tree.n )
-      requested_gids.insert( (*it).second );
+    if ( it.second >= 0 && it.second < tree.n )
+      requested_gids.insert( it.second );
   }
 
-  /** Remove owned gids */
-  for ( auto it  = tree.treelist[ 0 ]->gids.begin();
-             it != tree.treelist[ 0 ]->gids.end(); it ++ )
-  {
-    requested_gids.erase( *it );
-  }
+  /** Remove owned gids. */
+  for ( auto it : tree.treelist[ 0 ]->gids ) requested_gids.erase( it );
 
   /** Assume gid is owned by (gid % size) */
-  for ( auto it  = requested_gids.begin();
-             it != requested_gids.end(); it ++ )
+  for ( auto it :requested_gids )
   {
-    int p = *it % comm_size;
-    if ( p != comm_rank ) send_buff[ p ].push_back( *it );
+    int p = it % comm_size;
+    if ( p != comm_rank ) send_buff[ p ].push_back( it );
   }
 
-  /** Redistribute K */
+  /** Redistribute K. */
   auto &K = *tree.setup.K;
   K.RequestIndices( send_buff );
 
-  mpi::PrintProgress( "Finish ExchangeNeighbors ...\n", tree.GetComm() );
+  mpi::PrintProgress( "[END] ExchangeNeighbors ...", tree.GetComm() );
 }; /** end ExchangeNeighbors() */
 
 
@@ -2980,12 +2739,7 @@ void MergeFarNodes( NODE *node )
   /** Construct NN far interaction lists */
   if ( node->isleaf )
   {
-    /** Nearest-neighbor pruning */
-    //FindFarNodes( 0 /** root morton */, 0 /** level 0 */, node );
-
-
     FindFarNodes( MortonHelper::Root(), node );
-
   }
   else
   {
@@ -3076,15 +2830,12 @@ void DistMergeFarNodes( NODE *node )
   mpi::Comm comm = node->GetComm();
   int comm_size = node->GetCommSize();
   int comm_rank = node->GetCommRank();
-  int glb_rank; mpi::Comm_rank( MPI_COMM_WORLD, &glb_rank );
 
   /** if I don't have any skeleton, then I'm nobody's far field */
   //if ( !node->data.isskel ) return;
 
 
-  /**
-   *  Early return
-   */ 
+  /** Early return if this is the root node. */ 
   if ( !node->parent ) return;
 
   /** Distributed treenode */
@@ -3097,14 +2848,8 @@ void DistMergeFarNodes( NODE *node )
     /** merge Far( lchild ) and Far( rchild ) from children */
     auto *child = node->child;
 
-    //printf( "glb_rank %d level %lu\n", glb_rank, node->l ); fflush( stdout );
-    //mpi::Barrier( MPI_COMM_WORLD );
-    
-
-
     if ( comm_rank == 0 )
     {
-      //printf( "glb_rank %d level %lu\n", glb_rank, node->l ); fflush( stdout );
       auto &pNNFarNodes =  node->NNFarNodeMortonIDs;
       auto &lNNFarNodes = child->NNFarNodeMortonIDs;
       vector<size_t> recvFarNodes;
@@ -3112,72 +2857,43 @@ void DistMergeFarNodes( NODE *node )
       /** Recv rNNFarNodes */ 
       mpi::RecvVector( recvFarNodes, comm_size / 2, 0, comm, &status );
 
-      /** Far( parent ) = Far( lchild ) intersects Far( rchild ) */
-      for ( auto it  = recvFarNodes.begin(); 
-                 it != recvFarNodes.end(); it ++ )
+      /** Far( parent ) = Far( lchild ) intersects Far( rchild ). */
+      for ( auto it : recvFarNodes )
       {
-        if ( lNNFarNodes.count( *it ) ) 
+        if ( lNNFarNodes.count( it ) ) 
         {
-          pNNFarNodes.insert( *it );
-          //node->NNFarNodes.insert( (*node->morton2node)[ *it ] );
+          pNNFarNodes.insert( it );
         }
       }
 
-      //printf( "%8lu level %lu Far ", node->morton, node->l ); 
-      //for ( auto it = pNNFarNodes.begin(); it != pNNFarNodes.end(); it ++ )
-      //{
-      //  printf( "%8lu ", *it ); fflush( stdout );
-      //}
-      //printf( "\n" ); fflush( stdout );
-
-
-      /** Reuse space to send pNNFarNodes */ 
+      /** Reuse space to send pNNFarNodes. */ 
       recvFarNodes.clear();
       recvFarNodes.reserve( pNNFarNodes.size() );
 
-      /** Far( lchild ) \= Far( parent ); Far( rchild ) \= Far( parent ) */
-      for ( auto it = pNNFarNodes.begin(); it != pNNFarNodes.end(); it ++ )
+      /** Far( lchild ) \= Far( parent ); Far( rchild ) \= Far( parent ). */
+      for ( auto it : pNNFarNodes )
       {
-        lNNFarNodes.erase( *it ); 
-        recvFarNodes.push_back( *it );
-        //child->NNFarNodes.erase( (*node->morton2node)[ *it ] );
+        lNNFarNodes.erase( it ); 
+        recvFarNodes.push_back( it );
       }
 
-      /** Send pNNFarNodes */
+      /** Send pNNFarNodes. */
       mpi::SendVector( recvFarNodes, comm_size / 2, 0, comm );
-      //printf( "glb_rank %d level %lu done\n", glb_rank, node->l ); fflush( stdout );
     }
 
 
     if ( comm_rank == comm_size / 2 )
     {
-      //printf( "glb_rank %d level %lu\n", glb_rank, node->l ); fflush( stdout );
       auto &rNNFarNodes = child->NNFarNodeMortonIDs;
-      vector<size_t> sendFarNodes;
+      vector<size_t> sendFarNodes( rNNFarNodes.begin(), rNNFarNodes.end() );
 
-      sendFarNodes.reserve( rNNFarNodes.size() );
-      for ( auto it  = rNNFarNodes.begin(); 
-                 it != rNNFarNodes.end(); it ++ )
-      {
-        sendFarNodes.push_back( *it );
-      }
-
-      /** Send rNNFarNodes */ 
+      /** Send rNNFarNodes. */ 
       mpi::SendVector( sendFarNodes, 0, 0, comm );
-
-      /** Recv pNNFarNodes */
+      /** Recuse sendFarNodes to receive pNNFarNodes. */
       mpi::RecvVector( sendFarNodes, 0, 0, comm, &status );
-
       /** Far( lchild ) \= Far( parent ); Far( rchild ) \= Far( parent ) */
-      for ( auto it = sendFarNodes.begin(); it != sendFarNodes.end(); it ++ )
-      {
-        rNNFarNodes.erase( *it );
-        //child->NNFarNodes.erase( (*node->morton2node)[ *it ] );
-      }      
-      //printf( "glb_rank %d level %lu done\n", glb_rank, node->l ); fflush( stdout );
+      for ( auto it : sendFarNodes ) rNNFarNodes.erase( it );
     }
-
-    //mpi::Barrier( MPI_COMM_WORLD );
   }
 
 }; /** end DistMergeFarNodes() */
@@ -3223,12 +2939,7 @@ class DistMergeFarNodesTask : public Task
 
     void Execute( Worker* user_worker )
     {
-      int glb_rank; mpi::Comm_rank( MPI_COMM_WORLD, &glb_rank );
-      //printf( "rank %d DistMergeFarNodes begin\n", glb_rank ); fflush( stdout );
-      mpi::Barrier( arg->GetComm() );
       DistMergeFarNodes<SYMMETRIC, NODE, T>( arg );
-      //printf( "rank %d DistMergeFarNodes end\n", glb_rank ); fflush( stdout );
-      mpi::Barrier( arg->GetComm() );
     };
 
 }; /** end class DistMergeFarNodesTask */
@@ -3850,20 +3561,14 @@ class DistSkeletonizeTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
-      int global_rank = 0;
-      mpi::Comm_rank( MPI_COMM_WORLD, &global_rank );
       mpi::Comm comm = arg->GetComm();
 
       double beg = omp_get_wtime();
       if ( arg->GetCommRank() == 0 )
       {
-        //printf( "%d Par-Skel beg\n", global_rank );
         DistSkeletonize<NODE, T>( arg );
-        //printf( "%d Par-Skel end\n", global_rank );
       }
       double skel_t = omp_get_wtime() - beg;
-      //printf( "rank %d, skeletonize (%4lu, %4lu) %lfs\n", 
-      //    global_rank, arg->data.KIJ.row(), arg->data.KIJ.col(), skel_t );
 
 			/** Bcast isskel to every MPI processes in the same comm */
 			int isskel = arg->data.isskel;
@@ -3919,7 +3624,7 @@ class DistSkeletonizeTask : public hmlp::Task
 /**
  *  @brief
  */ 
-template<typename NODE, typename T>
+template<typename NODE>
 class InterpolateTask : public Task
 {
   public:
@@ -3941,10 +3646,8 @@ class InterpolateTask : public Task
     {
       /** MPI Support. */
       auto comm = arg->GetComm();
-      auto size = arg->GetCommSize();
-      auto rank = arg->GetCommRank();
       /** Only executed by rank 0. */
-      if ( rank == 0  ) gofmm::Interpolate<NODE, T>( arg );
+      if ( arg->GetCommRank() == 0 ) gofmm::Interpolate( arg );
 
       auto &proj  = arg->data.proj;
       size_t nrow  = proj.row();
@@ -4028,12 +3731,12 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
   gofmm::UpdateWeightsTask<NODE, T>           seqN2Stask;
   mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
   /** L2L (sum of direct evaluations) */
-  mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
+  //mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
   //mpigofmm::L2LReduceTask<NODE, T> seqL2LReducetask;
   mpigofmm::L2LReduceTask2<NODE, T> seqL2LReducetask2;
   /** S2S (sum of low-rank approximation) */
-  gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T>           seqS2Stask;
-  mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
+  //gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T>           seqS2Stask;
+  //mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
   //mpigofmm::S2SReduceTask<NODE, T>    seqS2SReducetask;
   //mpigofmm::S2SReduceTask<MPINODE, T> mpiS2SReducetask;
   mpigofmm::S2SReduceTask2<NODE, NODE, T>    seqS2SReducetask2;
@@ -4096,7 +3799,6 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
   tree.DistTraverseDown( mpiVIEWtask );
   tree.LocaTraverseDown( seqVIEWtask );
   tree.ExecuteAllTasks();
-  mpi::PrintProgress( "Finish TreeView\n", tree.GetComm() );
   /** Stage 2: redistribute weights from IDS to LET. */
   AsyncExchangeLET<T>( tree, string( "leafweights" ) );
   /** Stage 3: N2S. */
@@ -4104,26 +3806,11 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
   tree.DistTraverseUp( mpiN2Stask );
   /** Stage 4: redistribute skeleton weights from IDS to LET. */
   AsyncExchangeLET<T>( tree, string( "skelweights" ) );
-
-
-  //tree.ExecuteAllTasks();
-  //tree.DependencyCleanUp();
-
-
   /** Stage 5: L2L */
   tree.LocaTraverseLeafs( seqL2LReducetask2 );
-
-  //tree.ExecuteAllTasks();
-  //tree.DependencyCleanUp();
-
-
   /** Stage 6: S2S */
   tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
   tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
-
-  //tree.ExecuteAllTasks();
-  //tree.DependencyCleanUp();
-
   /** Stage 7: S2N */
   tree.DistTraverseDown( mpiS2Ntask );
   tree.LocaTraverseDown( seqS2Ntask );
@@ -4224,14 +3911,15 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   DistData<STAR, CBLK, pair<T, size_t>> &NN_cblk,
   SPLITTER splitter, 
   RKDTSPLITTER rkdtsplitter,
-	gofmm::Configuration<T> &config
+	gofmm::Configuration<T> &config,
+  mpi::Comm CommGOFMM
 )
 {
   /** MPI size ane rank. */
-  int size; mpi::Comm_size( MPI_COMM_WORLD, &size );
-  int rank; mpi::Comm_rank( MPI_COMM_WORLD, &rank );
+  int size; mpi::Comm_size( CommGOFMM, &size );
+  int rank; mpi::Comm_rank( CommGOFMM, &rank );
 
-  /** Get all user-defined parameters */
+  /** Get all user-defined parameters. */
   DistanceMetric metric = config.MetricType();
   size_t n = config.ProblemSize();
 	size_t m = config.LeafNodeSize();
@@ -4266,18 +3954,17 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   /** Iterative all nearnest-neighbor (ANN). */
   const size_t n_iter = 20;
   pair<T, size_t> initNN( numeric_limits<T>::max(), n );
-  mpitree::Tree<RKDTSETUP, DATA> rkdt( MPI_COMM_WORLD );
+  mpitree::Tree<RKDTSETUP, DATA> rkdt( CommGOFMM );
   rkdt.setup.FromConfiguration( config, K, rkdtsplitter, NN_cblk, X_cblk );
   beg = omp_get_wtime();
   gofmm::NeighborsTask<RKDTNODE, T> knntask;
   if ( k && NN_cblk.row() * NN_cblk.col() != k * n )
     NN_cblk = rkdt.AllNearestNeighbor( n_iter, n, k, initNN, knntask );
   ann_time = omp_get_wtime() - beg;
-  printf( "ann_time %lf\n", ann_time );
 
 
   /** Initialize metric ball tree using approximate center split. */
-  auto *tree_ptr = new mpitree::Tree<SETUP, DATA>( MPI_COMM_WORLD );
+  auto *tree_ptr = new mpitree::Tree<SETUP, DATA>( CommGOFMM );
 	auto &tree = *tree_ptr;
 
 	/** Global configuration for the metric tree. */
@@ -4287,7 +3974,6 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   beg = omp_get_wtime();
   tree.TreePartition();
   tree_time = omp_get_wtime() - beg;
-  printf( "tree_time %lf\n", tree_time );
 
   /** Get tree permutataion. */
   vector<size_t> perm = tree.GetPermutation();
@@ -4321,36 +4007,25 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 
 
   /** Find and merge far interactions. */
+  mpi::PrintProgress( "[BEG] MergeFarNodes ...", tree.GetComm() ); 
   beg = omp_get_wtime();
   tree.DependencyCleanUp();
   MergeFarNodesTask<true, NODE, T> seqMERGEtask;
   DistMergeFarNodesTask<true, MPINODE, T> mpiMERGEtask;
   tree.LocaTraverseUp( seqMERGEtask );
-  hmlp_run();
-  mpi::Barrier( tree.GetComm() );
-  tree.DependencyCleanUp();
   tree.DistTraverseUp( mpiMERGEtask );
-  hmlp_run();
-  mpi::Barrier( tree.GetComm() );
+  tree.ExecuteAllTasks();
   mergefarnodes_time += omp_get_wtime() - beg;
-  mpi::PrintProgress( "Finish MergeFarNodes ...\n", tree.GetComm() ); 
+  mpi::PrintProgress( "[END] MergeFarNodes ...", tree.GetComm() ); 
 
-  /**
-   *  Symmetrize far interaction list:
-   *
-   *  for each alpha in owned_node and beta in Far(alpha)
-   *      sbuff[ rank(beta) ] += pair( morton(beta), morton(alpha) );
-   *  Alltoallv( sbuff, rbuff );
-   *  for each pair( beta, alpha ) in rbuff
-   *      Far( beta ) += alpha;
-   */
-  beg = omp_get_wtime();
   /** Symmetrize interaction pairs by Alltoallv. */
+  beg = omp_get_wtime();
   mpigofmm::SymmetrizeFarInteractions( tree );
   /** Split node interaction lists per MPI rank. */
   BuildInteractionListPerRank( tree, false );
   symmetrize_time += omp_get_wtime() - beg;
 
+  mpi::PrintProgress( "[BEG] Skeletonization ...", tree.GetComm() ); 
   /** Skeletonization */
 	beg = omp_get_wtime();
   tree.DependencyCleanUp();
@@ -4362,8 +4037,8 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
   //tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
   /** Compute the coefficient matrix of ID */
-  gofmm::InterpolateTask<NODE, T> seqPROJtask;
-  mpigofmm::InterpolateTask<MPINODE, T> mpiPROJtask;
+  gofmm::InterpolateTask<NODE> seqPROJtask;
+  mpigofmm::InterpolateTask<MPINODE> mpiPROJtask;
   tree.LocaTraverseUnOrdered( seqPROJtask );
   //tree.DistTraverseUnOrdered( mpiPROJtask );
 
@@ -4371,20 +4046,15 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
   //tree.LocaTraverseLeafs( seqNEARKIJtask );
 
-  hmlp_run();
-  mpi::Barrier( tree.GetComm() );
+  tree.ExecuteAllTasks();
   skel_time = omp_get_wtime() - beg;
-  mpi::PrintProgress( "Finish skeletonization and interpolation ...\n", tree.GetComm() ); 
-
-
 
 	beg = omp_get_wtime();
-  tree.DependencyCleanUp();
   tree.DistTraverseUp<false>( mpiGETMTXtask, mpiSKELtask );
   tree.DistTraverseUnOrdered( mpiPROJtask );
-  hmlp_run();
-  mpi::Barrier( tree.GetComm() );
+  tree.ExecuteAllTasks();
   mpi_skel_time = omp_get_wtime() - beg;
+  mpi::PrintProgress( "[END] Skeletonization ...", tree.GetComm() ); 
 
 
 
@@ -4392,7 +4062,6 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   ExchangeLET( tree, string( "skelgids" ) );
   
   beg = omp_get_wtime();
-  tree.DependencyCleanUp();
   /** Cache near KIJ interactions */
   //mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
   //tree.LocaTraverseLeafs( seqNEARKIJtask );
@@ -4402,8 +4071,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   //tree.LocaTraverseUnOrdered( seqFARKIJtask );
   //tree.DistTraverseUnOrdered( mpiFARKIJtask );
   cachefarnodes_time = omp_get_wtime() - beg;
-  hmlp_run();
-  mpi::Barrier( tree.GetComm() );
+  tree.ExecuteAllTasks();
   cachefarnodes_time = omp_get_wtime() - beg;
 
 
@@ -4488,6 +4156,10 @@ pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials )
     1.0,       Kab.data(),       Kab.row(),
                  w.data(),         w.row(),
     0.0, loc_exact.data(), loc_exact.row() );          
+  //gemm::xgemm( (T)1.0, Kab, w, (T)0.0, loc_exact );
+
+
+
 
   /** Allreduce u( gid, : ) = K( gid, CBLK ) * w( RBLK, : ) */
   mpi::Allreduce( loc_exact.data(), glb_exact.data(), 
@@ -4529,6 +4201,9 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   /** all_rhs = [ 0, 1, ..., nrhs - 1 ]. */
   vector<size_t> all_rhs( nrhs );
   for ( size_t rhs = 0; rhs < nrhs; rhs ++ ) all_rhs[ rhs ] = rhs;
+
+  //auto A = tree.CheckAllInteractions();
+
   /** Input and output in RIDS and RBLK. */
   DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, tree.GetComm() );
   DistData<RBLK, STAR, T> u_rblk( n, nrhs, tree.GetComm() );
@@ -4616,10 +4291,10 @@ void LaunchHelper
 	/** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( cmd.metric, 
       cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget );
-  /** (Optional) provide neighbors, leave uninitialized otherwise */
+  /** (Optional) provide neighbors, leave uninitialized otherwise. */
   DistData<STAR, CBLK, pair<T, size_t>> NN( 0, cmd.n, CommGOFMM );
   /** Compress matrix K. */
-  auto *tree_ptr = mpigofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
+  auto *tree_ptr = mpigofmm::Compress( X, K, NN, splitter, rkdtsplitter, config, CommGOFMM );
   auto &tree = *tree_ptr;
 
   /** Examine accuracies. */

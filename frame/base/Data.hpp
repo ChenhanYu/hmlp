@@ -348,8 +348,7 @@ class Data : public ReadWrite, public vector<T, Allocator>
     };
 
 
-    template<typename TINDEX>
-    inline Data<T> operator()( vector<TINDEX> &jmap )
+    Data<T> operator()( const vector<size_t> &jmap )
     {
       Data<T> submatrix( m, jmap.size() );
       #pragma omp parallel for
@@ -856,10 +855,7 @@ class OOCData : public ReadWrite
 
     OOCData() {};
 
-    OOCData( size_t m, size_t n, string filename )
-    {
-      Set( m, n, filename );
-    };
+    OOCData( size_t m, size_t n, string filename ) { Set( m, n, filename ); };
 
     ~OOCData()
     {

@@ -156,21 +156,18 @@ class MPIObject
     void AssignCommunicator( mpi::Comm &comm )
     {
       this->comm = comm;
-			mpi::Comm_dup( comm, &recvcomm );
-			mpi::Comm_dup( comm, &sendcomm );
+			mpi::Comm_dup( comm, &private_comm );
       mpi::Comm_size( comm, &size );
       mpi::Comm_rank( comm, &rank );
     };
 
     mpi::Comm GetComm() { return comm; };
 
+		mpi::Comm GetPrivateComm() { return private_comm; };
+
     int GetCommSize() { return size; };
 
     int GetCommRank() { return rank; };
-
-		mpi::Comm GetRecvComm() { return recvcomm; };
-
-		mpi::Comm GetSendComm() { return sendcomm; };
 
     int Comm_size()
     {
@@ -186,20 +183,20 @@ class MPIObject
       return rank;
     };
 
-    int Barrier()
-    {
-      return mpi::Barrier( comm );
-    };
+    int Barrier() { return mpi::Barrier( comm ); };
+
+    int PrivateBarrier() { return mpi::Barrier( private_comm ); };
 
   private:
 
+    /** This is the assigned communicator. */
     mpi::Comm comm = MPI_COMM_WORLD;
+		/** This communicator is duplicated from comm */
+		mpi::Comm private_comm;
+    /** (Default) there is only one MPI process. */
     int size = 1;
+    /** (Default) the only MPI process has rank 0. */
     int rank = 0;
-		/** This communicator is duplicated from comm */
-		mpi::Comm recvcomm;
-		/** This communicator is duplicated from comm */
-		mpi::Comm sendcomm;
 
 }; /** end class MPIObject */
 

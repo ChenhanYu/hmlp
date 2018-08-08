@@ -87,11 +87,7 @@ class VirtualMatrix : public SPDMatrixMPISupport<T>
 
     VirtualMatrix( size_t m, size_t n ) { resize( m, n ); };
 
-    virtual void resize( size_t m, size_t n )
-    {
-      this->m = m;
-      this->n = n;
-    };
+    virtual void resize( size_t m, size_t n ) { this->m = m; this->n = n; };
 
     /** ESSENTIAL: return number of coumns */
     virtual size_t row() { return m; };

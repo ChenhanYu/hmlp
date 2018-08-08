@@ -111,6 +111,30 @@ class MortonHelper
       return ( it >> itshift ) << ( mpidepth - itdepth );
     }; /** end Morton2rank() */
 
+    static void Morton2Offsets( Recursor r, size_t depth, vector<size_t> &offsets )
+    {
+      if ( r.second == depth ) 
+      {
+        offsets.push_back( r.first );
+      }
+      else
+      {
+        Morton2Offsets( RecurLeft( r ), depth, offsets );
+        Morton2Offsets( RecurRight( r ), depth, offsets );
+      }
+    }; /** end Morton2Offsets() */
+
+
+    static vector<size_t> Morton2Offsets( size_t me, size_t depth )
+    {
+      vector<size_t> offsets;
+      size_t mydepth = Depth( me );
+      assert( mydepth <= depth );
+      Recursor r( me >> Shift( mydepth ), mydepth );
+      Morton2Offsets( r, depth, offsets );
+      return offsets;
+    }; /** end Morton2Offsets() */
+
 
     /**
      *  @brief Check if ``it'' is ``me'''s ancestor by checking two facts.
@@ -301,15 +325,6 @@ class SplitTask : public Task
     };
 
 		void DependencyAnalysis() { arg->DependOnParent( this ); };
-		//{
-    //  arg->DependencyAnalysis( R, this );
-    //  if ( !arg->isleaf )
-    //  {
-    //    arg->lchild->DependencyAnalysis( RW, this );
-    //    arg->rchild->DependencyAnalysis( RW, this );
-    //  }
-    //  this->TryEnqueue();
-		//};
 
     void Execute( Worker* user_worker ) { arg->Split(); };
 
@@ -814,6 +829,13 @@ class Node : public ReadWrite
     set<Node*>  ProposedNNNearNodes;
     set<size_t> NNNearNodeMortonIDs;
 
+    /** Node interaction lists recorded in MortonID. */
+    //set<size_t> HSSNear;
+    //set<size_t> HSSFar;
+    //set<size_t> FMMNear;
+    //set<size_t> FMMFar;
+
+
     /** DistFar[ p ] contains a pair of gid and cached KIJ received from p. */
     vector<map<size_t, Data<T>>> DistFar;
     vector<map<size_t, Data<T>>> DistNear;
@@ -1007,66 +1029,6 @@ class Tree
         for ( auto it : node->gids ) setup.morton[ it ] = node->morton;
       }
     };
-
-
-
-
-
-//    template<size_t LEVELOFFSET=5>
-//    void Morton( NODE *node, size_t morton )
-//    {
-//      if ( node )
-//      {
-//        /** Shift = 16 - l + 4. */ 
-//        size_t shift = ( 1 << LEVELOFFSET ) - node->l + LEVELOFFSET;
-//        node->morton = ( morton << shift ) + node->l;
-//
-//        /** Recurs. */
-//        Morton( node->lchild, ( morton << 1 ) + 0 );
-//        Morton( node->rchild, ( morton << 1 ) + 1 );
-//
-//        if ( node->lchild )
-//        {
-//#ifdef DEBUG_TREE
-//          cout << IsMyParent( node->lchild->morton, node->rchild->morton ) << endl;
-//          cout << IsMyParent( node->lchild->morton, node->morton         ) << endl;
-//#endif
-//        }
-//        else /** Setup morton id for all points in the leaf node */
-//        {
-//          auto &gids = node->gids;
-//          for ( size_t i = 0; i < gids.size(); i ++ )
-//          {
-//            setup.morton[ gids[ i ] ] = node->morton;
-//          }
-//        }
-//      }
-//    };
-
-
-//    /**
-//     *  @TODO: used in FindNearNode, problematic in distributed version
-//     *
-//     */ 
-//    template<size_t LEVELOFFSET=5>
-//    NODE *Morton2Node( size_t me )
-//    {
-//      assert( N_CHILDREN == 2 );
-//      // Get my level.
-//      size_t filter = ( 1 << LEVELOFFSET ) - 1;
-//      size_t mylevel = me & filter;
-//      auto level_beg = treelist.begin() + ( 1 << mylevel ) - 1;
-//      // Get my index in this level.
-//      size_t shift = ( 1 << LEVELOFFSET ) - mylevel + LEVELOFFSET;
-//      size_t index = me >> shift;
-//      if ( index >= ( 1 << mylevel ) )
-//      {
-//        printf( "level %lu index %lu\n", mylevel, index );
-//        hmlp_print_binary( me );
-//      }
-//      return *(level_beg + index);
-//    };
-
 
 
     /**
@@ -1300,6 +1262,43 @@ class Tree
     }; /** end AllNearestNeighbor() */
 
 
+    Data<int> CheckAllInteractions()
+    {
+      /** Get the total depth of the tree. */
+      int total_depth = treelist.back()->l;
+      /** Number of total leaf nodes. */
+      int num_leafs = 1 << total_depth;
+      /** Create a 2^l-by-2^l table to check all interactions. */
+      Data<int> A( num_leafs, num_leafs, 0 );
+      /** Now traverse all tree nodes (excluding the root). */
+      for ( int t = 1; t < treelist.size(); t ++ )
+      {
+        auto *node = treelist[ t ];
+        /** Loop over all near interactions. */
+        for ( auto *it : node->NNNearNodes )
+        {
+          auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+          auto J = MortonHelper::Morton2Offsets(   it->morton, total_depth );
+          for ( auto i : I ) for ( auto j : J ) A( i, j ) += 1; 
+        }
+        /** Loop over all far interactions. */
+        for ( auto *it : node->NNFarNodes )
+        {
+          auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+          auto J = MortonHelper::Morton2Offsets(   it->morton, total_depth );
+          for ( auto i : I ) for ( auto j : J ) A( i, j ) += 1; 
+        }
+      }
+
+      for ( size_t i = 0; i < num_leafs; i ++ )
+      {
+        for ( size_t j = 0; j < num_leafs; j ++ ) printf( "%d", A( i, j ) );
+        printf( "\n" );
+      }
+
+
+      return A;
+    }; /** end CheckAllInteractions() */
 
 
 
