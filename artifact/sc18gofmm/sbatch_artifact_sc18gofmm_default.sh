@@ -4,93 +4,63 @@
 #SBATCH -o gofmm_output.out
 #SBATCH -p skx-dev
 #SBATCH -t 00:20:00
-#SBATCH -n 1
-#SBATCH -N 1
+#SBATCH -n 4
+#SBATCH -N 4
 
 export OMP_PLACES=cores
 export OMP_PROC_BIND=spread,close
-
 export OMP_NUM_THREADS=48
 export HMLP_NORMAL_WORKER=11
 export HMLP_SERVER_WORKER=10
 export HMLP_NESTED_WORKER=10
 export KS_IC_NT=20
 export GSKNN_IC_NT=20
-
 ulimit -Hc unlimited
 ulimit -Sc unlimited
 
 ## all SPD matrix files stored in dense column major format
 declare -a filearray=(
-"/scratch/04647/sreiz/H01N102400.bin"
-"/scratch/04647/sreiz/K04N102400.bin"
-"/scratch/04647/sreiz/K07N102400.bin"
-"/scratch/04647/sreiz/K11N102400.bin"
-"/scratch/04647/sreiz/K12N102400.bin"
+"datasets/K02N4096.bin"
+"datasets/K03N4096.bin"
+"datasets/K04N4096.bin"
+"datasets/K05N4096.bin"
+"datasets/K06N4096.bin"
+"datasets/K07N4096.bin"
 )
-#declare -a filearray=(
-#"/scratch/02794/ych/K01N262144.bin"
-#)
 
 ## data files stored in dense d-by-N format
-#points="/work/02794/ych/data/X2DN1048576.points.bin"
-#points="/work/02794/ych/data/X3DN2097152.points.bin"
-points="/work/02794/ych/data/covtype.100k.trn.X.bin"
-#points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
-#points="/work/02794/ych/data/covtype.100k.trn.X.bin"
-#points="/work/02794/ych/data/covtype.n500000.d54.trn.X.bin"
+points="datasets/X2DN4096.points.bin"
 ## data dimension
-d=54
+d=2
 ## Gaussian kernel bandwidth
 h=1.0
 
 
 ## problem size
-#n=65536
-#n=147456
-#n=262144
-n=100000
-#n=102400
-#n=1048576
-#n=2097152
+n=4096
 ## maximum leaf node size
-m=512
+m=64
 ## maximum off-diagonal ranks
-s=1024
+s=64
 ## number of neighbors
-k=128
+k=32
 ## number of right hand sides
-nrhs=128
+nrhs=512
 ## user tolerance
 stol=1E-5
 ## user computation budget
-budget=0.0
+budget=0.01
 ## distance type (geometry, kernel, angle)
-#distance="kernel"
 distance="angle"
-#distance="geometry"
-## spdmatrix type (testsuit, dense, ooc, mlp, kernel, userdefine)
-#matrixtype="dense"
-#matrixtype="ooc"
-#matrixtype="mlp"
-matrixtype="kernel"
-#matrixtype="testsuit"
-#matrixtype="pvfmm"
+## spdmatrix type (testsuit, dense, ooc, kernel, userdefine)
+matrixtype="testsuit"
 ## kernelmatrix type (gaussian, laplace)
 kerneltype="gaussian"
-#kerneltype="laplace"
-## hidden layer configuration (512-512-512)
-hiddenlayer="512-512-512"
-
 
 # ======= Do not change anything below this line ========
 mpiexec="ibrun tacc_affinity"
-#mpiexec="prun"
-#executable="./test_mpigofmm.x"
+executable="./test_mpigofmm.x"
 #executable="gdb -ex run --args ./test_mpigofmm.x"
-executable="./test_gofmm.x"
-
-
 echo "@PRIM"
 echo 'gofmm'
 # =======================================================
@@ -149,21 +119,8 @@ if [[ "$matrixtype" == "ooc" ]] ; then
 	done
 fi
 
-if [[ "$matrixtype" == "mlp" ]] ; then
-  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $hiddenlayer $points $d $h; status=$?
-  echo "@STATUS"
-  echo $status
-fi
-
 if [[ "$matrixtype" == "kernel" ]] ; then
-  echo $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $kerneltype $points $d $h
   $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $kerneltype $points $d $h; status=$?
-  echo "@STATUS"
-  echo $status
-fi
-
-if [[ "$matrixtype" == "pvfmm" ]] ; then
-  $mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype; status=$?
   echo "@STATUS"
   echo $status
 fi

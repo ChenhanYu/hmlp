@@ -41,8 +41,7 @@ export OMP_NUM_THREADS=2
 ## ======================================
 
 ## If you also want to compile those artifact files, then specify the path.
-export HMLP_ARTIFACT_PATH=
-#export HMLP_ARTIFACT_PATH=sc17gofmm
+export HMLP_ARTIFACT_PATH=sc18gofmm
 
 
 

@@ -1,31 +1,34 @@
 ## all SPD matrix files stored in dense column major format
 declare -a filearray=(
-"/workspace/chenhan/data/K02N65536.bin"
+"datasets/K02N4096.bin"
+"datasets/K03N4096.bin"
+"datasets/K04N4096.bin"
+"datasets/K05N4096.bin"
+"datasets/K06N4096.bin"
+"datasets/K07N4096.bin"
 )
 
 ## data files stored in dense d-by-N format
-#points="/workspace/chenhan/data/covtype.100k.trn.X.bin"
-points="/work/02794/ych/data/covtype.100k.trn.X.bin"
+points="datasets/X2DN4096.points.bin"
 ## data dimension
-d=54
+d=2
 ## Gaussian kernel bandwidth
 h=1.0
 
-
 ## problem size
-n=5000
+n=4096
 ## maximum leaf node size
 m=64
 ## maximum off-diagonal ranks
 s=64
 ## number of neighbors
-k=0
+k=32
 ## number of right hand sides
 nrhs=512
 ## user tolerance
 stol=1E-5
-## user computation budget [0,1]
-budget=0.00
+## user computation budget
+budget=0.01
 ## distance type (geometry, kernel, angle)
 distance="angle"
 ## spdmatrix type (testsuit, dense, ooc, kernel, userdefine)
@@ -34,16 +37,10 @@ matrixtype="testsuit"
 kerneltype="gaussian"
 
 # ======= Do not change anything below this line ========
-if [ "${HMLP_USE_MPI}" = true ]; 
-then mpiexec="mpirun -n 4"; 
-else mpiexec=""; 
-fi
-if [ "${HMLP_USE_MPI}" = true ]; 
-then executable="./test_mpigofmm.x"
-else executable="./test_gofmm.x";
-fi
+mpiexec="mpirun -n 4"
+executable="./artifact_sc18gofmm.x"
 echo "@PRIM"
-echo 'gofmm'
+echo 'artifact_sc18gofmm'
 # =======================================================
 
 echo "@SETUP"
@@ -83,7 +80,6 @@ fi
 if [[ "$matrixtype" == "dense" ]] ; then
 	for filename in "${filearray[@]}"
 	do
-		echo $filename
 		$mpiexec $executable $n $m $k $s $nrhs $stol $budget $distance $matrixtype $filename; status=$?
 		echo "@STATUS"
 		echo $status

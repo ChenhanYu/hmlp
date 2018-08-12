@@ -4228,7 +4228,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   /** Loop over all testing gids and right hand sides. */
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    size_t tar = i * 500;
+    size_t tar = i * 11;
     Data<T> potentials( (size_t)1, nrhs );
     if ( rank == ( tar % size ) ) potentials = u_rblk( vector<size_t>( 1, tar ), all_rhs );
     /** Bcast potentials to all MPI processes. */

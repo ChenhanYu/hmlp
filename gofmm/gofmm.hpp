@@ -3840,7 +3840,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   printf( "========================================================\n");
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    size_t tar = i * 500;
+    size_t tar = i * 11;
     Data<T> potentials;
     /** ASKIT treecode with NN pruning. */
     Evaluate<false, true>( tree, tar, potentials );

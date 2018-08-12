@@ -70,7 +70,7 @@ fi
 ## ======================================
 
 ## If you also want to compile those artifact files, then specify the path.
-export HMLP_ARTIFACT_PATH=sc17gofmm
+export HMLP_ARTIFACT_PATH=sc18gofmm
 
 
 

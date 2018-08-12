@@ -25,14 +25,8 @@
 /** use implicit kernel matrices (only coordinates are stored). */
 #include <containers/KernelMatrix.hpp>
 /** use distributed implicit kernel matrices (only coordinates are stored). */
-#include <containers/DistKernelMatrix.hpp>
-/** use implicit matrices */
 #include <containers/VirtualMatrix.hpp>
 /** use implicit PVFMM kernel matrices. */
-#include <containers/PVFMMKernelMatrix.hpp>
-/** Use implicit Gauss-Newton (multilevel perceptron) matrices. */
-#include <containers/MLPGaussNewton.hpp>
-/** Use an OOC covariance matrices. */
 #include <containers/OOCCovMatrix.hpp>
 /** Use STL and HMLP namespaces. */
 using namespace std;
@@ -43,16 +37,8 @@ using namespace hmlp;
 /** @brief Top level driver that reads arguments from the command line. */ 
 int main( int argc, char *argv[] )
 {
-  printf( "\n--- Artifact of GOFMM for Super Computing 2018\n" );
-
   /** Parse arguments from the command line. */
   gofmm::CommandLineHelper cmd( argc, argv );
-  /** Read all parameters. */
-  size_t n = cmd.n;
-  size_t d = cmd.d;
-  size_t nb = cmd.nb; 
-  /** (Optional) set the default Gaussian kernel bandwidth. */
-  float h = cmd.h;
 
   /** MPI (Message Passing Interface): check for THREAD_MULTIPLE support. */
   int size, rank, provided;
@@ -67,6 +53,8 @@ int main( int argc, char *argv[] )
   mpi::Comm CommGOFMM;
   mpi::Comm_dup( MPI_COMM_WORLD, &CommGOFMM );
 
+  mpi::PrintProgress( "\n--- Artifact of GOFMM for Super Computing 2018\n", CommGOFMM );
+
   /** HMLP API call to initialize the runtime. */
   hmlp_init( CommGOFMM );
 
@@ -75,8 +63,7 @@ int main( int argc, char *argv[] )
   {
     using T = float;
     /** Dense spd matrix format. */
-    SPDMatrix<T> K( n, n );
-    K.read( n, n, cmd.user_matrix_filename );
+    SPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
 		/** (Optional) provide coordinates. */
     DistData<STAR, CBLK, T> *X = NULL;
     /** Launch self-testing routine. */
@@ -88,7 +75,7 @@ int main( int argc, char *argv[] )
   {
     using T = float;
     /** Dense spd matrix format. */
-    OOCSPDMatrix<T> K( n, n, user_matrix_filename );
+    OOCSPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
 		/** (Optional) provide coordinates. */
     DistData<STAR, CBLK, T> *X = NULL;
     /** Launch self-testing routine. */
@@ -100,15 +87,15 @@ int main( int argc, char *argv[] )
   {
     using T = double;
     /** Read the coordinates from the file. */
-    DistData<STAR, CBLK, T> X( d, n, CommGOFMM, cmd.user_points_filename );
+    DistData<STAR, CBLK, T> X( cmd.d, cmd.n, CommGOFMM, cmd.user_points_filename );
     /** Setup the kernel object. */
     kernel_s<T> kernel;
     kernel.type = KS_GAUSSIAN;
     if ( !cmd.kernelmatrix_type.compare( "gaussian" ) ) kernel.type = KS_GAUSSIAN;
     if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = KS_LAPLACE;
-    kernel.scal = -0.5 / ( h * h );
+    kernel.scal = -0.5 / ( cmd.h * cmd.h );
     /** Distributed spd kernel matrix format (implicitly create). */
-    DistKernelMatrix_ver2<T, T> K( n, d, kernel, X, CommGOFMM );
+    DistKernelMatrix_ver2<T, T> K( cmd.n, cmd.d, kernel, X, CommGOFMM );
     /** Launch self-testing routine. */
     mpigofmm::LaunchHelper( &X, K, cmd, CommGOFMM );
   }
@@ -120,11 +107,11 @@ int main( int argc, char *argv[] )
     /** no geometric coordinates provided */
     DistData<STAR, CBLK, T> *X = NULL;
     /** dense spd matrix format */
-    SPDMatrix<T> K( n, n );
+    SPDMatrix<T> K( cmd.n, cmd.n );
     /** random spd initialization */
     K.randspd( 0.0, 1.0 );
     /** broadcast K to all other rank */
-    mpi::Bcast( K.data(), n * n, 0, CommGOFMM );
+    mpi::Bcast( K.data(), cmd.n * cmd.n, 0, CommGOFMM );
     /** Launch self-testing routine. */
     mpigofmm::LaunchHelper( X, K, cmd, CommGOFMM );
   }

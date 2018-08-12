@@ -373,7 +373,7 @@ install (FILES ${GOFMM_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
 ## Build paper artifacts
 # ---------------------------
 set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
-if (ARTIFACT_PATH MATCHES "sc17gofmm")
+if (ARTIFACT_PATH)
   set(ARTIFACT_PATH "${CMAKE_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")
   file (GLOB ARTIFACT_CXX_SRC    ${ARTIFACT_PATH}/*.cpp)
   file (GLOB ARTIFACT_SCRIPTS    ${ARTIFACT_PATH}/*.sh)
