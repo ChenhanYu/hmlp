@@ -34,7 +34,7 @@ using namespace std;
 namespace hmlp
 {
 
-std::ostream& operator<<( std::ostream& os, const thread_communicator& obj )
+ostream& operator<<( ostream& os, const thread_communicator& obj )
 {
   os << obj.name << obj.comm_id;
   return os;
@@ -47,20 +47,11 @@ range::range( int beg, int end, int inc )
   info = std::make_tuple( beg, end, inc );
 };
 
-int range::beg()
-{
-  return std::get<0>( info );
-};
+int range::beg() { return std::get<0>( info ); };
 
-int range::end()
-{
-  return std::get<1>( info );
-};
+int range::end() { return std::get<1>( info ); };
 
-int range::inc()
-{
-  return std::get<2>( info );
-};
+int range::inc() { return std::get<2>( info ); };
 
 range GetRange
 ( 

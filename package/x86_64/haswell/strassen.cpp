@@ -27,7 +27,7 @@
 /** Haswell micro-kernel */
 #include <rank_k_d8x6.hpp>
 
-using namespace hmlp::strassen;
+using namespace hmlp;
 
 void strassen
 (
@@ -54,7 +54,7 @@ void strassen
   rank_k_asm_d8x6 stra_semiringkernel;
   rank_k_asm_d8x6 stra_microkernel;
 
-  strassen<
+  strassen::strassen<
     72, 960, 256, 8, 6, 
     72, 960,      8, 6, 32,
     false,
@@ -74,27 +74,3 @@ void strassen
 }; 
 
 
-void sstrassen
-(
-  hmlpOperation_t transA, hmlpOperation_t transB,
-	int m, int n, int k,
-	float *A, int lda,
-	float *B, int ldb,
-	float *C, int ldc
-)
-{
-  strassen( transA, transB, m, n, k, A, lda, B, ldb, C, ldc );
-};
-
-
-void dstrassen
-(
-  hmlpOperation_t transA, hmlpOperation_t transB,
-	int m, int n, int k,
-	double *A, int lda,
-	double *B, int ldb,
-	double *C, int ldc
-)
-{
-  strassen( transA, transB, m, n, k, A, lda, B, ldb, C, ldc );
-};

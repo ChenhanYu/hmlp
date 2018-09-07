@@ -216,7 +216,7 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 8 ], "%d", &nclass );
   }
 
-  hmlp_init();
+  hmlp_init( &argc, &argv );
 
   /** */
   test_cluster<T>( 

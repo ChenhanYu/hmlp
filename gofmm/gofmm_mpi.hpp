@@ -214,14 +214,12 @@ class Setup : public mpitree::Setup<SPLITTER, T>,
     /** Shallow copy from the config. */
     void FromConfiguration( gofmm::Configuration<T> &config,
         SPDMATRIX &K, SPLITTER &splitter,
-        DistData<STAR, CBLK, pair<T, size_t>> &NN_cblk, 
-        DistData<STAR, CBLK, T> *X_cblk )
+        DistData<STAR, CBLK, pair<T, size_t>>* NN_cblk )
     { 
       this->CopyFrom( config ); 
       this->K = &K;
       this->splitter = splitter;
-      this->NN_cblk = &NN_cblk;
-      this->X_cblk = X_cblk;
+      this->NN_cblk = NN_cblk;
     };
 
     /** The SPDMATRIX (accessed with gids: dense, CSC or OOC) */
@@ -410,6 +408,10 @@ template<typename SPDMATRIX, int N_SPLIT, typename T>
 struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 {
 
+  centersplit() : gofmm::centersplit<SPDMATRIX, N_SPLIT, T>() {};
+
+  centersplit( SPDMATRIX& K ) : gofmm::centersplit<SPDMATRIX, N_SPLIT, T>( K ) {};
+
   /** Shared-memory operator. */
   inline vector<vector<size_t> > operator() ( vector<size_t>& gids ) const 
   {
@@ -543,6 +545,10 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
 {
+
+  randomsplit() : gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>() {};
+
+  randomsplit( SPDMATRIX& K ) : gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>( K ) {};
 
   /** Shared-memory operator. */
   inline vector<vector<size_t> > operator() ( vector<size_t>& gids ) const 
@@ -3889,7 +3895,33 @@ DistData<RBLK, STAR, T> Evaluate( TREE &tree, DistData<RBLK, STAR, T> &w_rblk )
 
 
 
-
+template<typename SPLITTER, typename T, typename SPDMATRIX>
+DistData<STAR, CBLK, pair<T, size_t>> FindNeighbors
+(
+  SPDMATRIX &K, 
+  SPLITTER splitter, 
+	gofmm::Configuration<T> &config,
+  mpi::Comm CommGOFMM, 
+  size_t n_iter = 10
+)
+{
+  /** Instantiation for the randomized metric tree. */
+  using DATA  = gofmm::NodeData<T>;
+  using SETUP = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using TREE  = mpitree::Tree<SETUP, DATA>;
+  /** Derive type NODE from TREE. */
+  using NODE  = typename TREE::NODE;
+  /** Get all user-defined parameters. */
+  DistanceMetric metric = config.MetricType();
+  size_t n = config.ProblemSize();
+	size_t k = config.NeighborSize(); 
+  /** Iterative all nearnest-neighbor (ANN). */
+  pair<T, size_t> init( numeric_limits<T>::max(), n );
+  gofmm::NeighborsTask<NODE, T> NEIGHBORStask;
+  TREE rkdt( CommGOFMM );
+  rkdt.setup.FromConfiguration( config, K, splitter, NULL );
+  return rkdt.AllNearestNeighbor( n_iter, n, k, init, NEIGHBORStask );
+}; /** end FindNeighbors() */
 
 
 
@@ -3906,7 +3938,6 @@ template<typename SPLITTER, typename RKDTSPLITTER, typename T, typename SPDMATRI
 mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 *Compress
 ( 
-  DistData<STAR, CBLK, T> *X_cblk,
   SPDMATRIX &K, 
   DistData<STAR, CBLK, pair<T, size_t>> &NN_cblk,
   SPLITTER splitter, 
@@ -3932,16 +3963,12 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   const bool CACHE     = true;
 
   /** Instantiation for the GOFMM metric tree. */
-  using SETUP       = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA        = gofmm::NodeData<T>;
-  using NODE        = tree::Node<SETUP, DATA>;
-  using MPINODE     = mpitree::Node<SETUP, DATA>;
-  using TREE        = mpitree::Tree<SETUP, DATA>;
-
-  /** Instantiation for the randomized metric tree. */
-  using RKDTSETUP   = mpigofmm::Setup<SPDMATRIX, RKDTSPLITTER, T>;
-  using RKDTNODE    = tree::Node<RKDTSETUP, DATA>;
-  using MPIRKDTNODE = tree::Node<RKDTSETUP, DATA>;
+  using SETUP   = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using DATA    = gofmm::NodeData<T>;
+  using TREE    = mpitree::Tree<SETUP, DATA>;
+  /** Derive type NODE and MPINODE from TREE. */
+  using NODE    = typename TREE::NODE;
+  using MPINODE = typename TREE::MPINODE;
 
   /** All timers. */
   double beg, omptask45_time, omptask_time, ref_time;
@@ -3952,23 +3979,20 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   double exchange_neighbor_time, symmetrize_time;
 
   /** Iterative all nearnest-neighbor (ANN). */
-  const size_t n_iter = 20;
-  pair<T, size_t> initNN( numeric_limits<T>::max(), n );
-  mpitree::Tree<RKDTSETUP, DATA> rkdt( CommGOFMM );
-  rkdt.setup.FromConfiguration( config, K, rkdtsplitter, NN_cblk, X_cblk );
   beg = omp_get_wtime();
-  gofmm::NeighborsTask<RKDTNODE, T> knntask;
   if ( k && NN_cblk.row() * NN_cblk.col() != k * n )
-    NN_cblk = rkdt.AllNearestNeighbor( n_iter, n, k, initNN, knntask );
+  {
+    NN_cblk = mpigofmm::FindNeighbors( K, rkdtsplitter,
+        config, CommGOFMM );
+  }
   ann_time = omp_get_wtime() - beg;
 
-
   /** Initialize metric ball tree using approximate center split. */
-  auto *tree_ptr = new mpitree::Tree<SETUP, DATA>( CommGOFMM );
+  auto *tree_ptr = new TREE( CommGOFMM );
 	auto &tree = *tree_ptr;
 
 	/** Global configuration for the metric tree. */
-  tree.setup.FromConfiguration( config, K, splitter, NN_cblk, X_cblk );
+  tree.setup.FromConfiguration( config, K, splitter, &NN_cblk );
 
 	/** Metric ball tree partitioning. */
   beg = omp_get_wtime();
@@ -4267,25 +4291,20 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
 
 
 /** @brief Instantiate the splitters here. */ 
-template<typename T, typename SPDMATRIX>
-void LaunchHelper
-( 
-  DistData<STAR, CBLK, T> *X,
-  SPDMATRIX &K, 
-  gofmm::CommandLineHelper &cmd,
-  mpi::Comm CommGOFMM
-)
+template<typename SPDMATRIX>
+void LaunchHelper( SPDMATRIX &K, gofmm::CommandLineHelper &cmd, mpi::Comm CommGOFMM )
 {
+  using T = typename SPDMATRIX::T;
   const int N_CHILDREN = 2;
   /** Use geometric-oblivious splitters. */
   using SPLITTER     = mpigofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
   using RKDTSPLITTER = mpigofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
   /** GOFMM tree splitter. */
-  SPLITTER splitter;
+  SPLITTER splitter( K );
   splitter.Kptr = &K;
   splitter.metric = cmd.metric;
   /** Randomized tree splitter. */
-  RKDTSPLITTER rkdtsplitter;
+  RKDTSPLITTER rkdtsplitter( K );
   rkdtsplitter.Kptr = &K;
   rkdtsplitter.metric = cmd.metric;
 	/** Create configuration for all user-define arguments. */
@@ -4294,7 +4313,7 @@ void LaunchHelper
   /** (Optional) provide neighbors, leave uninitialized otherwise. */
   DistData<STAR, CBLK, pair<T, size_t>> NN( 0, cmd.n, CommGOFMM );
   /** Compress matrix K. */
-  auto *tree_ptr = mpigofmm::Compress( X, K, NN, splitter, rkdtsplitter, config, CommGOFMM );
+  auto *tree_ptr = mpigofmm::Compress( K, NN, splitter, rkdtsplitter, config, CommGOFMM );
   auto &tree = *tree_ptr;
 
   /** Examine accuracies. */

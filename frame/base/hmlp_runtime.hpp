@@ -48,6 +48,7 @@
 
 #include <hmlp_device.hpp>
 #include <hmlp_thread.hpp>
+#include <hmlp_tci.hpp>
 #include <hmlp_mpi.hpp>
 
 #define MAX_WORKER 68
@@ -73,32 +74,32 @@ typedef enum { ALLOCATED, NOTREADY, QUEUED, RUNNING, EXECUTED, DONE, CANCELLED }
 typedef enum { R, W, RW } ReadWriteType;
 
 
-/**
- *  class Lock
- */ 
-
-/** @brief Wrapper for omp or pthread mutex.  */ 
-class Lock
-{
-  public:
-
-    Lock();
-
-    ~Lock();
-
-    void Acquire();
-
-    void Release();
-
-  private:
-#ifdef USE_PTHREAD_RUNTIME
-    pthread_mutex_t lock;
-#else
-    omp_lock_t lock;
-#endif
-}; /** end class Lock */
-
-
+///**
+// *  class Lock
+// */ 
+//
+///** @brief Wrapper for omp or pthread mutex.  */ 
+//class Lock
+//{
+//  public:
+//
+//    Lock();
+//
+//    ~Lock();
+//
+//    void Acquire();
+//
+//    void Release();
+//
+//  private:
+//#ifdef USE_PTHREAD_RUNTIME
+//    pthread_mutex_t lock;
+//#else
+//    omp_lock_t lock;
+//#endif
+//}; /** end class Lock */
+//
+//
 
 /**
  *  class Event
@@ -683,6 +684,8 @@ class RunTime
 
     void Init( mpi::Comm comm );
 
+    void Init( int *argc, char ***argv, mpi::Comm comm );
+
     void Run();
 
     void Finalize();
@@ -716,10 +719,21 @@ class RunTime
     Scheduler *scheduler;
 
   private:
-   
+  
+    /** Argument count. */
+    int* argc = NULL;
+    /** Argument varliables. */
+    char*** argv = NULL;
+    /** Whether the runtime has been initialized on this process? */
     bool is_init = false;
-
+    /** Whether MPI is initialized by the runtime? */
+    bool is_mpi_init_by_hmlp = false;
+    /** Whether the runtime is in a epoch sesson? */
     bool is_in_epoch_session = false;
+    /** Print progress with prefix information. */
+    void Print( string msg );
+    /** Print error message and exit with error. */
+    void ExitWithError( string msg );
 
 }; /** end class Runtime */
 

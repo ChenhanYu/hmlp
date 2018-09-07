@@ -6,6 +6,7 @@
 BLIS_GEMM_KERNEL(bli_sgemm_asm_16x6,float);
 BLIS_GEMM_KERNEL(bli_dgemm_asm_8x6,double);
 
+using namespace hmlp;
 
 struct rank_k_asm_s16x6 
 {
@@ -28,16 +29,7 @@ struct rank_k_asm_s16x6
     /** if this is the first kc iteration then beta = 1.0 */
     float beta = aux->pc ? 1.0 : 0.0;
     /** invoke blis kernel */
-    bli_sgemm_asm_16x6
-    (
-      k,
-      &alpha,
-      a,
-      b,
-      &beta,
-      c, rs_c, cs_c,
-      aux
-    );
+    bli_sgemm_asm_16x6( k, &alpha, a, b, &beta, c, rs_c, cs_c, aux );
   };
 
 
@@ -53,13 +45,13 @@ struct rank_k_asm_s16x6
   )
   {
     float alpha = 1.0;
-    /** if this is the first kc iteration then beta = 1.0 */
+    /** If this is the first kc iteration then beta = 1.0. */
     float beta = aux->pc ? 1.0 : 0.0;
 
-    /** allocate temporary buffer */
+    /** Allocate temporary buffer. */
     float vtmp[ mr * nr ];
 
-    if ( !is_same<TC, hmlp::MatrixLike<pack_mr, float, float>>::value )
+    if ( !is_same<TC, MatrixLike<pack_mr, float, float>>::value )
     {
       if ( aux->pc )
       {
@@ -89,7 +81,7 @@ struct rank_k_asm_s16x6
      *  If TC is not MatrixLike<PACK_MR,double,double>, we treat this
      *  the same as the edge case.
      */ 
-    if ( !is_same<TC, hmlp::MatrixLike<pack_mr, float, float>>::value ||
+    if ( !is_same<TC, MatrixLike<pack_mr, float, float>>::value ||
          aux->ib != mr || aux->jb != nr )
     {
       //printf( "bug %d %d %d %d %d %d\n", aux->m, aux->i, aux->ib, aux->n, aux->j, aux->jb );

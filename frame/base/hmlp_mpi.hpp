@@ -48,99 +48,39 @@ typedef MPI_Op Op;
 
 /** MPI 1.0 functionality */ 
 int Init( int *argc, char ***argv );
-
+int Initialized( int *flag );
 int Finalize( void );
-
-int Send( const void *buf, int count, Datatype datatype, 
-    int dest, int tag, Comm comm );
-
-int Isend( const void *buf, int count, Datatype datatype, 
-		int dest, int tag, Comm comm, Request *request );
-
-int Recv( void *buf, int count, Datatype datatype, 
-    int source, int tag, Comm comm, Status *status );
-
-int Irecv( void *buf, int count, Datatype datatype, 
-		int source, int tag, Comm comm, Request *request );
-
-int Sendrecv( 
-    void *sendbuf, int sendcount, Datatype sendtype, int dest, int sendtag, 
-    void *recvbuf, int recvcount, Datatype recvtype, int source, int recvtag,
-    Comm comm, Status *status );
-
+int Finalized( int *flag );
+int Send( const void *buf, int count, Datatype datatype, int dest, int tag, Comm comm );
+int Isend( const void *buf, int count, Datatype datatype, int dest, int tag, Comm comm, Request *request );
+int Recv( void *buf, int count, Datatype datatype, int source, int tag, Comm comm, Status *status );
+int Irecv( void *buf, int count, Datatype datatype, int source, int tag, Comm comm, Request *request );
+int Sendrecv( void *sendbuf, int sendcount, Datatype sendtype, int dest, int sendtag, void *recvbuf, int recvcount, Datatype recvtype, int source, int recvtag, Comm comm, Status *status );
 int Get_count( Status *status, Datatype datatype, int *count );
-
 int Comm_size( Comm comm, int *size );
-
 int Comm_rank( Comm comm, int *rank );
-
 int Comm_dup( Comm comm, Comm *newcomm );
-
 int Comm_split( Comm comm, int color, int key, Comm *newcomm );
-
-
-
 int Type_contiguous( int count, Datatype oldtype, Datatype *newtype );
 int Type_commit( Datatype *datatype );
-
-
-
-
-
 int Test( Request *request, int *flag, Status *status );
-
-
-
 int Barrier( Comm comm );
-
 int Ibarrier( Comm comm, Request *request );
-
-int Bcast( void *buffer, int count, Datatype datatype,
-    int root, Comm comm );
-
-
-
-
-int Reduce( void *sendbuf, void *recvbuf, int count,
-    Datatype datatype, Op op, int root, Comm comm );
-
-int Gather( const void *sendbuf, int sendcount, Datatype sendtype,
-    void *recvbuf, int recvcount, Datatype recvtype,
-    int root, Comm comm );
-
-int Gatherv( void *sendbuf, int sendcount, Datatype sendtype,
-    void *recvbuf, const int *recvcounts, const int *displs,
-    Datatype recvtype, int root, Comm comm );
-
-int Scan( void *sendbuf, void *recvbuf, int count,
-    Datatype datatype, Op op, Comm comm );
-
-int Allreduce( void* sendbuf, void* recvbuf, int count,
-    Datatype datatype, Op op, Comm comm );
-
-int Allgather(
-    void *sendbuf, int sendcount, Datatype sendtype, 
-    void *recvbuf, int recvcount, Datatype recvtype, Comm comm );
-
-int Allgatherv( 
-    void *sendbuf, int sendcount, Datatype sendtype,
-    void *recvbuf, int *recvcounts, int *displs, Datatype recvtype, Comm comm );
-
-int Alltoall( 
-    void *sendbuf, int sendcount, Datatype sendtype,
-    void *recvbuf, int recvcount, Datatype recvtype, Comm comm );
-
-int Alltoallv( 
-    void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype, 
-    void *recvbuf, int *recvcounts, int *rdispls, Datatype recvtype, Comm comm );
-
+int Bcast( void *buffer, int count, Datatype datatype, int root, Comm comm );
+int Reduce( void *sendbuf, void *recvbuf, int count, Datatype datatype, Op op, int root, Comm comm );
+int Gather( const void *sendbuf, int sendcount, Datatype sendtype, void *recvbuf, int recvcount, Datatype recvtype, int root, Comm comm );
+int Gatherv( void *sendbuf, int sendcount, Datatype sendtype, void *recvbuf, const int *recvcounts, const int *displs, Datatype recvtype, int root, Comm comm );
+int Scan( void *sendbuf, void *recvbuf, int count, Datatype datatype, Op op, Comm comm );
+int Allreduce( void* sendbuf, void* recvbuf, int count, Datatype datatype, Op op, Comm comm );
+int Allgather( void *sendbuf, int sendcount, Datatype sendtype, void *recvbuf, int recvcount, Datatype recvtype, Comm comm );
+int Allgatherv( void *sendbuf, int sendcount, Datatype sendtype, void *recvbuf, int *recvcounts, int *displs, Datatype recvtype, Comm comm );
+int Alltoall( void *sendbuf, int sendcount, Datatype sendtype, void *recvbuf, int recvcount, Datatype recvtype, Comm comm );
+int Alltoallv( void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype, void *recvbuf, int *recvcounts, int *rdispls, Datatype recvtype, Comm comm );
 
 /** MPI 2.0 and 3.0 functionality */ 
 int Init_thread( int *argc, char ***argv, int required, int *provided );
 int Probe( int source, int tag, Comm comm, Status *status );
 int Iprobe( int source, int tag, Comm comm, int *flag, Status *status );
-
-
 
 /** HMLP MPI extension */ 
 void PrintProgress( const char *s, mpi::Comm comm );

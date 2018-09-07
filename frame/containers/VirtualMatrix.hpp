@@ -65,23 +65,18 @@ class SPDMatrixMPISupport
 
 
 
-#ifdef HMLP_MIC_AVX512
-template<typename T, class Allocator = hbw::allocator<T> >
-#elif  HMLP_USE_CUDA
-/** use pinned (page-lock) memory for NVIDIA GPUs */
-template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
-#else
-template<typename T, class Allocator = std::allocator<T> >
-#endif
+template<typename DATATYPE, class Allocator = std::allocator<DATATYPE>>
 /**
  *  @brief VirtualMatrix is the abstract base class for matrix-free
  *         access and operations. Most of the public functions will
  *         be virtual. To inherit VirtualMatrix, you "must" implement
  *         the evaluation operator. Otherwise, the code won't compile.
  */ 
-class VirtualMatrix : public SPDMatrixMPISupport<T>
+class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
 {
   public:
+
+    typedef DATATYPE T;
 
     VirtualMatrix() {};
 

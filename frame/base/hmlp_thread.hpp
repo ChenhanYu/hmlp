@@ -35,6 +35,9 @@
 #include <set>
 #include <omp.h>
 
+
+#include <hmlp_tci.hpp>
+
 #ifdef HMLP_HAVE_RUNTIME
 #include <hmlp_device.hpp>
 #endif /** ifdef HMLP_HAVE_RUNTIME */
@@ -48,13 +51,13 @@ namespace hmlp
 {
 
 
-typedef enum 
-{
-  HMLP_SCHEDULE_DEFAULT,
-  HMLP_SCHEDULE_ROUND_ROBIN,
-  HMLP_SCHEDULE_UNIFORM,
-  HMLP_SCHEDULE_HEFT
-} SchedulePolicy;
+//typedef enum 
+//{
+//  HMLP_SCHEDULE_DEFAULT,
+//  HMLP_SCHEDULE_ROUND_ROBIN,
+//  HMLP_SCHEDULE_UNIFORM,
+//  HMLP_SCHEDULE_HEFT
+//} SchedulePolicy;
 
 
 
@@ -129,11 +132,11 @@ class thread_communicator
 
     int GetNumGroups();
 
-    friend std::ostream& operator<<( std::ostream& os, const thread_communicator& obj );
+    friend ostream& operator<<( ostream& os, const thread_communicator& obj );
 
     thread_communicator *kids;
 
-    std::string name;
+    string name;
 
 
 

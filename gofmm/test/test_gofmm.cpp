@@ -1,7 +1,7 @@
 /**
  *  HMLP (High-Performance Machine Learning Primitives)
  *  
- *  Copyright (C) 2014-2017, The University of Texas at Austin
+ *  Copyright (C) 2014-2018, The University of Texas at Austin
  *  
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -44,10 +44,10 @@ int main( int argc, char *argv[] )
   gofmm::CommandLineHelper cmd( argc, argv );
 
   /** (Message Passing Interface) This function must be called.  */
-  mpi::Init( &argc, &argv );
+  //mpi::Init( &argc, &argv );
 
   /** HMLP API call to initialize the runtime */
-  hmlp_init();
+  hmlp_init( &argc, &argv );
 
   /** Run the matrix file provided by users. */
   if ( !cmd.spdmatrix_type.compare( "dense" ) )
@@ -55,9 +55,7 @@ int main( int argc, char *argv[] )
     using T = float;
     /** Dense spd matrix format. */
     SPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
-		/** (Optional) provide coordinates. */
-    Data<T> *X = NULL;
-    gofmm::LaunchHelper( X, K, cmd );
+    gofmm::LaunchHelper( K, cmd );
   }
 
   /** Run the matrix file provided by users. */
@@ -66,9 +64,7 @@ int main( int argc, char *argv[] )
     using T = float;
     /** Dense spd matrix format. */
     OOCSPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
-		/** (Optional) provide coordinates. */
-    Data<T> *X = NULL;
-    gofmm::LaunchHelper( X, K, cmd );
+    gofmm::LaunchHelper( K, cmd );
   }
 
   /** generate a Gaussian kernel matrix from the coordinates */
@@ -85,7 +81,7 @@ int main( int argc, char *argv[] )
     kernel.scal = -0.5 / ( cmd.h * cmd.h );
     /** SPD kernel matrix format (implicitly create). */
     KernelMatrix<T> K( cmd.n, cmd.n, cmd.d, kernel, X );
-    gofmm::LaunchHelper( &X, K, cmd );
+    gofmm::LaunchHelper( K, cmd );
   }
 
 
@@ -93,13 +89,11 @@ int main( int argc, char *argv[] )
   if ( !cmd.spdmatrix_type.compare( "testsuit" ) )
   {
     using T = double;
-    /** no geometric coordinates provided */
-    Data<T> *X = NULL;
     /** dense spd matrix format */
     SPDMatrix<T> K( cmd.n, cmd.n );
     /** random spd initialization */
     K.randspd( 0.0, 1.0 );
-    gofmm::LaunchHelper( X, K, cmd );
+    gofmm::LaunchHelper( K, cmd );
   }
 
 
@@ -129,10 +123,8 @@ int main( int argc, char *argv[] )
   if ( !cmd.spdmatrix_type.compare( "cov" ) )
   {
     using T = float;
-    /** No geometric coordinates provided */
-    Data<T> *X = NULL;
     OOCCovMatrix<T> K( cmd.n, cmd.d, cmd.nb, cmd.user_points_filename );
-    gofmm::LaunchHelper( X, K, cmd );
+    gofmm::LaunchHelper( K, cmd );
   }
 
 
@@ -140,7 +132,7 @@ int main( int argc, char *argv[] )
   /** HMLP API call to terminate the runtime */
   hmlp_finalize();
   /** Message Passing Interface */
-  mpi::Finalize();
+  //mpi::Finalize();
 
   return 0;
 

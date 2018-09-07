@@ -62,7 +62,7 @@ if [[ ${taccmachine} == *"stampede"* ]]; then
 fi
 if [[ ${taccmachine} == *"stampede2"* ]]; then
   #export OMP_NUM_THREADS=68
-  export OMP_NUM_THREADS=48
+  export OMP_NUM_THREADS=1
 fi
 
 
@@ -86,7 +86,7 @@ export HMLP_GPU_ARCH_MINOR=kepler
 ## (3) arm/armv8a
 ## (4) mic/knl
 export HMLP_ARCH_MAJOR=x86_64
-export HMLP_ARCH_MINOR=sandybridge
+export HMLP_ARCH_MINOR=haswell
 
 if [[ ${taccmachine} == *"ls5"* ]]; then
   export HMLP_ARCH_MAJOR=x86_64
@@ -95,10 +95,10 @@ fi
 if [[ ${taccmachine} == *"stampede2"* ]]; then
   #export HMLP_ARCH_MAJOR=mic
   #export HMLP_ARCH_MINOR=knl
-  #export HMLP_ARCH_MAJOR=x86_64
-  #export HMLP_ARCH_MINOR=skx
   export HMLP_ARCH_MAJOR=x86_64
-  export HMLP_ARCH_MINOR=sandybridge
+  export HMLP_ARCH_MINOR=skx
+  #export HMLP_ARCH_MAJOR=x86_64
+  #export HMLP_ARCH_MINOR=haswell
 fi
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
@@ -131,13 +131,15 @@ fi
 
 ## Advance OpenMP options
 export OMP_NESTED=false
-export OMP_PROC_BIND=spread
+export OMP_PLACES=cores
+export OMP_PROC_BIND=close
 
 ## HMLP communicator
 #export KS_JC_NT=1
-export KS_JC_NT=6
+export KS_JC_NT=1
+export KS_PC_NT=1
 #export KS_IC_NT=$OMP_NUM_THREADS
-export KS_IC_NT=8
+export KS_IC_NT=1
 export KS_JR_NT=1
 
 

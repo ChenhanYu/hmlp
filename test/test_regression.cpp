@@ -112,7 +112,7 @@ int main( int argc, char *argv[] )
   printf( "%d %d %s %s\n",
       d, n, user_points_filename.data(), user_labels_filename.data() );
 
-  hmlp_init();
+  hmlp_init( &argc, &argv );
 
   /** */
   test_regression<T>( 

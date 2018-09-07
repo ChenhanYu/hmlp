@@ -42,26 +42,19 @@ using namespace hmlp;
 namespace hmlp
 {
 
-#ifdef HMLP_MIC_AVX512
-template<typename T, class Allocator = hbw::allocator<T> >
-#elif  HMLP_USE_CUDA
-/** use pinned (page-lock) memory for NVIDIA GPUs */
-template<class T, class Allocator = thrust::system::cuda::experimental::pinned_allocator<T> >
-#else
-template<typename T, class Allocator = std::allocator<T> >
-#endif
-/**
- *  @brief
- */ 
+template<typename T, class Allocator = std::allocator<T>>
 class KernelMatrix : public VirtualMatrix<T, Allocator>, 
                      public ReadWrite
 {
   public:
 
     /** (Default) constructor for symmetric kernel matrices. */
-    //template<typename TINDEX>
-    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T> &kernel, Data<T> &sources )
-      : sources( sources ), targets( sources ), VirtualMatrix<T>( m, n )
+    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T> &kernel, 
+        Data<T> &sources )
+      : sources( sources ), 
+        targets( sources ), 
+        VirtualMatrix<T>( m, n ),
+        all_dimensions( d )
     {
       assert( m == n );
       this->is_symmetric = true;
@@ -69,17 +62,38 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
       this->kernel = kernel;
       /** Compute square 2-norms for Euclidian family. */
       ComputeSquare2Norm();
+      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
+    };
+
+    KernelMatrix( Data<T> &sources )
+      : sources( sources ), 
+        targets( sources ), 
+        VirtualMatrix<T>( sources.col(), sources.col() ),
+        all_dimensions( sources.row() )
+    {
+      this->is_symmetric = true;
+      this->d = sources.row();
+      this->kernel.type = KS_GAUSSIAN;
+      this->kernel.scal = -0.5;
+      /** Compute square 2-norms for Euclidian family. */
+      ComputeSquare2Norm();
+      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
     };
 
     /** (Default) constructor for non-symmetric kernel matrices. */
-    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T> &kernel, Data<T> &sources, Data<T> &targets )
-    : sources( sources ), targets( targets ), VirtualMatrix<T>( m, n )
+    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T> &kernel, 
+        Data<T> &sources, Data<T> &targets )
+      : sources( sources ), 
+        targets( targets ), 
+        VirtualMatrix<T>( m, n ),
+        all_dimensions( d )
     {
       this->is_symmetric = false;
       this->d = d;
       this->kernel = kernel;
       /** Compute square 2-norms for Euclidian family. */
       ComputeSquare2Norm();
+      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
     };
 
     /** (Default) destructor. */
@@ -148,96 +162,163 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 		};
 
 
-    /** ESSENTIAL: return K( imap, jmap ) */
-    Data<T> operator() ( const vector<size_t> &imap, const vector<size_t> &jmap )
+//    /** ESSENTIAL: return K( imap, jmap ) */
+//    Data<T> operator() ( const vector<size_t> &imap, 
+//                         const vector<size_t> &jmap )
+//    {
+//      Data<T> submatrix( imap.size(), jmap.size() );
+//
+//      if ( !submatrix.size() ) return submatrix;
+//
+//      /** Get coordinates of sources and targets */
+//      Data<T> itargets = targets( imap );
+//      Data<T> jsources = sources( jmap );
+//
+//      assert( itargets.col() == submatrix.row() );
+//      assert( itargets.row() == d );
+//      assert( jsources.col() == submatrix.col() );
+//      assert( jsources.row() == d );
+//
+//      /** compute inner products */
+//      xgemm
+//      (
+//        "T", "N",
+//        imap.size(), jmap.size(), d,
+//        -2.0, itargets.data(),   itargets.row(),
+//              jsources.data(),   jsources.row(),
+//         0.0, submatrix.data(), submatrix.row()
+//      );
+//
+//      /** compute square norms */
+//      vector<T> itarget_sqnorms( imap.size() );
+//      vector<T> jsource_sqnorms( jmap.size() );
+//
+//
+//      #pragma omp parallel for
+//      for ( size_t i = 0; i < imap.size(); i ++ )
+//      {
+//        if ( target_sqnorms.size() )
+//        {
+//          /** if precomputed then directly copy */
+//          itarget_sqnorms[ i ] = target_sqnorms[ imap[ i ] ];
+//        }
+//        else
+//        {
+//          /** otherwise compute them now */
+//          itarget_sqnorms[ i ] = xdot(
+//              d, itargets.data() + i * d, 1, itargets.data() + i * d, 1 );
+//        }
+//      }
+//
+//      #pragma omp parallel for
+//      for ( size_t j = 0; j < jmap.size(); j ++ )
+//      {
+//        if ( source_sqnorms.size() )
+//        {
+//          /** if precomputed then directly copy */
+//          jsource_sqnorms[ j ] = source_sqnorms[ jmap[ j ] ];
+//        }
+//        else
+//        {
+//          /** otherwise compute them now */
+//          jsource_sqnorms[ j ] = xdot(
+//              d, jsources.data() + j * d, 1, jsources.data() + j * d, 1 );
+//        }
+//      }
+//
+//      /** add square norms to inner products to get square distances */
+//      #pragma omp parallel for
+//      for ( size_t j = 0; j < jmap.size(); j ++ )
+//      {
+//        for ( size_t i = 0; i < imap.size(); i ++ )
+//        {
+//          submatrix( i, j ) += itarget_sqnorms[ i ] + jsource_sqnorms[ j ];
+//        }
+//      }
+//
+//      switch ( kernel.type )
+//      {
+//        case KS_GAUSSIAN:
+//        {
+//          /** apply the scaling factor and exponentiate */
+//          #pragma omp parallel for
+//          for ( size_t i = 0; i < submatrix.size(); i ++ )
+//          {
+//            submatrix[ i ] = std::exp( kernel.scal * submatrix[ i ] );
+//          }
+//
+//          // gemm: 2 * i * j * d
+//          // compute sqnorms: 2 * ( i + j ) * d
+//          // add sqnorms: 2 * i * j
+//          // scale and exponentiate: 2 * i * j
+//          //flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
+//          //           + 4 * imap.size() * jmap.size();
+//          break;
+//        }
+//        default:
+//        {
+//          printf( "invalid kernel type\n" );
+//          exit( 1 );
+//          break;
+//        }
+//      }
+//
+//      return submatrix;
+//    }; 
+//
+
+    /** (Overwrittable) ESSENTIAL: return K( I, J ) */
+    virtual Data<T> operator() ( vector<size_t> &I, 
+                                 vector<size_t> &J )
     {
-      Data<T> submatrix( imap.size(), jmap.size() );
-
-      if ( !submatrix.size() ) return submatrix;
-
-      /** Get coordinates of sources and targets */
-      Data<T> itargets = targets( imap );
-      Data<T> jsources = sources( jmap );
-
-      assert( itargets.col() == submatrix.row() );
-      assert( itargets.row() == d );
-      assert( jsources.col() == submatrix.col() );
-      assert( jsources.row() == d );
-
-      /** compute inner products */
-      xgemm
-      (
-        "T", "N",
-        imap.size(), jmap.size(), d,
-        -2.0, itargets.data(),   itargets.row(),
-              jsources.data(),   jsources.row(),
-         0.0, submatrix.data(), submatrix.row()
-      );
-
-      /** compute square norms */
-      vector<T> itarget_sqnorms( imap.size() );
-      vector<T> jsource_sqnorms( jmap.size() );
-
-
-      #pragma omp parallel for
-      for ( size_t i = 0; i < imap.size(); i ++ )
-      {
-        if ( target_sqnorms.size() )
-        {
-          /** if precomputed then directly copy */
-          itarget_sqnorms[ i ] = target_sqnorms[ imap[ i ] ];
-        }
-        else
-        {
-          /** otherwise compute them now */
-          itarget_sqnorms[ i ] = xdot(
-              d, itargets.data() + i * d, 1, itargets.data() + i * d, 1 );
-        }
-      }
-
-      #pragma omp parallel for
-      for ( size_t j = 0; j < jmap.size(); j ++ )
-      {
-        if ( source_sqnorms.size() )
-        {
-          /** if precomputed then directly copy */
-          jsource_sqnorms[ j ] = source_sqnorms[ jmap[ j ] ];
-        }
-        else
-        {
-          /** otherwise compute them now */
-          jsource_sqnorms[ j ] = xdot(
-              d, jsources.data() + j * d, 1, jsources.data() + j * d, 1 );
-        }
-      }
-
-      /** add square norms to inner products to get square distances */
-      #pragma omp parallel for
-      for ( size_t j = 0; j < jmap.size(); j ++ )
-      {
-        for ( size_t i = 0; i < imap.size(); i ++ )
-        {
-          submatrix( i, j ) += itarget_sqnorms[ i ] + jsource_sqnorms[ j ];
-        }
-      }
+      Data<T> KIJ = GeometryDistances( I, J );
+			/** Early return */
+			if ( !I.size() || !J.size() ) return KIJ;
 
       switch ( kernel.type )
       {
         case KS_GAUSSIAN:
         {
-          /** apply the scaling factor and exponentiate */
-          #pragma omp parallel for
-          for ( size_t i = 0; i < submatrix.size(); i ++ )
+          /** Apply the scaling factor and exponent */
+          #pragma omp parallel for 
+          for ( size_t i = 0; i < KIJ.size(); i ++ )
           {
-            submatrix[ i ] = std::exp( kernel.scal * submatrix[ i ] );
+            KIJ[ i ] = std::exp( kernel.scal * KIJ[ i ] );
           }
+          break;
+        }
+        case KS_LAPLACE:
+        {
+          //T scale = 0.0;
 
-          // gemm: 2 * i * j * d
-          // compute sqnorms: 2 * ( i + j ) * d
-          // add sqnorms: 2 * i * j
-          // scale and exponentiate: 2 * i * j
-          //flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
-          //           + 4 * imap.size() * jmap.size();
+          //if ( d == 1 ) scale = 1.0;
+          //else if ( d == 2 ) scale = ( 0.5 / M_PI );
+          //else
+          //{
+          //  scale = tgamma( 0.5 * d + 1.0 ) / ( d * ( d - 2 ) * pow( M_PI, 0.5 * d ) ); 
+          //}
+
+          #pragma omp parallel for
+          for ( size_t i = 0; i < KIJ.size(); i ++ )
+          {
+            if ( KIJ[ i ] < 1E-6 ) KIJ[ i ] = 0.0;
+            else
+            {
+              if      ( d == 1 ) KIJ[ i ] = sqrt( KIJ[ i ] );
+              else if ( d == 2 ) KIJ[ i ] = std::log( KIJ[ i ] ) / 2;
+              else               KIJ[ i ] = 1 / sqrt( KIJ[ i ] );
+            }
+          }
+          break;
+        }
+        case KS_QUARTIC:
+        {
+          #pragma omp parallel for
+          for ( size_t i = 0; i < KIJ.size(); i ++ )
+          {
+            if ( KIJ[ i ] < 0.5 ) KIJ[ i ] = 1.0;
+            else KIJ[ i ] = 0.0;
+          }
           break;
         }
         default:
@@ -248,8 +329,59 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
         }
       }
 
-      return submatrix;
-    }; 
+      return KIJ;
+    };
+
+
+    Data<T> GeometryDistances( const vector<size_t> &I, 
+                               const vector<size_t> &J )
+    {
+      Data<T> KIJ( I.size(), J.size() );
+			/** Early return if possible. */
+			if ( !I.size() || !J.size() ) return KIJ;
+			/** Request for coordinates: A (targets), B (sources). */
+      Data<T> A, B;
+      /** For symmetry matrices, extract from sources. */
+      if ( is_symmetric ) 
+      {
+        A = sources( all_dimensions, I );
+        B = sources( all_dimensions, J );
+      }
+      /** For non-symmetry matrices, extract from targets and sources. */
+      else
+      {
+        A = targets( all_dimensions, I );
+        B = sources( all_dimensions, J );
+      }
+      /** Compute inner products. */
+      xgemm( "Transpose", "No-transpose", I.size(), J.size(), d,
+        -2.0, A.data(), A.row(),
+              B.data(), B.row(),
+         0.0, KIJ.data(), KIJ.row() );
+      /** Compute square 2-norms. */
+      vector<T> A2( I.size() ), B2( J.size() );
+
+      #pragma omp parallel for
+      for ( size_t i = 0; i < I.size(); i ++ )
+      {
+        A2[ i ] = xdot( d, A.columndata( i ), 1, A.columndata( i ), 1 );
+      } /** end omp parallel for */
+
+      #pragma omp parallel for
+      for ( size_t j = 0; j < J.size(); j ++ )
+      {
+        B2[ j ] = xdot( d, B.columndata( j ), 1, B.columndata( j ), 1 );
+      } /** end omp parallel for */
+
+      /** Add square norms to inner products to get square distances. */
+      #pragma omp parallel for
+      for ( size_t j = 0; j < J.size(); j ++ )
+        for ( size_t i = 0; i < I.size(); i ++ )
+          KIJ( i, j ) += A2[ i ] + B2[ j ];
+      /** Return all pair-wise distances. */
+      return KIJ;
+    }; /** end GeometryDistances() */
+
 
 
 
@@ -480,25 +612,21 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
     /** legacy data structure */
     kernel_s<T> kernel;
 
+    /** [ 0, 1, ..., d-1 ] */
+    vector<size_t> all_dimensions;
+
 }; /** end class KernelMatrix */
 
 
 
-#ifdef HMLP_MIC_AVX512
-template<typename T, typename TP, class Allocator = hbw::allocator<TP> >
-#else
-template<typename T, typename TP, class Allocator = std::allocator<TP> >
-#endif
-/**
- *  @brief
- */ 
-class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>, 
-                              public ReadWrite
+template<typename T, typename TP, class Allocator = std::allocator<TP>>
+class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>, 
+                         public ReadWrite
 {
   public:
 
     /** (Default) unsymmetric kernel matrix */
-    DistKernelMatrix_ver2
+    DistKernelMatrix
     ( 
       size_t m, size_t n, size_t d, 
       /** by default we assume sources are distributed in [STAR, CBLK] */
@@ -518,7 +646,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
     };
 
     /** Unsymmetric kernel matrix with legacy kernel_s<T> */
-    DistKernelMatrix_ver2
+    DistKernelMatrix
     ( 
       size_t m, size_t n, size_t d,
       kernel_s<T> &kernel, 
@@ -528,13 +656,13 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
       DistData<STAR, CBLK, TP> &targets, 
       mpi::Comm comm 
     )
-    : DistKernelMatrix_ver2( m, n, d, sources, targets, comm ) 
+    : DistKernelMatrix( m, n, d, sources, targets, comm ) 
     {
       this->kernel = kernel;
     };
 
     /** (Default) symmetric kernel matrix */
-    DistKernelMatrix_ver2
+    DistKernelMatrix
     ( 
       size_t n, size_t d, 
       /** by default we assume sources are distributed in [STAR, CBLK] */
@@ -551,7 +679,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
     };
 
     /** Symmetric kernel matrix with legacy kernel_s<T> */
-    DistKernelMatrix_ver2
+    DistKernelMatrix
     ( 
       size_t n, size_t d, 
       kernel_s<T> &kernel,
@@ -559,13 +687,21 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
       DistData<STAR, CBLK, TP> &sources, 
       mpi::Comm comm 
     )
-    : DistKernelMatrix_ver2( n, d, sources, comm )
+    : DistKernelMatrix( n, d, sources, comm )
     {
       this->kernel = kernel;
     };
 
+
+    DistKernelMatrix( DistData<STAR, CBLK, TP> &sources, mpi::Comm comm )
+    : DistKernelMatrix( sources.col(), sources.row(), sources, comm ) 
+    {
+      this->kernel.type = KS_GAUSSIAN;
+      this->kernel.scal = -0.5;
+    };
+
     /** (Default) destructor */
-    ~DistKernelMatrix_ver2() {};
+    ~DistKernelMatrix() {};
 
 
     /** Compute Kij according legacy kernel_s<T> */
@@ -660,7 +796,6 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
                                  vector<size_t> &J )
     {
       Data<T> KIJ = GeometryDistances( I, J );
-
 			/** Early return */
 			if ( !I.size() || !J.size() ) return KIJ;
 
@@ -702,9 +837,9 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
         }
         case KS_QUARTIC:
         {
+          #pragma omp parallel for
           for ( size_t i = 0; i < KIJ.size(); i ++ )
           {
-            //if ( KIJ[ i ] < sqrt( 2 ) / 2 ) KIJ[ i ] = 1.0;
             if ( KIJ[ i ] < 0.5 ) KIJ[ i ] = 1.0;
             else KIJ[ i ] = 0.0;
           }
@@ -726,60 +861,52 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
 
 
     /** */
-    virtual Data<T> GeometryDistances( const vector<size_t> &I, 
-                                       const vector<size_t> &J )
+    Data<T> GeometryDistances( const vector<size_t> &I, 
+                               const vector<size_t> &J )
     {
       Data<T> KIJ( I.size(), J.size() );
-
-			/** Early return. */
+			/** Early return if possible. */
 			if ( !I.size() || !J.size() ) return KIJ;
-
-			/** Request for coordinates. */
-      Data<TP> itargets, jsources;
-
+			/** Request for coordinates: A (targets), B (sources). */
+      Data<TP> A, B;
+      /** For symmetry matrices, extract from sources. */
       if ( is_symmetric ) 
       {
-        itargets = sources_user( all_dimensions, I );
-        jsources = sources_user( all_dimensions, J );
+        A = sources_user( all_dimensions, I );
+        B = sources_user( all_dimensions, J );
       }
+      /** For non-symmetry matrices, extract from targets and sources. */
       else
       {
-        itargets = targets_user( all_dimensions, I );
-        jsources = sources_user( all_dimensions, J );
+        A = targets_user( all_dimensions, I );
+        B = sources_user( all_dimensions, J );
       }
-
       /** Compute inner products. */
-      xgemm ( "Transpose", "No-transpose", I.size(), J.size(), d,
-        -2.0, itargets.data(),   itargets.row(),
-              jsources.data(),   jsources.row(),
-         0.0,      KIJ.data(),        KIJ.row() );
-
-      /** Compute square norms. */
-      vector<T> itargets_sqnorms( I.size() );
-      vector<T> jsources_sqnorms( J.size() );
+      xgemm( "Transpose", "No-transpose", I.size(), J.size(), d,
+        -2.0, A.data(), A.row(),
+              B.data(), B.row(),
+         0.0, KIJ.data(), KIJ.row() );
+      /** Compute square 2-norms. */
+      vector<TP> A2( I.size() ), B2( J.size() );
 
       #pragma omp parallel for
       for ( size_t i = 0; i < I.size(); i ++ )
       {
-        itargets_sqnorms[ i ] = xdot( 
-						d, itargets.data() + i * d, 1,
-						   itargets.data() + i * d, 1 );
+        A2[ i ] = xdot( d, A.columndata( i ), 1, A.columndata( i ), 1 );
       } /** end omp parallel for */
 
       #pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
       {
-        jsources_sqnorms[ j ] = xdot( 
-						d, jsources.data() + j * d, 1, 
-					     jsources.data() + j * d, 1 );
+        B2[ j ] = xdot( d, B.columndata( j ), 1, B.columndata( j ), 1 );
       } /** end omp parallel for */
 
-      /** Add square norms to inner products to get square distances */
+      /** Add square norms to inner products to get square distances. */
       #pragma omp parallel for
       for ( size_t j = 0; j < J.size(); j ++ )
         for ( size_t i = 0; i < I.size(); i ++ )
-          KIJ( i, j ) += itargets_sqnorms[ i ] + jsources_sqnorms[ j ];
-
+          KIJ( i, j ) += A2[ i ] + B2[ j ];
+      /** Return all pair-wise distances. */
       return KIJ;
     }; /** end GeometryDistances() */
 
@@ -993,7 +1120,7 @@ class DistKernelMatrix_ver2 : public DistVirtualMatrix<T, Allocator>,
 
     /** [ 0, 1, ..., d-1 ] */
     vector<size_t> all_dimensions;
-}; /** end class DistKernelMatrix_ver2 */
+}; /** end class DistKernelMatrix */
 
 }; /** end namespace hmlp */
 

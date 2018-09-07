@@ -1,3 +1,5 @@
+#ifndef FUSED_MRXNR_HPP
+#define FUSED_MRXNR_HPP
 
 /**
  *  @brief This kernel takes opkernel, op1 and op2 to implement an MR-by-NR
@@ -275,3 +277,5 @@ struct gnbx_mrxnr
   };
 
 }; /** end struct gnbx_mrxnr */
+
+#endif /** define FUSED_MRXNR_HPP */

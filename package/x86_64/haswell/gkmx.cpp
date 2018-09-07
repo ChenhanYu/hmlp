@@ -27,7 +27,7 @@
 /** Haswell micro-kernels */
 #include <rank_k_d8x6.hpp>
 
-using namespace hmlp::gkmx;
+using namespace hmlp;
 
 template<typename T>
 struct identity 
@@ -63,7 +63,7 @@ void gkmx_dfma
   rank_k_asm_d8x6 semiringkernel;
   rank_k_asm_d8x6 microkernel;
 
-  gkmx<
+  gkmx::gkmx<
     72, 960, 256, 8, 6, 
     72, 960,      8, 6, 32,
     false, true,
@@ -100,7 +100,7 @@ void gkmx_dfma_simple
 
   double initV = 0.0;
 
-  gkmm<
+  gkmx::gkmm<
     72, 960, 256, 8, 6, 
     72, 960,      8, 6, 32,
     false, true>

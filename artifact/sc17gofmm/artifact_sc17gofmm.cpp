@@ -83,8 +83,8 @@ void test_gofmm
 
   /** compress K */
   auto *tree_ptr = gofmm::Compress<SPLITTER, RKDTSPLITTER, T>
-  ( X, K, NN, //metric, 
-		splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
+  ( K, NN,
+		splitter, rkdtsplitter,
 	  config );
 	auto &tree = *tree_ptr;
 
@@ -166,10 +166,8 @@ void test_gofmm_setup
       using RKDTSPLITTER = tree::randomsplit<N_CHILDREN, T>;
 			/** GOFMM tree splitter */
       SPLITTER splitter;
-      splitter.Coordinate = X;
 			/** randomized tree splitter */
       RKDTSPLITTER rkdtsplitter;
-      rkdtsplitter.Coordinate = X;
       test_gofmm<SPLITTER, RKDTSPLITTER, T>
       ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
       break;

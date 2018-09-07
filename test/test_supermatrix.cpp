@@ -33,7 +33,7 @@
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
 #include <hmlp_runtime.hpp>
-#include <containers/data.hpp>
+#include <Data.hpp>
 #include <primitives/gemm.hpp>
 
 
@@ -216,7 +216,7 @@ int main( int argc, char *argv[] )
   sscanf( argv[ 2 ], "%lu", &n );
   sscanf( argv[ 3 ], "%lu", &k );
   
-  hmlp_init();
+  hmlp_init( &argc, &argv );
 
   using T = double;
 

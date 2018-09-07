@@ -212,33 +212,33 @@ set (CMAKE_RELEASE_POSTFIX "")
 set (CMAKE_DEBUG_POSTFIX "-debug")
 
 
-# Python support
-# ---------------------------
-#find_package(PythonLibs REQUIRED)
-#include_directories(${PYTHON_INCLUDE_DIRS})
-# message("${PYTHON_LIBRARIES}")
-# message("${PYTHON_INCLUDE_DIRS}")
-find_program(PYTHON "python")
-if (PYTHON)
-  set(SETUP_PY_IN ${CMAKE_SOURCE_DIR}/python/setup.in.py)
-  set(SETUP_PY    ${CMAKE_BINARY_DIR}/python/setup.py)
-  #replace all cmake variables with the correct values
-  configure_file(${SETUP_PY_IN} ${SETUP_PY})
-  set(HMLP_PYX_IN ${CMAKE_SOURCE_DIR}/python/hmlp.pyx)
-  set(HMLP_PYX    ${CMAKE_BINARY_DIR}/python/hmlp.pyx)
-  configure_file(${HMLP_PYX_IN} ${HMLP_PYX})
-  #set(CHMLP_PXD_IN ${CMAKE_SOURCE_DIR}/python/chmlp.pxd)
-  #set(CHMLP_PXD    ${CMAKE_BINARY_DIR}/python/chmlp.pxd)
-  #configure_file(${CHMLP_PXD_IN} ${CHMLP_PXD})
-  set(GOFMM_PYX_IN ${CMAKE_SOURCE_DIR}/python/gofmm.pyx)
-  set(GOFMM_PYX    ${CMAKE_BINARY_DIR}/python/gofmm.pyx)
-  configure_file(${GOFMM_PYX_IN} ${GOFMM_PYX})
-  #set(CGOFMM_PXD_IN ${CMAKE_SOURCE_DIR}/python/cgofmm.pxd)
-  #set(CGOFMM_PXD    ${CMAKE_BINARY_DIR}/python/cgofmm.pxd)
-  #configure_file(${CGOFMM_PXD_IN} ${CGOFMM_PXD})
-  install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --prefix=${CMAKE_BINARY_DIR})")
-  #install(CODE "execute_process(COMMAND CC=${CMAKE_C_COMPILER} ${PYTHON} ${SETUP_PY} build_ext -i)")
-endif()
+#   # Python support
+#   # ---------------------------
+#   #find_package(PythonLibs REQUIRED)
+#   #include_directories(${PYTHON_INCLUDE_DIRS})
+#   # message("${PYTHON_LIBRARIES}")
+#   # message("${PYTHON_INCLUDE_DIRS}")
+#   find_program(PYTHON "python")
+#   if (PYTHON)
+#     set(SETUP_PY_IN ${CMAKE_SOURCE_DIR}/python/setup.in.py)
+#     set(SETUP_PY    ${CMAKE_BINARY_DIR}/python/setup.py)
+#     #replace all cmake variables with the correct values
+#     configure_file(${SETUP_PY_IN} ${SETUP_PY})
+#     set(HMLP_PYX_IN ${CMAKE_SOURCE_DIR}/python/hmlp.pyx)
+#     set(HMLP_PYX    ${CMAKE_BINARY_DIR}/python/hmlp.pyx)
+#     configure_file(${HMLP_PYX_IN} ${HMLP_PYX})
+#     #set(CHMLP_PXD_IN ${CMAKE_SOURCE_DIR}/python/chmlp.pxd)
+#     #set(CHMLP_PXD    ${CMAKE_BINARY_DIR}/python/chmlp.pxd)
+#     #configure_file(${CHMLP_PXD_IN} ${CHMLP_PXD})
+#     set(GOFMM_PYX_IN ${CMAKE_SOURCE_DIR}/python/gofmm.pyx)
+#     set(GOFMM_PYX    ${CMAKE_BINARY_DIR}/python/gofmm.pyx)
+#     configure_file(${GOFMM_PYX_IN} ${GOFMM_PYX})
+#     #set(CGOFMM_PXD_IN ${CMAKE_SOURCE_DIR}/python/cgofmm.pxd)
+#     #set(CGOFMM_PXD    ${CMAKE_BINARY_DIR}/python/cgofmm.pxd)
+#     #configure_file(${CGOFMM_PXD_IN} ${CGOFMM_PXD})
+#     install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --prefix=${CMAKE_BINARY_DIR})")
+#     #install(CODE "execute_process(COMMAND CC=${CMAKE_C_COMPILER} ${PYTHON} ${SETUP_PY} build_ext -i)")
+#   endif()
 
 
 
@@ -342,6 +342,26 @@ else ()
     ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
     ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
 endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+
+
+# # Build HMLP executables.
+# # ---------------------------
+# file (GLOB TEST_CXX_SRC    ${CMAKE_SOURCE_DIR}/test/*.cpp)
+# foreach( testsrc ${TEST_CXX_SRC} )
+#   string( REPLACE ".cpp" ".x" testexe ${testsrc} )
+#   get_filename_component( testexe ${testsrc} NAME_WE )
+#   add_executable( "${testexe}.x" ${testsrc} )
+#   target_link_libraries( "${testexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
+#   set_target_properties( "${testexe}.x" PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+#   set_target_properties( "${testexe}.x" PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+#   if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+#     target_link_libraries( "${testexe}.x" cudart )
+#     cuda_add_cublas_to_target( "${testexe}.x" )
+#   endif ()
+#   if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
+#     target_link_libraries( "${testexe}.x" magma )
+#   endif()
+# endforeach()
 
 
 # Build GOFMM executables.

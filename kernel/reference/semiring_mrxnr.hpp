@@ -1,3 +1,6 @@
+#ifndef SEMIRING_MRXNR_HPP
+#define SEMIRING_MRXNR_HPP
+
 #include <hmlp_internal.hpp>
 
 
@@ -107,3 +110,4 @@ struct semiring_mrxnr
 };
 
 
+#endif /** define SEMIRING_MRXNR_HPP */

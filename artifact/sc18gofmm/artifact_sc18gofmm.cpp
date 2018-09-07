@@ -64,10 +64,8 @@ int main( int argc, char *argv[] )
     using T = float;
     /** Dense spd matrix format. */
     SPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
-		/** (Optional) provide coordinates. */
-    DistData<STAR, CBLK, T> *X = NULL;
     /** Launch self-testing routine. */
-    mpigofmm::LaunchHelper( X, K, cmd, CommGOFMM );
+    mpigofmm::LaunchHelper( K, cmd, CommGOFMM );
   }
 
   /** Run the matrix file provided by users */
@@ -76,10 +74,8 @@ int main( int argc, char *argv[] )
     using T = float;
     /** Dense spd matrix format. */
     OOCSPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
-		/** (Optional) provide coordinates. */
-    DistData<STAR, CBLK, T> *X = NULL;
     /** Launch self-testing routine. */
-    mpigofmm::LaunchHelper( X, K, cmd, CommGOFMM );
+    mpigofmm::LaunchHelper( K, cmd, CommGOFMM );
   }
 
   /** Generate a kernel matrix from the coordinates. */
@@ -95,17 +91,15 @@ int main( int argc, char *argv[] )
     if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = KS_LAPLACE;
     kernel.scal = -0.5 / ( cmd.h * cmd.h );
     /** Distributed spd kernel matrix format (implicitly create). */
-    DistKernelMatrix_ver2<T, T> K( cmd.n, cmd.d, kernel, X, CommGOFMM );
+    DistKernelMatrix<T, T> K( cmd.n, cmd.d, kernel, X, CommGOFMM );
     /** Launch self-testing routine. */
-    mpigofmm::LaunchHelper( &X, K, cmd, CommGOFMM );
+    mpigofmm::LaunchHelper( K, cmd, CommGOFMM );
   }
 
   /** Create a random spd matrix, which is diagonal-dominant. */
   if ( !cmd.spdmatrix_type.compare( "testsuit" ) )
   {
     using T = double;
-    /** no geometric coordinates provided */
-    DistData<STAR, CBLK, T> *X = NULL;
     /** dense spd matrix format */
     SPDMatrix<T> K( cmd.n, cmd.n );
     /** random spd initialization */
@@ -113,7 +107,7 @@ int main( int argc, char *argv[] )
     /** broadcast K to all other rank */
     mpi::Bcast( K.data(), cmd.n * cmd.n, 0, CommGOFMM );
     /** Launch self-testing routine. */
-    mpigofmm::LaunchHelper( X, K, cmd, CommGOFMM );
+    mpigofmm::LaunchHelper( K, cmd, CommGOFMM );
   }
 
   /** HMLP API call to terminate the runtime */

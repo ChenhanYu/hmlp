@@ -1893,8 +1893,7 @@ void Factorize( TREE &tree, T lambda )
  *         lambda and weights, 
  */ 
 template<typename TREE, typename T>
-void ComputeError( TREE &tree, T lambda, 
-    Data<T> weights, Data<T> potentials )
+void ComputeError( TREE &tree, T lambda, Data<T> weights, Data<T> potentials )
 {
   using NODE = typename TREE::NODE;
   

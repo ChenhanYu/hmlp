@@ -9,10 +9,6 @@ BLIS_GEMM_KERNEL(bli_dgemm_opt_6x32_l2,double);
 
 struct rank_k_opt_s12x32
 {
-  //const static size_t mr         = 12;
-  //const static size_t nr         = 32;
-  //const static size_t pack_mr    = 12;
-  //const static size_t pack_nr    = 32;
   const static size_t mr         = 32;
   const static size_t nr         = 12;
   const static size_t pack_mr    = 32;
@@ -28,6 +24,7 @@ struct rank_k_opt_s12x32
 
   inline GEMM_OPERATOR(float) const
   {
+    //printf( "bli_sgemm_opt_12x32\n" ); fflush( stdout );
     float alpha = 1.0;
     /** if this is the first kc iteration then beta = 1.0 */
     float beta = aux->pc ? 1.0 : 0.0;
@@ -65,6 +62,7 @@ struct rank_k_opt_s12x32
     aux_s<float, float, TC, float> *aux                       
   )
   {
+    //printf( "bli_sgemm_opt_12x32 case2\n" ); fflush( stdout );
     float alpha = 1.0;
     /** if this is the first kc iteration then beta = 1.0 */
     float beta = aux->pc ? 1.0 : 0.0;
@@ -145,6 +143,7 @@ struct rank_k_opt_d6x32
 
   inline GEMM_OPERATOR(double) const
   {
+    //printf( "bli_dgemm_opt_6x32_l2\n" ); fflush( stdout );
     double alpha = 1.0;
     /** if this is the first kc iteration then beta = 1.0 */
     double beta = aux->pc ? 1.0 : 0.0;
@@ -182,6 +181,7 @@ struct rank_k_opt_d6x32
     aux_s<double, double, TC, double> *aux                       
   )
   {
+    //printf( "bli_dgemm_opt_6x32_l2 case2\n" ); fflush( stdout );
     double alpha = 1.0;
     /** if this is the first kc iteration then beta = 1.0 */
     double beta = aux->pc ? 1.0 : 0.0;

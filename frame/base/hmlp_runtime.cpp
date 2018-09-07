@@ -58,55 +58,55 @@ static RunTime rt;
  *  class Lock
  */ 
 
-/** @brief Shared-memory lock that calls either pthread or omp mutex.. */ 
-Lock::Lock()
-{
-#ifdef USE_PTHREAD_RUNTIME
-  if ( pthread_mutex_init( &lock, NULL ) )
-  {
-    printf( "pthread_mutex_init(): cannot initialize locks properly\n" );
-  }
-#else
-  omp_init_lock( &lock );
-#endif
-}; /** end Lock::Lock() */
-
-Lock::~Lock()
-{
-#ifdef USE_PTHREAD_RUNTIME
-  if ( pthread_mutex_destroy( &lock ) )
-  {
-    printf( "pthread_mutex_destroy(): cannot destroy locks properly\n" );
-  }
-#else
-  omp_destroy_lock( &lock );
-#endif
-}; /** end Lock::~Lock() */
-
-void Lock::Acquire()
-{
-#ifdef USE_PTHREAD_RUNTIME
-  if ( pthread_mutex_lock( &lock ) )
-  {
-    printf( "pthread_mutex_lock(): cannot acquire locks properly\n" );
-  }
-#else
-  omp_set_lock( &lock );
-#endif
-};
-
-void Lock::Release()
-{
-#ifdef USE_PTHREAD_RUNTIME
-  if ( pthread_mutex_unlock( &lock ) )
-  {
-    printf( "pthread_mutex_lock(): cannot release locks properly\n" );
-  }
-#else
-  omp_unset_lock( &lock );
-#endif
-};
-
+///** @brief Shared-memory lock that calls either pthread or omp mutex.. */ 
+//Lock::Lock()
+//{
+//#ifdef USE_PTHREAD_RUNTIME
+//  if ( pthread_mutex_init( &lock, NULL ) )
+//  {
+//    printf( "pthread_mutex_init(): cannot initialize locks properly\n" );
+//  }
+//#else
+//  omp_init_lock( &lock );
+//#endif
+//}; /** end Lock::Lock() */
+//
+//Lock::~Lock()
+//{
+//#ifdef USE_PTHREAD_RUNTIME
+//  if ( pthread_mutex_destroy( &lock ) )
+//  {
+//    printf( "pthread_mutex_destroy(): cannot destroy locks properly\n" );
+//  }
+//#else
+//  omp_destroy_lock( &lock );
+//#endif
+//}; /** end Lock::~Lock() */
+//
+//void Lock::Acquire()
+//{
+//#ifdef USE_PTHREAD_RUNTIME
+//  if ( pthread_mutex_lock( &lock ) )
+//  {
+//    printf( "pthread_mutex_lock(): cannot acquire locks properly\n" );
+//  }
+//#else
+//  omp_set_lock( &lock );
+//#endif
+//};
+//
+//void Lock::Release()
+//{
+//#ifdef USE_PTHREAD_RUNTIME
+//  if ( pthread_mutex_unlock( &lock ) )
+//  {
+//    printf( "pthread_mutex_lock(): cannot release locks properly\n" );
+//  }
+//#else
+//  omp_unset_lock( &lock );
+//#endif
+//};
+//
 
 /** 
  *  class Event
@@ -521,11 +521,6 @@ Scheduler::Scheduler( mpi::Comm user_comm )
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler()\n" );
 #endif
-  /** MPI support (use a private communicator). */
-  //mpi::Comm_dup( user_comm, &comm );
-  //this->comm = comm;
-  //mpi::Comm_dup( MPI_COMM_WORLD, &comm );
-  //int size; mpi::Comm_size( comm, &size );
   listener_tasklist.resize( this->GetCommSize() );
   /** Set now as the begining of the time table. */
   timeline_beg = omp_get_wtime();
@@ -1280,6 +1275,14 @@ void RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
     {
       n_worker = omp_get_max_threads();
       n_max_worker = n_worker;
+      /** Check whether MPI has been initialized? */
+      int is_mpi_init = false;
+      mpi::Initialized( &is_mpi_init );
+      if ( !is_mpi_init )
+      {
+
+      }
+
       scheduler = new Scheduler( comm );
 #ifdef HMLP_USE_CUDA
       /** TODO: detect devices */
@@ -1297,6 +1300,57 @@ void RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
     }
   } /** end pragma omp critical */
 }; /** end RunTime::Init() */
+
+
+/** @brief */
+void RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WORLD )
+{
+  #pragma omp critical
+  {
+    if ( !is_init )
+    {
+      /** Set argument count. */
+      this->argc = argc;
+      /** Set argument values. */
+      this->argv = argv;
+      /** Acquire the number of (maximum) workers from OpenMP. */
+      n_worker = omp_get_max_threads();
+      n_max_worker = n_worker;
+      /** Check whether MPI has been initialized? */
+      int is_mpi_init = false;
+      mpi::Initialized( &is_mpi_init );
+      /** Initialize MPI inside HMLP otherwise. */
+      if ( !is_mpi_init )
+      {
+        printf( "Not MPI initialized\n" ); fflush( stdout );
+        int provided;
+	      mpi::Init_thread( argc, argv, MPI_THREAD_MULTIPLE, &provided );
+        printf( "here\n" ); fflush( stdout );
+	      if ( provided != MPI_THREAD_MULTIPLE ) 
+          ExitWithError( string( "MPI_THTREAD_MULTIPLE is not supported" ) );
+        /** Flag that MPI is initialized by HMLP. */
+        is_mpi_init_by_hmlp = true;
+      }
+      /** Initialize the scheduler. */
+      scheduler = new Scheduler( comm );
+#ifdef HMLP_USE_CUDA
+      /** TODO: detect devices */
+      device[ 0 ] = new hmlp::gpu::Nvidia( 0 );
+      if ( n_worker )
+      {
+        workers[ 0 ].SetDevice( device[ 0 ] );
+      }
+#endif
+#ifdef HMLP_USE_MAGMA
+        magma_init();
+#endif
+      /** Set the flag such that this is only executed once. */
+      is_init = true;
+    }
+  } /** end pragma omp critical */
+}; /** end RunTime::Init() */
+
+
 
 
 /** @brief **/
@@ -1325,9 +1379,13 @@ void RunTime::Finalize()
   {
     if ( is_init )
     {
+      /** Finalize the scheduler and delete it. */
       scheduler->Finalize();
       delete scheduler;
+      /** Set the initialized flag to false. */
       is_init = false;
+      /** Finalize MPI if it was initialized by HMLP. */
+      if ( is_mpi_init_by_hmlp ) mpi::Finalize();
     }
   }
 }; /** end RunTime::Finalize() */
@@ -1346,6 +1404,20 @@ void RunTime::ExecuteNestedTasksWhileWaiting( Task *waiting_task )
     scheduler->ExecuteNestedTasksWhileWaiting( me, waiting_task );
   }
 }; /** end RunTime::ExecuteNestedTasksWhileWaiting() */
+
+
+void RunTime::Print( string msg )
+{
+  cout << "[RT ] " << msg << endl; fflush( stdout );
+}; /** end RunTime::Print() */
+
+
+void RunTime::ExitWithError( string msg )
+{
+  cout << "[RT ] (Error) " << msg << endl; fflush( stdout );
+  exit( 1 );
+}; /** end RunTime::ExitWithError() */
+
 
 //void hmlp_runtime::pool_init()
 //{
@@ -1374,6 +1446,16 @@ void hmlp_init() { hmlp::rt.Init(); };
 void hmlp_init( mpi::Comm comm = MPI_COMM_WORLD ) 
 { 
   hmlp::rt.Init( comm );
+};
+
+void hmlp_init( int *argc, char ***argv )
+{
+  hmlp::rt.Init( argc, argv );
+};
+
+void hmlp_init( int *argc, char ***argv, mpi::Comm comm )
+{
+  hmlp::rt.Init( argc, argv, comm );
 };
 
 /** @brief */

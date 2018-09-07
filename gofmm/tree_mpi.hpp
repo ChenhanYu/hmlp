@@ -40,163 +40,163 @@ namespace mpitree
 
 
 
-/**
- *  @brief This is the default ball tree splitter. Given coordinates,
- *         compute the direction from the two most far away points.
- *         Project all points to this line and split into two groups
- *         using a median select.
- *
- *  @para
- *
- *  @TODO  Need to explit the parallelism.
- */ 
-template<int N_SPLIT, typename T>
-struct centersplit
-{
-  // closure
-  Data<T> *Coordinate;
-
-  inline vector<vector<size_t> > operator()
-  ( 
-    vector<size_t>& gids
-  ) const 
-  {
-    assert( N_SPLIT == 2 );
-
-    Data<T> &X = *Coordinate;
-    size_t d = X.row();
-    size_t n = gids.size();
-
-    T rcx0 = 0.0, rx01 = 0.0;
-    size_t x0, x1;
-    vector<vector<size_t> > split( N_SPLIT );
-
-
-    vector<T> centroid = combinatorics::Mean( d, n, X, gids );
-    vector<T> direction( d );
-    vector<T> projection( n, 0.0 );
-
-    //printf( "After Mean\n" );
-
-    // Compute the farest x0 point from the centroid
-    for ( int i = 0; i < n; i ++ )
-    {
-      T rcx = 0.0;
-      for ( int p = 0; p < d; p ++ )
-      {
-        T tmp = X[ gids[ i ] * d + p ] - centroid[ p ];
-        rcx += tmp * tmp;
-      }
-      //printf( "\n" );
-      if ( rcx > rcx0 ) 
-      {
-        rcx0 = rcx;
-        x0 = i;
-      }
-    }
-
-
-    // Compute the farest point x1 from x0
-    for ( int i = 0; i < n; i ++ )
-    {
-      T rxx = 0.0;
-      for ( int p = 0; p < d; p ++ )
-      {
-        T tmp = X[ gids[ i ] * d + p ] - X[ gids[ x0 ] * d + p ];
-        rxx += tmp * tmp;
-      }
-      if ( rxx > rx01 )
-      {
-        rx01 = rxx;
-        x1 = i;
-      }
-    }
-
-    // Compute direction
-    for ( int p = 0; p < d; p ++ )
-    {
-      direction[ p ] = X[ gids[ x1 ] * d + p ] - X[ gids[ x0 ] * d + p ];
-    }
-
-    // Compute projection
-    projection.resize( n, 0.0 );
-    for ( int i = 0; i < n; i ++ )
-      for ( int p = 0; p < d; p ++ )
-        projection[ i ] += X[ gids[ i ] * d + p ] * direction[ p ];
-
-    /** Parallel median search */
-    T median;
-    
-    if ( 1 )
-    {
-      median = hmlp::combinatorics::Select( n, n / 2, projection );
-    }
-    else
-    {
-      auto proj_copy = projection;
-      std::sort( proj_copy.begin(), proj_copy.end() );
-      median = proj_copy[ n / 2 ];
-    }
-
-    split[ 0 ].reserve( n / 2 + 1 );
-    split[ 1 ].reserve( n / 2 + 1 );
-
-
-    /** TODO: Can be parallelized */
-    std::vector<std::size_t> middle;
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
-      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
-      else                                 middle.push_back( i );
-    }
-
-    for ( size_t i = 0; i < middle.size(); i ++ )
-    {
-      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
-      else                                          split[ 1 ].push_back( middle[ i ] );
-    }
-
-
-    return split;
-  };
-
-
-  inline std::vector<std::vector<size_t> > operator()
-  ( 
-    std::vector<size_t>& gids,
-    hmlp::mpi::Comm comm
-  ) const 
-  {
-    std::vector<std::vector<size_t> > split( N_SPLIT );
-
-    return split;
-  };
-
-};
-
-
-
-
-
-template<int N_SPLIT, typename T>
-struct randomsplit
-{
-  Data<T> *Coordinate = NULL;
-
-  inline vector<vector<size_t> > operator() ( vector<size_t>& gids ) const 
-  {
-    vector<vector<size_t> > split( N_SPLIT );
-    return split;
-  };
-
-  inline vector<vector<size_t> > operator() ( vector<size_t>& gids, mpi::Comm comm ) const 
-  {
-    vector<vector<size_t> > split( N_SPLIT );
-    return split;
-  };
-};
-
+///**
+// *  @brief This is the default ball tree splitter. Given coordinates,
+// *         compute the direction from the two most far away points.
+// *         Project all points to this line and split into two groups
+// *         using a median select.
+// *
+// *  @para
+// *
+// *  @TODO  Need to explit the parallelism.
+// */ 
+//template<int N_SPLIT, typename T>
+//struct centersplit
+//{
+//  // closure
+//  Data<T> *Coordinate;
+//
+//  inline vector<vector<size_t> > operator()
+//  ( 
+//    vector<size_t>& gids
+//  ) const 
+//  {
+//    assert( N_SPLIT == 2 );
+//
+//    Data<T> &X = *Coordinate;
+//    size_t d = X.row();
+//    size_t n = gids.size();
+//
+//    T rcx0 = 0.0, rx01 = 0.0;
+//    size_t x0, x1;
+//    vector<vector<size_t> > split( N_SPLIT );
+//
+//
+//    vector<T> centroid = combinatorics::Mean( d, n, X, gids );
+//    vector<T> direction( d );
+//    vector<T> projection( n, 0.0 );
+//
+//    //printf( "After Mean\n" );
+//
+//    // Compute the farest x0 point from the centroid
+//    for ( int i = 0; i < n; i ++ )
+//    {
+//      T rcx = 0.0;
+//      for ( int p = 0; p < d; p ++ )
+//      {
+//        T tmp = X[ gids[ i ] * d + p ] - centroid[ p ];
+//        rcx += tmp * tmp;
+//      }
+//      //printf( "\n" );
+//      if ( rcx > rcx0 ) 
+//      {
+//        rcx0 = rcx;
+//        x0 = i;
+//      }
+//    }
+//
+//
+//    // Compute the farest point x1 from x0
+//    for ( int i = 0; i < n; i ++ )
+//    {
+//      T rxx = 0.0;
+//      for ( int p = 0; p < d; p ++ )
+//      {
+//        T tmp = X[ gids[ i ] * d + p ] - X[ gids[ x0 ] * d + p ];
+//        rxx += tmp * tmp;
+//      }
+//      if ( rxx > rx01 )
+//      {
+//        rx01 = rxx;
+//        x1 = i;
+//      }
+//    }
+//
+//    // Compute direction
+//    for ( int p = 0; p < d; p ++ )
+//    {
+//      direction[ p ] = X[ gids[ x1 ] * d + p ] - X[ gids[ x0 ] * d + p ];
+//    }
+//
+//    // Compute projection
+//    projection.resize( n, 0.0 );
+//    for ( int i = 0; i < n; i ++ )
+//      for ( int p = 0; p < d; p ++ )
+//        projection[ i ] += X[ gids[ i ] * d + p ] * direction[ p ];
+//
+//    /** Parallel median search */
+//    T median;
+//    
+//    if ( 1 )
+//    {
+//      median = hmlp::combinatorics::Select( n, n / 2, projection );
+//    }
+//    else
+//    {
+//      auto proj_copy = projection;
+//      std::sort( proj_copy.begin(), proj_copy.end() );
+//      median = proj_copy[ n / 2 ];
+//    }
+//
+//    split[ 0 ].reserve( n / 2 + 1 );
+//    split[ 1 ].reserve( n / 2 + 1 );
+//
+//
+//    /** TODO: Can be parallelized */
+//    std::vector<std::size_t> middle;
+//    for ( size_t i = 0; i < n; i ++ )
+//    {
+//      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
+//      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
+//      else                                 middle.push_back( i );
+//    }
+//
+//    for ( size_t i = 0; i < middle.size(); i ++ )
+//    {
+//      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
+//      else                                          split[ 1 ].push_back( middle[ i ] );
+//    }
+//
+//
+//    return split;
+//  };
+//
+//
+//  inline std::vector<std::vector<size_t> > operator()
+//  ( 
+//    std::vector<size_t>& gids,
+//    hmlp::mpi::Comm comm
+//  ) const 
+//  {
+//    std::vector<std::vector<size_t> > split( N_SPLIT );
+//
+//    return split;
+//  };
+//
+//};
+//
+//
+//
+//
+//
+//template<int N_SPLIT, typename T>
+//struct randomsplit
+//{
+//  Data<T> *Coordinate = NULL;
+//
+//  inline vector<vector<size_t> > operator() ( vector<size_t>& gids ) const 
+//  {
+//    vector<vector<size_t> > split( N_SPLIT );
+//    return split;
+//  };
+//
+//  inline vector<vector<size_t> > operator() ( vector<size_t>& gids, mpi::Comm comm ) const 
+//  {
+//    vector<vector<size_t> > split( N_SPLIT );
+//    return split;
+//  };
+//};
+//
 
 
 
@@ -317,8 +317,8 @@ class Setup
     size_t max_depth = 15;
 
     /** coordinates (accessed with gids) */
-    DistData<STAR, CBLK, T> *X_cblk = NULL;
-    DistData<STAR, CIDS, T> *X      = NULL;
+    //DistData<STAR, CBLK, T> *X_cblk = NULL;
+    //DistData<STAR, CIDS, T> *X      = NULL;
 
     /** neighbors<distance, gid> (accessed with gids) */
     DistData<STAR, CBLK, pair<T, size_t>> *NN_cblk = NULL;

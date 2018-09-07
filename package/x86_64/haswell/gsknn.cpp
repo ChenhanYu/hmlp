@@ -26,7 +26,7 @@
 #include <rank_k_d8x6.hpp>
 //#include <rnn_r_int_d8x4_row.hpp>
 
-using namespace hmlp::gsknn;
+using namespace hmlp;
 
 void gsknn
 (
@@ -71,27 +71,6 @@ void gsknn
   exit( 1 );
 };
 
-void dgsknn
-(
-  int m, int n, int k, int r,
-  double *A, double *A2, int *amap,
-  double *B, double *B2, int *bmap,
-  double *D,             int *I
-)
-{
-  gsknn( m, n, k, r, A, A2, amap, B, B2, bmap, D, I );
-};
-
-void sgsknn
-(
-  int m, int n, int k, int r,
-  float *A, float *A2, int *amap,
-  float *B, float *B2, int *bmap,
-  float *D,            int *I
-)
-{
-  gsknn( m, n, k, r, A, A2, amap, B, B2, bmap, D, I );
-};
 
 
 
@@ -103,7 +82,7 @@ void dgsknn_ref
   double *D,             int *I
 )
 {
-  gsknn_ref<double>
+  gsknn::gsknn_ref<double>
   (
     m, n, k, r,
     A, A2, amap,

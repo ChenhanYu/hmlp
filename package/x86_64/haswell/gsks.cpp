@@ -32,7 +32,7 @@
 #include <gsks_d8x6.hpp>
 
 
-using namespace hmlp::gsks;
+using namespace hmlp;
 
 
 void gsks
@@ -69,7 +69,7 @@ void gsks
       rank_k_asm_d8x6 semiringkernel;
       gsks_gaussian_int_d8x6 microkernel;
 
-      gsks<
+      gsks::gsks<
         /** MC, NC, KC, MR, NR */
         72, 960, 256, 8, 6, 
         /** PACK_MC, PACK_NC, PACK_MR, PACK_NR, SIMD_SIZE */
@@ -98,7 +98,7 @@ void gsks
       rank_k_asm_d8x6 semiringkernel;
       gsks_polynomial_int_d8x6 microkernel;
 
-      gsks<
+      gsks::gsks<
         72, 960, 256, 8, 6, 
         72, 960,      8, 6, 32,
         true, false, false,
@@ -131,44 +131,6 @@ void gsks
 };
 
 
-void sgsks
-(
-  kernel_s<float> *kernel,
-  int m, int n, int k,
-  float *u,            int *umap,
-  float *A, float *A2, int *amap,
-  float *B, float *B2, int *bmap,
-  float *w,            int *wmap
-)
-{
-  gsks( kernel, m, n, k,
-      u,     umap,
-      A, A2, amap,
-      B, B2, bmap,
-      w,     wmap );
-};
-
-void dgsks
-(
-  kernel_s<double> *kernel,
-  int m, int n, int k,
-  double *u,             int *umap,
-  double *A, double *A2, int *amap,
-  double *B, double *B2, int *bmap,
-  double *w,             int *wmap
-)
-{
-  gsks( kernel, m, n, k,
-      u,     umap,
-      A, A2, amap,
-      B, B2, bmap,
-      w,     wmap );
-};
-
-
-
-
-
 
 
 
@@ -184,7 +146,7 @@ void dgsks_ref
   double *w,             int *wmap
 )
 {
-  gsks_ref<double>
+  gsks::gsks_ref<double>
   (
     kernel,
     m, n, k,

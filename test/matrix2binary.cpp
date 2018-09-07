@@ -30,7 +30,7 @@
 #include <hmlp.h>
 #include <hmlp_blas_lapack.h>
 
-#include <containers/data.hpp>
+#include <Data.hpp>
 
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>

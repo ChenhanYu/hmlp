@@ -19,6 +19,15 @@ int Init( int *argc, char ***argv )
 #endif
 };
 
+int Initialized( int *flag )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Initialized( flag );
+#else
+  return 0;
+#endif
+};
+
 int Finalize( void )
 {
 #ifdef HMLP_USE_MPI
@@ -28,8 +37,16 @@ int Finalize( void )
 #endif
 };
 
-int Send( const void *buf, int count, Datatype datatype, 
-    int dest, int tag, Comm comm )
+int Finalized( int* flag )
+{
+#ifdef HMLP_USE_MPI
+  return MPI_Finalized( flag );
+#else
+  return 0;
+#endif
+};
+
+int Send( const void *buf, int count, Datatype datatype, int dest, int tag, Comm comm )
 {
 #ifdef HMLP_USE_MPI
   return MPI_Send( buf, count, datatype, dest, tag, comm );
@@ -38,10 +55,7 @@ int Send( const void *buf, int count, Datatype datatype,
 #endif
 };
 
-
-
-int Isend( const void *buf, int count, Datatype datatype, 
-		int dest, int tag, Comm comm, Request *request )
+int Isend( const void *buf, int count, Datatype datatype, int dest, int tag, Comm comm, Request *request )
 {
 #ifdef HMLP_USE_MPI
   return MPI_Isend( buf, count, datatype, dest, tag, comm, request );
@@ -332,16 +346,16 @@ int Alltoallv( void *sendbuf, int *sendcounts, int *sdispls, Datatype sendtype,
 };
 
 
-
-/**
- *  MPI 2.0 and 3.0 functionality
- */ 
+/** MPI 2.0 and 3.0 functionality. */ 
 
 int Init_thread( int *argc, char ***argv, int required, int *provided )
 {
 #ifdef HMLP_USE_MPI
 	return MPI_Init_thread( argc, argv, required, provided );
 #else
+  /** Set *provided to required. */
+  *provided = required;
+  /** Return without any error. */
 	return 0;
 #endif
 };

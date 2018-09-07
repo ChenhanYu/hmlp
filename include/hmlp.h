@@ -22,9 +22,12 @@
 #ifndef HMLP_H
 #define HMLP_H
 
+#include <blas_lapack_prototypes.hpp>
 #include <mpi_prototypes.hpp>
 
 /** HMLP runtime API. */
+void hmlp_init( int *argc, char ***argv );
+void hmlp_init( int *argc, char ***argv, MPI_Comm comm );
 void hmlp_init();
 void hmlp_init( MPI_Comm comm );
 void hmlp_set_num_workers( int n_worker );

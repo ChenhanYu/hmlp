@@ -331,261 +331,261 @@ class SplitTask : public Task
 }; /** end class SplitTask */
 
 
-/**
- *  @brief This is the default ball tree splitter. Given coordinates,
- *         compute the direction from the two most far away points.
- *         Project all points to this line and split into two groups
- *         using a median select.
- *
- *  @para
- *
- *  @TODO  Need to explit the parallelism.
- */ 
-template<int N_SPLIT, typename T>
-struct centersplit
-{
-  /** closure */
-  Data<T> *Coordinate = NULL;
-
-  inline vector<vector<size_t> > operator()
-  ( 
-    vector<size_t>& gids
-  ) const 
-  {
-    assert( N_SPLIT == 2 );
-
-    Data<T> &X = *Coordinate;
-    size_t d = X.row();
-    size_t n = gids.size();
-
-    T rcx0 = 0.0, rx01 = 0.0;
-    size_t x0, x1;
-    vector<vector<size_t> > split( N_SPLIT );
-
-
-    vector<T> centroid = combinatorics::Mean( d, n, X, gids );
-    vector<T> direction( d );
-    vector<T> projection( n, 0.0 );
-
-    //printf( "After Mean\n" );
-
-    // Compute the farest x0 point from the centroid
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      T rcx = 0.0;
-      for ( size_t p = 0; p < d; p ++ )
-      {
-        T tmp = X( p, gids[ i ] ) - centroid[ p ];
-
-
-        rcx += tmp * tmp;
-      }
-      if ( rcx > rcx0 ) 
-      {
-        rcx0 = rcx;
-        x0 = i;
-      }
-    }
-
-    //printf( "After Farest\n" );
-    //for ( int p = 0; p < d; p ++ )
-    //{
-    //}
-    //printf( "\n" );
-
-    // Compute the farest point x1 from x0
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      T rxx = 0.0;
-      for ( size_t p = 0; p < d; p ++ )
-      {
-				T tmp = X( p, gids[ i ] ) - X( p, gids[ x0 ] );
-        rxx += tmp * tmp;
-      }
-      if ( rxx > rx01 )
-      {
-        rx01 = rxx;
-        x1 = i;
-      }
-    }
-
-
-
-    // Compute direction
-    for ( size_t p = 0; p < d; p ++ )
-    {
-      direction[ p ] = X( p, gids[ x1 ] ) - X( p, gids[ x0 ] );
-    }
-
-    //printf( "After Direction\n" );
-    //for ( int p = 0; p < d; p ++ )
-    //{
-    //  printf( "%5.2lf ", direction[ p ] );
-    //}
-    //printf( "\n" );
-    //exit( 1 );
-
-
-
-    // Compute projection
-    projection.resize( n, 0.0 );
-    for ( size_t i = 0; i < n; i ++ )
-      for ( size_t p = 0; p < d; p ++ )
-        projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
-
-    //printf( "After Projetion\n" );
-    //for ( int p = 0; p < d; p ++ )
-    //{
-    //  printf( "%5.2lf ", projec[ p ] );
-    //}
-    //printf( "\n" );
-
-
-
-    /** Parallel median search */
-    T median;
-    
-    if ( 1 )
-    {
-      median = combinatorics::Select( n, n / 2, projection );
-    }
-    else
-    {
-      auto proj_copy = projection;
-      sort( proj_copy.begin(), proj_copy.end() );
-      median = proj_copy[ n / 2 ];
-    }
-
-
-
-    split[ 0 ].reserve( n / 2 + 1 );
-    split[ 1 ].reserve( n / 2 + 1 );
-
-    /** TODO: Can be parallelized */
-    vector<size_t> middle;
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
-      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
-      else                                 middle.push_back( i );
-    }
-
-    for ( size_t i = 0; i < middle.size(); i ++ )
-    {
-      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
-      else                                          split[ 1 ].push_back( middle[ i ] );
-    }
-
-
-    //printf( "split median %lf left %d right %d\n", 
-    //    median,
-    //    (int)split[ 0 ].size(), (int)split[ 1 ].size() );
-
-    //if ( split[ 0 ].size() > 0.6 * n ||
-    //     split[ 1 ].size() > 0.6 * n )
-    //{
-    //  for ( int i = 0; i < n; i ++ )
-    //  {
-    //    printf( "%E ", projection[ i ] );
-    //  } 
-    //  printf( "\n" );
-    //}
-
-
-    return split; 
-  };
-};
-
-
-/**
- *  @brief This is the splitter used in the randomized tree. Given
- *         coordinates, project all points onto a random direction
- *         and split into two groups using a median select.
- *
- *  @para
- *
- *  @TODO  Need to explit the parallelism.
- */ 
-template<int N_SPLIT, typename T>
-struct randomsplit
-{
-  /** Closure */
-  Data<T> *Coordinate = NULL;
-
-  inline vector<vector<size_t> > operator()
-  ( 
-    vector<size_t>& gids
-  ) const 
-  {
-    assert( N_SPLIT == 2 );
-
-    Data<T> &X = *Coordinate;
-    size_t d = X.row();
-    size_t n = gids.size();
-
-    vector<vector<size_t> > split( N_SPLIT );
-
-    vector<T> direction( d );
-    vector<T> projection( n, 0.0 );
-
-    // Compute random direction
-    static default_random_engine generator;
-    normal_distribution<T> distribution;
-    for ( int p = 0; p < d; p ++ )
-    {
-      direction[ p ] = distribution( generator );
-    }
-
-    // Compute projection
-    projection.resize( n, 0.0 );
-    for ( size_t i = 0; i < n; i ++ )
-      for ( size_t p = 0; p < d; p ++ )
-        projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
-
-
-    // Parallel median search
-    // T median = Select( n, n / 2, projection );
-    auto proj_copy = projection;
-    sort( proj_copy.begin(), proj_copy.end() );
-    T median = proj_copy[ n / 2 ];
-
-    split[ 0 ].reserve( n / 2 + 1 );
-    split[ 1 ].reserve( n / 2 + 1 );
-
-    /** TODO: Can be parallelized */
-    vector<size_t> middle;
-    for ( size_t i = 0; i < n; i ++ )
-    {
-      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
-      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
-      else                                 middle.push_back( i );
-    }
-
-    for ( size_t i = 0; i < middle.size(); i ++ )
-    {
-      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
-      else                                          split[ 1 ].push_back( middle[ i ] );
-    }
-
-
-    //printf( "split median %lf left %d right %d\n", 
-    //    median,
-    //    (int)split[ 0 ].size(), (int)split[ 1 ].size() );
-
-    //if ( split[ 0 ].size() > 0.6 * n ||
-    //     split[ 1 ].size() > 0.6 * n )
-    //{
-    //  for ( int i = 0; i < n; i ++ )
-    //  {
-    //    printf( "%E ", projection[ i ] );
-    //  } 
-    //  printf( "\n" );
-    //}
-
-
-    return split; 
-  };
-};
+///**
+// *  @brief This is the default ball tree splitter. Given coordinates,
+// *         compute the direction from the two most far away points.
+// *         Project all points to this line and split into two groups
+// *         using a median select.
+// *
+// *  @para
+// *
+// *  @TODO  Need to explit the parallelism.
+// */ 
+//template<int N_SPLIT, typename T>
+//struct centersplit
+//{
+//  /** closure */
+//  Data<T> *Coordinate = NULL;
+//
+//  inline vector<vector<size_t> > operator()
+//  ( 
+//    vector<size_t>& gids
+//  ) const 
+//  {
+//    assert( N_SPLIT == 2 );
+//
+//    Data<T> &X = *Coordinate;
+//    size_t d = X.row();
+//    size_t n = gids.size();
+//
+//    T rcx0 = 0.0, rx01 = 0.0;
+//    size_t x0, x1;
+//    vector<vector<size_t> > split( N_SPLIT );
+//
+//
+//    vector<T> centroid = combinatorics::Mean( d, n, X, gids );
+//    vector<T> direction( d );
+//    vector<T> projection( n, 0.0 );
+//
+//    //printf( "After Mean\n" );
+//
+//    // Compute the farest x0 point from the centroid
+//    for ( size_t i = 0; i < n; i ++ )
+//    {
+//      T rcx = 0.0;
+//      for ( size_t p = 0; p < d; p ++ )
+//      {
+//        T tmp = X( p, gids[ i ] ) - centroid[ p ];
+//
+//
+//        rcx += tmp * tmp;
+//      }
+//      if ( rcx > rcx0 ) 
+//      {
+//        rcx0 = rcx;
+//        x0 = i;
+//      }
+//    }
+//
+//    //printf( "After Farest\n" );
+//    //for ( int p = 0; p < d; p ++ )
+//    //{
+//    //}
+//    //printf( "\n" );
+//
+//    // Compute the farest point x1 from x0
+//    for ( size_t i = 0; i < n; i ++ )
+//    {
+//      T rxx = 0.0;
+//      for ( size_t p = 0; p < d; p ++ )
+//      {
+//				T tmp = X( p, gids[ i ] ) - X( p, gids[ x0 ] );
+//        rxx += tmp * tmp;
+//      }
+//      if ( rxx > rx01 )
+//      {
+//        rx01 = rxx;
+//        x1 = i;
+//      }
+//    }
+//
+//
+//
+//    // Compute direction
+//    for ( size_t p = 0; p < d; p ++ )
+//    {
+//      direction[ p ] = X( p, gids[ x1 ] ) - X( p, gids[ x0 ] );
+//    }
+//
+//    //printf( "After Direction\n" );
+//    //for ( int p = 0; p < d; p ++ )
+//    //{
+//    //  printf( "%5.2lf ", direction[ p ] );
+//    //}
+//    //printf( "\n" );
+//    //exit( 1 );
+//
+//
+//
+//    // Compute projection
+//    projection.resize( n, 0.0 );
+//    for ( size_t i = 0; i < n; i ++ )
+//      for ( size_t p = 0; p < d; p ++ )
+//        projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
+//
+//    //printf( "After Projetion\n" );
+//    //for ( int p = 0; p < d; p ++ )
+//    //{
+//    //  printf( "%5.2lf ", projec[ p ] );
+//    //}
+//    //printf( "\n" );
+//
+//
+//
+//    /** Parallel median search */
+//    T median;
+//    
+//    if ( 1 )
+//    {
+//      median = combinatorics::Select( n, n / 2, projection );
+//    }
+//    else
+//    {
+//      auto proj_copy = projection;
+//      sort( proj_copy.begin(), proj_copy.end() );
+//      median = proj_copy[ n / 2 ];
+//    }
+//
+//
+//
+//    split[ 0 ].reserve( n / 2 + 1 );
+//    split[ 1 ].reserve( n / 2 + 1 );
+//
+//    /** TODO: Can be parallelized */
+//    vector<size_t> middle;
+//    for ( size_t i = 0; i < n; i ++ )
+//    {
+//      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
+//      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
+//      else                                 middle.push_back( i );
+//    }
+//
+//    for ( size_t i = 0; i < middle.size(); i ++ )
+//    {
+//      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
+//      else                                          split[ 1 ].push_back( middle[ i ] );
+//    }
+//
+//
+//    //printf( "split median %lf left %d right %d\n", 
+//    //    median,
+//    //    (int)split[ 0 ].size(), (int)split[ 1 ].size() );
+//
+//    //if ( split[ 0 ].size() > 0.6 * n ||
+//    //     split[ 1 ].size() > 0.6 * n )
+//    //{
+//    //  for ( int i = 0; i < n; i ++ )
+//    //  {
+//    //    printf( "%E ", projection[ i ] );
+//    //  } 
+//    //  printf( "\n" );
+//    //}
+//
+//
+//    return split; 
+//  };
+//};
+//
+//
+///**
+// *  @brief This is the splitter used in the randomized tree. Given
+// *         coordinates, project all points onto a random direction
+// *         and split into two groups using a median select.
+// *
+// *  @para
+// *
+// *  @TODO  Need to explit the parallelism.
+// */ 
+//template<int N_SPLIT, typename T>
+//struct randomsplit
+//{
+//  /** Closure */
+//  Data<T> *Coordinate = NULL;
+//
+//  inline vector<vector<size_t> > operator()
+//  ( 
+//    vector<size_t>& gids
+//  ) const 
+//  {
+//    assert( N_SPLIT == 2 );
+//
+//    Data<T> &X = *Coordinate;
+//    size_t d = X.row();
+//    size_t n = gids.size();
+//
+//    vector<vector<size_t> > split( N_SPLIT );
+//
+//    vector<T> direction( d );
+//    vector<T> projection( n, 0.0 );
+//
+//    // Compute random direction
+//    static default_random_engine generator;
+//    normal_distribution<T> distribution;
+//    for ( int p = 0; p < d; p ++ )
+//    {
+//      direction[ p ] = distribution( generator );
+//    }
+//
+//    // Compute projection
+//    projection.resize( n, 0.0 );
+//    for ( size_t i = 0; i < n; i ++ )
+//      for ( size_t p = 0; p < d; p ++ )
+//        projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
+//
+//
+//    // Parallel median search
+//    // T median = Select( n, n / 2, projection );
+//    auto proj_copy = projection;
+//    sort( proj_copy.begin(), proj_copy.end() );
+//    T median = proj_copy[ n / 2 ];
+//
+//    split[ 0 ].reserve( n / 2 + 1 );
+//    split[ 1 ].reserve( n / 2 + 1 );
+//
+//    /** TODO: Can be parallelized */
+//    vector<size_t> middle;
+//    for ( size_t i = 0; i < n; i ++ )
+//    {
+//      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
+//      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
+//      else                                 middle.push_back( i );
+//    }
+//
+//    for ( size_t i = 0; i < middle.size(); i ++ )
+//    {
+//      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
+//      else                                          split[ 1 ].push_back( middle[ i ] );
+//    }
+//
+//
+//    //printf( "split median %lf left %d right %d\n", 
+//    //    median,
+//    //    (int)split[ 0 ].size(), (int)split[ 1 ].size() );
+//
+//    //if ( split[ 0 ].size() > 0.6 * n ||
+//    //     split[ 1 ].size() > 0.6 * n )
+//    //{
+//    //  for ( int i = 0; i < n; i ++ )
+//    //  {
+//    //    printf( "%E ", projection[ i ] );
+//    //  } 
+//    //  printf( "\n" );
+//    //}
+//
+//
+//    return split; 
+//  };
+//};
 
 
 /**
@@ -884,7 +884,7 @@ class Setup
     size_t max_depth = 15;
 
     /** Coordinates (accessed with gids) */
-    Data<T> *X = NULL;
+    //Data<T> *X = NULL;
 
     /** neighbors<distance, gid> (accessed with gids) */
     Data<pair<T, size_t>> *NN = NULL;
@@ -1097,21 +1097,12 @@ class Tree
     {
       double beg, alloc_time, split_time, morton_time, permute_time;
 
-      //this->n = gids.size();
-      //this->m = setup.m;
-
-      printf( "n %lu m %lu\n", n, m ); fflush( stdout );
-
       this->n = setup.ProblemSize();
       this->m = setup.LeafNodeSize();
-
-      printf( "n %lu m %lu\n", n, m ); fflush( stdout );
-
 
       /** Reset and initialize global indices with lexicographical order. */
       global_indices.clear();
       for ( size_t i = 0; i < n; i ++ ) global_indices.push_back( i );
-
 
       /** Reset the warning flag and clean up the treelist */
       has_uneven_split = false;
