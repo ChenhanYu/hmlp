@@ -55,12 +55,25 @@ int main( int argc, char *argv[] )
 	/** [Step#1] Create a configuration for generic SPD matrices. */
   gofmm::Configuration<T> config1( ANGLE_DISTANCE, n, m, k, s, stol, budget );
   /** [Step#2] Create a dense random SPD matrix. */
-  SPDMatrix<T> K1( n, n ); 
-  K1.randspd( 0.0, 1.0 );
+  SPDMatrix<T> K1( n, n );
+  K1.randspd( 0.0, 0.01 );
+  /** SPDMatrix<T> wraps hmlp::Data<T> which inherits std::vector<T>. */
+  cout << "Number of rows: " << K1.row() << " number of columns: " << K1.col() << endl;
+  cout << "K(0,0) " << K1( 0, 0 ) << " K(1,2) " << K1( 1, 2 ) << endl;
+  /** Acquire the raw pointer of K1. */
+  T* K1_ptr = K1.data();
   /** [Step#3] Create a randomized splitter. */
   gofmm::randomsplit<SPDMatrix<T>, 2, T> rkdtsplitter1( K1 );
   /** [Step#4] Perform the iterative neighbor search. */
   auto neighbors1 = gofmm::FindNeighbors( K1, rkdtsplitter1, config1 );
+  /** Neighbors are stored as Data<pair<T,size_t>> in k-by-n. */
+  cout << "Number of neighboprs: " << neighbors1.row() << " number of queries: " << neighbors1.col() << endl;
+  /** Access entries using operator () with 2 indices. */
+  for ( int i = 0; i < std::min( k, (size_t)10 ); i ++ )
+    printf( "[%E,%5lu]\n", neighbors1( i, 0 ).first, neighbors1( i, 0 ).second );
+  /** Access entries using operator [] with 1 index (inherited from std::vector<T>). */
+  for ( int i = 0; i < std::min( k, (size_t)10 ); i ++ )
+    printf( "[%E,%5lu]\n", neighbors1[ i ].first, neighbors1[ i ].second );
 
 	/** [Step#1] Create a configuration for kernel matrices. */
 	gofmm::Configuration<T> config2( GEOMETRY_DISTANCE, n, m, k, s, stol, budget );
@@ -68,10 +81,15 @@ int main( int argc, char *argv[] )
   size_t d = 6;
   Data<T> X( d, n ); X.randn();
   KernelMatrix<T> K2( X );
+  cout << "Number of rows: " << K2.row() << " number of columns: " << K2.col() << endl;
+  cout << "K(0,0) " << K2( 0, 0 ) << " K(1,2) " << K2( 1, 2 ) << endl;
   /** [Step#3] Create a randomized splitter. */
   gofmm::randomsplit<KernelMatrix<T>, 2, T> rkdtsplitter2( K2 );
   /** [Step#4] Perform the iterative neighbor search. */
   auto neighbors2 = gofmm::FindNeighbors( K2, rkdtsplitter2, config2 );
+  cout << "Number of neighboprs: " << neighbors2.row() << " number of queries: " << neighbors2.col() << endl;
+  for ( int i = 0; i < std::min( k, (size_t)10 ); i ++ )
+    printf( "[%E,%5lu]\n", neighbors2( i, 0 ).first, neighbors2( i, 0 ).second );
 
   /** [Step#5] HMLP API call to terminate the runtime. */
   hmlp_finalize();

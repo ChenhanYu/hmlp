@@ -185,7 +185,7 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
       /** Compute all pairwise distances. */
       auto DRQ = Distances( metric, R, Q );
       /** Sanity check: distance must be >= 0. */
-      for ( auto &dij: DRQ ) dij = std::min( dij, T(0) );
+      for ( auto &dij: DRQ ) dij = std::max( dij, T(0) );
 
       /** Loop over each query. */
       for ( size_t j = 0; j < Q.size(); j ++ )

@@ -16,17 +16,15 @@
 ##  You should have received a copy of the GNU General Public License
 ##  along with this program. If not, see the LICENSE file.
 ##  
-  
-
 
 
 import numpy as np
-from hmlp import Runtime
+from hmlp import PyRuntime
 from gofmm import PySPDMatrix
-from gofmm import PyTree
-from gofmm import PyCompress
-from gofmm import PyEvaluate
-from gofmm import PyComputeError
+#from gofmm import PyTree
+#from gofmm import PyCompress
+#from gofmm import PyEvaluate
+#from gofmm import PyComputeError
 
 ## input filename
 
@@ -46,8 +44,8 @@ budget = 0.01
 ntest = 10
 
 
-## initialize hmlp runtime system
-rt = Runtime()
+## Initialize hmlp runtime system
+rt = PyRuntime()
 rt.init()
 
 ## create a random SPD matrix
@@ -57,33 +55,33 @@ K.randspd()
 
 
 
-## compress K 
-tree = PyCompress( K, stol, budget )
-
-## random initialize weights #
-weights = np.random.rand( n , nrhs )
-
-## potentials = K * weights
-potentials = PyEvaluate( tree, weights )
-
-print potentials.shape
-
-total_error = 0.0
-for i in range( ntest ):
-	u_i = np.zeros( ( 1, nrhs ) )
-  
-	for j in range( nrhs ):
-		u_i[ 0, j ] = potentials[ i, j ]
-  
-	error = PyComputeError( tree, i, u_i )
-	total_error = total_error + error
-	print "gid ", i, "error ", error
-## end for
-print total_error / ntest
-
-
-
-
+### compress K 
+#tree = PyCompress( K, stol, budget )
+#
+### random initialize weights #
+#weights = np.random.rand( n , nrhs )
+#
+### potentials = K * weights
+#potentials = PyEvaluate( tree, weights )
+#
+#print potentials.shape
+#
+#total_error = 0.0
+#for i in range( ntest ):
+#	u_i = np.zeros( ( 1, nrhs ) )
+#  
+#	for j in range( nrhs ):
+#		u_i[ 0, j ] = potentials[ i, j ]
+#  
+#	error = PyComputeError( tree, i, u_i )
+#	total_error = total_error + error
+#	print "gid ", i, "error ", error
+### end for
+#print total_error / ntest
+#
+#
+#
+#
 ## terminate hmlp runtime system
 rt.finalize()
 

@@ -73,7 +73,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   message( STATUS "GNU compiler." ) 
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -fopenmp")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -fPIC -D_POSIX_C_SOURCE=200112L")
-  set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp")
+  set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp -arch x86_64 -m64")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
   # Try to detect and link BLAS/LAPACK
@@ -124,7 +124,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   #set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Werror -Wall -pedantic -fPIC")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Wall -pedantic -fPIC -D_POSIX_C_SOURCE=200112L")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_INTEL")
-  set (HMLP_PYTHON_CFLAGS     "-g -std=c++11 -O3 -qopenmp")
+  set (HMLP_PYTHON_CFLAGS     "-g -std=c++11 -O3 -qopenmp -arch x86_64 -m64")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp")
 
   # using mkl (still we use FindBLAS to detect Intel MKL) 
@@ -212,33 +212,41 @@ set (CMAKE_RELEASE_POSTFIX "")
 set (CMAKE_DEBUG_POSTFIX "-debug")
 
 
-#   # Python support
-#   # ---------------------------
-#   #find_package(PythonLibs REQUIRED)
-#   #include_directories(${PYTHON_INCLUDE_DIRS})
-#   # message("${PYTHON_LIBRARIES}")
-#   # message("${PYTHON_INCLUDE_DIRS}")
-#   find_program(PYTHON "python")
-#   if (PYTHON)
-#     set(SETUP_PY_IN ${CMAKE_SOURCE_DIR}/python/setup.in.py)
-#     set(SETUP_PY    ${CMAKE_BINARY_DIR}/python/setup.py)
-#     #replace all cmake variables with the correct values
-#     configure_file(${SETUP_PY_IN} ${SETUP_PY})
-#     set(HMLP_PYX_IN ${CMAKE_SOURCE_DIR}/python/hmlp.pyx)
-#     set(HMLP_PYX    ${CMAKE_BINARY_DIR}/python/hmlp.pyx)
-#     configure_file(${HMLP_PYX_IN} ${HMLP_PYX})
-#     #set(CHMLP_PXD_IN ${CMAKE_SOURCE_DIR}/python/chmlp.pxd)
-#     #set(CHMLP_PXD    ${CMAKE_BINARY_DIR}/python/chmlp.pxd)
-#     #configure_file(${CHMLP_PXD_IN} ${CHMLP_PXD})
-#     set(GOFMM_PYX_IN ${CMAKE_SOURCE_DIR}/python/gofmm.pyx)
-#     set(GOFMM_PYX    ${CMAKE_BINARY_DIR}/python/gofmm.pyx)
-#     configure_file(${GOFMM_PYX_IN} ${GOFMM_PYX})
-#     #set(CGOFMM_PXD_IN ${CMAKE_SOURCE_DIR}/python/cgofmm.pxd)
-#     #set(CGOFMM_PXD    ${CMAKE_BINARY_DIR}/python/cgofmm.pxd)
-#     #configure_file(${CGOFMM_PXD_IN} ${CGOFMM_PXD})
-#     install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --prefix=${CMAKE_BINARY_DIR})")
-#     #install(CODE "execute_process(COMMAND CC=${CMAKE_C_COMPILER} ${PYTHON} ${SETUP_PY} build_ext -i)")
-#   endif()
+# Python support
+# ---------------------------
+find_program(VIRTUALENV "virtualenv")
+
+
+if (VIRTUALENV)
+	set(INSTA_SH_IN ${CMAKE_SOURCE_DIR}/python/install.in.sh)
+	set(INSTA_SH    ${CMAKE_BINARY_DIR}/python/install.sh)
+	configure_file(${INSTA_SH_IN} ${INSTA_SH})
+  set(SETUP_PY_IN ${CMAKE_SOURCE_DIR}/python/setup.in.py)
+  set(SETUP_PY    ${CMAKE_BINARY_DIR}/python/setup.py)
+  configure_file(${SETUP_PY_IN} ${SETUP_PY})
+  set(HMLP_PYX_IN ${CMAKE_SOURCE_DIR}/python/hmlp.py)
+  set(HMLP_PYX    ${CMAKE_BINARY_DIR}/python/hmlp.pyx)
+  configure_file(${HMLP_PYX_IN} ${HMLP_PYX})
+  set(GOFMM_PYX_IN ${CMAKE_SOURCE_DIR}/python/gofmm.py)
+  set(GOFMM_PYX    ${CMAKE_BINARY_DIR}/python/gofmm.pyx)
+  configure_file(${GOFMM_PYX_IN} ${GOFMM_PYX})
+	## Create a Virtualenv environment for Python 2.7. 
+	install(CODE "execute_process(COMMAND virtualenv --system-site-packages ${CMAKE_BINARY_DIR}/python)")
+	## Jump to the virtual environment.
+	#install(CODE "execute_process(COMMAND cd ${CMAKE_BINARY_DIR}/python)")
+	## Active the virtual environment (bash shell).
+	#install(CODE "execute_process(COMMAND source ./bin/activate)")
+	#install(CODE "execute_process(COMMAND source ${CMAKE_BINARY_DIR}/python/bin/activate)")
+	## Ensure pip ≥8.1 is installed.
+	#install(CODE "execute_process(COMMAND easy_install -U pip)")
+	## Install Cython.
+	#install(CODE "execute_process(COMMAND pip install Cython)")
+	
+	
+
+	#install(CODE "execute_process(COMMAND ${PYTHON} ${SETUP_PY} install --prefix=${CMAKE_BINARY_DIR})")
+  #install(CODE "execute_process(COMMAND CC=${CMAKE_C_COMPILER} ${PYTHON} ${SETUP_PY} build_ext -i)")
+endif()
 
 
 
@@ -413,42 +421,42 @@ if (ARTIFACT_PATH)
 endif()
 
 
-## Build the sandbox
-# ---------------------------
-set(BUILD_SANDBOX $ENV{HMLP_BUILD_SANDBOX})
-if (BUILD_SANDBOX MATCHES "true")
-  file (GLOB SANDBOX_ENV ${CMAKE_SOURCE_DIR}/set_env.sh )
-
-  file (GLOB SANDBOX_SRC ${CMAKE_SOURCE_DIR}/frame/blas_lapack_prototypes.hpp
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.cpp
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.cu
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.h
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_thread.cpp
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_thread.hpp
-                         #${CMAKE_SOURCE_DIR}/frame/hmlp_runtime.cpp
-                         #${CMAKE_SOURCE_DIR}/frame/hmlp_runtime.hpp
-                         #${CMAKE_SOURCE_DIR}/frame/hmlp_device.cpp
-                         #${CMAKE_SOURCE_DIR}/frame/hmlp_device.hpp
-                         ${CMAKE_SOURCE_DIR}/frame/hmlp_util.hpp )
-
-                       #file (GLOB SANDBOX_EXT ${CMAKE_SOURCE_DIR}/frame/external/*)
-  file (GLOB SANDBOX_PRI ${CMAKE_SOURCE_DIR}/frame/primitives/gnbx.hpp)
-  file (GLOB SANDBOX_PKG ${CMAKE_SOURCE_DIR}/package/x86_64/sandybridge/gnbx.cpp)
-  file (GLOB SANDBOX_EXE ${CMAKE_SOURCE_DIR}/test/test_gnbx.cpp)
-
-  #file (GLOB SANDBOX_INC ${CMAKE_SOURCE_DIR}/include/*)
-  install(FILES ${SANDBOX_ENV} DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
-  install(FILES ${CMAKE_SOURCE_DIR}/cmake/sandbox_CMakeLists.txt DESTINATION 
-    ${CMAKE_BINARY_DIR}/sandbox RENAME CMakeLists.txt)
-  install(FILES ${SANDBOX_SRC} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame)
-  #install(FILES ${SANDBOX_EXT} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame/external)
-  install(FILES ${SANDBOX_PRI} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame/primitives)
-  install(FILES ${SANDBOX_PKG} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/package/x86_64/sandybridge)
-  install(FILES ${SANDBOX_EXE} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/test)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/frame/external DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/kernel DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/include DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
-endif()
+# ## Build the sandbox
+# # ---------------------------
+# set(BUILD_SANDBOX $ENV{HMLP_BUILD_SANDBOX})
+# if (BUILD_SANDBOX MATCHES "true")
+#   file (GLOB SANDBOX_ENV ${CMAKE_SOURCE_DIR}/set_env.sh )
+# 
+#   file (GLOB SANDBOX_SRC ${CMAKE_SOURCE_DIR}/frame/blas_lapack_prototypes.hpp
+#                          ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.cpp
+#                          ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.cu
+#                          ${CMAKE_SOURCE_DIR}/frame/hmlp_blas_lapack.h
+#                          ${CMAKE_SOURCE_DIR}/frame/hmlp_thread.cpp
+#                          ${CMAKE_SOURCE_DIR}/frame/hmlp_thread.hpp
+#                          #${CMAKE_SOURCE_DIR}/frame/hmlp_runtime.cpp
+#                          #${CMAKE_SOURCE_DIR}/frame/hmlp_runtime.hpp
+#                          #${CMAKE_SOURCE_DIR}/frame/hmlp_device.cpp
+#                          #${CMAKE_SOURCE_DIR}/frame/hmlp_device.hpp
+#                          ${CMAKE_SOURCE_DIR}/frame/hmlp_util.hpp )
+# 
+#                        #file (GLOB SANDBOX_EXT ${CMAKE_SOURCE_DIR}/frame/external/*)
+#   file (GLOB SANDBOX_PRI ${CMAKE_SOURCE_DIR}/frame/primitives/gnbx.hpp)
+#   file (GLOB SANDBOX_PKG ${CMAKE_SOURCE_DIR}/package/x86_64/sandybridge/gnbx.cpp)
+#   file (GLOB SANDBOX_EXE ${CMAKE_SOURCE_DIR}/test/test_gnbx.cpp)
+# 
+#   #file (GLOB SANDBOX_INC ${CMAKE_SOURCE_DIR}/include/*)
+#   install(FILES ${SANDBOX_ENV} DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
+#   install(FILES ${CMAKE_SOURCE_DIR}/cmake/sandbox_CMakeLists.txt DESTINATION 
+#     ${CMAKE_BINARY_DIR}/sandbox RENAME CMakeLists.txt)
+#   install(FILES ${SANDBOX_SRC} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame)
+#   #install(FILES ${SANDBOX_EXT} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame/external)
+#   install(FILES ${SANDBOX_PRI} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame/primitives)
+#   install(FILES ${SANDBOX_PKG} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/package/x86_64/sandybridge)
+#   install(FILES ${SANDBOX_EXE} DESTINATION ${CMAKE_BINARY_DIR}/sandbox/test)
+#   install(DIRECTORY ${CMAKE_SOURCE_DIR}/frame/external DESTINATION ${CMAKE_BINARY_DIR}/sandbox/frame)
+#   install(DIRECTORY ${CMAKE_SOURCE_DIR}/kernel DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
+#   install(DIRECTORY ${CMAKE_SOURCE_DIR}/include DESTINATION ${CMAKE_BINARY_DIR}/sandbox)
+# endif()
 
 
 # Report

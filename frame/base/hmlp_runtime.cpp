@@ -1322,10 +1322,8 @@ void RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WORLD )
       /** Initialize MPI inside HMLP otherwise. */
       if ( !is_mpi_init )
       {
-        printf( "Not MPI initialized\n" ); fflush( stdout );
         int provided;
 	      mpi::Init_thread( argc, argv, MPI_THREAD_MULTIPLE, &provided );
-        printf( "here\n" ); fflush( stdout );
 	      if ( provided != MPI_THREAD_MULTIPLE ) 
           ExitWithError( string( "MPI_THTREAD_MULTIPLE is not supported" ) );
         /** Flag that MPI is initialized by HMLP. */

@@ -291,22 +291,14 @@ class Data : public ReadWrite, public vector<T, Allocator>
 		};
 
 		template<typename TINDEX>
-		T getvalue( TINDEX i, TINDEX j )
-		{
-			return (*this)[ m * j + i ];
-		};
-
-		template<typename TINDEX>
 		void setvalue( TINDEX i, T v )
 		{
 			(*this)[ i ] = v;
 		};
 
-		template<typename TINDEX>
-		void setvalue( TINDEX i, TINDEX j, T v )
-		{
-			(*this)[ m * j + i ] = v;
-		};
+		T getvalue( size_t i, size_t j ) { return (*this)( i, j ); };
+
+		void setvalue( size_t i, size_t j, T v ) { (*this)( i, j ) = v; };
 
     /** ESSENTIAL: return number of coumns */
     size_t row() { return m; };
@@ -440,7 +432,7 @@ class Data : public ReadWrite, public vector<T, Allocator>
       if ( USE_LOWRANK )
       {
         hmlp::Data<T> X( ( std::rand() % n ) / 10 + 1, n );
-        X.rand();
+        X.randn( a, b );
         xgemm
         (
           "T", "N",

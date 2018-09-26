@@ -97,7 +97,10 @@ typedef int MPI_Request;
 #define MPI_THREAD_SERIALIZED 2
 #define MPI_THREAD_MULTIPLE 3
 
-
+/** For MPI_Iprobe(). */
+#define MPI_ANY_SOURCE 	(-2)
+#define MPI_ROOT        (-3)
+#define MPI_ANY_TAG     (-1)
 
 #endif /** ifdef HMLP_USE_MPI */
 #endif /** define MPI_PROTOTYPES_HPP */
