@@ -71,8 +71,8 @@ int AlltoallData( size_t m,
 
 
 
-  vector<T, ALLOCATOR> sendbuf;
-  vector<T, ALLOCATOR> recvbuf;
+  vector<T> sendbuf;
+  vector<T> recvbuf;
   vector<int> sendcounts( size, 0 );
   vector<int> recvcounts( size, 0 );
   vector<int> sdispls( size + 1, 0 );

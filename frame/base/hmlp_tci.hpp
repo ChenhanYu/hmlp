@@ -9,6 +9,8 @@
 
 #include <omp.h>
 
+#include <hmlp_util.hpp>
+
 using namespace std;
 
 

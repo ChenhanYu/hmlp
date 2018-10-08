@@ -1,73 +1,99 @@
+# ---[ Check cmake version.
+cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
+
+# ---[ Project specification.
+project(HMLP C CXX)
+set(HMLP_VERSION_MAJOR 1)
+set(HMLP_VERSION_MINOR 1)
+set(HMLP_VERSION_PATCH 0)
+set(HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
+
+# ---[ Build options (not completed yet).
+set(HMLP_LIBRARY_TYPE "default" CACHE STRING "Type of hmlp library (shared, static, or default) to build")
+set_property(CACHE HMLP_LIBRARY_TYPE PROPERTY STRINGS default static shared)
+option(HMLP_BUILD_TOOLS "Build command-line tools" ON)
+option(HMLP_BUILD_UNIT_TESTS "Build hmlp unit tests" ON)
+option(HMLP_BUILD_MOCK_TESTS "Build hmlp mock tests" ON)
+option(HMLP_BUILD_BENCHMARKS "Build hmlp micro-benchmarks" ON)
+option(HMLP_BUILD_ARTIFACTS "Build SC'XX artifacts" ON)
+
+# --[ Whether or not enable testing?
+if(HMLP_BUILD_UNIT_TESTS OR HMLP_BUILD_MOCK_TESTS)
+  ENABLE_TESTING()
+endif()
+
+# ---[ Decide architecture.
+set(HMLP_SUPPORTED_PLATFORM TRUE)
+if(NOT CMAKE_SYSTEM_PROCESSOR)
+  message(WARNING "Target processor architecture is not specified.")
+  set(HMLP_SUPPORTED_PLATFORM FALSE)
+elseif(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|armv7|armv7f|armv7s|armv7k|arm64|aarch64)$")
+  message(WARNING "Target processor architecture ${CMAKE_SYSTEM_PROCESSOR} is not supported in hmlp.")
+  set(HMLP_SUPPORTED_PLATFORM FALSE)
+endif()
 
 
+message(STATUS "${CMAKE_SYSTEM_PROCESSOR}/${CMAKE_SYSTEM_NAME}")
+set(HMLP_ARCH_MAJOR     $ENV{HMLP_ARCH_MAJOR})
+set(HMLP_ARCH_MINOR     $ENV{HMLP_ARCH_MINOR})
+set(HMLP_ARCH           ${HMLP_ARCH_MAJOR}/${HMLP_ARCH_MINOR})
+set(HMLP_GPU_ARCH_MAJOR $ENV{HMLP_GPU_ARCH_MAJOR})
+set(HMLP_GPU_ARCH_MINOR $ENV{HMLP_GPU_ARCH_MINOR})
+set(HMLP_GPU_ARCH       ${HMLP_GPU_ARCH_MAJOR}/${HMLP_GPU_ARCH_MINOR})
 
-
-
-
-# Check cmake version.
-# ---------------------------
-cmake_minimum_required (VERSION 2.8)
-
-# Project specification.
-# ---------------------------
-project (HMLP)
-set (HMLP_VERSION_MAJOR 1)
-set (HMLP_VERSION_MINOR 1)
-set (HMLP_VERSION_PATCH 0)
-set (HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
-ENABLE_TESTING()
-
-# Cmake scripts and modules
-# ---------------------------
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
-
-# Decide architecture
-# ---------------------------
-set (HMLP_ARCH_MAJOR     $ENV{HMLP_ARCH_MAJOR})
-set (HMLP_ARCH_MINOR     $ENV{HMLP_ARCH_MINOR})
-set (HMLP_ARCH           ${HMLP_ARCH_MAJOR}/${HMLP_ARCH_MINOR})
-set (HMLP_GPU_ARCH_MAJOR $ENV{HMLP_GPU_ARCH_MAJOR})
-set (HMLP_GPU_ARCH_MINOR $ENV{HMLP_GPU_ARCH_MINOR})
-set (HMLP_GPU_ARCH       ${HMLP_GPU_ARCH_MAJOR}/${HMLP_GPU_ARCH_MINOR})
-
-# Detecting MacOS (mac cannot export $CC to change compilers)
+# Detecting MacOS.
 # ---------------------------
 if ( APPLE )
   message( STATUS "MacOS detected")
   set (CMAKE_MACOSX_RPATH TRUE)
-  if ($ENV{HMLP_USE_INTEL} MATCHES "true")
-    set (CMAKE_C_COMPILER      icc)
-    set (CMAKE_CXX_COMPILER    icpc)
-    set (CMAKE_C_COMPILER_ID   Intel)
-    set (CMAKE_CXX_COMPILER_ID Intel)
-  else ()
-    set (CMAKE_C_COMPILER      gcc)
-    set (CMAKE_CXX_COMPILER    g++)
-    set (CMAKE_C_COMPILER_ID   GNU)
-    set (CMAKE_CXX_COMPILER_ID GNU)
-  endif()
 endif ()
 
 
+# ---[ Download dependencies.
+set(CONFU_DEPENDENCIES_SOURCE_DIR ${CMAKE_SOURCE_DIR}/deps
+  CACHE PATH "Confu-style dependencies source directory")
+set(CONFU_DEPENDENCIES_BINARY_DIR ${CMAKE_BINARY_DIR}/deps
+  CACHE PATH "Confu-style dependencies binary directory")
 
-# Software dependencies.
-# ---------------------------
-set (MKLROOT $ENV{MKLROOT})
-set (OPENBLASROOT $ENV{OPENBLASROOT})
-set (QSMLROOT $ENV{QSMLROOT})
+# ---[ Download googletest.
+if(HMLP_BUILD_MOCK_TESTS OR HMLP_BUILD_UNIT_TESTS)
+  if(HMLP_SUPPORTED_PLATFORM AND NOT DEFINED GOOGLETEST_SOURCE_DIR)
+    message(STATUS "Downloading Google Test to ${CONFU_DEPENDENCIES_SOURCE_DIR}/googletest (define GOOGLETEST_SOURCE_DIR to avoid it)")
+    configure_file(cmake/DownloadGoogleTest.cmake "${CONFU_DEPENDENCIES_BINARY_DIR}/googletest-download/CMakeLists.txt")
+    execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+      WORKING_DIRECTORY "${CONFU_DEPENDENCIES_BINARY_DIR}/googletest-download")
+    execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+      WORKING_DIRECTORY "${CONFU_DEPENDENCIES_BINARY_DIR}/googletest-download")
+    set(GOOGLETEST_SOURCE_DIR "${CONFU_DEPENDENCIES_SOURCE_DIR}/googletest" CACHE STRING "Google Test source directory")
+  ENDIF()
+ENDIF()
 
+# ---[ Download googlebenchmark.
+if(HMLP_BUILD_BENCHMARKS)
+  if(HMLP_SUPPORTED_PLATFORM AND NOT DEFINED GOOGLEBENCHMARK_SOURCE_DIR)
+    message(STATUS "Downloading Google Benchmark to ${CONFU_DEPENDENCIES_SOURCE_DIR}/googlebenchmark (define GOOGLEBENCHMARK_SOURCE_DIR to avoid it)")
+    configure_file(cmake/DownloadGoogleBenchmark.cmake "${CONFU_DEPENDENCIES_BINARY_DIR}/googlebenchmark-download/CMakeLists.txt")
+    execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+      WORKING_DIRECTORY "${CONFU_DEPENDENCIES_BINARY_DIR}/googlebenchmark-download")
+    execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+      WORKING_DIRECTORY "${CONFU_DEPENDENCIES_BINARY_DIR}/googlebenchmark-download")
+    set(GOOGLEBENCHMARK_SOURCE_DIR "${CONFU_DEPENDENCIES_SOURCE_DIR}/googlebenchmark" CACHE STRING "Google Benchmark source directory")
+  endif()
+endif()
 
+# ---[ Compiler Options (HMLP can use Intel or GNU compilers.)
+if ("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
 
-# Compiler Options (HMLP can use Intel or GNU compilers.)
-# ---------------------------
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  # using AppleClang
+  message( STATUS "Clang compiler." )
+  message( WARNING "You may need to install OpenMP. [e.g. brew install libomp]" ) 
+  #set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -Xpreprocessor -fopenmp -lomp")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -Xpreprocessor -fopenmp -L/usr/local/opt/libomp/lib -lomp")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -fPIC -D_POSIX_C_SOURCE=200112L")
+  set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp -arch x86_64 -m64")
+  set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
-  # using Clang or AppleClang
-  message( STATUS "Clang compiler." ) 
-  message( WARNING "(Apple)Clang compiler is not supported." ) 
-  message( FATAL_ERROR "You must have a generic GNU or Intel compiler." )
-
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
 
   # using GCC
   message( STATUS "GNU compiler." ) 
@@ -76,47 +102,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp -arch x86_64 -m64")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
-  # Try to detect and link BLAS/LAPACK
-  if ($ENV{HMLP_USE_BLAS} MATCHES "true")
-
-		if ( APPLE )
-			set (BLAS_DIR "/usr/lib/" )
-			set (LAPACK_DIR "/usr/lib/" )
-		endif()
-
-    find_package (BLAS REQUIRED)
-    find_package (LAPACK REQUIRED)
-    set (HMLP_CFLAGS          "${HMLP_CFLAGS} -DUSE_BLAS")
-
-    if ( OPENBLASROOT )
-      message( STATUS "use OpenBLAS for BLAS/LAPACK" )
-      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L$ENV{OPENBLASROOT} -lopenblas")
-    else ()
-      if ( BLAS_LINKER_FLAGS )
-        message( "${BLAS_LINKER_FLAGS}" )
-        message( "${BLAS_LIBRARIES}" )
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-      else ()
-        message( WARNING "cmake FindBLAS fails to generate a proper linker for BLAS" )
-        message( FATAL_ERROR "fail to link to a BLAS library. Try to set HMLP_USE_BLAS=false." )  
-      endif ()
-
-      if ( LAPACK_LINKER_FLAGS )
-        message("${LAPACK_LINKER_FLAGS}")
-        message("${LAPACK_LIBRARIES}")
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
-      else ()
-        message( WARNING "cmake FindBLAS fails to generate a proper linker for LAPACK" )
-        message( FATAL_ERROR "fail to link to a LAPACK library. Try to set HMLP_USE_BLAS=false." )  
-      endif ()
-
-    endif ()
-
-  else ()
-    message( WARNING "compile without BLAS/LAPACK. GOFMM will not be available.")
-  endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
-
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
 
   # using Intel C++
   message( STATUS "Intel compiler." )
@@ -127,20 +113,70 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   set (HMLP_PYTHON_CFLAGS     "-g -std=c++11 -O3 -qopenmp -arch x86_64 -m64")
   set (CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp")
 
-  # using mkl (still we use FindBLAS to detect Intel MKL) 
-  if ($ENV{HMLP_USE_BLAS} MATCHES "true")
-    set(ENV{BLA_VENDOR} "Intel10_64lp")
-    find_package (BLAS REQUIRED)
-    set(BLA_VENDOR "Intel")
-    find_package (LAPACK REQUIRED)
-    set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_BLAS -DUSE_VML -mkl=parallel")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
-    include_directories ("$ENV{MKLROOT}/include")
-  else ()
-    message( WARNING "compile without BLAS/LAPACK. GOFMM will not be available.")
-  endif ($ENV{HMLP_USE_BLAS} MATCHES "true")
-
 endif()
+
+# Software dependencies.
+# ---------------------------
+set (MKLROOT      $ENV{MKLROOT})
+set (BLISROOT     $ENV{BLISROOT})
+set (OPENBLASROOT $ENV{OPENBLASROOT})
+set (QSMLROOT     $ENV{QSMLROOT})
+
+
+# Try to detect and link BLAS/LAPACK
+# ---------------------------
+if ($ENV{HMLP_USE_BLAS} MATCHES "true")
+
+  # HMLP use flag USE_BLAS for preprocessing.
+  set (HMLP_CFLAGS "${HMLP_CFLAGS} -DUSE_BLAS")
+
+  if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
+    # Use MKL by default.
+    message( STATUS "Use MKL for BLAS/LAPACK" )
+    set (HMLP_CFLAGS "${HMLP_CFLAGS} -DUSE_VML -mkl=parallel")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
+    include_directories ("${MKLROOT}/include")
+  else ()
+
+    # Look for OpenBLAS or built-in BLAS/LAPACK libraries.
+    if ( OPENBLASROOT )
+      message( STATUS "Use OpenBLAS for BLAS/LAPACK" )
+      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${OPENBLASROOT} -lopenblas")
+    else ()
+      # Check if built-in BLAS is available.
+      message( STATUS "Use built-in BLAS/LAPACK from /usr/lib" )
+      set (HMLP_CFLAGS "${HMLP_CFLAGS} -lblas -llapack")
+      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lblas -llapack")
+      # set(BLAS_DIR "/usr/lib")
+      # set(LAPACK_DIR "/usr/lib")
+      # find_package(BLAS REQUIRED)
+      # find_package(LAPACK REQUIRED)
+      # if ( BLAS_LINKER_FLAGS )
+      #   message( "${BLAS_LINKER_FLAGS}" )
+      #   message( "${BLAS_LIBRARIES}" )
+      #   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
+      # else ()
+      #   message( WARNING "cmake FindBLAS fails to generate a proper linker for BLAS" )
+      #   message( FATAL_ERROR "fail to link to a BLAS library. Try to set HMLP_USE_BLAS=false." )  
+      # endif ()
+      # # Check if built-in LAPACK is available.
+      # if ( LAPACK_LINKER_FLAGS )
+      #   message("${LAPACK_LINKER_FLAGS}")
+      #   message("${LAPACK_LIBRARIES}")
+      #   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
+      # else ()
+      #   message( WARNING "cmake FindBLAS fails to generate a proper linker for LAPACK" )
+      #   message( FATAL_ERROR "fail to link to a LAPACK library. Try to set HMLP_USE_BLAS=false." )  
+      # endif ()
+    endif()
+  endif ()
+     
+else ()
+  # HMLP will still compile, but the behavior of GOFMM is undefined.
+  message( WARNING "compile without BLAS/LAPACK. GOFMM will not be available.")
+endif ()
+
+
 
 
 
@@ -175,8 +211,7 @@ endif ()
 
 
 
-# Vectorization 
-# ---------------------------
+# ---[ Vectorization 
 if ($ENV{HMLP_ARCH_MAJOR} MATCHES "arm")
   #set (HMLP_CFLAGS "-mfpu=neon -mfloat-abi=softfp -march=armv8-a")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -ftree-vectorize")
@@ -195,16 +230,14 @@ elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "skx")
 endif()
 
 
-# Whether to compile the runtime system
-# ---------------------------
+# ---[ Whether to compile the runtime system
 if ($ENV{HMLP_HAVE_RUNTIME} MATCHES "true")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DHMLP_HAVE_RUNTIME")
 endif()
 
 
 
-# Configure the path structure.
-# ---------------------------
+# ---[ Configure the path structure.
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -212,8 +245,7 @@ set (CMAKE_RELEASE_POSTFIX "")
 set (CMAKE_DEBUG_POSTFIX "-debug")
 
 
-# Python support
-# ---------------------------
+# ---[ Python support
 find_program(VIRTUALENV "virtualenv")
 
 
@@ -252,8 +284,7 @@ endif()
 
 
 
-# (OPTIONAL) MPI configurations
-# ---------------------------
+# ---[ (OPTIONAL) MPI configurations
 if ($ENV{HMLP_USE_MPI} MATCHES "true")
   message("MPI is enable") 
   find_package(MPI REQUIRED)
@@ -459,36 +490,37 @@ endif()
 # endif()
 
 
-# Report
-# ---------------------------
-message ("===================================================")
-message ("Version      =${HMLP_VERSION}")
-message ("Source       =${CMAKE_SOURCE_DIR}")
-message ("Target       =${CMAKE_BINARY_DIR}")
-message ("HMLP_ARCH    =${HMLP_ARCH}")
-message ("CC           =${CMAKE_C_COMPILER}")
-message ("CFLAGS       =${CMAKE_C_FLAGS}")
-message ("C Linker     =${CMAKE_C_LINK_FLAGS}")
-message ("CXX          =${CMAKE_CXX_COMPILER}")
-message ("CXXFLAGS     =${CMAKE_CXX_FLAGS}")
-message ("CXX Linker   =${CMAKE_CXX_LINK_FLAGS}")
-message ("EXE Linker   =${CMAKE_EXE_LINKER_FLAGS}")
-message ("MPICXX       =${MPI_CXX_COMPILER}")
-message ("MPICXXFLAGS  =${MPI_CXX_COMPILE_FLAGS}")
-message ("MPICXXINCLUDE=${MPI_CXX_INCLUDE_PATH}")
-message ("MPICXX Linker=${MPI_CXX_LINK_FLAGS}")
-message ("MPICXXLIBS   =${MPI_CXX_LIBRARIES}")
-message ("AR           =${CMAKE_AR}")
-message ("RANLIB       =${CMAKE_RANLIB}")
-message ("===================================================")
-message ("HMLP_GPU_ARCH=${HMLP_GPU_ARCH}")
-message ("HOST_COMPILER=${CUDA_HOST_COMPILER}")
-message ("NVCC_VERSION =${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR}")
-message ("NVCCFLAGS    =${CUDA_NVCC_FLAGS}")
-message ("===================================================")
-message ("MKLROOT      =$ENV{MKLROOT}")
-message ("OPENBLASROOT =$ENV{OPENBLASROOT}")
-message ("QSMLROOT     =$ENV{QSMLROOT}")
-message ("BLAS_LIBRARY =${BLAS_LIBRARIES}")
-message ("BLAS_LINKER  =${BLAS_LINKER_FLAGS}")
-message ("===================================================")
+# ---[ Report.
+message("===================================================")
+message("Version      =${HMLP_VERSION}")
+message("Source       =${CMAKE_SOURCE_DIR}")
+message("Target       =${CMAKE_BINARY_DIR}")
+message("Platform     =${CMAKE_SYSTEM_PROCESSOR}/${CMAKE_SYSTEM_NAME}")
+message("HMLP_ARCH    =${HMLP_ARCH}")
+message("CC           =${CMAKE_C_COMPILER}")
+message("CFLAGS       =${CMAKE_C_FLAGS}")
+message("C Linker     =${CMAKE_C_LINK_FLAGS}")
+message("CXX          =${CMAKE_CXX_COMPILER}")
+message("CXXFLAGS     =${CMAKE_CXX_FLAGS}")
+message("CXX Linker   =${CMAKE_CXX_LINK_FLAGS}")
+message("EXE Linker   =${CMAKE_EXE_LINKER_FLAGS}")
+message("MPICXX       =${MPI_CXX_COMPILER}")
+message("MPICXXFLAGS  =${MPI_CXX_COMPILE_FLAGS}")
+message("MPICXXINCLUDE=${MPI_CXX_INCLUDE_PATH}")
+message("MPICXX Linker=${MPI_CXX_LINK_FLAGS}")
+message("MPICXXLIBS   =${MPI_CXX_LIBRARIES}")
+message("AR           =${CMAKE_AR}")
+message("RANLIB       =${CMAKE_RANLIB}")
+message("===================================================")
+message("HMLP_GPU_ARCH=${HMLP_GPU_ARCH}")
+message("HOST_COMPILER=${CUDA_HOST_COMPILER}")
+message("NVCC_VERSION =${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR}")
+message("NVCCFLAGS    =${CUDA_NVCC_FLAGS}")
+message("===================================================")
+message("MKLROOT      =$ENV{MKLROOT}")
+message("BLISROOT     =$ENV{BLISROOT}")
+message("OPENBLASROOT =$ENV{OPENBLASROOT}")
+message("QSMLROOT     =$ENV{QSMLROOT}")
+message("BLAS_LIBRARY =${BLAS_LIBRARIES}")
+message("BLAS_LINKER  =${BLAS_LINKER_FLAGS}")
+message("===================================================")

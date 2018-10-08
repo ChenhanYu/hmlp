@@ -29,7 +29,7 @@
 
 /** Haswell kernels */
 #include <rank_k_d8x6.hpp>
-#include <gsks_d8x6.hpp>
+//#include <gsks_d8x6.hpp>
 
 
 using namespace hmlp;
@@ -66,27 +66,27 @@ void gsks
     case KS_GAUSSIAN:
     {
       /** kernel instances */
-      rank_k_asm_d8x6 semiringkernel;
-      gsks_gaussian_int_d8x6 microkernel;
-
-      gsks::gsks<
-        /** MC, NC, KC, MR, NR */
-        72, 960, 256, 8, 6, 
-        /** PACK_MC, PACK_NC, PACK_MR, PACK_NR, SIMD_SIZE */
-        72, 960,      8, 6, 32,
-        /** USE_L2NORM, USE_VAR_BANDWIDTH, USE_STRASSEN */
-        true, false, false,
-        rank_k_asm_d8x6, gsks_gaussian_int_d8x6,
-        double, double, double, double>
-      ( 
-        kernel,
-        m, n, k,
-        u,     umap,
-        A, A2, amap,
-        B, B2, bmap,
-        w,     wmap,
-        semiringkernel, microkernel 
-      );
+//      rank_k_asm_d8x6 semiringkernel;
+//      gsks_gaussian_int_d8x6 microkernel;
+//
+//      gsks::gsks<
+//        /** MC, NC, KC, MR, NR */
+//        72, 960, 256, 8, 6, 
+//        /** PACK_MC, PACK_NC, PACK_MR, PACK_NR, SIMD_SIZE */
+//        72, 960,      8, 6, 32,
+//        /** USE_L2NORM, USE_VAR_BANDWIDTH, USE_STRASSEN */
+//        true, false, false,
+//        rank_k_asm_d8x6, gsks_gaussian_int_d8x6,
+//        double, double, double, double>
+//      ( 
+//        kernel,
+//        m, n, k,
+//        u,     umap,
+//        A, A2, amap,
+//        B, B2, bmap,
+//        w,     wmap,
+//        semiringkernel, microkernel 
+//      );
       break;
     }
     case KS_GAUSSIAN_VAR_BANDWIDTH:
@@ -95,24 +95,24 @@ void gsks
     }
     case KS_POLYNOMIAL:
     {
-      rank_k_asm_d8x6 semiringkernel;
-      gsks_polynomial_int_d8x6 microkernel;
-
-      gsks::gsks<
-        72, 960, 256, 8, 6, 
-        72, 960,      8, 6, 32,
-        true, false, false,
-        rank_k_asm_d8x6, gsks_polynomial_int_d8x6,
-        double, double, double, double>
-      ( 
-        kernel,
-        m, n, k,
-        u,     umap,
-        A, A2, amap,
-        B, B2, bmap,
-        w,     wmap,
-        semiringkernel, microkernel 
-      );
+//      rank_k_asm_d8x6 semiringkernel;
+//      gsks_polynomial_int_d8x6 microkernel;
+//
+//      gsks::gsks<
+//        72, 960, 256, 8, 6, 
+//        72, 960,      8, 6, 32,
+//        true, false, false,
+//        rank_k_asm_d8x6, gsks_polynomial_int_d8x6,
+//        double, double, double, double>
+//      ( 
+//        kernel,
+//        m, n, k,
+//        u,     umap,
+//        A, A2, amap,
+//        B, B2, bmap,
+//        w,     wmap,
+//        semiringkernel, microkernel 
+//      );
       break;
     }
     case KS_LAPLACE:

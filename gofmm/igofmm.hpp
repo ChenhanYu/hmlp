@@ -112,7 +112,7 @@ class Factor
       return do_ulv_factorization;
     };
 
-    bool IsSymmetric() { return is_symmetric; };
+    bool IsSymmetric() { return issymmetric; };
 
 
 

@@ -4,23 +4,16 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
+#export CC=gcc
+#export CXX=g++
 export CC=icc
 export CXX=icpc
+#export CC=/usr/local/Cellar/llvm/7.0.0/bin/clang
+#export CXX=/usr/local/Cellar/llvm/7.0.0/bin/clang++
+#export CC=/usr/local/Cellar/gcc/8.2.0/bin/gcc-8
+#export CXX=/usr/local/Cellar/gcc/8.2.0/bin/g++-8
 #export CC=${CC}
 #export CXX=${CXX}
-
-##
-## Ingore this flag if you are "not using" MacOS.
-##
-## If you are using MacOS, exporting CC and CXX are useless.
-## CC and CXX are two executable files in /usr/bin, and you
-## cannot overwrite them without super users.
-##
-## Notice that HMLP "does not" support clang compilers. 
-## You "must" set following flag to true to use Intel or
-## flase to use GNU compilers.
-##
-export HMLP_USE_INTEL=true
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
@@ -30,7 +23,14 @@ export MKLROOT=/opt/intel/mkl
 export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
+#export OPENBLASROOT=/Users/chenhan/Projects/OpenBLAS-0.2.20
+export OPENBLASROOT=
 export OPENBLASROOT=${OPENBLASROOT}
+
+## Make sure BLISROOT is defined. (icc/icpc, gcc/g++)
+#export BLISROOT=/Users/chenhan/Projects/blis/lib/haswell
+export BLISROOT=
+export BLISROOT=${BLISROOT}
 
 ## Setup the maximum number of threads.
 export OMP_NUM_THREADS=2

@@ -26,19 +26,6 @@ fi
 export CC=icc
 export CXX=icpc
 
-##
-## Ingore this flag if you are "not using" MacOS.
-##
-## If you are using MacOS, exporting CC and CXX are useless.
-## CC and CXX are two executable files in /usr/bin, and you
-## cannot overwrite them without super users.
-##
-## Notice that HMLP "does not" support clang compilers. 
-## You "must" set following flag to true to use Intel or
-## flase to use GNU compilers.
-##
-export HMLP_USE_INTEL=true
-
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
 

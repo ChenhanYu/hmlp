@@ -2274,7 +2274,7 @@ void UnpackSkeletons( TREE &tree, int p,
                    j  < offsets[ i + 1 ]; 
                    j ++ )
     {
-      skels.push_back( recvskels[ j ] );
+      skels.push_back( recvbuffs[ j ] );
     }
   }
 }; /** end UnpackSkeletons() */

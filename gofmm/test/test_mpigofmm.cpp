@@ -27,7 +27,7 @@
 /** use implicit matrices */
 #include <containers/VirtualMatrix.hpp>
 /** use implicit PVFMM kernel matrices. */
-#include <containers/PVFMMKernelMatrix.hpp>
+//#include <containers/PVFMMKernelMatrix.hpp>
 /** Use implicit Gauss-Newton (multilevel perceptron) matrices. */
 #include <containers/MLPGaussNewton.hpp>
 /** Use an OOC covariance matrices. */

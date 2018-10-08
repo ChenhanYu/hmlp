@@ -426,129 +426,129 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
       return sample; 
     };
 
-    void ComputeDegree()
-    {
-      printf( "ComputeDegree(): K * ones\n" );
-      assert( is_symmetric );
-      Data<T> ones( this->row(), (size_t)1, 1.0 );
-      Degree.resize( this->row(), (size_t)1, 0.0 );
-      Multiply( 1, Degree, ones );
-    };
+//    void ComputeDegree()
+//    {
+//      printf( "ComputeDegree(): K * ones\n" );
+//      assert( is_symmetric );
+//      Data<T> ones( this->row(), (size_t)1, 1.0 );
+//      Degree.resize( this->row(), (size_t)1, 0.0 );
+//      Multiply( 1, Degree, ones );
+//    };
+//
+//    Data<T> &GetDegree()
+//    {
+//      assert( is_symmetric );
+//      if ( Degree.row() != this->row() ) ComputeDegree();
+//      return Degree;
+//    };
 
-    Data<T> &GetDegree()
-    {
-      assert( is_symmetric );
-      if ( Degree.row() != this->row() ) ComputeDegree();
-      return Degree;
-    };
-
-    void NormalizedMultiply( size_t nrhs, T *u, T *w )
-    {
-      assert( is_symmetric );
-      if ( Degree.row() != this->row() ) 
-      {
-        ComputeDegree();
-      }
-      Data<T> invDw( this->row(), (size_t)1, 0.0 );
-
-      /** D^{-1/2}w */
-      for ( size_t i = 0; i < this->row(); i ++ )
-      {
-        u[ i ] = 0.0;
-        invDw[ i ] = w[ i ] / std::sqrt( Degree[ i ] );
-      }
-
-      /** KD^{-1/2}w */
-      Multiply( nrhs, u, invDw.data() );
-
-      /** D^{-1/2}KD^{-1/2}w */
-      for ( size_t i = 0; i < this->row(); i ++ )
-        u[ i ] = u[ i ] / std::sqrt( Degree[ i ] );
-    };
-
-
-    /**
-     *
-     *
-     */ 
-    void Multiply( size_t nrhs, T* u, T* w )
-    {
-      vector<int> amap( this->row() );
-      vector<int> bmap( this->col() );
-      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
-      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
-
-      if ( nrhs == 1 )
-      {
-        gsks( &kernel, amap.size(), bmap.size(), d,
-                         u,                        amap.data(),
-            targets.data(), target_sqnorms.data(), amap.data(), 
-            sources.data(), source_sqnorms.data(), bmap.data(), 
-                         w,                        bmap.data() );
-      }
-      else
-      {
-        printf( "gsks with multiple rhs is not implemented yet\n" );
-        exit( 1 );
-      }
-    };
-
-    /** u( umap ) += K( amap, bmap ) * w( wmap ) */
-    template<typename TINDEX>
-    void Multiply( 
-        size_t nrhs,
-        vector<T, Allocator> &u, vector<TINDEX> &umap, 
-                                      vector<TINDEX> &amap,
-                                      vector<TINDEX> &bmap,
-        vector<T, Allocator> &w, vector<TINDEX> &wmap )
-    {
-      if ( nrhs == 1 )
-      {
-        gsks( &kernel, amap.size(), bmap.size(), d,
-                  u.data(),                        umap.data(),
-            targets.data(), target_sqnorms.data(), amap.data(), 
-            sources.data(), source_sqnorms.data(), bmap.data(), 
-                  w.data(),                        wmap.data() );
-      }
-      else
-      {
-        printf( "gsks with multiple rhs is not implemented yet\n" );
-        exit( 1 );
-      }
-    };
-
-    /** u( amap ) += K( amap, bmap ) * w( bmap ) */
-    template<typename TINDEX>
-    void Multiply( 
-        size_t nrhs,
-        vector<T, Allocator> &u,
-                           vector<TINDEX> &amap,
-                           vector<TINDEX> &bmap,
-        vector<T, Allocator> &w )
-    {
-      Multiply( nrhs, u, amap, amap, bmap, w, bmap );
-    };
+//    void NormalizedMultiply( size_t nrhs, T *u, T *w )
+//    {
+//      assert( is_symmetric );
+//      if ( Degree.row() != this->row() ) 
+//      {
+//        ComputeDegree();
+//      }
+//      Data<T> invDw( this->row(), (size_t)1, 0.0 );
+//
+//      /** D^{-1/2}w */
+//      for ( size_t i = 0; i < this->row(); i ++ )
+//      {
+//        u[ i ] = 0.0;
+//        invDw[ i ] = w[ i ] / std::sqrt( Degree[ i ] );
+//      }
+//
+//      /** KD^{-1/2}w */
+//      Multiply( nrhs, u, invDw.data() );
+//
+//      /** D^{-1/2}KD^{-1/2}w */
+//      for ( size_t i = 0; i < this->row(); i ++ )
+//        u[ i ] = u[ i ] / std::sqrt( Degree[ i ] );
+//    };
 
 
-    /** u += K * w */
-    void Multiply( size_t nrhs, vector<T, Allocator> &u, vector<T, Allocator> &w )
-    {
-      vector<int> amap( this->row() );
-      vector<int> bmap( this->col() );
-      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
-      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
-      Multiply( nrhs, u, amap, bmap, w );
-    };
-
-    void Multiply( Data<T, Allocator> &u, Data<T, Allocator> &w )
-    {
-      assert( u.row() == this->row() );
-      assert( w.row() == this->col() );
-      assert( u.col() == w.col() );
-      size_t nrhs = u.col();
-      Multiply( nrhs, u, w );
-    };
-
+//    /**
+//     *
+//     *
+//     */ 
+//    void Multiply( size_t nrhs, T* u, T* w )
+//    {
+//      vector<int> amap( this->row() );
+//      vector<int> bmap( this->col() );
+//      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
+//      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
+//
+//      if ( nrhs == 1 )
+//      {
+//        gsks( &kernel, amap.size(), bmap.size(), d,
+//                         u,                        amap.data(),
+//            targets.data(), target_sqnorms.data(), amap.data(), 
+//            sources.data(), source_sqnorms.data(), bmap.data(), 
+//                         w,                        bmap.data() );
+//      }
+//      else
+//      {
+//        printf( "gsks with multiple rhs is not implemented yet\n" );
+//        exit( 1 );
+//      }
+//    };
+//
+//    /** u( umap ) += K( amap, bmap ) * w( wmap ) */
+//    template<typename TINDEX>
+//    void Multiply( 
+//        size_t nrhs,
+//        vector<T, Allocator> &u, vector<TINDEX> &umap, 
+//                                      vector<TINDEX> &amap,
+//                                      vector<TINDEX> &bmap,
+//        vector<T, Allocator> &w, vector<TINDEX> &wmap )
+//    {
+//      if ( nrhs == 1 )
+//      {
+//        gsks( &kernel, amap.size(), bmap.size(), d,
+//                  u.data(),                        umap.data(),
+//            targets.data(), target_sqnorms.data(), amap.data(), 
+//            sources.data(), source_sqnorms.data(), bmap.data(), 
+//                  w.data(),                        wmap.data() );
+//      }
+//      else
+//      {
+//        printf( "gsks with multiple rhs is not implemented yet\n" );
+//        exit( 1 );
+//      }
+//    };
+//
+//    /** u( amap ) += K( amap, bmap ) * w( bmap ) */
+//    template<typename TINDEX>
+//    void Multiply( 
+//        size_t nrhs,
+//        vector<T, Allocator> &u,
+//                           vector<TINDEX> &amap,
+//                           vector<TINDEX> &bmap,
+//        vector<T, Allocator> &w )
+//    {
+//      Multiply( nrhs, u, amap, amap, bmap, w, bmap );
+//    };
+//
+//
+//    /** u += K * w */
+//    void Multiply( size_t nrhs, vector<T, Allocator> &u, vector<T, Allocator> &w )
+//    {
+//      vector<int> amap( this->row() );
+//      vector<int> bmap( this->col() );
+//      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
+//      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
+//      Multiply( nrhs, u, amap, bmap, w );
+//    };
+//
+//    void Multiply( Data<T, Allocator> &u, Data<T, Allocator> &w )
+//    {
+//      assert( u.row() == this->row() );
+//      assert( w.row() == this->col() );
+//      assert( u.col() == w.col() );
+//      size_t nrhs = u.col();
+//      Multiply( nrhs, u, w );
+//    };
+//
 
     void Print()
     {
@@ -635,7 +635,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
       DistData<STAR, CBLK, TP> &targets, 
       mpi::Comm comm 
     )
-    : all_dimensions( d ), sources_user( sources ), targets_user( target ),
+    : all_dimensions( d ), sources_user( sources ), targets_user( targets ),
       DistVirtualMatrix<T>( m, n, comm )
     {
       this->is_symmetric = false;
@@ -968,14 +968,14 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
       return sample; 
     };
 
-    void ComputeDegree()
-    {
-      printf( "ComputeDegree(): K * ones\n" );
-      assert( is_symmetric );
-      Data<T> ones( this->row(), (size_t)1, 1.0 );
-      Degree.resize( this->row(), (size_t)1, 0.0 );
-      Multiply( 1, Degree, ones );
-    };
+//    void ComputeDegree()
+//    {
+//      printf( "ComputeDegree(): K * ones\n" );
+//      assert( is_symmetric );
+//      Data<T> ones( this->row(), (size_t)1, 1.0 );
+//      Degree.resize( this->row(), (size_t)1, 0.0 );
+//      Multiply( 1, Degree, ones );
+//    };
 
     void Print()
     {

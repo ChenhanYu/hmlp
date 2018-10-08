@@ -70,6 +70,20 @@ int main( int argc, char *argv[] )
   mpigofmm::randomsplit<SPDMatrix<T>, 2, T> rkdtsplitter1( K1 );
   /** [Step#4] Perform the iterative neighbor search. */
   auto neighbors1 = mpigofmm::FindNeighbors( K1, rkdtsplitter1, config1, CommGOFMM );
+  /** Here neighbors1 is distributed in DistData<STAR, CBLK, T> over CommGOFMM. */
+  int rank; mpi::Comm_rank( CommGOFMM, &rank );
+  int size; mpi::Comm_size( CommGOFMM, &size );
+  printf( " rank/size %d/%d owns %lu/%lu rows and %lu/%lu columns of neighbors1\n ", 
+      rank, size, 
+      neighbors1.row_owned(), neighbors1.row(),
+      neighbors1.col_owned(), neighbors1.col() );
+  /** To be specific, this is called Elemental distribution (cylic distribution). */
+  for ( int i = 0; i < std::min( k, (size_t)10 ); i ++ )
+    printf( "rank/size %d/%d [%E,%5lu]\n", rank, size,
+        neighbors1( i, rank ).first, neighbors1( i, rank ).second );
+  for ( int i = 0; i < std::min( k, (size_t)10 ); i ++ )
+    printf( "rank/size %d/%d [%E,%5lu]\n", rank, size,
+        neighbors1( i, rank + size ).first, neighbors1( i, rank + size ).second );
 
 	/** [Step#1] Create a configuration for kernel matrices. */
 	gofmm::Configuration<T> config2( GEOMETRY_DISTANCE, n, m, k, s, stol, budget );

@@ -272,7 +272,7 @@ class Data : public ReadWrite, public vector<T, Allocator>
     };
 
    
-    T* rowdata( size_t i )
+    T* rowdata( size_t i ) 
     {
       assert( i < m );
       return ( this->data() + i );
@@ -284,17 +284,9 @@ class Data : public ReadWrite, public vector<T, Allocator>
       return ( this->data() + j * m );
     };
 
-		template<typename TINDEX>
-		T getvalue( TINDEX i )
-		{
-			return (*this)[ i ];
-		};
+		T getvalue( size_t i ) { return (*this)[ i ]; };
 
-		template<typename TINDEX>
-		void setvalue( TINDEX i, T v )
-		{
-			(*this)[ i ] = v;
-		};
+		void setvalue( size_t i, T v ) { (*this)[ i ] = v; };
 
 		T getvalue( size_t i, size_t j ) { return (*this)( i, j ); };
 
@@ -331,11 +323,10 @@ class Data : public ReadWrite, public vector<T, Allocator>
     }; 
 
     /** ESSENTIAL: */
-    template<typename TINDEX>
-    pair<T, TINDEX> ImportantSample( TINDEX j )
+    pair<T, size_t> ImportantSample( size_t j )
     {
-      TINDEX i = std::rand() % m;
-      pair<T, TINDEX> sample( (*this)( i, j ), i );
+      size_t i = std::rand() % m;
+      pair<T, size_t> sample( (*this)( i, j ), i );
       return sample; 
     };
 
@@ -565,17 +556,19 @@ class Data : public ReadWrite, public vector<T, Allocator>
 
 
 
-#ifdef HMLP_MIC_AVX512
-template<bool SYMMETRIC, typename T, class Allocator = hbw::allocator<T> >
-#else
-template<bool SYMMETRIC, typename T, class Allocator = std::allocator<T> >
-#endif
-class CSC : public ReadWrite
+template<typename T, class Allocator = std::allocator<T> >
+class SparseData : public ReadWrite
 {
   public:
 
-    template<typename TINDEX>
-    CSC( TINDEX m, TINDEX n, TINDEX nnz )
+    /** (Default) constructor. */
+    SparseData( size_t m = 0, size_t n = 0, size_t nnz = 0, bool issymmetric = true )
+    {
+      Resize( m, n, nnz, issymmetric );
+    };
+
+    /** Adjust the storage size. */
+    void Resize( size_t m, size_t n, size_t nnz, bool issymmetric )
     {
       this->m = m;
       this->n = n;
@@ -583,18 +576,14 @@ class CSC : public ReadWrite
       this->val.resize( nnz, 0.0 );
       this->row_ind.resize( nnz, 0 );
       this->col_ptr.resize( n + 1, 0 );
-    };
+      this->issymmetric = issymmetric;
+    }; /** end Resize() */
 
-    // Construct from three arrays.
-    // val[ nnz ]
-    // row_ind[ nnz ]
-    // col_ptr[ n + 1 ]
-    // TODO: setup full_row_ind
-    template<typename TINDEX>
-    CSC( TINDEX m, TINDEX n, TINDEX nnz, T *val, TINDEX *row_ind, TINDEX *col_ptr ) 
-    : CSC( m, n, nnz )
+    /** Construct from three arrays: val[ nnz ],row_ind[ nnz ], and col_ptr[ n + 1 ]. */
+    void fromCSC( size_t m, size_t n, size_t nnz, bool issymmetric,
+        const T *val, const size_t *row_ind, const size_t *col_ptr ) 
     {
-      assert( val ); assert( row_ind ); assert( col_ptr );
+      Resize( m, n, nnz, issymmetric );
       for ( size_t i = 0; i < nnz; i ++ )
       {
         this->val[ i ] = val[ i ];
@@ -604,61 +593,48 @@ class CSC : public ReadWrite
       {
         this->col_ptr[ j ] = col_ptr[ j ];
       }
-    };
+    }; /** end fromCSC()*/
 
-    ~CSC() {};
-
-    template<typename TINDEX>
-    inline T operator()( TINDEX i, TINDEX j )
+    /** Retrive an element K( i, j ).  */
+    T operator () ( size_t i, size_t j ) const
     {
-      if ( SYMMETRIC && ( i < j  ) ) std::swap( i, j );
-      size_t row_beg = col_ptr[ j ];
-      size_t row_end = col_ptr[ j + 1 ];
-      auto lower = std::lower_bound
-                   ( 
-                     row_ind.begin() + row_beg, 
-                     row_ind.begin() + row_end,
-                     i
-                   );
-      if ( *lower == i )
-      {
-        return val[ std::distance( row_ind.begin(), lower ) ];
-      }
-      else
-      {
-        return 0.0;
-      }
-    };
+      if ( issymmetric && i < j ) std::swap( i, j );
+      auto row_beg = col_ptr[ j ];
+      auto row_end = col_ptr[ j + 1 ];
+      /** Early return if there is no nonzero entry in this column. */
+      if ( row_beg == row_end ) return 0;
+      /** Search (BST) for row indices. */
+      auto lower = find( row_ind.begin() + row_beg, row_ind.begin() + row_end - 1, i );
+      //if ( lower != row_ind.end() ) printf( "lower %lu, i %lu, j %lu, row_beg %lu, row_end %lu\n", 
+      //    *lower, i, j, row_beg, row_end ); fflush( stdout );
+      /** If the lower bound matches, then return the value. */
+      if ( *lower == i ) return val[ distance( row_ind.begin(), lower ) ];
+      /** Otherwise, return 0. */
+      return 0;
+    }; /** end operator () */
 
-    template<typename TINDEX>
-    inline hmlp::Data<T> operator()( std::vector<TINDEX> &imap, std::vector<TINDEX> &jmap )
+    /** Retrive a subblock K( I, J ).*/
+    Data<T> operator()( const vector<size_t> &I, const vector<size_t> &J ) const
     {
-      hmlp::Data<T> submatrix( imap.size(), jmap.size() );
-      #pragma omp parallel for
-      for ( int j = 0; j < jmap.size(); j ++ )
-      {
-        for ( int i = 0; i < imap.size(); i ++ )
-        {
-          submatrix[ j * imap.size() + i ] = (*this)( imap[ i ], jmap[ j ] );
-        }
-      }
-      return submatrix;
-    }; 
+      Data<T> KIJ( I.size(), J.size() );
+      /** Evaluate Kij element by element. */
+      for ( size_t j = 0; j < J.size(); j ++ )
+        for ( size_t i = 0; i < I.size(); i ++ )
+          KIJ( i, j ) = (*this)( I[ i ], J[ j ] );
+      /** Return submatrix KIJ. */
+      return KIJ;
+    }; /** end operator () */ 
 
-    template<typename TINDEX>
-    std::size_t ColPtr( TINDEX j ) { return col_ptr[ j ]; };
+    size_t ColPtr( size_t j ) { return col_ptr[ j ]; };
 
-    template<typename TINDEX>
-    std::size_t RowInd( TINDEX offset ) { return row_ind[ offset ]; };
+    size_t RowInd( size_t offset ) { return row_ind[ offset ]; };
 
-    template<typename TINDEX>
-    T Value( TINDEX offset ) { return val[ offset ]; };
+    T Value( size_t offset ) { return val[ offset ]; };
 
-    template<typename TINDEX>
-    std::pair<T, TINDEX> ImportantSample( TINDEX j )
+    pair<T, size_t> ImportantSample( size_t j )
     {
       size_t offset = col_ptr[ j ] + rand() % ( col_ptr[ j + 1 ] - col_ptr[ j ] );
-      std::pair<T, TINDEX> sample( val[ offset ], row_ind[ offset ] );
+      pair<T, size_t> sample( val[ offset ], row_ind[ offset ] );
       return sample; 
     };
 
@@ -682,17 +658,17 @@ class CSC : public ReadWrite
      *         part is stored
      */ 
     template<bool LOWERTRIANGULAR, bool ISZEROBASE, bool IJONLY = false>
-    void readmtx( std::string &filename )
+    void readmtx( string &filename )
     {
       size_t m_mtx, n_mtx, nnz_mtx;
 
-      std::vector<std::deque<size_t>> full_row_ind( n );
-      std::vector<std::deque<T>> full_val( n );
+      vector<deque<size_t>> full_row_ind( n );
+      vector<deque<T>> full_val( n );
 
       // Read all tuples.
       printf( "%s ", filename.data() ); fflush( stdout );
-      std::ifstream file( filename.data() );
-      std::string line;
+      ifstream file( filename.data() );
+      string line;
       if ( file.is_open() )
       {
         size_t nnz_count = 0;
@@ -811,20 +787,22 @@ class CSC : public ReadWrite
     };
 
 
-    std::size_t row() { return m; };
+    size_t row() { return m; };
 
-    std::size_t col() { return n; };
-
+    size_t col() { return n; };
+    
     template<typename TINDEX>
     double flops( TINDEX na, TINDEX nb ) { return 0.0; };
 
   private:
 
-    size_t m;
+    size_t m = 0;
 
-    size_t n;
+    size_t n = 0;
 
-    size_t nnz;
+    size_t nnz = 0;
+
+    bool issymmetric = false;
 
     vector<T, Allocator> val;
 
@@ -832,7 +810,7 @@ class CSC : public ReadWrite
    
     vector<size_t> col_ptr;
 
-}; // end class CSC
+}; /** end class CSC */
 
 
 

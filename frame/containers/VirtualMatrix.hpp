@@ -85,17 +85,16 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
     virtual void resize( size_t m, size_t n ) { this->m = m; this->n = n; };
 
     /** ESSENTIAL: return number of coumns */
-    virtual size_t row() { return m; };
+    size_t row() { return m; };
 
     /** ESSENTIAL: return number of rows */
-    virtual size_t col() { return n; };
+    size_t col() { return n; };
 
     /** ESSENTIAL: this is an abstract function  */
-    virtual T operator()( size_t i, size_t j ) = 0; 
+    virtual T operator () ( size_t i, size_t j ) = 0; 
 
     /** ESSENTIAL: return a submatrix */
-    virtual Data<T> operator() ( const vector<size_t> &I, 
-                                 const vector<size_t> &J )
+    virtual Data<T> operator() ( const vector<size_t> &I, const vector<size_t> &J )
     {
       Data<T> KIJ( I.size(), J.size() );
       for ( size_t j = 0; j < J.size(); j ++ )
@@ -104,8 +103,7 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
       return KIJ;
     };
 
-    virtual Data<T> KernelDistances( const vector<size_t> &I, 
-                                     const vector<size_t> &J )
+    Data<T> KernelDistances( const vector<size_t> &I, const vector<size_t> &J )
     {
       auto KIJ = (*this)( I, J );
       auto DII = Diagonal( I );
@@ -123,8 +121,7 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
       return KIJ;
     };
 
-    virtual Data<T> AngleDistances( const vector<size_t> &I, 
-                                    const vector<size_t> &J )
+    Data<T> AngleDistances( const vector<size_t> &I, const vector<size_t> &J )
     {
       auto KIJ = (*this)( I, J );
       auto DII = Diagonal( I );
@@ -142,24 +139,20 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
       return KIJ;
     };
 
-    virtual Data<T> UserDistances( const vector<size_t> &I, 
-                                   const vector<size_t> &J )
+    virtual Data<T> UserDistances( const vector<size_t> &I, const vector<size_t> &J )
     {
       printf( "UserDistances(): not defined.\n" ); exit( 1 );
       return Data<T>( I.size(), J.size(), 0 );
     };
     
-    virtual Data<T> GeometryDistances( const vector<size_t> &I, 
-                                       const vector<size_t> &J )
+    virtual Data<T> GeometryDistances( const vector<size_t> &I, const vector<size_t> &J )
     {
       printf( "GeometricDistances(): not defined.\n" ); exit( 1 );
       return Data<T>( I.size(), J.size(), 0 );
     };
 
 
-    virtual Data<T> Distances( DistanceMetric metric,
-                               const vector<size_t> &I, 
-                               const vector<size_t> &J )
+    Data<T> Distances( DistanceMetric metric, const vector<size_t> &I, const vector<size_t> &J )
     {
       switch ( metric )
       {

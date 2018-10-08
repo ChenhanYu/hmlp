@@ -1,3 +1,5 @@
+- Switch to smart pointer if possible.
+
 -HMLP:
 
 need to clean up all gpu memory 
