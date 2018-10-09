@@ -38,9 +38,7 @@
 
 #include <hmlp_tci.hpp>
 
-#ifdef HMLP_HAVE_RUNTIME
 #include <hmlp_device.hpp>
-#endif /** ifdef HMLP_HAVE_RUNTIME */
 
 
 
@@ -280,7 +278,6 @@ class Worker
 
 
 
-#ifdef HMLP_HAVE_RUNTIME
 
     void SetDevice( class Device *device );
 
@@ -305,8 +302,6 @@ class Worker
     class Task *current_task = NULL;
 
     class Device *device = NULL;
-
-#endif /** ifdef HMLP_HAVE_RUNTIME */
 
 
 }; /** end class Worker */

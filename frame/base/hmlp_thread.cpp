@@ -19,13 +19,8 @@
  **/  
 
 
-#include <hmlp_thread.hpp>
-
-#ifdef HMLP_HAVE_RUNTIME
 #include <hmlp_runtime.hpp>
-#else
-#warning HMLP runtime system is not compiled (-HMLP_HAVE_RUNTIME=false)
-#endif /** ifdef HMLP_HAVE_RUNTIME */
+#include <hmlp_thread.hpp>
 
 
 using namespace std;
@@ -548,7 +543,6 @@ tuple<size_t, size_t, size_t> Worker::DistributeOver1DThreads(
 
 
 
-#ifdef HMLP_HAVE_RUNTIME
 
 
 
@@ -641,7 +635,6 @@ void Worker::WaitExecute() { if ( device ) device->waitexecute(); };
 
 float Worker::EstimateCost( class Task *task ) { return task->cost; };
 
-#endif /** ifdef HMLP_HAVE_RUNTIME */
 
 
 

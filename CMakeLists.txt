@@ -230,13 +230,6 @@ elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "skx")
 endif()
 
 
-# ---[ Whether to compile the runtime system
-if ($ENV{HMLP_HAVE_RUNTIME} MATCHES "true")
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DHMLP_HAVE_RUNTIME")
-endif()
-
-
-
 # ---[ Configure the path structure.
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
