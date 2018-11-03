@@ -41,7 +41,7 @@ class SPDMatrix : public VirtualMatrix<T>
     };
 
     template<bool USE_LOWRANK=true>
-    void randspd( T a, T b ) { K.randspd<USE_LOWRANK>( a, b ); };
+    void randspd( T a, T b ) { K.randspd( a, b ); };
 
     void read( size_t m, size_t n, string &filename ) 
     { 

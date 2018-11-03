@@ -1280,7 +1280,6 @@ void RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
       mpi::Initialized( &is_mpi_init );
       if ( !is_mpi_init )
       {
-
       }
 
       scheduler = new Scheduler( comm );

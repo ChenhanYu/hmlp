@@ -412,7 +412,7 @@ class Data : public ReadWrite, public vector<T, Allocator>
 
     void randn() { randn( 0.0, 1.0 ); };
 
-    template<bool USE_LOWRANK>
+    template<bool USE_LOWRANK=true>
     void randspd( T a, T b )
     {
       std::default_random_engine generator;

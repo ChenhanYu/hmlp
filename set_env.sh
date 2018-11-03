@@ -4,10 +4,10 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-#export CC=gcc
-#export CXX=g++
-export CC=icc
-export CXX=icpc
+export CC=gcc
+export CXX=g++
+#export CC=icc
+#export CXX=icpc
 #export CC=/usr/local/Cellar/llvm/7.0.0/bin/clang
 #export CXX=/usr/local/Cellar/llvm/7.0.0/bin/clang++
 #export CC=/usr/local/Cellar/gcc/8.2.0/bin/gcc-8
@@ -19,7 +19,7 @@ export CXX=icpc
 export HMLP_USE_BLAS=true
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
-export MKLROOT=/opt/intel/mkl
+export MKLROOT=
 export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
@@ -33,7 +33,7 @@ export BLISROOT=
 export BLISROOT=${BLISROOT}
 
 ## Make sure NETLIBROOT is defined. (icc/icpc, gcc/g++)
-export NETLIBROOT=/lib64
+export NETLIBROOT=/usr/lib
 export NETLIBROOT=${NETLIBROOT}
 
 

@@ -51,7 +51,6 @@ int main( int argc, char *argv[] )
 
   /** [Step#0] HMLP API call to initialize the runtime. */
   hmlp_init( &argc, &argv );
-
 	/** [Step#1] Create a configuration for generic SPD matrices. */
   gofmm::Configuration<T> config1( ANGLE_DISTANCE, n, m, k, s, stol, budget );
   /** [Step#2] Create a dense random SPD matrix. */
