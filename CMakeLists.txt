@@ -47,6 +47,7 @@ if ( APPLE )
   message( STATUS "MacOS detected")
   set (CMAKE_MACOSX_RPATH TRUE)
 endif ()
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
 # ---[ Download dependencies.
@@ -91,37 +92,37 @@ if ("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -Xpreprocessor -fopenmp -L/usr/local/opt/libomp/lib -lomp")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -fPIC -D_POSIX_C_SOURCE=200112L")
   set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp -arch x86_64 -m64")
-  set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
+  string(APPEND CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
 elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
 
   # using GCC
   message( STATUS "GNU compiler." ) 
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -fopenmp")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -fopenmp -m64")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -fPIC -D_POSIX_C_SOURCE=200112L")
   set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp -arch x86_64 -m64")
-  set (CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
+  string(APPEND CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
 
   # using Intel C++
   message( STATUS "Intel compiler." )
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -qopenmp")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -qopenmp -m64")
   #set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Werror -Wall -pedantic -fPIC")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Wall -pedantic -fPIC -D_POSIX_C_SOURCE=200112L")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_INTEL")
   set (HMLP_PYTHON_CFLAGS     "-g -std=c++11 -O3 -qopenmp -arch x86_64 -m64")
-  set (CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp")
+  string(APPEND CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp -lm")
 
 endif()
 
 # Software dependencies.
 # ---------------------------
-set (MKLROOT      $ENV{MKLROOT})
-set (BLISROOT     $ENV{BLISROOT})
-set (OPENBLASROOT $ENV{OPENBLASROOT})
-set (QSMLROOT     $ENV{QSMLROOT})
-
+set(MKLROOT      $ENV{MKLROOT})
+set(BLISROOT     $ENV{BLISROOT})
+set(OPENBLASROOT $ENV{OPENBLASROOT})
+set(NETLIBROOT   $ENV{NETLIBROOT})
+set(QSMLROOT     $ENV{QSMLROOT})
 
 # Try to detect and link BLAS/LAPACK
 # ---------------------------
@@ -135,42 +136,18 @@ if ($ENV{HMLP_USE_BLAS} MATCHES "true")
     message( STATUS "Use MKL for BLAS/LAPACK" )
     set (HMLP_CFLAGS "${HMLP_CFLAGS} -DUSE_VML -mkl=parallel")
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mkl=parallel")
-    include_directories ("${MKLROOT}/include")
   else ()
-
     # Look for OpenBLAS or built-in BLAS/LAPACK libraries.
     if ( OPENBLASROOT )
       message( STATUS "Use OpenBLAS for BLAS/LAPACK" )
       set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${OPENBLASROOT} -lopenblas")
+    elseif ( NETLIBROOT )
+      message( STATUS "Use NETLIB BLAS/LAPACK" )
+      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${NETLIBROOT} -lblas -llapack")
     else ()
-      # Check if built-in BLAS is available.
-      message( STATUS "Use built-in BLAS/LAPACK from /usr/lib" )
-      set (HMLP_CFLAGS "${HMLP_CFLAGS} -lblas -llapack")
-      set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lblas -llapack")
-      # set(BLAS_DIR "/usr/lib")
-      # set(LAPACK_DIR "/usr/lib")
-      # find_package(BLAS REQUIRED)
-      # find_package(LAPACK REQUIRED)
-      # if ( BLAS_LINKER_FLAGS )
-      #   message( "${BLAS_LINKER_FLAGS}" )
-      #   message( "${BLAS_LIBRARIES}" )
-      #   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS}")
-      # else ()
-      #   message( WARNING "cmake FindBLAS fails to generate a proper linker for BLAS" )
-      #   message( FATAL_ERROR "fail to link to a BLAS library. Try to set HMLP_USE_BLAS=false." )  
-      # endif ()
-      # # Check if built-in LAPACK is available.
-      # if ( LAPACK_LINKER_FLAGS )
-      #   message("${LAPACK_LINKER_FLAGS}")
-      #   message("${LAPACK_LIBRARIES}")
-      #   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS}")
-      # else ()
-      #   message( WARNING "cmake FindBLAS fails to generate a proper linker for LAPACK" )
-      #   message( FATAL_ERROR "fail to link to a LAPACK library. Try to set HMLP_USE_BLAS=false." )  
-      # endif ()
+      message( FATAL_ERROR "fail to link to BLAS/LAPACK library. Try to set HMLP_USE_BLAS=false." )  
     endif()
-  endif ()
-     
+  endif ()     
 else ()
   # HMLP will still compile, but the behavior of GOFMM is undefined.
   message( WARNING "compile without BLAS/LAPACK. GOFMM will not be available.")
@@ -226,7 +203,8 @@ elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "sandybridge")
 elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "haswell")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -mavx")
 elseif ($ENV{HMLP_ARCH_MINOR} MATCHES "skx")
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512")
+  #set (HMLP_CFLAGS            "${HMLP_CFLAGS} -xCORE-AVX2 -axCORE-AVX512,MIC-AVX512")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -march=skylake -mavx -mavx2 -mavx512f")
 endif()
 
 
@@ -292,8 +270,11 @@ endif ()
 
 # Remove -rdynamic
 # ---------------------------
+#message(${CMAKE_SHARED_LIBRARY_LINK_C_FLAGS})
+#message(${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS})
 set (CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 set (CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
+
 
 
 
@@ -403,9 +384,9 @@ foreach( testsrc ${TEST_CXX_SRC} )
   string( REPLACE ".cpp" ".x" testexe ${testsrc} )
   get_filename_component( testexe ${testsrc} NAME_WE )
   add_executable( "${testexe}.x" ${testsrc} )
-  target_link_libraries( "${testexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
-  set_target_properties( "${testexe}.x" PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
-  set_target_properties( "${testexe}.x" PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+  target_link_libraries("${testexe}.x" hmlp ${MPI_CXX_LIBRARIES})
+  set_target_properties("${testexe}.x" PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+  set_target_properties("${testexe}.x" PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
   if ($ENV{HMLP_USE_CUDA} MATCHES "true")
     target_link_libraries( "${testexe}.x" cudart )
     cuda_add_cublas_to_target( "${testexe}.x" )
@@ -497,6 +478,7 @@ message("CXX          =${CMAKE_CXX_COMPILER}")
 message("CXXFLAGS     =${CMAKE_CXX_FLAGS}")
 message("CXX Linker   =${CMAKE_CXX_LINK_FLAGS}")
 message("EXE Linker   =${CMAKE_EXE_LINKER_FLAGS}")
+message("EXE Linker   =${CMAKE_SHARED_LINKER_FLAGS}")
 message("MPICXX       =${MPI_CXX_COMPILER}")
 message("MPICXXFLAGS  =${MPI_CXX_COMPILE_FLAGS}")
 message("MPICXXINCLUDE=${MPI_CXX_INCLUDE_PATH}")

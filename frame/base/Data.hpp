@@ -469,7 +469,14 @@ class Data : public ReadWrite, public vector<T, Allocator>
     void Print()
     {
       printf( "Data in %lu * %lu\n", m, n );
-      hmlp_printmatrix( m, n, this->data(), m );
+      if ( m < 11 && n < 7 )
+      {
+        hmlp_printmatrix( m, n, this->data(), m );
+      }
+      else
+      {
+        hmlp_printmatrix( 10, 6, this->data(), m );
+      }
     };
 
     void WriteFile( char *name )
@@ -730,7 +737,7 @@ class SparseData : public ReadWrite
             full_row_ind[ j ].push_back( i );
             full_val[ j ].push_back( v );
 
-            if ( !SYMMETRIC && LOWERTRIANGULAR && i > j  )
+            if ( LOWERTRIANGULAR && i > j  )
             {
               full_row_ind[ i ].push_back( j );
               full_val[ i ].push_back( v );

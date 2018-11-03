@@ -28,6 +28,8 @@
 #include <tuple>
 #include <limits>
 #include <algorithm>
+#include <type_traits>
+#include <cstdint>
 #include <omp.h>
 
 
@@ -312,12 +314,8 @@ int hmlp_count_error
 
 
 
-template<bool IGNOREZERO=false, bool COLUMNINDEX=false, typename T>
-void hmlp_printmatrix
-(
-  int m, int n,
-  T *A, int lda
-)
+template<bool IGNOREZERO=false, bool COLUMNINDEX=true, typename T>
+void hmlp_printmatrix( int m, int n, T *A, int lda )
 {
   if ( COLUMNINDEX )
   {
@@ -325,37 +323,75 @@ void hmlp_printmatrix
     {
       if ( j % 5 == 0 || j == 0 || j == n - 1 ) 
       {
-        printf( "col[%4d] ", j );
+        if ( is_same<T, pair<double, size_t>>::value || is_same<T, pair<float, size_t>>::value ) 
+        {
+          printf( "col[%10d] ", j );
+        }
+        else
+        {
+          printf( "col[%4d] ", j );
+        }
       }
       else
       {
-        printf( "          " );
+        if ( is_same<T, pair<double, size_t>>::value || is_same<T, pair<float, size_t>>::value ) 
+        {
+          printf( "                " );
+        }
+        else
+        {
+          printf( "          " );
+        }
       }
     }
     printf( "\n" );
-    printf( "===========================================================\n" );
+    if ( is_same<T, pair<double, size_t>>::value || is_same<T, pair<float, size_t>>::value ) 
+    {
+      printf( "===============================================================================\n" );
+    }
+    else
+    {
+      printf( "===========================================================\n" );
+    }
   }
   printf( "A = [\n" );
   for ( int i = 0; i < m; i ++ ) 
   {
     for ( int j = 0; j < n; j ++ ) 
     {
-      // Cast into double precision.
-      //printf( "%13E ", (double) A[ j * lda + i ] );
-      if ( IGNOREZERO )
+      if ( is_same<T, pair<double, size_t>>::value ) 
       {
-        if ( std::fabs( A[ j * lda + i ] ) < 1E-15 )
+        auto* A_pair = reinterpret_cast<pair<double, size_t>*>( A );
+        printf( "(% .1E,%5lu)", (double) A_pair[ j * lda + i ].first, A_pair[ j * lda + i ].second );
+      }
+      else if ( is_same<T, pair<float, size_t>>::value )
+      {
+        auto* A_pair = reinterpret_cast<pair<float, size_t>*>( A );
+        printf( "(% .1E,%5lu)", (double) A_pair[ j * lda + i ].first, A_pair[ j * lda + i ].second );
+      }
+      else if ( is_same<T, double>::value )
+      {
+        auto* A_double = reinterpret_cast<double*>( A );
+        if ( std::fabs( A_double[ j * lda + i ] ) < 1E-15 )
         {
           printf( "          " );
         }
         else
         {
-          printf( "% .4E ", (double) A[ j * lda + i ] );
+          printf( "% .4E ", (double) A_double[ j * lda + i ] );
         }
       }
-      else
+      else if ( is_same<T, double>::value )
       {
-        printf( "% .4E ", (double) A[ j * lda + i ] );
+        auto* A_float = reinterpret_cast<float*>( A );
+        if ( std::fabs( A_float[ j * lda + i ] ) < 1E-15 )
+        {
+          printf( "          " );
+        }
+        else
+        {
+          printf( "% .4E ", (double) A_float[ j * lda + i ] );
+        }
       }
     }
     printf(";\n");

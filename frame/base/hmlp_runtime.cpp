@@ -1436,6 +1436,12 @@ void RunTime::ExitWithError( string msg )
 /** @brief */
 hmlp::Device *hmlp_get_device_host() { return &(hmlp::rt.host); };
 
+void hmlp_msg_dependency_analysis( int key, int p, ReadWriteType type, Task *task )
+{
+  hmlp::rt.scheduler->MessageDependencyAnalysis( key, p, type, task );
+};
+
+
 }; /** end namespace hmlp */
 
 
@@ -1475,8 +1481,8 @@ int hmlp_get_mpi_rank() { return hmlp::rt.scheduler->GetCommRank(); };
 
 int hmlp_get_mpi_size() { return hmlp::rt.scheduler->GetCommSize(); };
 
-void hmlp_msg_dependency_analysis( int key, int p, ReadWriteType type, Task *task )
-{
-  hmlp::rt.scheduler->MessageDependencyAnalysis( key, p, type, task );
-};
+//void hmlp_msg_dependency_analysis( int key, int p, ReadWriteType type, Task *task )
+//{
+//  hmlp::rt.scheduler->MessageDependencyAnalysis( key, p, type, task );
+//};
 

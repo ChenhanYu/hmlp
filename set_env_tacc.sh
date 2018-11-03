@@ -5,7 +5,8 @@
 taccmachine=$(dnsdomainname)
 
 module load TACC
-module load intel
+#module load intel
+module load gcc/6.3.0
 module load cmake
 module load python
 
@@ -23,8 +24,11 @@ fi
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=icc
-export CXX=icpc
+#export CC=icc
+export CC=gcc
+#export CXX=icpc
+export CXX=g++
+
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
@@ -34,6 +38,9 @@ export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
 export OPENBLASROOT=${OPENBLASROOT}
+
+## Make sure NETLIBROOT is defined. (icc/icpc, gcc/g++)
+export NETLIBROOT=/usr/lib64
 
 ## Setup the maximum number of threads.
 export OMP_NUM_THREADS=10
@@ -83,9 +90,9 @@ if [[ ${taccmachine} == *"stampede2"* ]]; then
   #export HMLP_ARCH_MAJOR=mic
   #export HMLP_ARCH_MINOR=knl
   export HMLP_ARCH_MAJOR=x86_64
-  export HMLP_ARCH_MINOR=skx
+  #export HMLP_ARCH_MINOR=skx
   #export HMLP_ARCH_MAJOR=x86_64
-  #export HMLP_ARCH_MINOR=haswell
+  export HMLP_ARCH_MINOR=haswell
 fi
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
@@ -201,9 +208,6 @@ export HMLP_GPU_ARCH=$HMLP_GPU_ARCH_MAJOR/$HMLP_GPU_ARCH_MINOR
 export HMLP_ARCH=$HMLP_ARCH_MAJOR/$HMLP_ARCH_MINOR
 echo "HMLP_GPU_ARCH = $HMLP_GPU_ARCH"
 echo "HMLP_ARCH = $HMLP_ARCH"
-
-## Compiler options (if false, then use GNU compilers)
-echo "HMLP_USE_INTEL = $HMLP_USE_INTEL"
 
 ## use blas?
 echo "HMLP_USE_BLAS = $HMLP_USE_BLAS"

@@ -38,9 +38,9 @@
 #include <cstddef>
 #include <omp.h>
 
-#ifdef USE_INTEL
-#include <mkl.h>
-#endif
+//#ifdef USE_INTEL
+//#include <mkl.h>
+//#endif
 
 #ifdef USE_PTHREAD_RUNTIME
 #include <pthread.h>
@@ -55,6 +55,11 @@
 
 
 using namespace std;
+
+
+
+
+
 
 namespace hmlp
 {
@@ -258,6 +263,14 @@ class Task
     volatile bool is_created_in_epoch_session = false;
 
 }; /** end class Task */
+
+
+
+
+void hmlp_msg_dependency_analysis( 
+    int key, int p, hmlp::ReadWriteType type, hmlp::Task *task );
+
+
 
 
 /** @brief This is a specific type of task that represents NOP. */
@@ -753,8 +766,8 @@ int hmlp_get_mpi_rank();
 
 int hmlp_get_mpi_size();
 
-void hmlp_msg_dependency_analysis( 
-    int key, int p, hmlp::ReadWriteType type, hmlp::Task *task );
+//void hmlp_msg_dependency_analysis( 
+//    int key, int p, hmlp::ReadWriteType type, hmlp::Task *task );
 
 
 #endif /** define HMLP_RUNTIME_HPP */

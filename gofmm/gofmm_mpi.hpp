@@ -4074,7 +4074,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   skel_time = omp_get_wtime() - beg;
 
 	beg = omp_get_wtime();
-  tree.DistTraverseUp<false>( mpiGETMTXtask, mpiSKELtask );
+  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
   tree.DistTraverseUnOrdered( mpiPROJtask );
   tree.ExecuteAllTasks();
   mpi_skel_time = omp_get_wtime() - beg;

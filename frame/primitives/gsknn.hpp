@@ -23,10 +23,6 @@
 #ifndef GSKNN_HXX
 #define GSKNN_HXX
 
-#ifdef USE_VML
-#include <mkl.h>
-#endif
-
 #include <math.h>
 #include <vector>
 

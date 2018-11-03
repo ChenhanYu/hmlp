@@ -24,10 +24,6 @@
 #ifndef GSKS_HXX
 #define GSKS_HXX
 
-#ifdef USE_VML
-#include <mkl.h>
-#endif
-
 #include <math.h>
 #include <vector>
 
@@ -634,14 +630,10 @@ void gsks_ref
             C[ j * m + i ] += B2[ bmap[ j ] ];
             C[ j * m + i ] *= kernel->scal;
           }
-#ifdef USE_VML
-          vdExp( m, C.data() + j * m, C.data() + j * m );
-#else
           for ( int i = 0; i < m; i ++ ) 
           {
             C[ j * m + i ] = exp( C[ j * m + i ] );
           }
-#endif
         }
         break;
       }
@@ -658,14 +650,10 @@ void gsks_ref
             C[ j * m + i ] *= kernel->hi[ i ];
             C[ j * m + i ] *= kernel->hj[ j ];
           }
-#ifdef USE_VML
-          vdExp( m, C.data() + j * m, C.data() + j * m );
-#else
           for ( int i = 0; i < m; i ++ ) 
           {
             C[ j * m + i ] = exp( C[ j * m + i ] );
           }
-#endif
         }
         break;
       }

@@ -69,6 +69,7 @@ int main( int argc, char *argv[] )
   /** Neighbors are stored as Data<pair<T,size_t>> in k-by-n. */
   cout << "Number of neighboprs: " << neighbors1.row() << " number of queries: " << neighbors1.col() << endl;
   /** Access entries using operator () with 2 indices. */
+  neighbors1.Print();
   for ( int i = 0; i < std::min( k, (size_t)10 ); i ++ )
     printf( "[%E,%5lu]\n", neighbors1( i, 0 ).first, neighbors1( i, 0 ).second );
   /** Access entries using operator [] with 1 index (inherited from std::vector<T>). */

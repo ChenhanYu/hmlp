@@ -3248,17 +3248,18 @@ Data<T> Evaluate
 
     /** CPU-GPU hybrid uses a different kind of L2L task */
 #ifdef HMLP_USE_CUDA
-    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleafver2task );
+    tree.TraverseLeafs( leaftoleafver2task );
 #else
-    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleaftask1 );
-    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleaftask2 );
-    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleaftask3 );
-    tree.template TraverseLeafs    <USE_RUNTIME>( leaftoleaftask4 );
+    tree.TraverseLeafs( leaftoleaftask1 );
+    tree.TraverseLeafs( leaftoleaftask2 );
+    tree.TraverseLeafs( leaftoleaftask3 );
+    tree.TraverseLeafs( leaftoleaftask4 );
 #endif
-    tree.template TraverseUp       <USE_RUNTIME>( nodetoskeltask );
-    tree.template TraverseUnOrdered<USE_RUNTIME>( skeltoskeltask );
-    tree.template TraverseDown     <USE_RUNTIME>( skeltonodetask );
-    if ( USE_RUNTIME ) hmlp_run();
+    tree.TraverseUp( nodetoskeltask );
+    tree.TraverseUnOrdered( skeltoskeltask );
+    tree.TraverseDown( skeltonodetask );
+    tree.ExecuteAllTasks();
+    //if ( USE_RUNTIME ) hmlp_run();
 
 
     double d2h_beg_t = omp_get_wtime();
@@ -3486,7 +3487,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   NearSamplesTask<NODE, T> NEARSAMPLEStask;
   tree.DependencyCleanUp();
   printf( "Dependency clean up\n" ); fflush( stdout );
-  tree.TraverseLeafs<true>( NEARSAMPLEStask );
+  tree.TraverseLeafs( NEARSAMPLEStask );
   tree.ExecuteAllTasks();
   //hmlp_run();
   printf( "Finish NearSamplesTask\n" ); fflush( stdout );
@@ -3506,11 +3507,11 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   gofmm::InterpolateTask<NODE> PROJtask;
   tree.DependencyCleanUp();
   tree.TraverseUp( GETMTXtask, SKELtask );
-  tree.TraverseUnOrdered<true>( PROJtask );
+  tree.TraverseUnOrdered( PROJtask );
   if ( CACHE )
   {
     gofmm::CacheNearNodesTask<NNPRUNE, NODE> KIJtask;
-    tree.template TraverseLeafs<true>( KIJtask );
+    tree.template TraverseLeafs( KIJtask );
   }
   other_time += omp_get_wtime() - beg;
   hmlp_run();

@@ -1115,7 +1115,8 @@ class Tree
       /** Recursive spliting (topdown). */
       beg = omp_get_wtime();
       SplitTask<NODE> splittask;
-      TraverseDown<false>( splittask );
+      TraverseDown( splittask );
+      ExecuteAllTasks();
       split_time = omp_get_wtime() - beg;
 
 
@@ -1134,10 +1135,10 @@ class Tree
         morton2node[ treelist[ i ]->morton ] = treelist[ i ];
       }
 
-
       /** Adgust gids to the appropriate order.  */
       IndexPermuteTask<NODE> indexpermutetask;
-      TraverseUp<false>( indexpermutetask );
+      TraverseUp( indexpermutetask );
+      ExecuteAllTasks();
 
     }; /** end TreePartition() */
 
@@ -1193,7 +1194,8 @@ class Tree
         size_t num_acc = 0;
         /** Randomize metric tree and exhausted search for each leaf node. */
         TreePartition();
-        TraverseLeafs<false>( dummy );
+        TraverseLeafs( dummy );
+        ExecuteAllTasks();
 
         size_t n_nodes = 1 << depth;
         auto level_beg = treelist.begin() + n_nodes - 1;
@@ -1299,16 +1301,16 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
+    template<typename TASK, typename... Args>
     void TraverseLeafs( TASK &dummy, Args&... args )
     {
-      /** contain at lesat one tree node */
+      /** Contain at lesat one tree node. */
       assert( this->treelist.size() );
 
       int n_nodes = 1 << this->depth;
       auto level_beg = this->treelist.begin() + n_nodes - 1;
 
-      if ( USE_RUNTIME )
+      if ( out_of_order_traversal )
       {
         for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
@@ -1333,7 +1335,7 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
+    template<typename TASK, typename... Args>
     void TraverseUp( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
@@ -1356,7 +1358,7 @@ class Tree
         auto level_beg = this->treelist.begin() + n_nodes - 1;
 
 
-        if ( USE_RUNTIME )
+        if ( out_of_order_traversal )
         {
           /** loop over each node at level-l */
           for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -1384,7 +1386,7 @@ class Tree
 
 
 
-    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
+    template<typename TASK, typename... Args>
     void TraverseDown( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
@@ -1404,7 +1406,7 @@ class Tree
         size_t n_nodes = 1 << l;
         auto level_beg = this->treelist.begin() + n_nodes - 1;
 
-        if ( USE_RUNTIME )
+        if ( out_of_order_traversal )
         {
           /** loop over each node at level-l */
           for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -1433,10 +1435,10 @@ class Tree
      *  @brief For unordered traversal, we just call local
      *         downward traversal.
      */ 
-    template<bool USE_RUNTIME=true, typename TASK, typename... Args>
+    template<typename TASK, typename... Args>
     void TraverseUnOrdered( TASK &dummy, Args&... args )
     {
-      TraverseDown<USE_RUNTIME>( dummy, args... );
+      TraverseDown( dummy, args... );
     }; /** end TraverseUnOrdered() */
 
 
@@ -1462,6 +1464,8 @@ class Tree
     }; /** end ExecuteAllTasks() */
 
 
+    bool DoOutOfOrder() { return out_of_order_traversal; };
+
 
     /** @brief Summarize all events in each level. */ 
     template<typename SUMMARY>
@@ -1483,6 +1487,8 @@ class Tree
 
 
   private:
+
+    bool out_of_order_traversal = true;
 
   protected:
 

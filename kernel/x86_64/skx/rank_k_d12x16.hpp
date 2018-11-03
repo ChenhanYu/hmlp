@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <hmlp_internal.hpp>
-
+#include <packing.hpp>
 
 /** BLIS kernel prototype declaration */ 
 BLIS_GEMM_KERNEL(bli_sgemm_opt_12x32_l2,float);

@@ -228,7 +228,6 @@ class Factor
      *
      *
      **/
-    template<bool SYMMETRIC>
     void Factorize
     ( 
       /** Ul,  nl-by-sl */
@@ -248,7 +247,7 @@ class Factor
       //assert( Vr.row() == nr ); assert( Vr.col() == sr );
 
       /** even SYMMETRIC this routine uses LU factorization */
-      if ( SYMMETRIC )
+      if ( issymmetric )
       {
         assert( Crl.row() == sr ); assert( Crl.col() == sl );
       }
@@ -276,7 +275,7 @@ class Factor
          *  Z = I + UR * C * VR' = [                 I  URl * Clr * VRr'
          *                            URr * Crl * VRl'                 I ]
          **/
-        if ( SYMMETRIC ) /** Cholesky */
+        if ( issymmetric ) /** Cholesky */
         {
           /** Zbl = URr * Crl * VRl' */
           hmlp::Data<T> Zbl = Crl;
@@ -365,7 +364,7 @@ class Factor
             0.0,     Z.data() + sl, sl + sr );
 
 
-        if ( SYMMETRIC )
+        if ( issymmetric )
         {
           /** Crl'VrtUr */
           xgemm( "T", "N", sl, sr, sr,
@@ -454,7 +453,6 @@ class Factor
 
 
     /** */
-    template<bool SYMMETRIC>
     void Multiply( View<T> &bl, View<T> &br )
     {
       assert( !isleaf && bl.col() == br.col() );
@@ -482,7 +480,7 @@ class Factor
                 tl.data(), sl, 
           0.0,  ta.data() + sl, sl + sr );
 
-      if ( SYMMETRIC )
+      if ( issymmetric )
       {
         /** Crl' * Vr' * br */
         xgemm( "T", "N", sl, nrhs, sr,
@@ -516,7 +514,6 @@ class Factor
     /**
      *  @brief Solver for leaf nodes
      */
-    template<bool TRANS>
     void Solve( View<T> &rhs ) 
     {
       /** assure this is a leaf node */
@@ -541,7 +538,6 @@ class Factor
     /**
      *  @brief b - U * inv( Z ) * C * V' * b 
      */
-    template<bool TRANS, bool SYMMETRIC = true>
     void Solve( View<T> &bl, View<T> &br ) 
     {
       size_t nrhs = bl.col();
@@ -595,7 +591,7 @@ class Factor
             tl.data(), sl, 
             0.0,  ta.data() + sl, sl + sr );
 
-        if ( SYMMETRIC )
+        if ( issymmetric )
         {
           /** Crl' * Vr' * br */
           xgemm( "T", "N", sl, nrhs, sr,
@@ -1329,8 +1325,6 @@ void Apply( NODE *node )
     /** apply the regularization */
     for ( size_t i = 0; i < Kaa.row(); i ++ ) 
       Kaa[ i * Kaa.row() + i ] += lambda;
-    /** LU factorization */
-    //data.Apply<true>( Kaa );
   }
   else
   {
@@ -1439,7 +1433,7 @@ class ULVBackwardSolveTask : public Task
 /**
  *  @brief 
  */ 
-template<bool TRANS, typename NODE, typename T>
+template<typename NODE, typename T>
 void Solve( NODE *node )
 {
   
@@ -1454,14 +1448,14 @@ void Solve( NODE *node )
   if ( node->isleaf )
   {
     auto &b = data.bview;
-    data.Solve<TRANS>( b );
+    data.Solve( b );
     //printf( "Solve %lu, m %lu n %lu\n", node->treelist_id, b.row(), b.col() );
   }
   else
   {
     auto &bl = node->lchild->data.bview;
     auto &br = node->rchild->data.bview;
-    data.Solve<TRANS, true>( bl, br );
+    data.Solve( bl, br );
     //printf( "Solve %lu, m %lu n %lu\n", node->treelist_id, bl.row(), bl.col() );
   }
 
@@ -1473,7 +1467,7 @@ void Solve( NODE *node )
 /**
  *  @brief
  */ 
-template<bool TRANS, typename NODE, typename T>
+template<typename NODE, typename T>
 class SolveTask : public Task
 {
   public:
@@ -1498,30 +1492,17 @@ class SolveTask : public Task
 
     void DependencyAnalysis()
     {
-      if ( TRANS )
+      arg->DependencyAnalysis( RW, this );
+      if ( !arg->isleaf )
       {
-        arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        if ( arg->parent )
-          arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-      }
-      else
-      {
-        arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-        if ( !arg->isleaf )
-        {
-          arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-          arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-        }
-        //else
-        //{
-        //  this->Enqueue();
-        //}
+        arg->lchild->DependencyAnalysis( R, this );
+        arg->rchild->DependencyAnalysis( R, this );
       }
     };
 
     void Execute( Worker* user_worker )
     {
-      Solve<TRANS, NODE, T>( arg );
+      Solve<NODE, T>( arg );
     };
 
 }; /** end class SolveTask */
@@ -1545,7 +1526,7 @@ void Solve( TREE &tree, Data<T> &input )
   MatrixPermuteTask<true,  NODE> forwardpermutetask;
   MatrixPermuteTask<false, NODE> inversepermutetask;
   /** Sherman-Morrison-Woodbury */
-  SolveTask<false, NODE, T>      solvetask1;
+  SolveTask<NODE, T>      solvetask1;
   /** ULV */
   ULVForwardSolveTask<NODE, T>   ulvforwardsolvetask;
   ULVBackwardSolveTask<NODE, T>  ulvbackwardsolvetask;
@@ -1558,28 +1539,28 @@ void Solve( TREE &tree, Data<T> &input )
   {
     /** clean up all dependencies on tree nodes */
     tree.DependencyCleanUp();
-    tree.template TraverseDown <USE_RUNTIME>( treeviewtask );
-    tree.template TraverseLeafs<USE_RUNTIME>( forwardpermutetask );
-    tree.template TraverseUp   <USE_RUNTIME>( ulvforwardsolvetask );
-    tree.template TraverseDown <USE_RUNTIME>( ulvbackwardsolvetask );
+    tree.TraverseDown( treeviewtask );
+    tree.TraverseLeafs( forwardpermutetask );
+    tree.TraverseUp( ulvforwardsolvetask );
+    tree.TraverseDown( ulvbackwardsolvetask );
     if ( USE_RUNTIME ) hmlp_run();
 
     /** clean up all dependencies on tree nodes */
     tree.DependencyCleanUp();
-    tree.template TraverseLeafs<USE_RUNTIME>( inversepermutetask );
+    tree.TraverseLeafs( inversepermutetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
   else
   {
     /** clean up all dependencies on tree nodes */
     tree.DependencyCleanUp();
-    tree.template TraverseDown <USE_RUNTIME>( treeviewtask );
-    tree.template TraverseLeafs<USE_RUNTIME>( forwardpermutetask );
-    tree.template TraverseUp   <USE_RUNTIME>( solvetask1 );
+    tree.TraverseDown( treeviewtask );
+    tree.TraverseLeafs( forwardpermutetask );
+    tree.TraverseUp( solvetask1 );
     if ( USE_RUNTIME ) hmlp_run();
     /** clean up all dependencies on tree nodes */
     tree.DependencyCleanUp();
-    tree.template TraverseLeafs<USE_RUNTIME>( inversepermutetask );
+    tree.TraverseLeafs( inversepermutetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
 
@@ -1707,7 +1688,7 @@ void Factorize( NODE *node )
     else
     {
       /** SMW factorization (LU or Cholesky) */
-      data.Factorize<true>( Ul, Ur, Vl, Vr );
+      data.Factorize( Ul, Ur, Vl, Vr );
       /** telescope U and V */
       if ( !node->data.isroot )
       {
@@ -1863,8 +1844,6 @@ void Factorize( TREE &tree, T lambda )
 {
   using NODE = typename TREE::NODE;
 
-  const bool USE_RUNTIME = true;
-
   /** Clean up all dependencies on tree nodes. */
   tree.DependencyCleanUp();
 
@@ -1876,12 +1855,12 @@ void Factorize( TREE &tree, T lambda )
 
   /** Setup  */
   SetupFactorTask<NODE, T> setupfactortask; 
-  tree.TraverseUp<USE_RUNTIME>( setupfactortask );
+  tree.TraverseUp( setupfactortask );
   tree.ExecuteAllTasks();
 
   /** Factorization */
   FactorizeTask<NODE, T> factorizetask; 
-  tree.TraverseUp<USE_RUNTIME>( factorizetask );
+  tree.TraverseUp( factorizetask );
   tree.ExecuteAllTasks();
 
 }; /** end Factorize() */

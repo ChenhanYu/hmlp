@@ -848,7 +848,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       DistSplitTask<MPINODE> mpisplittask;
       tree::SplitTask<NODE>  seqsplittask;
       DependencyCleanUp();
-      DistTraverseDown<false>( mpisplittask );
+      DistTraverseDown( mpisplittask );
       LocaTraverseDown( seqsplittask );
       ExecuteAllTasks();
 
@@ -867,8 +867,8 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         if ( t != n_tree - 1 )
         {
           //DependencyCleanUp();
-          DistTraverseDown<false>( mpisplittask );
-          //ExecuteAllTasks();
+          DistTraverseDown( mpisplittask );
+          ExecuteAllTasks();
         }
         DependencyCleanUp();
         LocaTraverseLeafs( dummy );
@@ -940,11 +940,8 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
       
       DistSplitTask<MPINODE> mpiSPLITtask;
-      DistTraverseDown<false>( mpiSPLITtask );
-      //ExecuteAllTasks();
-
-
       tree::SplitTask<NODE> seqSPLITtask;
+      DistTraverseDown( mpiSPLITtask );
       LocaTraverseDown( seqSPLITtask );
       ExecuteAllTasks();
 
@@ -1224,14 +1221,14 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     }; /** end LocaTraverseUp() */
 
 
-    template<bool USE_RUN_TIME=true, typename TASK, typename... Args>
+    template<typename TASK, typename... Args>
     void DistTraverseUp( TASK &dummy, Args&... args )
     {
       MPINODE *node = mpitreelists.back();
       while ( node )
       {
-        if ( USE_RUN_TIME ) RecuTaskSubmit(  node, dummy, args... );
-        else                RecuTaskExecute( node, dummy, args... );
+        if ( this->DoOutOfOrder() ) RecuTaskSubmit(  node, dummy, args... );
+        else                        RecuTaskExecute( node, dummy, args... );
         /** move to its parent */
         node = (MPINODE*)node->parent;
       }
@@ -1265,15 +1262,15 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     }; /** end LocaTraverseDown() */
 
 
-    template<bool USE_RUN_TIME=true, typename TASK, typename... Args>
+    template<typename TASK, typename... Args>
     void DistTraverseDown( TASK &dummy, Args&... args )
     {
       auto *node = mpitreelists.front();
       while ( node )
       {
 				//printf( "now at level %lu\n", node->l ); fflush( stdout );
-        if ( USE_RUN_TIME ) RecuTaskSubmit(  node, dummy, args... );
-        else                RecuTaskExecute( node, dummy, args... );
+        if ( this->DoOutOfOrder() ) RecuTaskSubmit(  node, dummy, args... );
+        else                        RecuTaskExecute( node, dummy, args... );
 				//printf( "RecuTaskSubmit at level %lu\n", node->l ); fflush( stdout );
 
         /** 
