@@ -30,10 +30,11 @@
 #include <hbw_allocator.h>
 #endif
 
-/** BLAS/LAPACK support */
+/** BLAS/LAPACK support. */
 #include <hmlp_blas_lapack.h>
-/** KernelMatrix uses VirtualMatrix<T> as base */
+/** KernelMatrix uses VirtualMatrix<T> as base. */
 #include <containers/VirtualMatrix.hpp>
+/** DistData is used to store the data points. */
 #include <DistData.hpp>
 
 using namespace std;
@@ -42,6 +43,63 @@ using namespace hmlp;
 namespace hmlp
 {
 
+template<typename T>
+T square_distance( T* a, T* b, size_t d )
+{
+  T dab = 0;
+  for ( size_t k = 0; k < d; k ++ )
+  {
+    T tar = a[ k ];
+    T src = b[ k ];
+    dab += ( tar - src ) * ( tar - src );
+  }
+  return dab;
+}
+
+template<typename T, typename TP>
+T kernel_function( TP* a, TP* b, size_t d, const kernel_s<T>& kernel ) 
+{
+  /** Return value */
+  T Kij = 0.0;
+
+  /** At this moment we already have the corrdinates on this process */
+  switch ( kernel.type )
+  {
+    case KS_GAUSSIAN:
+    {
+      Kij = exp( kernel.scal * square_distance( a, b, d ) );
+      break;
+    }
+    case KS_LAPLACE:
+    {
+      Kij = square_distance( a, b, d );
+      /** Deal with the signularity (i.e. r ~ 0.0). */
+      if ( Kij < 1E-6 ) Kij = 0.0;
+      else
+      {
+        if ( d == 1 ) Kij = sqrt( Kij );
+        else if ( d == 2 ) Kij = ( log( Kij ) / 2.0 );
+        else Kij = 1 / sqrt( Kij );
+      }
+      break;
+    }
+    case KS_QUARTIC:
+    {
+      Kij = square_distance( a, b, d );
+      if ( Kij < 0.5 ) Kij = 1;
+      else Kij = 0;
+      break;
+    }
+    default:
+    {
+      printf( "invalid kernel type\n" );
+      exit( 1 );
+    }
+  }
+  return Kij;
+}
+
+
 template<typename T, class Allocator = std::allocator<T>>
 class KernelMatrix : public VirtualMatrix<T, Allocator>, 
                      public ReadWrite
@@ -49,8 +107,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
   public:
 
     /** (Default) constructor for symmetric kernel matrices. */
-    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T> &kernel, 
-        Data<T> &sources )
+    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T>& kernel, Data<T> &sources )
       : sources( sources ), 
         targets( sources ), 
         VirtualMatrix<T>( m, n ),
@@ -134,7 +191,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 
 
 		/** ESSENTIAL: override the virtual function */
-    T operator()( size_t i, size_t j )
+    virtual T operator()( size_t i, size_t j ) override
     {
       T Kij = 0.0;
 
@@ -268,8 +325,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 //
 
     /** (Overwrittable) ESSENTIAL: return K( I, J ) */
-    virtual Data<T> operator() ( vector<size_t> &I, 
-                                 vector<size_t> &J )
+    virtual Data<T> operator() ( const vector<size_t>& I, const vector<size_t>& J ) override
     {
       Data<T> KIJ = GeometryDistances( I, J );
 			/** Early return */
@@ -333,8 +389,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
     };
 
 
-    Data<T> GeometryDistances( const vector<size_t> &I, 
-                               const vector<size_t> &J )
+    virtual Data<T> GeometryDistances( const vector<size_t>& I, const vector<size_t>& J ) override
     {
       Data<T> KIJ( I.size(), J.size() );
 			/** Early return if possible. */
@@ -775,7 +830,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
     };
 
     /** (Overwrittable) Request a single Kij */
-    virtual T operator () ( size_t i, size_t j )
+    virtual T operator () ( size_t i, size_t j ) override
     {
       /** Return value */
       if ( is_symmetric )
@@ -792,8 +847,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
 
 
     /** (Overwrittable) ESSENTIAL: return K( I, J ) */
-    virtual Data<T> operator() ( vector<size_t> &I, 
-                                 vector<size_t> &J )
+    virtual Data<T> operator() ( const vector<size_t>& I, const vector<size_t>& J ) override
     {
       Data<T> KIJ = GeometryDistances( I, J );
 			/** Early return */
@@ -861,8 +915,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
 
 
     /** */
-    Data<T> GeometryDistances( const vector<size_t> &I, 
-                               const vector<size_t> &J )
+    virtual Data<T> GeometryDistances( const vector<size_t>& I, const vector<size_t>& J ) override
     {
       Data<T> KIJ( I.size(), J.size() );
 			/** Early return if possible. */
@@ -1063,7 +1116,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
       sources_user.InsertColumns( ids, param );
     };
 
-    void RequestIndices( vector<vector<size_t>> ids )
+    void RequestIndices( const vector<vector<size_t>>& ids ) override
     {
       auto comm = this->GetComm();
       auto rank = this->GetCommRank();

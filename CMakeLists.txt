@@ -32,7 +32,6 @@ elseif(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|armv7|armv7f|armv7s|ar
   set(HMLP_SUPPORTED_PLATFORM FALSE)
 endif()
 
-
 message(STATUS "${CMAKE_SYSTEM_PROCESSOR}/${CMAKE_SYSTEM_NAME}")
 set(HMLP_ARCH_MAJOR     $ENV{HMLP_ARCH_MAJOR})
 set(HMLP_ARCH_MINOR     $ENV{HMLP_ARCH_MINOR})
@@ -88,30 +87,30 @@ if ("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
   # using AppleClang
   message( STATUS "Clang compiler." )
   message( WARNING "You may need to install OpenMP. [e.g. brew install libomp]" ) 
-  #set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -Xpreprocessor -fopenmp -lomp")
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -Xpreprocessor -fopenmp -L/usr/local/opt/libomp/lib -lomp")
+  #set (HMLP_CFLAGS            "${HMLP_CFLAGS} -O3 -Xpreprocessor -fopenmp -lomp")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -O3 -Xpreprocessor -fopenmp -L/usr/local/opt/libomp/lib -lomp")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -fPIC -D_POSIX_C_SOURCE=200112L")
-  set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp -arch x86_64 -m64")
+  set (HMLP_PYTHON_CFLAGS     "-O3 -fopenmp -arch x86_64 -m64")
   string(APPEND CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
 elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
 
   # using GCC
   message( STATUS "GNU compiler." ) 
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -fopenmp -m64")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -O3 -fopenmp -m64")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -fPIC -D_POSIX_C_SOURCE=200112L")
-  set (HMLP_PYTHON_CFLAGS     "-g -O3 -fopenmp -arch x86_64 -m64")
+  set (HMLP_PYTHON_CFLAGS     "-O3 -fopenmp -arch x86_64 -m64")
   string(APPEND CMAKE_EXE_LINKER_FLAGS "-lpthread -fopenmp -lm")
 
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
 
   # using Intel C++
   message( STATUS "Intel compiler." )
-  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -g -O3 -qopenmp -m64")
+  set (HMLP_CFLAGS            "${HMLP_CFLAGS} -O3 -qopenmp -m64")
   #set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Werror -Wall -pedantic -fPIC")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -Wall -pedantic -fPIC -D_POSIX_C_SOURCE=200112L")
   set (HMLP_CFLAGS            "${HMLP_CFLAGS} -DUSE_INTEL")
-  set (HMLP_PYTHON_CFLAGS     "-g -std=c++11 -O3 -qopenmp -arch x86_64 -m64")
+  set (HMLP_PYTHON_CFLAGS     "-std=c++11 -O3 -qopenmp -arch x86_64 -m64")
   string(APPEND CMAKE_EXE_LINKER_FLAGS "-lpthread -qopenmp -lm")
 
 endif()
@@ -314,8 +313,15 @@ endif()
 
 # Setup all flags
 # ---------------------------
-set (CMAKE_C_FLAGS        "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
-set (CMAKE_CXX_FLAGS    "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS} -std=c++11")
+set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
+set(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS} -g")
+set(CMAKE_CXX_FLAGS       "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
+
+
+
+
+
 
 # Headers
 # ---------------------------

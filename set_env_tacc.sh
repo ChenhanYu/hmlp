@@ -4,31 +4,20 @@
 ## ======================================
 taccmachine=$(dnsdomainname)
 
+## The following configuration is for Stampede2.
+## ======================================
 module load TACC
-#module load intel
-module load gcc/6.3.0
+module load intel
+module load impi
 module load cmake
 module load python
-
-if [[ ${taccmachine} == *"maverick"* ]]; then
-	module load intel/15.0.3
-  module load cxx11
-fi
-if [[ ${taccmachine} == *"stampede."* ]]; then
-  module load cxx11
-fi
-
-
 
 ## "REQUIRED" CONFIGURATION
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-#export CC=icc
-export CC=gcc
-#export CXX=icpc
-export CXX=g++
-
+export CC=icc
+export CXX=icpc
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
@@ -40,25 +29,10 @@ export MKLROOT=${MKLROOT}
 export OPENBLASROOT=${OPENBLASROOT}
 
 ## Make sure NETLIBROOT is defined. (icc/icpc, gcc/g++)
-export NETLIBROOT=/usr/lib64
+export NETLIBROOT=${NETLIBROOT}
 
 ## Setup the maximum number of threads.
-export OMP_NUM_THREADS=10
-
-if [[ ${taccmachine} == *"ls5"* ]]; then
-  export OMP_NUM_THREADS=24
-fi
-if [[ ${taccmachine} == *"maverick"* ]]; then
-  export OMP_NUM_THREADS=20
-fi
-if [[ ${taccmachine} == *"stampede"* ]]; then
-  export OMP_NUM_THREADS=20
-fi
-if [[ ${taccmachine} == *"stampede2"* ]]; then
-  #export OMP_NUM_THREADS=68
-  export OMP_NUM_THREADS=1
-fi
-
+export OMP_NUM_THREADS=48
 
 ## ARTIFACT FOR REPRODUCIABILITY
 ## ======================================
@@ -66,34 +40,18 @@ fi
 ## If you also want to compile those artifact files, then specify the path.
 export HMLP_ARTIFACT_PATH=sc18gofmm
 
-
-
 ## ADVANCE OPTIONS
 ## ======================================
 
 ## Manually set the target architecture.
 export HMLP_GPU_ARCH_MAJOR=gpu
 export HMLP_GPU_ARCH_MINOR=kepler
-
 ## (1) x86_64/sandybridge, 
 ## (2) x86_64/haswell, 
 ## (3) arm/armv8a
 ## (4) mic/knl
 export HMLP_ARCH_MAJOR=x86_64
 export HMLP_ARCH_MINOR=haswell
-
-if [[ ${taccmachine} == *"ls5"* ]]; then
-  export HMLP_ARCH_MAJOR=x86_64
-  export HMLP_ARCH_MINOR=sandybridge
-fi
-if [[ ${taccmachine} == *"stampede2"* ]]; then
-  #export HMLP_ARCH_MAJOR=mic
-  #export HMLP_ARCH_MINOR=knl
-  export HMLP_ARCH_MAJOR=x86_64
-  #export HMLP_ARCH_MINOR=skx
-  #export HMLP_ARCH_MAJOR=x86_64
-  export HMLP_ARCH_MINOR=haswell
-fi
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android

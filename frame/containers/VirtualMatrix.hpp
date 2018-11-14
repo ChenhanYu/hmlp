@@ -60,7 +60,7 @@ class SPDMatrixMPISupport
     virtual void SendIndices( vector<size_t> ids, int dest, mpi::Comm comm ) {};
     virtual void RecvIndices( int src, mpi::Comm comm, mpi::Status *status ) {};
     virtual void BcastIndices( vector<size_t> ids, int root, mpi::Comm comm ) {};
-    virtual void RequestIndices( vector<vector<size_t>> ids ) {};
+    virtual void RequestIndices( const vector<vector<size_t>>& ids ) {};
 }; /** end class SPDMatrixMPISupport */
 
 
@@ -94,7 +94,7 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
     virtual T operator () ( size_t i, size_t j ) = 0; 
 
     /** ESSENTIAL: return a submatrix */
-    virtual Data<T> operator() ( const vector<size_t> &I, const vector<size_t> &J )
+    virtual Data<T> operator() ( const vector<size_t>& I, const vector<size_t>& J )
     {
       Data<T> KIJ( I.size(), J.size() );
       for ( size_t j = 0; j < J.size(); j ++ )

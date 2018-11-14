@@ -986,7 +986,7 @@ class DistData<STAR, USER, T> : public DistDataBase<T>
      *  Insert cids and A in to this object.
      *  Note: this is not thread safe. 
      */ 
-    void InsertColumns( vector<size_t> &cids, Data<T> &A )
+    void InsertColumns( const vector<size_t>& cids, const Data<T>& A )
     {
       int comm_rank = this->GetRank();
 

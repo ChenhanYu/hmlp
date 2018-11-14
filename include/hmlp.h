@@ -139,7 +139,8 @@ typedef enum
   KS_TANH,
   KS_QUARTIC,
   KS_MULTIQUADRATIC,
-  KS_EPANECHNIKOV
+  KS_EPANECHNIKOV,
+  USER_DEFINE
 } ks_type;
 
 template<typename T>
@@ -152,6 +153,9 @@ struct kernel_s
   T *hi;
   T *hj;
   T *h;
+  /** User defined kernel function. */
+  T (*user_Kij_function)( T* param, T* x, T* y, size_t d );
+  void (*user_KIJ_function)( T* KIJ, T* param, T* x, T* y, size_t d, size_t m, size_t n );
 };
 
 //typedef struct kernel_s ks_t;

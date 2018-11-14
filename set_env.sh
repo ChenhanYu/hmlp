@@ -4,51 +4,32 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=gcc
-export CXX=g++
-#export CC=icc
-#export CXX=icpc
-#export CC=/usr/local/Cellar/llvm/7.0.0/bin/clang
-#export CXX=/usr/local/Cellar/llvm/7.0.0/bin/clang++
-#export CC=/usr/local/Cellar/gcc/8.2.0/bin/gcc-8
-#export CXX=/usr/local/Cellar/gcc/8.2.0/bin/g++-8
-#export CC=${CC}
-#export CXX=${CXX}
+export CC=icc
+export CXX=icpc
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
-export MKLROOT=
 export MKLROOT=${MKLROOT}
 
 ## Make sure OPENBLASROOT is defined. (gcc/g++)
-#export OPENBLASROOT=/Users/chenhan/Projects/OpenBLAS-0.2.20
-export OPENBLASROOT=
 export OPENBLASROOT=${OPENBLASROOT}
 
 ## Make sure BLISROOT is defined. (icc/icpc, gcc/g++)
-#export BLISROOT=/Users/chenhan/Projects/blis/lib/haswell
-export BLISROOT=
 export BLISROOT=${BLISROOT}
 
 ## Make sure NETLIBROOT is defined. (icc/icpc, gcc/g++)
-export NETLIBROOT=/usr/lib
 export NETLIBROOT=${NETLIBROOT}
-
 
 ## Setup the maximum number of threads.
 export OMP_NUM_THREADS=2
-
-
 
 ## ARTIFACT FOR REPRODUCIABILITY
 ## ======================================
 
 ## If you also want to compile those artifact files, then specify the path.
 export HMLP_ARTIFACT_PATH=sc18gofmm
-
-
 
 ## ADVANCE OPTIONS
 ## ======================================
@@ -62,10 +43,7 @@ export HMLP_GPU_ARCH_MINOR=kepler
 ## (3) arm/armv8a
 ## (4) mic/knl
 export HMLP_ARCH_MAJOR=x86_64
-#export HMLP_ARCH_MINOR=sandybridge
 export HMLP_ARCH_MINOR=haswell
-#export HMLP_ARCH_MAJOR=mic
-#export HMLP_ARCH_MINOR=knl
 
 ## Manually set the QSML path if you are using arm/armv8a architecture.
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
@@ -76,7 +54,7 @@ export HMLP_USE_MPI=false
 ## GPU compiler options (if true, compile the gpu library as well).
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it).
 export HMLP_USE_CUDA=false
-export HMLP_CUDA_DIR=$TACC_CUDA_DIR
+export HMLP_CUDA_DIR=
 
 ## MAGMA (GPU LAPACK support)
 export HMLP_USE_MAGMA=false
@@ -90,7 +68,8 @@ export HMLP_BUILD_SANDBOX=true
 
 ## Advance OpenMP options
 export OMP_NESTED=false
-export OMP_PROC_BIND=spread
+export OMP_PLACES=cores
+export OMP_PROC_BIND=close
 
 ## HMLP communicator
 export KS_JC_NT=1

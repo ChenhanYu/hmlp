@@ -458,8 +458,8 @@ template<class T, class Allocator = hbw::allocator<T> >
 template<class T, class Allocator = std::allocator<T> >
 #endif
 int AlltoallVector(
-    vector<vector<T, Allocator>> &sendvector, 
-    vector<vector<T, Allocator>> &recvvector, Comm comm )
+    const vector<vector<T, Allocator>>& sendvector, 
+    vector<vector<T, Allocator>>& recvvector, Comm comm )
 {
   int size = 0; Comm_size( comm, &size );
   int rank = 0; Comm_rank( comm, &rank );

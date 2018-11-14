@@ -293,33 +293,28 @@ class Data : public ReadWrite, public vector<T, Allocator>
 		void setvalue( size_t i, size_t j, T v ) { (*this)( i, j ) = v; };
 
     /** ESSENTIAL: return number of coumns */
-    size_t row() { return m; };
+    size_t row() const noexcept { return m; };
 
     /** ESSENTIAL: return number of rows */
-    size_t col() { return n; };
+    size_t col() const noexcept { return n; };
 
     /** ESSENTIAL: return an element */
-    template<typename TINDEX>
-    inline T & operator()( TINDEX i, TINDEX j )
-    {
-      return (*this)[ m * j + i ];
-    };
+    T& operator()( size_t i, size_t j )       { return (*this)[ m * j + i ]; };
+    T  operator()( size_t i, size_t j ) const { return (*this)[ m * j + i ]; };
+
 
     /** ESSENTIAL: return a submatrix */
-    template<typename TINDEX>
-    inline Data<T> operator()( const vector<TINDEX> &imap, const vector<TINDEX> &jmap )
+    Data<T> operator()( const vector<size_t>& I, const vector<size_t>& J ) const
     {
-      Data<T> submatrix( imap.size(), jmap.size() );
-      #pragma omp parallel for
-      for ( int j = 0; j < jmap.size(); j ++ )
+      Data<T> KIJ( I.size(), J.size() );
+      for ( int j = 0; j < J.size(); j ++ )
       {
-        for ( int i = 0; i < imap.size(); i ++ )
+        for ( int i = 0; i < I.size(); i ++ )
         {
-          submatrix[ j * imap.size() + i ] = (*this)[ m * jmap[ j ] + imap[ i ] ];
+          KIJ[ j * I.size() + i ] = (*this)[ m * J[ j ] + I[ i ] ];
         }
       }
-
-      return submatrix;
+      return KIJ;
     }; 
 
     /** ESSENTIAL: */
@@ -862,15 +857,15 @@ class OOCData : public ReadWrite
       cout << filename << endl;
     };
 
-    template<typename TINDEX>
-    T operator()( TINDEX i, TINDEX j )
+    //template<typename TINDEX>
+    T operator()( size_t i, size_t j ) const 
     {
       assert( i < m && j < n );
       return mmappedData[ j * m + i ];
     };
 
-    template<typename TINDEX>
-    Data<T> operator()( const vector<TINDEX> &I, const vector<TINDEX> &J )
+    //template<typename TINDEX>
+    Data<T> operator()( const vector<size_t>& I, const vector<size_t>& J ) const 
     {
       Data<T> KIJ( I.size(), J.size() );
       for ( int j = 0; j < J.size(); j ++ )
@@ -887,9 +882,9 @@ class OOCData : public ReadWrite
       return sample; 
     };
 
-    size_t row() { return m; };
+    size_t row() const noexcept { return m; };
 
-    size_t col() { return n; };
+    size_t col() const noexcept { return n; };
 
     template<typename TINDEX>
     double flops( TINDEX na, TINDEX nb ) { return 0.0; };
