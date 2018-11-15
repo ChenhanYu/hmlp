@@ -844,58 +844,92 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** Allocate distributed tree nodes in advance. */
       AllocateNodes( gids );
 
+
       /** Metric tree partitioning. */
       DistSplitTask<MPINODE> mpisplittask;
       tree::SplitTask<NODE>  seqsplittask;
-      DependencyCleanUp();
-      DistTraverseDown( mpisplittask );
-      LocaTraverseDown( seqsplittask );
-      ExecuteAllTasks();
-
-
       for ( size_t t = 0; t < n_tree; t ++ )
       {
-        this->Barrier();
-        //if ( this->GetCommRank() == 0 ) printf( "Iteration #%lu\n", t );
-
-        /** Query neighbors computed in CIDS distribution.  */
-        DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
-            this->treelist[ 0 ]->gids, initNN, this->GetComm() );
-        /** Pass in neighbor pointer. */
-        this->setup.NN = &Q_cids;
-        /** Overlap */
-        if ( t != n_tree - 1 )
-        {
-          //DependencyCleanUp();
-          DistTraverseDown( mpisplittask );
-          ExecuteAllTasks();
-        }
-        DependencyCleanUp();
-        LocaTraverseLeafs( dummy );
+        DistTraverseDown( mpisplittask );
         LocaTraverseDown( seqsplittask );
         ExecuteAllTasks();
+        
+        /** Query neighbors computed in CIDS distribution.  */
+        DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, this->treelist[ 0 ]->gids, initNN, this->GetComm() );
+        /** Pass in neighbor pointer. */
+        this->setup.NN = &Q_cids;
+        LocaTraverseLeafs( dummy );
+        ExecuteAllTasks();
 
-        if ( t == 0 )
-        {
-          /** Redistribute from CIDS to CBLK */
-          NN = Q_cids; 
-        }
-        else
-        {
-          /** Queries computed in CBLK distribution */
-          DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->n, this->GetComm() );
-          /** Redistribute from CIDS to CBLK */
-          Q_cblk = Q_cids;
-          /** Merge Q_cblk into NN (sort and remove duplication) */
-          assert( Q_cblk.col_owned() == NN.col_owned() );
-          MergeNeighbors( k, NN.col_owned(), NN, Q_cblk );
-        }
-
-        //double mer_time = omp_get_wtime() - beg;
-
-        //if ( rank == 0 )
-        //printf( "%lfs %lfs %lfs\n", mpi_time, seq_time, mer_time ); fflush( stdout );
+        /** Queries computed in CBLK distribution */
+        DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->n, this->GetComm() );
+        /** Redistribute from CIDS to CBLK */
+        Q_cblk = Q_cids;
+        /** Merge Q_cblk into NN (sort and remove duplication) */
+        assert( Q_cblk.col_owned() == NN.col_owned() );
+        MergeNeighbors( k, NN.col_owned(), NN, Q_cblk );
       }
+
+
+
+
+
+
+
+//      /** Metric tree partitioning. */
+//      DistSplitTask<MPINODE> mpisplittask;
+//      tree::SplitTask<NODE>  seqsplittask;
+//      DependencyCleanUp();
+//      DistTraverseDown( mpisplittask );
+//      LocaTraverseDown( seqsplittask );
+//      ExecuteAllTasks();
+//
+//
+//      for ( size_t t = 0; t < n_tree; t ++ )
+//      {
+//        this->Barrier();
+//        //if ( this->GetCommRank() == 0 ) printf( "Iteration #%lu\n", t );
+//
+//        /** Query neighbors computed in CIDS distribution.  */
+//        DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
+//            this->treelist[ 0 ]->gids, initNN, this->GetComm() );
+//        /** Pass in neighbor pointer. */
+//        this->setup.NN = &Q_cids;
+//        /** Overlap */
+//        if ( t != n_tree - 1 )
+//        {
+//          //DependencyCleanUp();
+//          DistTraverseDown( mpisplittask );
+//          ExecuteAllTasks();
+//        }
+//        mpi::PrintProgress( "[MID] Here ...", this->GetComm() );
+//        DependencyCleanUp();
+//        LocaTraverseLeafs( dummy );
+//        LocaTraverseDown( seqsplittask );
+//        ExecuteAllTasks();
+//        mpi::PrintProgress( "[MID] Here 22...", this->GetComm() );
+//
+//        if ( t == 0 )
+//        {
+//          /** Redistribute from CIDS to CBLK */
+//          NN = Q_cids; 
+//        }
+//        else
+//        {
+//          /** Queries computed in CBLK distribution */
+//          DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->n, this->GetComm() );
+//          /** Redistribute from CIDS to CBLK */
+//          Q_cblk = Q_cids;
+//          /** Merge Q_cblk into NN (sort and remove duplication) */
+//          assert( Q_cblk.col_owned() == NN.col_owned() );
+//          MergeNeighbors( k, NN.col_owned(), NN, Q_cblk );
+//        }
+//
+//        //double mer_time = omp_get_wtime() - beg;
+//
+//        //if ( rank == 0 )
+//        //printf( "%lfs %lfs %lfs\n", mpi_time, seq_time, mer_time ); fflush( stdout );
+//      }
 
       /** Check for illegle values. */
       for ( auto &neig : NN )

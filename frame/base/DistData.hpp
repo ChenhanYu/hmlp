@@ -183,7 +183,20 @@ class DistDataBase : public Data<T, Allocator>
     };
 
     /** Constrcut a zero matrix (but mpi::Comm is still required) */
-    DistDataBase( mpi::Comm comm ) { DistDataBase( 0, 0, comm ); };
+    DistDataBase( mpi::Comm comm ) : DistDataBase( 0, 0, comm ) {};
+
+    /** Copy constructor for hmlp::Data. */
+    DistDataBase( size_t m, size_t n, Data<T, Allocator>& other_data, mpi::Comm comm )
+      : Data<T, Alllocator>( other_data ), DistDataBase( m, n, comm )
+    {
+    }
+
+    /** Copy constructor for std::vector. */
+    DistDataBase( size_t m, size_t n, size_t owned_rows, size_t owned_cols, 
+        vector<T, Allocator>& other_vector, mpi::Comm comm )
+      : Data<T, Alllocator>( owned_rows, rowed_cols, other_vector ), DistDataBase( m, n, comm )
+    {
+    }
 
     /** MPI support */
     mpi::Comm GetComm() { return comm; };
@@ -317,6 +330,9 @@ class DistData<CIRC, CIRC, T> : public DistDataBase<T>
 };
 
 
+/**
+ *  TODO: ADD block size
+ */ 
 template<typename T>
 class DistData<STAR, CBLK, T> : public DistDataBase<T>
 {
@@ -335,21 +351,22 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
 
 
     DistData( size_t m, size_t n, mpi::Comm comm ) 
-      : DistDataBase<T>( m, n, comm ) 
+      : DistDataBase<T>( m, n, comm )
     {
       /** MPI */
       int size = this->GetSize();
       int rank = this->GetRank();
 
+      /** Columns are distributed. */
       size_t edge_n = n % size;
       size_t local_n = ( n - edge_n ) / size;
       if ( rank < edge_n ) local_n ++;
 
-      /** resize the local buffer */
+      /** Resize the local buffer using Data<T>::resize(). */
       this->resize( m, local_n );
     };
 
-
+    /** We should use this and move mpi::Comm to the front. */
     DistData( size_t m, size_t n, T initT, mpi::Comm comm )
       : DistDataBase<T>( m, n, comm ) 
     {
@@ -365,12 +382,28 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       this->resize( m, local_n, initT );
     };
 
+    /** Construct distributed data from local column data. */
+    DistData( mpi::Comm comm, size_t m, size_t n, Data<T>& local_column_data )
+      : DistDataBase<T>( m, n, local_column_data, comm )
+    {
+      /** MPI */
+      int size = this->GetSize();
+      int rank = this->GetRank();
+
+      size_t edge_n = n % size;
+      size_t local_n = ( n - edge_n ) / size;
+      if ( rank < edge_n ) local_n ++;
+      
+      /** The row number of local_column_data must be m. */
+      assert( m == local_column_data.row() );
+      /** The column number of local_column_data must be local_n. */
+      assert( local_n == local_column_data.col() );
+
+    };
 
 
 
-    /**
-     *  constructor that reads a binary file
-     */ 
+    /** Constructor that reads a binary file. */ 
     DistData( size_t m, size_t n, mpi::Comm comm, string &filename ) 
       : DistData<STAR, CBLK, T>( m, n, comm )
     {
@@ -447,10 +480,10 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
      */ 
     T & operator () ( size_t i , size_t j )
     {
-      /** assert that Kij is stored on this MPI process */
+      /** Assert that Kij is stored on this MPI process. */
+      // TODO: take care of block sizes.
       assert( j % this->GetSize() == this->GetRank() );
-
-      /** return reference of Kij */
+      /** Return reference of Kij */
       return DistDataBase<T>::operator () ( i, j / this->GetSize() );
     };
 

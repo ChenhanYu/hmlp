@@ -139,8 +139,24 @@ class Data : public ReadWrite, public vector<T, Allocator>
 {
   public:
 
-    /** Default constructor */
-    Data() : m( 0 ), n( 0 ) {};
+    /** Default empty constructor. */
+    Data() : vector<T, Allocator>(), m( 0 ), n( 0 ) {};
+
+    /** Copy constructor for hmlp::Data. */
+    Data( const Data<T>& other_data ) : vector<T, Allocator>( other_data )
+    {
+      this->m = other_data.row();
+      this->n = other_data.col();
+    }
+
+    /** TODO: Copy constructor for std::vector. */
+    Data( size_t m, size_t n, const vector<T>& other_vector ) 
+      : vector<T, Allocator>( other_vector )
+    {
+      assert( other_vector.size() == m * n );
+      this->m = m;
+      this->n = n;
+    };
 
     Data( size_t m, size_t n ) : vector<T, Allocator>( m * n )
     { 
