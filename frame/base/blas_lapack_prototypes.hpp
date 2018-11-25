@@ -2,8 +2,8 @@
 #define BLAS_LAPACK_PROTOTYPES_HPP
 
 /** BLAS level-1 */
-double ddot_( int *n, double *dx, int *incx, double *dy, int *incy );
-float  sdot_( int *n,  float *dx, int *incx,  float *dy, int *incy );
+double ddot_( int* n, const double* dx, int* incx, const double* dy, int* incy );
+float  sdot_( int* n, const  float* dx, int* incx, const  float* dy, int* incy );
 double dnrm2_( int *n, double *x, int *incx );
 float  snrm2_( int *n,  float *x, int *incx );
 
@@ -15,15 +15,15 @@ void dgemm_(
     const char *transA, const char *transB, 
     int *m, int *n, int *k, 
     double *alpha,
-    double *A, int *lda, 
-    double *B, int *ldb, double *beta, 
+    const double *A, int *lda, 
+    const double *B, int *ldb, double *beta, 
     double *C, int *ldc );
 void sgemm_( 
     const char *transA, const char *transB, 
     int *m, int *n, int *k, 
     float *alpha,
-    float *A, int *lda, 
-    float *B, int *ldb, float *beta, 
+    const float *A, int *lda, 
+    const float *B, int *ldb, float *beta, 
     float *C, int *ldc );
 void dsyrk_( 
     const char *uplo, const char *trans, 

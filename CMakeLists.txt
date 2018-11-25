@@ -385,7 +385,7 @@ endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 
 # Build GOFMM executables.
 # ---------------------------
-file (GLOB TEST_CXX_SRC    ${CMAKE_SOURCE_DIR}/gofmm/test/*.cpp)
+file (GLOB TEST_CXX_SRC    ${CMAKE_SOURCE_DIR}/example/*.cpp)
 foreach( testsrc ${TEST_CXX_SRC} )
   string( REPLACE ".cpp" ".x" testexe ${testsrc} )
   get_filename_component( testexe ${testsrc} NAME_WE )
@@ -404,7 +404,7 @@ endforeach()
 
 # Install GOFMM shell script
 # ---------------------------
-file (GLOB GOFMM_SCRIPTS ${CMAKE_SOURCE_DIR}/gofmm/test/*.sh)
+file (GLOB GOFMM_SCRIPTS ${CMAKE_SOURCE_DIR}/example/*.sh)
 install (FILES ${GOFMM_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
 
 

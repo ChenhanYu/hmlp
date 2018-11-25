@@ -22,8 +22,13 @@
 #ifndef HMLP_H
 #define HMLP_H
 
+#include <vector>
+
 #include <blas_lapack_prototypes.hpp>
 #include <mpi_prototypes.hpp>
+
+using namespace std;
+
 
 /** HMLP runtime API. */
 void hmlp_init( int *argc, char ***argv );
@@ -128,88 +133,56 @@ void dconv2d_ref
 
 
 
-
-
-typedef enum
-{
-  KS_GAUSSIAN,
-  KS_POLYNOMIAL,
-  KS_LAPLACE,
-  KS_GAUSSIAN_VAR_BANDWIDTH,
-  KS_TANH,
-  KS_QUARTIC,
-  KS_MULTIQUADRATIC,
-  KS_EPANECHNIKOV,
-  USER_DEFINE
-} ks_type;
-
-template<typename T>
-struct kernel_s
-{
-  ks_type type;
-  T powe;
-  T scal;
-  T cons;
-  T *hi;
-  T *hj;
-  T *h;
-  /** User defined kernel function. */
-  T (*user_Kij_function)( T* param, T* x, T* y, size_t d );
-  void (*user_KIJ_function)( T* KIJ, T* param, T* x, T* y, size_t d, size_t m, size_t n );
-};
-
-//typedef struct kernel_s ks_t;
-
-void gsks
-(
-  kernel_s<double> *kernel,
-  int m, int n, int k,
-  double *u,             int *umap,
-  double *A, double *A2, int *amap,
-  double *B, double *B2, int *bmap,
-  double *w,             int *wmap
-);
-
-void gsks
-(
-  kernel_s<float> *kernel,
-  int m, int n, int k,
-  float *u,            int *umap,
-  float *A, float *A2, int *amap,
-  float *B, float *B2, int *bmap,
-  float *w,            int *wmap
-);
-
-void dgsks
-(
-  kernel_s<double> *kernel,
-  int m, int n, int k,
-  double *u,             int *umap,
-  double *A, double *A2, int *amap,
-  double *B, double *B2, int *bmap,
-  double *w,             int *wmap
-);
-
-void sgsks
-(
-  kernel_s<float> *kernel,
-  int m, int n, int k,
-  float *u,            int *umap,
-  float *A, float *A2, int *amap,
-  float *B, float *B2, int *bmap,
-  float *w,            int *wmap
-);
-
-void dgsks_ref
-(
-  kernel_s<double> *kernel,
-  int m, int n, int k,
-  double *u,             int *umap,
-  double *A, double *A2, int *amap,
-  double *B, double *B2, int *bmap,
-  double *w,             int *wmap
-);
-
+//void gsks
+//(
+//  kernel_s<double> *kernel,
+//  int m, int n, int k,
+//  double *u,             int *umap,
+//  double *A, double *A2, int *amap,
+//  double *B, double *B2, int *bmap,
+//  double *w,             int *wmap
+//);
+//
+//void gsks
+//(
+//  kernel_s<float> *kernel,
+//  int m, int n, int k,
+//  float *u,            int *umap,
+//  float *A, float *A2, int *amap,
+//  float *B, float *B2, int *bmap,
+//  float *w,            int *wmap
+//);
+//
+//void dgsks
+//(
+//  kernel_s<double> *kernel,
+//  int m, int n, int k,
+//  double *u,             int *umap,
+//  double *A, double *A2, int *amap,
+//  double *B, double *B2, int *bmap,
+//  double *w,             int *wmap
+//);
+//
+//void sgsks
+//(
+//  kernel_s<float> *kernel,
+//  int m, int n, int k,
+//  float *u,            int *umap,
+//  float *A, float *A2, int *amap,
+//  float *B, float *B2, int *bmap,
+//  float *w,            int *wmap
+//);
+//
+//void dgsks_ref
+//(
+//  kernel_s<double> *kernel,
+//  int m, int n, int k,
+//  double *u,             int *umap,
+//  double *A, double *A2, int *amap,
+//  double *B, double *B2, int *bmap,
+//  double *w,             int *wmap
+//);
+//
 void dgsknn
 (
   int m, int n, int k, int r,

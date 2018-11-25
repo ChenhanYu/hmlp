@@ -124,7 +124,6 @@ int main( int argc, char *argv[] )
   gofmm::centersplit<SparseSPDMatrix<T>, 2, T> splitter1( K1 );
   /** Perform the iterative neighbor search. */
   auto neighbors1 = gofmm::FindNeighbors( K1, rkdtsplitter1, config1 );
-  printf( "here2\n" ); fflush( stdout );
 
   /** HMLP API call to terminate the runtime. */
   hmlp_finalize();

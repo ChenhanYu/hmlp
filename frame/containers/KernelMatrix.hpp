@@ -18,18 +18,11 @@
  *
  **/  
 
-
-
-
 #ifndef KERNELMATRIX_HPP
 #define KERNELMATRIX_HPP
 
-/** -lmemkind */
-#ifdef HMLP_MIC_AVX512
-#include <hbwmalloc.h>
-#include <hbw_allocator.h>
-#endif
-
+/** Using tgamma, M_PI, M_SQRT2 ... */
+#include <cmath>
 /** BLAS/LAPACK support. */
 #include <hmlp_blas_lapack.h>
 /** KernelMatrix uses VirtualMatrix<T> as base. */
@@ -43,61 +36,126 @@ using namespace hmlp;
 namespace hmlp
 {
 
-template<typename T>
-T square_distance( T* a, T* b, size_t d )
+typedef enum
 {
-  T dab = 0;
-  for ( size_t k = 0; k < d; k ++ )
-  {
-    T tar = a[ k ];
-    T src = b[ k ];
-    dab += ( tar - src ) * ( tar - src );
-  }
-  return dab;
-}
+  GAUSSIAN,
+  SIGMOID,
+  POLYNOMIAL,
+  LAPLACE,
+  GAUSSIAN_VAR_BANDWIDTH,
+  TANH,
+  QUARTIC,
+  MULTIQUADRATIC,
+  EPANECHNIKOV,
+  USER_DEFINE
+} kernel_type;
 
 template<typename T, typename TP>
-T kernel_function( TP* a, TP* b, size_t d, const kernel_s<T>& kernel ) 
+struct kernel_s
 {
-  /** Return value */
-  T Kij = 0.0;
+  kernel_type type;
 
-  /** At this moment we already have the corrdinates on this process */
-  switch ( kernel.type )
+  /** Compute a single inner product. */
+  static inline T innerProduct( const TP* x, const TP* y, size_t d )
   {
-    case KS_GAUSSIAN:
-    {
-      Kij = exp( kernel.scal * square_distance( a, b, d ) );
-      break;
-    }
-    case KS_LAPLACE:
-    {
-      Kij = square_distance( a, b, d );
-      /** Deal with the signularity (i.e. r ~ 0.0). */
-      if ( Kij < 1E-6 ) Kij = 0.0;
-      else
-      {
-        if ( d == 1 ) Kij = sqrt( Kij );
-        else if ( d == 2 ) Kij = ( log( Kij ) / 2.0 );
-        else Kij = 1 / sqrt( Kij );
-      }
-      break;
-    }
-    case KS_QUARTIC:
-    {
-      Kij = square_distance( a, b, d );
-      if ( Kij < 0.5 ) Kij = 1;
-      else Kij = 0;
-      break;
-    }
-    default:
-    {
-      printf( "invalid kernel type\n" );
-      exit( 1 );
-    }
+    T accumulator = 0.0;
+    #pragma omp parallel for reduction(+:accumulator)
+    for ( size_t i = 0; i < d; i ++ ) accumulator += x[ i ] * y[ i ];
+    return accumulator;
   }
-  return Kij;
-}
+
+  /** Compute all pairwise inner products using GEMM_TN( 1.0, X, Y, 0.0, K ). */
+  static inline void innerProducts( const TP* X, const TP* Y, size_t d, T* K, size_t m, size_t n )
+  {
+    /** This BLAS function is defined in frame/base/blas_lapack.hpp.  */
+    xgemm( "Transpose", "No-transpose", (int)m, (int)n, (int)d, (T)1.0, X, (int)d, Y, (int)d, (T)0.0, K, (int)m ); 
+  }
+
+  /** Compute a single squared distance. */
+  static inline T squaredDistance( const TP* x, const TP* y, size_t d )
+  {
+    T accumulator = 0.0;
+    #pragma omp parallel for reduction(+:accumulator)
+    for ( size_t i = 0; i < d; i ++ ) accumulator += ( x[ i ] - y[ i ] ) * ( x[ i ] - y[ i ] );
+    return accumulator;
+  }
+
+  /** Compute all pairwise squared distances. */
+  static inline void squaredDistances( const TP* X, const TP* Y, size_t d, T* K, size_t m, size_t n )
+  {
+    innerProducts( X, Y, d, K, m, n );
+    vector<T> squaredNrmX( m, 0 ), squaredNrmY( n, 0 );
+    /** This BLAS function is defined in frame/base/blas_lapack.hpp.  */
+    #pragma omp parallel for
+    for ( size_t i = 0; i < m; i ++ ) squaredNrmX[ i ] = xdot( d, X + i * d, 1, X + i * d, 1 );
+    #pragma omp parallel for
+    for ( size_t j = 0; j < n; j ++ ) squaredNrmY[ j ] = xdot( d, Y + j * d, 1, Y + j * d, 1 );
+    #pragma omp parallel for collapse(2)
+    for ( size_t j = 0; j < n; j ++ )
+      for ( size_t i = 0; i < m; i ++ )
+        K[ j * m + i ] = squaredNrmX[ i ] - 2 * K[ j * m + i ] + squaredNrmY[ j ]; 
+  }
+
+  inline T operator () ( const void* param, const TP* x, const TP* y, size_t d ) const
+  {
+    switch ( type )
+    {
+      case GAUSSIAN:
+        return exp( scal * squaredDistance( x, y, d ) );
+      case SIGMOID:
+        return tanh( scal* innerProduct( x, y, d ) + cons );
+      case LAPLACE:
+        return 0;
+      case QUARTIC:
+        return 0;
+      case USER_DEFINE:
+        return user_element_function( param, x, y, d );
+      default:
+        printf( "invalid kernel type\n" );
+        exit( 1 );
+    } /** end switch ( type ) */
+  };
+
+  /** X should be at least d-by-m, and Y should be at least d-by-n. */
+  inline void operator () ( const void* param, const TP* X, const TP* Y, size_t d, T* K, size_t m, size_t n ) const
+  {
+    switch ( type )
+    {
+      case GAUSSIAN:
+        squaredDistances( X, Y, d, K, m, n );
+        #pragma omp parallel for
+        for ( size_t i = 0; i < m * n; i ++ ) K[ i ] = exp( scal * K[ i ] );
+        break;
+      case SIGMOID:
+        innerProducts( X, Y, d, K, m, n );
+        #pragma omp parallel for
+        for ( size_t i = 0; i < m * n; i ++ ) K[ i ] = tanh( scal * K[ i ] + cons );
+        break;
+      case LAPLACE:
+        break;
+      case QUARTIC:
+        break;
+      case USER_DEFINE:
+        user_matrix_function( param, X, Y, d, K, m, n );
+        break;
+      default:
+        printf( "invalid kernel type\n" );
+        exit( 1 );
+    } /** end switch ( type ) */
+  };
+
+  T powe = 1;
+  T scal = 1;
+  T cons = 0;
+  T *hi;
+  T *hj;
+  T *h;
+  
+  /** User-defined kernel functions. */
+  T (*user_element_function)( const void* param, const TP* x, const TP* y, size_t d ) = nullptr;
+  void (*user_matrix_function)( const void* param, const T* X, const T* Y, size_t d, T* K,  size_t m, size_t n ) = nullptr;
+
+};
 
 
 template<typename T, class Allocator = std::allocator<T>>
@@ -106,20 +164,23 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 {
   public:
 
+    /** (Default) constructor for non-symmetric kernel matrices. */
+    KernelMatrix( size_t m_, size_t n_, size_t d_, kernel_s<T, T> &kernel_, 
+        Data<T> &sources_, Data<T> &targets_ )
+      : VirtualMatrix<T>( m_, n_ ), d( d_ ), 
+        sources( sources_ ), targets( targets_ ), 
+        kernel( kernel_ ), all_dimensions( d_ )
+    {
+      this->is_symmetric = false;
+      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
+    };
+
     /** (Default) constructor for symmetric kernel matrices. */
-    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T>& kernel, Data<T> &sources )
-      : sources( sources ), 
-        targets( sources ), 
-        VirtualMatrix<T>( m, n ),
-        all_dimensions( d )
+    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T, T>& kernel, Data<T> &sources )
+      : KernelMatrix( m, n, d, kernel, sources, sources )
     {
       assert( m == n );
       this->is_symmetric = true;
-      this->d = d;
-      this->kernel = kernel;
-      /** Compute square 2-norms for Euclidian family. */
-      ComputeSquare2Norm();
-      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
     };
 
     KernelMatrix( Data<T> &sources )
@@ -130,261 +191,32 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
     {
       this->is_symmetric = true;
       this->d = sources.row();
-      this->kernel.type = KS_GAUSSIAN;
+      this->kernel.type = GAUSSIAN;
       this->kernel.scal = -0.5;
-      /** Compute square 2-norms for Euclidian family. */
-      ComputeSquare2Norm();
-      for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
-    };
-
-    /** (Default) constructor for non-symmetric kernel matrices. */
-    KernelMatrix( size_t m, size_t n, size_t d, kernel_s<T> &kernel, 
-        Data<T> &sources, Data<T> &targets )
-      : sources( sources ), 
-        targets( targets ), 
-        VirtualMatrix<T>( m, n ),
-        all_dimensions( d )
-    {
-      this->is_symmetric = false;
-      this->d = d;
-      this->kernel = kernel;
-      /** Compute square 2-norms for Euclidian family. */
-      ComputeSquare2Norm();
       for ( size_t i = 0; i < d; i ++ ) all_dimensions[ i ] = i;
     };
 
     /** (Default) destructor. */
     ~KernelMatrix() {};
 
-
-
-
-
-    void ComputeSquare2Norm()
-    {
-      source_sqnorms.resize( this->col(), 0.0 );
-
-      /** compute 2-norm using xdot */
-      #pragma omp parallel for
-      for ( size_t j = 0; j < this->col(); j ++ )
-      {
-        source_sqnorms[ j ] = xdot(
-          d, sources.data() + j * d, 1, 
-					   sources.data() + j * d, 1 );
-      }
-
-      /** compute 2-norms for targets if unsymmetric */
-      if ( is_symmetric ) target_sqnorms = source_sqnorms;
-      else
-      {
-        target_sqnorms.resize( this->row(), 0.0 );
-
-        #pragma omp parallel for
-        for ( size_t i = 0; i < this->row(); i ++ )
-        {
-          target_sqnorms[ i ] = xdot(
-              d, targets.data() + i * d, 1, 
-							   targets.data() + i * d, 1 );
-        }
-      }
-    };
-
-
 		/** ESSENTIAL: override the virtual function */
     virtual T operator()( size_t i, size_t j ) override
     {
-      T Kij = 0.0;
-
-      switch ( kernel.type )
-      {
-        case KS_GAUSSIAN:
-        {
-          for ( size_t k = 0; k < d; k++ )
-          {
-						T tar = targets[ i * d + k ];
-						T src = sources[ j * d + k ];
-            Kij += ( tar - src ) * ( tar - src );
-          }
-          Kij = std::exp( kernel.scal * Kij );
-          break;
-        }
-        default:
-        {
-          printf( "invalid kernel type\n" );
-          exit( 1 );
-          break;
-        }
-			}
-      return Kij;
+      return kernel( nullptr, targets.columndata( i ), sources.columndata( j ), d );
 		};
-
-
-//    /** ESSENTIAL: return K( imap, jmap ) */
-//    Data<T> operator() ( const vector<size_t> &imap, 
-//                         const vector<size_t> &jmap )
-//    {
-//      Data<T> submatrix( imap.size(), jmap.size() );
-//
-//      if ( !submatrix.size() ) return submatrix;
-//
-//      /** Get coordinates of sources and targets */
-//      Data<T> itargets = targets( imap );
-//      Data<T> jsources = sources( jmap );
-//
-//      assert( itargets.col() == submatrix.row() );
-//      assert( itargets.row() == d );
-//      assert( jsources.col() == submatrix.col() );
-//      assert( jsources.row() == d );
-//
-//      /** compute inner products */
-//      xgemm
-//      (
-//        "T", "N",
-//        imap.size(), jmap.size(), d,
-//        -2.0, itargets.data(),   itargets.row(),
-//              jsources.data(),   jsources.row(),
-//         0.0, submatrix.data(), submatrix.row()
-//      );
-//
-//      /** compute square norms */
-//      vector<T> itarget_sqnorms( imap.size() );
-//      vector<T> jsource_sqnorms( jmap.size() );
-//
-//
-//      #pragma omp parallel for
-//      for ( size_t i = 0; i < imap.size(); i ++ )
-//      {
-//        if ( target_sqnorms.size() )
-//        {
-//          /** if precomputed then directly copy */
-//          itarget_sqnorms[ i ] = target_sqnorms[ imap[ i ] ];
-//        }
-//        else
-//        {
-//          /** otherwise compute them now */
-//          itarget_sqnorms[ i ] = xdot(
-//              d, itargets.data() + i * d, 1, itargets.data() + i * d, 1 );
-//        }
-//      }
-//
-//      #pragma omp parallel for
-//      for ( size_t j = 0; j < jmap.size(); j ++ )
-//      {
-//        if ( source_sqnorms.size() )
-//        {
-//          /** if precomputed then directly copy */
-//          jsource_sqnorms[ j ] = source_sqnorms[ jmap[ j ] ];
-//        }
-//        else
-//        {
-//          /** otherwise compute them now */
-//          jsource_sqnorms[ j ] = xdot(
-//              d, jsources.data() + j * d, 1, jsources.data() + j * d, 1 );
-//        }
-//      }
-//
-//      /** add square norms to inner products to get square distances */
-//      #pragma omp parallel for
-//      for ( size_t j = 0; j < jmap.size(); j ++ )
-//      {
-//        for ( size_t i = 0; i < imap.size(); i ++ )
-//        {
-//          submatrix( i, j ) += itarget_sqnorms[ i ] + jsource_sqnorms[ j ];
-//        }
-//      }
-//
-//      switch ( kernel.type )
-//      {
-//        case KS_GAUSSIAN:
-//        {
-//          /** apply the scaling factor and exponentiate */
-//          #pragma omp parallel for
-//          for ( size_t i = 0; i < submatrix.size(); i ++ )
-//          {
-//            submatrix[ i ] = std::exp( kernel.scal * submatrix[ i ] );
-//          }
-//
-//          // gemm: 2 * i * j * d
-//          // compute sqnorms: 2 * ( i + j ) * d
-//          // add sqnorms: 2 * i * j
-//          // scale and exponentiate: 2 * i * j
-//          //flopcount += 2 * ( imap.size() * jmap.size() + imap.size() + jmap.size() ) * d
-//          //           + 4 * imap.size() * jmap.size();
-//          break;
-//        }
-//        default:
-//        {
-//          printf( "invalid kernel type\n" );
-//          exit( 1 );
-//          break;
-//        }
-//      }
-//
-//      return submatrix;
-//    }; 
-//
 
     /** (Overwrittable) ESSENTIAL: return K( I, J ) */
     virtual Data<T> operator() ( const vector<size_t>& I, const vector<size_t>& J ) override
     {
-      Data<T> KIJ = GeometryDistances( I, J );
-			/** Early return */
+      Data<T> KIJ( I.size(), J.size() );
+			/** Early return if possible. */
 			if ( !I.size() || !J.size() ) return KIJ;
-
-      switch ( kernel.type )
-      {
-        case KS_GAUSSIAN:
-        {
-          /** Apply the scaling factor and exponent */
-          #pragma omp parallel for 
-          for ( size_t i = 0; i < KIJ.size(); i ++ )
-          {
-            KIJ[ i ] = std::exp( kernel.scal * KIJ[ i ] );
-          }
-          break;
-        }
-        case KS_LAPLACE:
-        {
-          //T scale = 0.0;
-
-          //if ( d == 1 ) scale = 1.0;
-          //else if ( d == 2 ) scale = ( 0.5 / M_PI );
-          //else
-          //{
-          //  scale = tgamma( 0.5 * d + 1.0 ) / ( d * ( d - 2 ) * pow( M_PI, 0.5 * d ) ); 
-          //}
-
-          #pragma omp parallel for
-          for ( size_t i = 0; i < KIJ.size(); i ++ )
-          {
-            if ( KIJ[ i ] < 1E-6 ) KIJ[ i ] = 0.0;
-            else
-            {
-              if      ( d == 1 ) KIJ[ i ] = sqrt( KIJ[ i ] );
-              else if ( d == 2 ) KIJ[ i ] = std::log( KIJ[ i ] ) / 2;
-              else               KIJ[ i ] = 1 / sqrt( KIJ[ i ] );
-            }
-          }
-          break;
-        }
-        case KS_QUARTIC:
-        {
-          #pragma omp parallel for
-          for ( size_t i = 0; i < KIJ.size(); i ++ )
-          {
-            if ( KIJ[ i ] < 0.5 ) KIJ[ i ] = 1.0;
-            else KIJ[ i ] = 0.0;
-          }
-          break;
-        }
-        default:
-        {
-          printf( "invalid kernel type\n" );
-          exit( 1 );
-          break;
-        }
-      }
-
+			/** Request for coordinates: A (targets), B (sources). */
+      Data<T> X = ( is_symmetric ) ? sources( all_dimensions, I ) : targets( all_dimensions, I );
+      Data<T> Y = sources( all_dimensions, J );
+      /** Evaluate KIJ using legacy interface. */
+      kernel( nullptr, X.data(), Y.data(), d, KIJ.data(), I.size(), J.size() );
+      /** Return K( I, J ). */
       return KIJ;
     };
 
@@ -438,8 +270,6 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
     }; /** end GeometryDistances() */
 
 
-
-
     /** get the diagonal of KII, i.e. diag( K( I, I ) ) */
     Data<T> Diagonal( vector<size_t> &I )
     {
@@ -451,7 +281,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
       /** at this moment we already have the corrdinates on this process */
       switch ( kernel.type )
       {
-        case KS_GAUSSIAN:
+        case GAUSSIAN:
         {
           for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
           break;
@@ -468,11 +298,6 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 
     };
 
-
-
-
-
-
     /** important sampling */
     pair<T, size_t> ImportantSample( size_t j )
     {
@@ -480,130 +305,6 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
       pair<T, size_t> sample( (*this)( i, j ), i );
       return sample; 
     };
-
-//    void ComputeDegree()
-//    {
-//      printf( "ComputeDegree(): K * ones\n" );
-//      assert( is_symmetric );
-//      Data<T> ones( this->row(), (size_t)1, 1.0 );
-//      Degree.resize( this->row(), (size_t)1, 0.0 );
-//      Multiply( 1, Degree, ones );
-//    };
-//
-//    Data<T> &GetDegree()
-//    {
-//      assert( is_symmetric );
-//      if ( Degree.row() != this->row() ) ComputeDegree();
-//      return Degree;
-//    };
-
-//    void NormalizedMultiply( size_t nrhs, T *u, T *w )
-//    {
-//      assert( is_symmetric );
-//      if ( Degree.row() != this->row() ) 
-//      {
-//        ComputeDegree();
-//      }
-//      Data<T> invDw( this->row(), (size_t)1, 0.0 );
-//
-//      /** D^{-1/2}w */
-//      for ( size_t i = 0; i < this->row(); i ++ )
-//      {
-//        u[ i ] = 0.0;
-//        invDw[ i ] = w[ i ] / std::sqrt( Degree[ i ] );
-//      }
-//
-//      /** KD^{-1/2}w */
-//      Multiply( nrhs, u, invDw.data() );
-//
-//      /** D^{-1/2}KD^{-1/2}w */
-//      for ( size_t i = 0; i < this->row(); i ++ )
-//        u[ i ] = u[ i ] / std::sqrt( Degree[ i ] );
-//    };
-
-
-//    /**
-//     *
-//     *
-//     */ 
-//    void Multiply( size_t nrhs, T* u, T* w )
-//    {
-//      vector<int> amap( this->row() );
-//      vector<int> bmap( this->col() );
-//      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
-//      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
-//
-//      if ( nrhs == 1 )
-//      {
-//        gsks( &kernel, amap.size(), bmap.size(), d,
-//                         u,                        amap.data(),
-//            targets.data(), target_sqnorms.data(), amap.data(), 
-//            sources.data(), source_sqnorms.data(), bmap.data(), 
-//                         w,                        bmap.data() );
-//      }
-//      else
-//      {
-//        printf( "gsks with multiple rhs is not implemented yet\n" );
-//        exit( 1 );
-//      }
-//    };
-//
-//    /** u( umap ) += K( amap, bmap ) * w( wmap ) */
-//    template<typename TINDEX>
-//    void Multiply( 
-//        size_t nrhs,
-//        vector<T, Allocator> &u, vector<TINDEX> &umap, 
-//                                      vector<TINDEX> &amap,
-//                                      vector<TINDEX> &bmap,
-//        vector<T, Allocator> &w, vector<TINDEX> &wmap )
-//    {
-//      if ( nrhs == 1 )
-//      {
-//        gsks( &kernel, amap.size(), bmap.size(), d,
-//                  u.data(),                        umap.data(),
-//            targets.data(), target_sqnorms.data(), amap.data(), 
-//            sources.data(), source_sqnorms.data(), bmap.data(), 
-//                  w.data(),                        wmap.data() );
-//      }
-//      else
-//      {
-//        printf( "gsks with multiple rhs is not implemented yet\n" );
-//        exit( 1 );
-//      }
-//    };
-//
-//    /** u( amap ) += K( amap, bmap ) * w( bmap ) */
-//    template<typename TINDEX>
-//    void Multiply( 
-//        size_t nrhs,
-//        vector<T, Allocator> &u,
-//                           vector<TINDEX> &amap,
-//                           vector<TINDEX> &bmap,
-//        vector<T, Allocator> &w )
-//    {
-//      Multiply( nrhs, u, amap, amap, bmap, w, bmap );
-//    };
-//
-//
-//    /** u += K * w */
-//    void Multiply( size_t nrhs, vector<T, Allocator> &u, vector<T, Allocator> &w )
-//    {
-//      vector<int> amap( this->row() );
-//      vector<int> bmap( this->col() );
-//      for ( size_t i = 0; i < amap.size(); i ++ ) amap[ i ] = i;
-//      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
-//      Multiply( nrhs, u, amap, bmap, w );
-//    };
-//
-//    void Multiply( Data<T, Allocator> &u, Data<T, Allocator> &w )
-//    {
-//      assert( u.row() == this->row() );
-//      assert( w.row() == this->col() );
-//      assert( u.col() == w.col() );
-//      size_t nrhs = u.col();
-//      Multiply( nrhs, u, w );
-//    };
-//
 
     void Print()
     {
@@ -632,7 +333,7 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 
       switch ( kernel.type )
       {
-        case KS_GAUSSIAN:
+        case GAUSSIAN:
         {
           flopcount = na * nb * ( 2.0 * d + 35.0 );
           break;
@@ -651,22 +352,14 @@ class KernelMatrix : public VirtualMatrix<T, Allocator>,
 
     bool is_symmetric = true;
 
-    size_t d;
+    size_t d = 0;
 
     Data<T> &sources;
 
     Data<T> &targets;
 
-    /** Degree (diagonal matrix) */
-    Data<T> Degree;
-
-    vector<T> source_sqnorms;
-
-    vector<T> target_sqnorms;
-
     /** legacy data structure */
-    kernel_s<T> kernel;
-
+    kernel_s<T, T> kernel;
     /** [ 0, 1, ..., d-1 ] */
     vector<size_t> all_dimensions;
 
@@ -704,7 +397,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
     DistKernelMatrix
     ( 
       size_t m, size_t n, size_t d,
-      kernel_s<T> &kernel, 
+      kernel_s<T, TP> &kernel, 
       /** by default we assume sources are distributed in [STAR, CBLK] */
       DistData<STAR, CBLK, TP> &sources, 
       /** by default we assume targets are distributed in [STAR, CBLK] */
@@ -737,7 +430,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
     DistKernelMatrix
     ( 
       size_t n, size_t d, 
-      kernel_s<T> &kernel,
+      kernel_s<T, TP> &kernel,
       /** by default we assume sources are distributed in [STAR, CBLK] */
       DistData<STAR, CBLK, TP> &sources, 
       mpi::Comm comm 
@@ -751,165 +444,32 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
     DistKernelMatrix( DistData<STAR, CBLK, TP> &sources, mpi::Comm comm )
     : DistKernelMatrix( sources.col(), sources.row(), sources, comm ) 
     {
-      this->kernel.type = KS_GAUSSIAN;
+      this->kernel.type = GAUSSIAN;
       this->kernel.scal = -0.5;
     };
 
     /** (Default) destructor */
     ~DistKernelMatrix() {};
 
-
-    /** Compute Kij according legacy kernel_s<T> */
-    T operator () ( TP *itargets, TP *jsources )
-    {
-      /** Return value */
-      T Kij = 0.0;
-
-      /** At this moment we already have the corrdinates on this process */
-      switch ( kernel.type )
-      {
-        case KS_GAUSSIAN:
-        {
-          for ( size_t k = 0; k < d; k++ )
-          {
-            TP tar = itargets[ k ];
-            TP src = jsources[ k ];
-            Kij += ( tar - src ) * ( tar - src );
-          }
-          Kij = exp( kernel.scal * Kij );
-          break;
-        }
-        case KS_LAPLACE:
-        {
-          //T scale = 0.0;
-          //if ( d == 1 ) scale = 1.0;
-          //else if ( d == 2 ) scale = ( 0.5 / M_PI );
-          //else
-          //{
-          //  scale = tgamma( 0.5 * d + 1.0 ) / ( d * ( d - 2 ) * pow( M_PI, 0.5 * d ) ); 
-          //}
-          for ( size_t k = 0; k < d; k++ )
-          {
-            /** Use high precision */
-            TP tar = itargets[ k ];
-            TP src = jsources[ k ];
-            Kij += ( tar - src ) * ( tar - src );
-          }
-
-          /** Deal with the signularity (i.e. r ~ 0.0). */
-          if ( Kij < 1E-6 ) Kij = 0.0;
-          else
-          {
-            if ( d == 1 ) Kij = sqrt( Kij );
-            else if ( d == 2 ) Kij = ( log( Kij ) / 2.0 );
-            else Kij = 1 / sqrt( Kij );
-          }
-          break;
-        }
-        case KS_QUARTIC:
-        {
-          for ( size_t k = 0; k < d; k++ )
-          {
-            TP tar = itargets[ k ];
-            TP src = jsources[ k ];
-            Kij += ( tar - src ) * ( tar - src );
-          }
-          //if ( Kij < sqrt ( 2 ) / 2 ) Kij = 1;
-          if ( Kij < 0.5 ) Kij = 1;
-          else Kij = 0;
-          break;
-        }
-        default:
-        {
-          printf( "invalid kernel type\n" );
-          exit( 1 );
-          break;
-        }
-      }
-      return Kij;
-    };
-
     /** (Overwrittable) Request a single Kij */
     virtual T operator () ( size_t i, size_t j ) override
     {
-      /** Return value */
-      if ( is_symmetric )
-      {
-        return (*this)( sources_user.columndata( i ),
-                        sources_user.columndata( j ) );
-      }
-      else
-      {
-        return (*this)( targets_user.columndata( i ),
-                        sources_user.columndata( j ) );
-      }
+      TP* x = ( is_symmetric ) ? sources_user.columndata( i ) : targets_user.columndata( i );
+      TP* y = sources_user.columndata( j );
+      return kernel( nullptr, x, y, d );
     }; /** end operator () */
 
 
     /** (Overwrittable) ESSENTIAL: return K( I, J ) */
     virtual Data<T> operator() ( const vector<size_t>& I, const vector<size_t>& J ) override
     {
-      Data<T> KIJ = GeometryDistances( I, J );
-			/** Early return */
+      Data<T> KIJ( I.size(), J.size() );
+			/** Early return if possible. */
 			if ( !I.size() || !J.size() ) return KIJ;
-
-      switch ( kernel.type )
-      {
-        case KS_GAUSSIAN:
-        {
-          /** Apply the scaling factor and exponent */
-          #pragma omp parallel for
-          for ( size_t i = 0; i < KIJ.size(); i ++ )
-          {
-            KIJ[ i ] = std::exp( kernel.scal * KIJ[ i ] );
-          }
-          break;
-        }
-        case KS_LAPLACE:
-        {
-          //T scale = 0.0;
-
-          //if ( d == 1 ) scale = 1.0;
-          //else if ( d == 2 ) scale = ( 0.5 / M_PI );
-          //else
-          //{
-          //  scale = tgamma( 0.5 * d + 1.0 ) / ( d * ( d - 2 ) * pow( M_PI, 0.5 * d ) ); 
-          //}
-
-          #pragma omp parallel for
-          for ( size_t i = 0; i < KIJ.size(); i ++ )
-          {
-            if ( KIJ[ i ] < 1E-6 ) KIJ[ i ] = 0.0;
-            else
-            {
-              if      ( d == 1 ) KIJ[ i ] = sqrt( KIJ[ i ] );
-              else if ( d == 2 ) KIJ[ i ] = std::log( KIJ[ i ] ) / 2;
-              else               KIJ[ i ] = 1 / sqrt( KIJ[ i ] );
-            }
-          }
-          break;
-        }
-        case KS_QUARTIC:
-        {
-          #pragma omp parallel for
-          for ( size_t i = 0; i < KIJ.size(); i ++ )
-          {
-            if ( KIJ[ i ] < 0.5 ) KIJ[ i ] = 1.0;
-            else KIJ[ i ] = 0.0;
-          }
-          break;
-        }
-        default:
-        {
-          printf( "invalid kernel type\n" );
-          exit( 1 );
-          break;
-        }
-      }
-
-      /** There should be no NAN or INF value. */
-      //assert( !KIJ.HasIllegalValue() );
-      /** Return submatrix KIJ. */
+			/** Request for coordinates: A (targets), B (sources). */
+      Data<T> X = ( is_symmetric ) ? sources_user( all_dimensions, I ) : targets_user( all_dimensions, I );
+      Data<T> Y = sources_user( all_dimensions, J );
+      kernel( nullptr, X.data(), Y.data(), d, KIJ.data(), I.size(), J.size() );
       return KIJ;
     };
 
@@ -983,17 +543,17 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
       /** at this moment we already have the corrdinates on this process */
       switch ( kernel.type )
       {
-        case KS_GAUSSIAN:
+        case GAUSSIAN:
         {
           for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
           break;
         }
-        case KS_LAPLACE:
+        case LAPLACE:
         {
           for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
           break;
         }
-        case KS_QUARTIC:
+        case QUARTIC:
         {
           for ( size_t i = 0; i < I.size(); i ++ ) DII[ i ] = 1.0;
           break;
@@ -1020,15 +580,6 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
       pair<T, size_t> sample( 0, i );
       return sample; 
     };
-
-//    void ComputeDegree()
-//    {
-//      printf( "ComputeDegree(): K * ones\n" );
-//      assert( is_symmetric );
-//      Data<T> ones( this->row(), (size_t)1, 1.0 );
-//      Degree.resize( this->row(), (size_t)1, 0.0 );
-//      Multiply( 1, Degree, ones );
-//    };
 
     void Print()
     {
@@ -1057,7 +608,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
 
       switch ( kernel.type )
       {
-        case KS_GAUSSIAN:
+        case GAUSSIAN:
         {
           flopcount = na * nb * ( 2.0 * d + 35.0 );
           break;
@@ -1161,7 +712,7 @@ class DistKernelMatrix : public DistVirtualMatrix<T, Allocator>,
     size_t d = 0;
 
     /** Legacy data structure for kernel matrices. */
-    kernel_s<T> kernel;
+    kernel_s<T, TP> kernel;
 
     /** Pointers to user provided data points in block cylic distribution. */
     DistData<STAR, CBLK, TP> *sources = NULL;

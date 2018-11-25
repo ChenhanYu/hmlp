@@ -168,12 +168,12 @@ template<class T, class Allocator = thrust::system::cuda::experimental::pinned_a
 /** use default stl allocator */
 template<class T, class Allocator = std::allocator<T> >
 #endif
-class DistDataBase : public Data<T, Allocator>
+class DistDataBase : public Data<T, Allocator>, public mpi::MPIObject
 {
   public:
 
     /** Default constructor */
-    DistDataBase( size_t m, size_t n, mpi::Comm comm )
+    DistDataBase( size_t m, size_t n, mpi::Comm comm ) : mpi::MPIObject( comm )
     {
       this->global_m = m;
       this->global_n = n;
@@ -187,15 +187,25 @@ class DistDataBase : public Data<T, Allocator>
 
     /** Copy constructor for hmlp::Data. */
     DistDataBase( size_t m, size_t n, Data<T, Allocator>& other_data, mpi::Comm comm )
-      : Data<T, Alllocator>( other_data ), DistDataBase( m, n, comm )
+      : Data<T, Allocator>( other_data ), mpi::MPIObject( comm )
     {
+      this->global_m = m;
+      this->global_n = n;
+      this->comm = comm;
+      mpi::Comm_size( comm, &comm_size );
+      mpi::Comm_rank( comm, &comm_rank );
     }
 
     /** Copy constructor for std::vector. */
     DistDataBase( size_t m, size_t n, size_t owned_rows, size_t owned_cols, 
         vector<T, Allocator>& other_vector, mpi::Comm comm )
-      : Data<T, Alllocator>( owned_rows, rowed_cols, other_vector ), DistDataBase( m, n, comm )
+      : Data<T, Allocator>( owned_rows, owned_cols, other_vector ), mpi::MPIObject( comm )
     {
+      this->global_m = m;
+      this->global_n = n;
+      this->comm = comm;
+      mpi::Comm_size( comm, &comm_size );
+      mpi::Comm_rank( comm, &comm_rank );
     }
 
     /** MPI support */
@@ -383,7 +393,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
     };
 
     /** Construct distributed data from local column data. */
-    DistData( mpi::Comm comm, size_t m, size_t n, Data<T>& local_column_data )
+    DistData( size_t m, size_t n, Data<T>& local_column_data, mpi::Comm comm )
       : DistDataBase<T>( m, n, local_column_data, comm )
     {
       /** MPI */
@@ -398,10 +408,23 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       assert( m == local_column_data.row() );
       /** The column number of local_column_data must be local_n. */
       assert( local_n == local_column_data.col() );
-
     };
 
+    /** Construct distributed data from local std::vector. */
+    DistData( size_t m, size_t n, vector<T>& local_vector, mpi::Comm comm )
+      : DistDataBase<T>( m, n, m, local_vector.size() / m, local_vector, comm )
+    {
+      /** MPI */
+      int size = this->GetSize();
+      int rank = this->GetRank();
 
+      size_t edge_n = n % size;
+      size_t local_n = ( n - edge_n ) / size;
+      if ( rank < edge_n ) local_n ++;
+
+      /** The column number of local_column_data must be local_n. */
+      assert( local_n == this->col_owned() );
+    };
 
     /** Constructor that reads a binary file. */ 
     DistData( size_t m, size_t n, mpi::Comm comm, string &filename ) 
@@ -610,7 +633,8 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
 
 
 
-    DistData( size_t m, size_t n, mpi::Comm comm ) : DistDataBase<T>( m, n, comm ) 
+    DistData( size_t m, size_t n, mpi::Comm comm ) 
+      : DistDataBase<T>( m, n, comm ) 
     {
       /** MPI */
       int size = this->GetSize();
@@ -623,6 +647,34 @@ class DistData<RBLK, STAR, T> : public DistDataBase<T>
       this->resize( local_m, n );
     };
 
+    /** Construct distributed data from local row data. */
+    DistData( size_t m, size_t n, Data<T>& local_row_data, mpi::Comm comm )
+      : DistDataBase<T>( m, n, local_row_data, comm )
+    {
+      /** MPI */
+      int size = this->GetSize();
+      int rank = this->GetRank();
+      size_t edge_m = m % size;
+      size_t local_m = ( m - edge_m ) / size;
+      if ( rank < edge_m ) local_m ++;
+
+      assert( local_m == local_row_data.row() );
+      assert( n == local_row_data.col() );
+    };
+
+    /** Construct distributed data from local vector. */
+    DistData( size_t m, size_t n, vector<T>& local_vector, mpi::Comm comm )
+      : DistDataBase<T>( m, n, local_vector.size() / n, n, local_vector, comm )
+    {
+      /** MPI */
+      int size = this->GetSize();
+      int rank = this->GetRank();
+      size_t edge_m = m % size;
+      size_t local_m = ( m - edge_m ) / size;
+      if ( rank < edge_m ) local_m ++;
+
+      assert( local_m == this->row_owned() );
+    };
 
 
     /**

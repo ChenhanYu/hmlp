@@ -21,12 +21,6 @@
 #ifndef VIRTUALMATRIX_HPP
 #define VIRTUALMATRIX_HPP
 
-/** -lmemkind */
-#ifdef HMLP_MIC_AVX512
-#include <hbwmalloc.h>
-#include <hbw_allocator.h>
-#endif
-
 /** Use hmlp::Data<T> for a concrete dense submatrix */
 #include <Data.hpp>
 

@@ -1,10 +1,20 @@
+#ifndef GSKS_REF_MRXNR_HPP
+#define GSKS_REF_MRXNR_HPP
+
+#include <KernelMatrix.hpp>
+
+using namespace std;
+using namespace hmlp;
+
+namespace hmlp
+{
 
 template<int MR, int NR, typename T>
 struct gsks_ref_mrxnr 
 {
   inline void operator()
   (
-    kernel_s<T> *kernel,
+    kernel_s<T, T> *kernel,
     int k,
     int nrhs,
     T *u,
@@ -70,3 +80,6 @@ struct gsks_ref_mrxnr
   }; /** end inline void operator */
 }; /** end struct gsks_ref_mrxnr */
 
+}; /** end namespace hmlp */
+
+#endif /** define GSKS_REF_MRXNR_HPP */

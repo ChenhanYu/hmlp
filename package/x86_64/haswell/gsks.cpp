@@ -37,7 +37,7 @@ using namespace hmlp;
 
 void gsks
 (
-  kernel_s<float> *kernel,
+  kernel_s<float, float> *kernel,
   int m, int n, int k,
   float *u,            int *umap,
   float *A, float *A2, int *amap,
@@ -53,7 +53,7 @@ void gsks
 
 void gsks
 (
-  kernel_s<double> *kernel,
+  kernel_s<double, double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
   double *A, double *A2, int *amap,
@@ -63,7 +63,7 @@ void gsks
 {
   switch ( kernel->type )
   {
-    case KS_GAUSSIAN:
+    case GAUSSIAN:
     {
       /** kernel instances */
 //      rank_k_asm_d8x6 semiringkernel;
@@ -89,11 +89,11 @@ void gsks
 //      );
       break;
     }
-    case KS_GAUSSIAN_VAR_BANDWIDTH:
+    case GAUSSIAN_VAR_BANDWIDTH:
     {
       break;
     }
-    case KS_POLYNOMIAL:
+    case POLYNOMIAL:
     {
 //      rank_k_asm_d8x6 semiringkernel;
 //      gsks_polynomial_int_d8x6 microkernel;
@@ -115,15 +115,15 @@ void gsks
 //      );
       break;
     }
-    case KS_LAPLACE:
+    case LAPLACE:
       break;
-    case KS_TANH:
+    case TANH:
       break;
-    case KS_QUARTIC:
+    case QUARTIC:
       break;
-    case KS_MULTIQUADRATIC:
+    case MULTIQUADRATIC:
       break;
-    case KS_EPANECHNIKOV:
+    case EPANECHNIKOV:
       break;
     default:
       exit( 1 );
@@ -138,7 +138,7 @@ void gsks
 
 void dgsks_ref
 (
-  kernel_s<double> *kernel,
+  kernel_s<double, double> *kernel,
   int m, int n, int k,
   double *u,             int *umap,
   double *A, double *A2, int *amap,

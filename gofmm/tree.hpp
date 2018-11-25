@@ -186,7 +186,7 @@ class MortonHelper
       return ( 1 << LEVELOFFSET ) - depth + LEVELOFFSET;
     }; /** end Shift() */
 
-    const static int LEVELOFFSET = 5;
+    const static int LEVELOFFSET = 4;
 
 }; /** end class MortonHelper */
   

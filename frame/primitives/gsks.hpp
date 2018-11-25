@@ -35,6 +35,10 @@
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 
+
+#include <KernelMatrix.hpp>
+
+
 namespace hmlp
 {
 namespace gsks
@@ -110,7 +114,7 @@ template<
 void fused_macro_kernel
 (
   //ks_t *kernel,
-  kernel_s<TC> *kernel,
+  kernel_s<TV, TC> *kernel,
   Worker &thread,
   int ic, int jc, int pc,
   int  m,  int n,  int k,
@@ -182,7 +186,7 @@ void gsks_internal
 (
   Worker &thread,
   //ks_t *kernel,
-  kernel_s<TC> *kernel,
+  kernel_s<TV, TC> *kernel,
   int m, int n, int k,
   TC *u,         int *umap, 
   TA *A, TA *A2, int *amap,
@@ -396,7 +400,7 @@ template<
   typename TA, typename TB, typename TC, typename TV>
 void gsks
 (
-  kernel_s<TC> *kernel,
+  kernel_s<TV, TC> *kernel,
   int m, int n, int k,
   TC *u,         int *umap,
   TA *A, TA *A2, int *amap,
@@ -517,7 +521,7 @@ template<typename T>
 void gsks_ref
 (
   //ks_t *kernel,
-  kernel_s<T> *kernel,
+  kernel_s<T, T> *kernel,
   int m, int n, int k,
   T *u,        int *umap,
   T *A, T *A2, int *amap,
@@ -540,10 +544,10 @@ void gsks_ref
 
   switch ( kernel->type )
   {
-    case KS_GAUSSIAN:
+    case GAUSSIAN:
       rank_k_scale = -2.0;
       break;
-    case KS_GAUSSIAN_VAR_BANDWIDTH:
+    case GAUSSIAN_VAR_BANDWIDTH:
       rank_k_scale = -2.0;
       break;
     default:
@@ -619,7 +623,7 @@ void gsks_ref
 
   switch ( kernel->type ) 
   {
-    case KS_GAUSSIAN:
+    case GAUSSIAN:
       {
         #pragma omp parallel for
         for ( int j = 0; j < n; j ++ ) 
@@ -637,7 +641,7 @@ void gsks_ref
         }
         break;
       }
-    case KS_GAUSSIAN_VAR_BANDWIDTH:
+    case GAUSSIAN_VAR_BANDWIDTH:
       {
         #pragma omp parallel for
         for ( int j = 0; j < n; j ++ ) 

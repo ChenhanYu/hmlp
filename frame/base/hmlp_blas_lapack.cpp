@@ -52,7 +52,7 @@ namespace hmlp
 /**
  *  @brief DDOT wrapper
  */ 
-double xdot( int n, double *dx, int incx, double *dy, int incy )
+double xdot( int n, const double *dx, int incx, const double *dy, int incy )
 {
   double ret_val;
 #ifdef USE_BLAS
@@ -69,7 +69,7 @@ double xdot( int n, double *dx, int incx, double *dy, int incy )
 /**
  *  @brief SDOT wrapper
  */ 
-float xdot( int n, float *dx, int incx, float *dy, int incy )
+float xdot( int n, const float *dx, int incx, const float *dy, int incy )
 {
   float ret_val;
 #ifdef USE_BLAS
@@ -135,10 +135,9 @@ void xgemm
 (
   const char *transA, const char *transB,
   int m, int n, int k, 
-  double alpha,
-  double *A, int lda,
-  double *B, int ldb, double beta,
-  double *C, int ldc
+  double alpha, const double *A, int lda,
+                const double *B, int ldb, 
+  double beta,        double *C, int ldc
 )
 {
   double beg, xgemm_time = 0.0;
@@ -204,10 +203,9 @@ void xgemm
 (
   const char *transA, const char *transB,
   int m, int n, int k, 
-  float alpha,
-  float *A, int lda,
-  float *B, int ldb, float beta,
-  float *C, int ldc
+  float alpha, const float *A, int lda,
+               const float *B, int ldb, 
+  float beta,        float *C, int ldc
 )
 {
   double beg, xgemm_time = 0.0;

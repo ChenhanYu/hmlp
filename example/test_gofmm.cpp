@@ -74,10 +74,10 @@ int main( int argc, char *argv[] )
     /** Read the coordinates from the file. */
     Data<T> X( cmd.d, cmd.n, cmd.user_points_filename );
     /** Set the kernel object as Gaussian. */
-    kernel_s<T> kernel;
-    kernel.type = KS_GAUSSIAN;
-    if ( !cmd.kernelmatrix_type.compare( "gaussian" ) ) kernel.type = KS_GAUSSIAN;
-    if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = KS_LAPLACE;
+    kernel_s<T, T> kernel;
+    kernel.type = GAUSSIAN;
+    if ( !cmd.kernelmatrix_type.compare( "gaussian" ) ) kernel.type = GAUSSIAN;
+    if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = LAPLACE;
     kernel.scal = -0.5 / ( cmd.h * cmd.h );
     /** SPD kernel matrix format (implicitly create). */
     KernelMatrix<T> K( cmd.n, cmd.n, cmd.d, kernel, X );

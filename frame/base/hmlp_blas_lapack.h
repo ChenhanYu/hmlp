@@ -35,18 +35,18 @@ void xgemm
 (
   const char *transA, const char *transB,
   int m, int n, int k, 
-  float alpha, float *A, int lda,
-               float *B, int ldb, 
-  float beta,  float *C, int ldc
+  float alpha, const float *A, int lda,
+               const float *B, int ldb, 
+  float beta,        float *C, int ldc
 );
 
 void xgemm
 (
   const char *transA, const char *transB,
   int m, int n, int k, 
-  double alpha, double *A, int lda,
-                double *B, int ldb, 
-  double beta,  double *C, int ldc
+  double alpha, const double *A, int lda,
+                const double *B, int ldb, 
+  double beta,        double *C, int ldc
 );
 
 
@@ -157,8 +157,8 @@ void xstev( const char *jobz, int n, double *D, double *E, double *Z, int ldz, d
 void xstev( const char *jobz, int n, float  *D, float  *E, float  *Z, int ldz, float  *work );
 
 
-double xdot( int n, double *dx, int incx, double *dy, int incy );
-float  xdot( int n,  float *dx, int incx,  float *dy, int incy );
+double xdot( int n, const double *dx, int incx, const double *dy, int incy );
+float  xdot( int n, const  float *dx, int incx, const  float *dy, int incy );
 
 double xnrm2( int n, double *x, int incx );
 float  xnrm2( int n,  float *x, int incx );

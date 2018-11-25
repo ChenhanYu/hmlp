@@ -364,8 +364,8 @@ int main( int argc, char *argv[] )
       /** read the coordinates from the file */
       Data<T> X( d, n, user_points_filename );
       /** setup the kernel object as Gaussian */
-      kernel_s<T> kernel;
-      kernel.type = KS_GAUSSIAN;
+      kernel_s<T, T> kernel;
+      kernel.type = GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
       /** spd kernel matrix format (implicitly create) */
       KernelMatrix<T> K( n, n, d, kernel, X );
@@ -400,8 +400,8 @@ int main( int argc, char *argv[] )
 			/** generate coordinates from normal(0,1) distribution */
 			Data<T> X( d, n ); X.randn( 0.0, 1.0 );
       /** setup the kernel object as Gaussian */
-      kernel_s<T> kernel;
-      kernel.type = KS_GAUSSIAN;
+      kernel_s<T, T> kernel;
+      kernel.type = GAUSSIAN;
       kernel.scal = -0.5 / ( h * h );
       /** spd kernel matrix format (implicitly create) */
       KernelMatrix<T> K( n, n, d, kernel, X );

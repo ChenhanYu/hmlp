@@ -68,7 +68,7 @@ void gsks
 {
   switch ( kernel->type )
   {
-    case KS_GAUSSIAN:
+    case GAUSSIAN:
     {
       rank_k_asm_d8x4 semiringkernel;
       gsks_gaussian_int_d8x4 fusedkernel;
@@ -120,7 +120,7 @@ void gsks
 
       break;
     }
-    case KS_GAUSSIAN_VAR_BANDWIDTH:
+    case GAUSSIAN_VAR_BANDWIDTH:
       {
         rank_k_asm_d8x4 semiringkernel;
         variable_bandwidth_gaussian_int_d8x4 fusedkernel;
@@ -153,22 +153,22 @@ void gsks
 
         break;
       }
-    case KS_POLYNOMIAL:
+    case POLYNOMIAL:
       {
         rank_k_asm_d8x4 semiringkernel;
 
 
         break;
       }
-    case KS_LAPLACE:
+    case LAPLACE:
       break;
-    case KS_TANH:
+    case TANH:
       break;
-    case KS_QUARTIC:
+    case QUARTIC:
       break;
-    case KS_MULTIQUADRATIC:
+    case MULTIQUADRATIC:
       break;
-    case KS_EPANECHNIKOV:
+    case EPANECHNIKOV:
       break;
     default:
       exit( 1 );

@@ -2,10 +2,13 @@
 
 -HMLP:
 
-need to clean up all gpu memory 
+1. need to clean up all gpu memory 
+2. migrate DistData to use MPIObject
 
 -GOFMM:
 
 1. The current far field sampling scheme is not optimal for FMM. 
 Important samples should be constructed after the far interaction
 lists were built.
+
+2. Fix all indices to certain type.

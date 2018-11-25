@@ -89,10 +89,10 @@ int main( int argc, char *argv[] )
     /** Read the coordinates from the file. */
     DistData<STAR, CBLK, T> X( cmd.d, cmd.n, CommGOFMM, cmd.user_points_filename );
     /** Setup the kernel object. */
-    kernel_s<T> kernel;
-    kernel.type = KS_GAUSSIAN;
-    if ( !cmd.kernelmatrix_type.compare( "gaussian" ) ) kernel.type = KS_GAUSSIAN;
-    if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = KS_LAPLACE;
+    kernel_s<T, T> kernel;
+    kernel.type = GAUSSIAN;
+    if ( !cmd.kernelmatrix_type.compare( "gaussian" ) ) kernel.type = GAUSSIAN;
+    if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = LAPLACE;
     kernel.scal = -0.5 / ( cmd.h * cmd.h );
     /** Distributed spd kernel matrix format (implicitly create). */
     DistKernelMatrix<T, T> K( cmd.n, cmd.d, kernel, X, CommGOFMM );

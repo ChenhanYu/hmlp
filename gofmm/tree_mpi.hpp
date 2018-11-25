@@ -823,17 +823,25 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       this->m = this->setup.m;
 
 
-      /** Local problem size (assuming Round-Robin) */
-      //num_points_owned = ( n - 1 ) / size + 1;
-      num_points_owned = ( n - 1 ) / this->GetCommSize() + 1;
+      ///** Local problem size (assuming Round-Robin) */
+      ////num_points_owned = ( n - 1 ) / size + 1;
+      //num_points_owned = ( n - 1 ) / this->GetCommSize() + 1;
 
+      ///** Edge case */
+      //if ( n % this->GetCommSize() )
+      //{
+      //  //if ( rank >= ( n % size ) ) num_points_owned -= 1;
+      //  if ( this->GetCommRank() >= ( n % this->GetCommSize() ) ) 
+      //    num_points_owned -= 1;
+      //}
+
+      /** Local problem size (assuming Round-Robin) */
+      num_points_owned = n / this->GetCommSize();
       /** Edge case */
-      if ( n % this->GetCommSize() )
-      {
-        //if ( rank >= ( n % size ) ) num_points_owned -= 1;
-        if ( this->GetCommRank() >= ( n % this->GetCommSize() ) ) 
-          num_points_owned -= 1;
-      }
+      if ( this->GetCommRank() < ( n % this->GetCommSize() ) ) 
+         num_points_owned += 1;
+
+
 
       /** Initial gids distribution (asssuming Round-Robin) */
       vector<size_t> gids( num_points_owned, 0 );
@@ -1215,10 +1223,13 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     /** */ 
     int Morton2Rank( size_t it )
     {
-      //return MortonHelper::Morton2Rank( it, size );
       return MortonHelper::Morton2Rank( it, this->GetCommSize() );
-    }; /** end Morton2rank() */
+    }; /** end Morton2Rank() */
 
+    int Index2Rank( size_t gid )
+    {
+       return Morton2Rank( this->setup.morton[ gid ] );
+    }; /** end Morton2Rank() */
 
 
 
