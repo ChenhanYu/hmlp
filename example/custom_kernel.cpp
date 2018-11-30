@@ -30,7 +30,8 @@ using namespace hmlp;
 template<typename T, typename TP>
 T element_relu( const void* param, const TP* x, const TP* y, size_t d )
 {
-  return std::max( T(0), kernel_s<T, TP>::innerProduct( x, y, d ) );
+	// kernel_s inner product is defined in :gofmm/frame/containers/KernelMatrix.hpp
+  return std::max( T(0), kernel_s<T, TP>::innerProduct( x, y, d ) );  
 };
 
 template<typename T, typename TP>
