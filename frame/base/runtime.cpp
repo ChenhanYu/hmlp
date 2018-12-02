@@ -18,7 +18,7 @@
  *
  **/  
 
-#include <hmlp_runtime.hpp>
+#include <base/runtime.hpp>
 
 #ifdef HMLP_USE_CUDA
 #include <hmlp_gpu.hpp>

@@ -46,9 +46,8 @@
 #include <pthread.h>
 #endif
 
-#include <hmlp_device.hpp>
-#include <hmlp_thread.hpp>
-#include <hmlp_tci.hpp>
+#include <base/thread.hpp>
+#include <base/tci.hpp>
 #include <hmlp_mpi.hpp>
 
 #define MAX_WORKER 68
@@ -180,7 +179,7 @@ class Task
 
     ~Task();
 
-    Worker *worker = NULL;
+    class Worker *worker = NULL;
 
     string name;
 
@@ -723,11 +722,11 @@ class RunTime
 
     thread_communicator *mycomm;
 
-    Worker workers[ MAX_WORKER ];
+    class Worker workers[ MAX_WORKER ];
 
-    Device host;
+    class Device host;
 
-    Device* device[ 1 ];
+    class Device* device[ 1 ];
 
     Scheduler *scheduler;
 

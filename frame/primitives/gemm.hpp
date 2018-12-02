@@ -24,11 +24,9 @@
 #define GEMM_HPP
 
 #include <hmlp.h>
-#include <hmlp_blas_lapack.h>
-#include <hmlp_runtime.hpp>
-
+#include <hmlp_base.hpp>
 /** Use matrix view to employ SuperMatrix style task parallelism. */
-#include <View.hpp>
+//#include <View.hpp>
 
 using namespace std;
 using namespace hmlp;

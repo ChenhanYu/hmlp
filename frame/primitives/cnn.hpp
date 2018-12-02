@@ -25,7 +25,7 @@
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
 #include <hmlp_packing.hpp>
-#include <hmlp_util.hpp>
+#include <base/util.hpp>
 #include <hmlp_thread.hpp>
 #include <hmlp_runtime.hpp>
 

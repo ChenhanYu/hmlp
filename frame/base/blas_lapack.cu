@@ -19,11 +19,7 @@
  **/  
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <omp.h>
-
-#include <hmlp_blas_lapack.h>
+#include <base/blas_lapack.hpp>
 
 #ifdef HMLP_USE_MAGMA
 #include <magma_v2.h>
@@ -210,4 +206,4 @@ void xgeqp3
 
 
 
-}; // end namespace hmlp
+}; /** end namespace hmlp */

@@ -29,12 +29,7 @@
 
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
-#include <hmlp_util.hpp>
-
-/** Use Thread Control Interface (TCI). */
-#include <hmlp_tci.hpp>
-/** for USE_STRASSEN */
-//#include <primitives/strassen.hpp>
+#include <hmlp_base.hpp>
 
 /** reference microkernels */
 #include <packing.hpp>

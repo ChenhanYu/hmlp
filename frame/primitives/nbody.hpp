@@ -29,10 +29,10 @@
 
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
-#include <hmlp_util.hpp>
+#include <hmlp_base.hpp>
 
 /** Use Thread Control Interface (TCI). */
-#include <hmlp_tci.hpp>
+//#include <hmlp_tci.hpp>
 /** Use rank-k update template. */
 #include <primitives/rank_k.hpp>
 

@@ -33,13 +33,10 @@
 #include <omp.h>
 
 
-
-#ifdef HMLP_MIC_AVX512
-#include <hbwmalloc.h>
-#endif
-
-
 #include <hmlp.h>
+
+#define HANDLE_ERROR( err ) (hmlp::handleError( err, __FILE__, __LINE__ ))
+
 
 
 using namespace std;
@@ -48,6 +45,8 @@ using namespace std;
 namespace hmlp
 {
 
+/** Handling runtime error with information. */
+void handleError( hmlpError_t error, const char* file, int line );
 
 /**
  *  @brief The default function to allocate memory for HMLP.

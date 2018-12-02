@@ -19,8 +19,8 @@
  **/  
 
 
-#include <hmlp_device.hpp>
-#include <hmlp_runtime.hpp>
+#include <base/device.hpp>
+#include <base/runtime.hpp>
 
 using namespace std;
 

@@ -24,8 +24,8 @@
 
 #include <vector>
 
-#include <blas_lapack_prototypes.hpp>
-#include <mpi_prototypes.hpp>
+#include <external/blas_lapack_prototypes.h>
+#include <external/mpi_prototypes.h>
 
 using namespace std;
 
@@ -45,6 +45,19 @@ typedef enum
   HMLP_OP_N,
   HMLP_OP_T
 } hmlpOperation_t;
+
+typedef enum
+{
+  HMLP_ERROR_SUCCESS,
+  HMLP_ERROR_ALLOC_FAILED,
+  HMLP_ERROR_INVALID_VALUE,
+  HMLP_ERROR_EXECUTION_FAILED,
+  HMLP_ERROR_INTERNAL_ERROR,
+  HMLP_ERROR_NOT_SUPPORTED
+} hmlpError_t;
+
+
+
 
 
 void gkmx_sfma

@@ -29,8 +29,7 @@
 
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
-#include <hmlp_util.hpp>
-#include <hmlp_thread.hpp>
+#include <hmlp_base.hpp>
 
 /** for USE_STRASSEN */
 //#include <primitives/strassen.hpp>

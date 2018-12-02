@@ -28,7 +28,7 @@
 #include <tree_mpi.hpp>
 #include <igofmm_mpi.hpp>
 /** Use distributed matrices inspired by the Elemental notation. */
-#include <DistData.hpp>
+//#include <DistData.hpp>
 /** Use STL and HMLP namespaces. */
 using namespace std;
 using namespace hmlp;
@@ -3701,175 +3701,174 @@ class InterpolateTask : public Task
 template<bool NNPRUNE = true, typename TREE, typename T>
 DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
 {
-  /** MPI Support. */
-  int size; mpi::Comm_size( tree.GetComm(), &size );
-  int rank; mpi::Comm_rank( tree.GetComm(), &rank );
-  /** Derive type NODE and MPINODE from TREE. */
-  using NODE    = typename TREE::NODE;
-  using MPINODE = typename TREE::MPINODE;
+  try
+  {
+    /** MPI Support. */
+    int size; mpi::Comm_size( tree.GetComm(), &size );
+    int rank; mpi::Comm_rank( tree.GetComm(), &rank );
+    /** Derive type NODE and MPINODE from TREE. */
+    using NODE    = typename TREE::NODE;
+    using MPINODE = typename TREE::MPINODE;
 
-  /** All timers */
-  double beg, time_ratio, evaluation_time = 0.0;
-  double direct_evaluation_time = 0.0, computeall_time, telescope_time, let_exchange_time, async_time;
-  double overhead_time;
-  double forward_permute_time, backward_permute_time;
+    /** All timers */
+    double beg, time_ratio, evaluation_time = 0.0;
+    double direct_evaluation_time = 0.0, computeall_time, telescope_time, let_exchange_time, async_time;
+    double overhead_time;
+    double forward_permute_time, backward_permute_time;
 
-  /** Clean up all r/w dependencies left on tree nodes. */
-  tree.DependencyCleanUp();
+    /** Clean up all r/w dependencies left on tree nodes. */
+    tree.DependencyCleanUp();
 
-  /** n-by-nrhs, initialize potentials. */
-  size_t n    = weights.row();
-  size_t nrhs = weights.col();
+    /** n-by-nrhs, initialize potentials. */
+    size_t n    = weights.row();
+    size_t nrhs = weights.col();
 
-  /** Potentials must be in [RIDS,STAR] distribution */
-  auto &gids_owned = tree.treelist[ 0 ]->gids;
-  DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, tree.GetComm() );
-  potentials.setvalue( 0.0 );
+    /** Potentials must be in [RIDS,STAR] distribution */
+    auto &gids_owned = tree.treelist[ 0 ]->gids;
+    DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, tree.GetComm() );
+    potentials.setvalue( 0.0 );
 
-  /** Provide pointers. */
-  tree.setup.w = &weights;
-  tree.setup.u = &potentials;
+    /** Provide pointers. */
+    tree.setup.w = &weights;
+    tree.setup.u = &potentials;
 
-  /** TreeView (downward traversal) */
-  gofmm::TreeViewTask<NODE>           seqVIEWtask;
-  mpigofmm::DistTreeViewTask<MPINODE> mpiVIEWtask;
-  /** Telescope (upward traversal) */
-  gofmm::UpdateWeightsTask<NODE, T>           seqN2Stask;
-  mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
-  /** L2L (sum of direct evaluations) */
-  //mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
-  //mpigofmm::L2LReduceTask<NODE, T> seqL2LReducetask;
-  mpigofmm::L2LReduceTask2<NODE, T> seqL2LReducetask2;
-  /** S2S (sum of low-rank approximation) */
-  //gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T>           seqS2Stask;
-  //mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
-  //mpigofmm::S2SReduceTask<NODE, T>    seqS2SReducetask;
-  //mpigofmm::S2SReduceTask<MPINODE, T> mpiS2SReducetask;
-  mpigofmm::S2SReduceTask2<NODE, NODE, T>    seqS2SReducetask2;
-  mpigofmm::S2SReduceTask2<MPINODE, NODE, T> mpiS2SReducetask2;
-  /** Telescope (downward traversal) */
-  gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T>           seqS2Ntask;
-  mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
+    /** TreeView (downward traversal) */
+    gofmm::TreeViewTask<NODE>           seqVIEWtask;
+    mpigofmm::DistTreeViewTask<MPINODE> mpiVIEWtask;
+    /** Telescope (upward traversal) */
+    gofmm::UpdateWeightsTask<NODE, T>           seqN2Stask;
+    mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
+    /** L2L (sum of direct evaluations) */
+    //mpigofmm::DistLeavesToLeavesTask<NNPRUNE, NODE, T> seqL2Ltask;
+    //mpigofmm::L2LReduceTask<NODE, T> seqL2LReducetask;
+    mpigofmm::L2LReduceTask2<NODE, T> seqL2LReducetask2;
+    /** S2S (sum of low-rank approximation) */
+    //gofmm::SkeletonsToSkeletonsTask<NNPRUNE, NODE, T>           seqS2Stask;
+    //mpigofmm::DistSkeletonsToSkeletonsTask<NNPRUNE, MPINODE, T> mpiS2Stask;
+    //mpigofmm::S2SReduceTask<NODE, T>    seqS2SReducetask;
+    //mpigofmm::S2SReduceTask<MPINODE, T> mpiS2SReducetask;
+    mpigofmm::S2SReduceTask2<NODE, NODE, T>    seqS2SReducetask2;
+    mpigofmm::S2SReduceTask2<MPINODE, NODE, T> mpiS2SReducetask2;
+    /** Telescope (downward traversal) */
+    gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T>           seqS2Ntask;
+    mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
+
+      /** Global barrier and timer */
+      mpi::Barrier( tree.GetComm() );
+
+      //{
+      //  /** Stage 1: TreeView and upward telescoping */
+      //  beg = omp_get_wtime();
+      //  tree.DependencyCleanUp();
+      //  tree.DistTraverseDown( mpiVIEWtask );
+      //  tree.LocaTraverseDown( seqVIEWtask );
+      //  tree.LocaTraverseUp( seqN2Stask );
+      //  tree.DistTraverseUp( mpiN2Stask );
+      //  hmlp_run();
+      //  mpi::Barrier( tree.GetComm() );
+      //  telescope_time = omp_get_wtime() - beg;
+
+      //  /** Stage 2: LET exchange */
+      //  beg = omp_get_wtime();
+      //  ExchangeLET<T>( tree, string( "skelweights" ) );
+      //  mpi::Barrier( tree.GetComm() );
+      //  ExchangeLET<T>( tree, string( "leafweights" ) );
+      //  mpi::Barrier( tree.GetComm() );
+      //  let_exchange_time = omp_get_wtime() - beg;
+
+      //  /** Stage 3: L2L */
+      //  beg = omp_get_wtime();
+      //  tree.DependencyCleanUp();
+      //  tree.LocaTraverseLeafs( seqL2LReducetask2 );
+      //  hmlp_run();
+      //  mpi::Barrier( tree.GetComm() );
+      //  direct_evaluation_time = omp_get_wtime() - beg;
+
+      //  /** Stage 4: S2S and downward telescoping */
+      //  beg = omp_get_wtime();
+      //  tree.DependencyCleanUp();
+      //  tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
+      //  tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
+      //  tree.DistTraverseDown( mpiS2Ntask );
+      //  tree.LocaTraverseDown( seqS2Ntask );
+      //  hmlp_run();
+      //  mpi::Barrier( tree.GetComm() );
+      //  computeall_time = omp_get_wtime() - beg;
+      //}
+
 
     /** Global barrier and timer */
+    potentials.setvalue( 0.0 );
     mpi::Barrier( tree.GetComm() );
-
-    //{
-    //  /** Stage 1: TreeView and upward telescoping */
-    //  beg = omp_get_wtime();
-    //  tree.DependencyCleanUp();
-    //  tree.DistTraverseDown( mpiVIEWtask );
-    //  tree.LocaTraverseDown( seqVIEWtask );
-    //  tree.LocaTraverseUp( seqN2Stask );
-    //  tree.DistTraverseUp( mpiN2Stask );
-    //  hmlp_run();
-    //  mpi::Barrier( tree.GetComm() );
-    //  telescope_time = omp_get_wtime() - beg;
-
-    //  /** Stage 2: LET exchange */
-    //  beg = omp_get_wtime();
-    //  ExchangeLET<T>( tree, string( "skelweights" ) );
-    //  mpi::Barrier( tree.GetComm() );
-    //  ExchangeLET<T>( tree, string( "leafweights" ) );
-    //  mpi::Barrier( tree.GetComm() );
-    //  let_exchange_time = omp_get_wtime() - beg;
-
-    //  /** Stage 3: L2L */
-    //  beg = omp_get_wtime();
-    //  tree.DependencyCleanUp();
-    //  tree.LocaTraverseLeafs( seqL2LReducetask2 );
-    //  hmlp_run();
-    //  mpi::Barrier( tree.GetComm() );
-    //  direct_evaluation_time = omp_get_wtime() - beg;
-
-    //  /** Stage 4: S2S and downward telescoping */
-    //  beg = omp_get_wtime();
-    //  tree.DependencyCleanUp();
-    //  tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
-    //  tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
-    //  tree.DistTraverseDown( mpiS2Ntask );
-    //  tree.LocaTraverseDown( seqS2Ntask );
-    //  hmlp_run();
-    //  mpi::Barrier( tree.GetComm() );
-    //  computeall_time = omp_get_wtime() - beg;
-    //}
+    
+    /** Stage 1: TreeView and upward telescoping */
+    beg = omp_get_wtime();
+    tree.DependencyCleanUp();
+    tree.DistTraverseDown( mpiVIEWtask );
+    tree.LocaTraverseDown( seqVIEWtask );
+    tree.ExecuteAllTasks();
+    /** Stage 2: redistribute weights from IDS to LET. */
+    AsyncExchangeLET<T>( tree, string( "leafweights" ) );
+    /** Stage 3: N2S. */
+    tree.LocaTraverseUp( seqN2Stask );
+    tree.DistTraverseUp( mpiN2Stask );
+    /** Stage 4: redistribute skeleton weights from IDS to LET. */
+    AsyncExchangeLET<T>( tree, string( "skelweights" ) );
+    /** Stage 5: L2L */
+    tree.LocaTraverseLeafs( seqL2LReducetask2 );
+    /** Stage 6: S2S */
+    tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
+    tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
+    /** Stage 7: S2N */
+    tree.DistTraverseDown( mpiS2Ntask );
+    tree.LocaTraverseDown( seqS2Ntask );
+    overhead_time = omp_get_wtime() - beg;
+    tree.ExecuteAllTasks();
+    async_time = omp_get_wtime() - beg;
+    
 
 
-  /** Global barrier and timer */
-  potentials.setvalue( 0.0 );
-  mpi::Barrier( tree.GetComm() );
-  
-  /** Stage 1: TreeView and upward telescoping */
-  beg = omp_get_wtime();
-  tree.DependencyCleanUp();
-  tree.DistTraverseDown( mpiVIEWtask );
-  tree.LocaTraverseDown( seqVIEWtask );
-  tree.ExecuteAllTasks();
-  /** Stage 2: redistribute weights from IDS to LET. */
-  AsyncExchangeLET<T>( tree, string( "leafweights" ) );
-  /** Stage 3: N2S. */
-  tree.LocaTraverseUp( seqN2Stask );
-  tree.DistTraverseUp( mpiN2Stask );
-  /** Stage 4: redistribute skeleton weights from IDS to LET. */
-  AsyncExchangeLET<T>( tree, string( "skelweights" ) );
-  /** Stage 5: L2L */
-  tree.LocaTraverseLeafs( seqL2LReducetask2 );
-  /** Stage 6: S2S */
-  tree.LocaTraverseUnOrdered( seqS2SReducetask2 );
-  tree.DistTraverseUnOrdered( mpiS2SReducetask2 );
-  /** Stage 7: S2N */
-  tree.DistTraverseDown( mpiS2Ntask );
-  tree.LocaTraverseDown( seqS2Ntask );
-  overhead_time = omp_get_wtime() - beg;
-  tree.ExecuteAllTasks();
-  async_time = omp_get_wtime() - beg;
-  
+    /** Compute the breakdown cost */
+    evaluation_time += direct_evaluation_time;
+    evaluation_time += telescope_time;
+    evaluation_time += let_exchange_time;
+    evaluation_time += computeall_time;
+    time_ratio = 100 / evaluation_time;
 
+    if ( rank == 0 && REPORT_EVALUATE_STATUS )
+    {
+      printf( "========================================================\n");
+      printf( "GOFMM evaluation phase\n" );
+      printf( "========================================================\n");
+      //printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+      //    allocate_time, allocate_time * time_ratio );
+      //printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
+      //    forward_permute_time, forward_permute_time * time_ratio );
+      printf( "Upward telescope ---------------------- %5.2lfs (%5.1lf%%)\n", 
+          telescope_time, telescope_time * time_ratio );
+      printf( "LET exchange -------------------------- %5.2lfs (%5.1lf%%)\n", 
+          let_exchange_time, let_exchange_time * time_ratio );
+      printf( "L2L ----------------------------------- %5.2lfs (%5.1lf%%)\n", 
+          direct_evaluation_time, direct_evaluation_time * time_ratio );
+      printf( "S2S, S2N ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+          computeall_time, computeall_time * time_ratio );
+      //printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
+      //    backward_permute_time, backward_permute_time * time_ratio );
+      printf( "========================================================\n");
+      printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+          evaluation_time, evaluation_time * time_ratio );
+      printf( "Evaluate (Async) ---------------------- %5.2lfs (%5.2lfs)\n", 
+          async_time, overhead_time );
+      printf( "========================================================\n\n");
+    }
 
-  /** Compute the breakdown cost */
-  evaluation_time += direct_evaluation_time;
-  evaluation_time += telescope_time;
-  evaluation_time += let_exchange_time;
-  evaluation_time += computeall_time;
-  time_ratio = 100 / evaluation_time;
-
-  if ( rank == 0 && REPORT_EVALUATE_STATUS )
-  {
-    printf( "========================================================\n");
-    printf( "GOFMM evaluation phase\n" );
-    printf( "========================================================\n");
-    //printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
-    //    allocate_time, allocate_time * time_ratio );
-    //printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
-    //    forward_permute_time, forward_permute_time * time_ratio );
-    printf( "Upward telescope ---------------------- %5.2lfs (%5.1lf%%)\n", 
-        telescope_time, telescope_time * time_ratio );
-    printf( "LET exchange -------------------------- %5.2lfs (%5.1lf%%)\n", 
-        let_exchange_time, let_exchange_time * time_ratio );
-    printf( "L2L ----------------------------------- %5.2lfs (%5.1lf%%)\n", 
-        direct_evaluation_time, direct_evaluation_time * time_ratio );
-    printf( "S2S, S2N ------------------------------ %5.2lfs (%5.1lf%%)\n", 
-        computeall_time, computeall_time * time_ratio );
-    //printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
-    //    backward_permute_time, backward_permute_time * time_ratio );
-    printf( "========================================================\n");
-    printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
-        evaluation_time, evaluation_time * time_ratio );
-    printf( "Evaluate (Async) ---------------------- %5.2lfs (%5.2lfs)\n", 
-        async_time, overhead_time );
-    printf( "========================================================\n\n");
+    return potentials;
   }
-
-
-
-
-
-
-
-
-
-  return potentials;
-
+  catch ( const exception & e )
+  {
+    cout << e.what() << endl;
+    exit( 1 );
+  }
 }; /** end Evaluate() */
 
 
@@ -3946,209 +3945,207 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   mpi::Comm CommGOFMM
 )
 {
-  /** MPI size ane rank. */
-  int size; mpi::Comm_size( CommGOFMM, &size );
-  int rank; mpi::Comm_rank( CommGOFMM, &rank );
-
-  /** Get all user-defined parameters. */
-  DistanceMetric metric = config.MetricType();
-  size_t n = config.ProblemSize();
-	size_t m = config.LeafNodeSize();
-	size_t k = config.NeighborSize(); 
-	size_t s = config.MaximumRank(); 
-
-  /** options */
-  const bool SYMMETRIC = true;
-  const bool NNPRUNE   = true;
-  const bool CACHE     = true;
-
-  /** Instantiation for the GOFMM metric tree. */
-  using SETUP   = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA    = gofmm::NodeData<T>;
-  using TREE    = mpitree::Tree<SETUP, DATA>;
-  /** Derive type NODE and MPINODE from TREE. */
-  using NODE    = typename TREE::NODE;
-  using MPINODE = typename TREE::MPINODE;
-
-  /** All timers. */
-  double beg, omptask45_time, omptask_time, ref_time;
-  double time_ratio, compress_time = 0.0, other_time = 0.0;
-  double ann_time, tree_time, skel_time, mpi_skel_time, mergefarnodes_time, cachefarnodes_time;
-  double local_skel_time, dist_skel_time, let_time; 
-  double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
-  double exchange_neighbor_time, symmetrize_time;
-
-  /** Iterative all nearnest-neighbor (ANN). */
-  beg = omp_get_wtime();
-  if ( k && NN_cblk.row() * NN_cblk.col() != k * n )
+  try
   {
-    NN_cblk = mpigofmm::FindNeighbors( K, rkdtsplitter,
-        config, CommGOFMM );
+    /** MPI size ane rank. */
+    int size; mpi::Comm_size( CommGOFMM, &size );
+    int rank; mpi::Comm_rank( CommGOFMM, &rank );
+
+    /** Get all user-defined parameters. */
+    DistanceMetric metric = config.MetricType();
+    size_t n = config.ProblemSize();
+	  size_t m = config.LeafNodeSize();
+	  size_t k = config.NeighborSize(); 
+	  size_t s = config.MaximumRank(); 
+
+    /** options */
+    const bool SYMMETRIC = true;
+    const bool NNPRUNE   = true;
+    const bool CACHE     = true;
+
+    /** Instantiation for the GOFMM metric tree. */
+    using SETUP   = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
+    using DATA    = gofmm::NodeData<T>;
+    using TREE    = mpitree::Tree<SETUP, DATA>;
+    /** Derive type NODE and MPINODE from TREE. */
+    using NODE    = typename TREE::NODE;
+    using MPINODE = typename TREE::MPINODE;
+
+    /** All timers. */
+    double beg, omptask45_time, omptask_time, ref_time;
+    double time_ratio, compress_time = 0.0, other_time = 0.0;
+    double ann_time, tree_time, skel_time, mpi_skel_time, mergefarnodes_time, cachefarnodes_time;
+    double local_skel_time, dist_skel_time, let_time; 
+    double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
+    double exchange_neighbor_time, symmetrize_time;
+
+    /** Iterative all nearnest-neighbor (ANN). */
+    beg = omp_get_wtime();
+    if ( k && NN_cblk.row() * NN_cblk.col() != k * n )
+    {
+      NN_cblk = mpigofmm::FindNeighbors( K, rkdtsplitter,
+          config, CommGOFMM );
+    }
+    ann_time = omp_get_wtime() - beg;
+
+    /** Initialize metric ball tree using approximate center split. */
+    auto *tree_ptr = new TREE( CommGOFMM );
+	  auto &tree = *tree_ptr;
+
+	  /** Global configuration for the metric tree. */
+    tree.setup.FromConfiguration( config, K, splitter, &NN_cblk );
+
+	  /** Metric ball tree partitioning. */
+    beg = omp_get_wtime();
+    tree.TreePartition();
+    tree_time = omp_get_wtime() - beg;
+
+    /** Get tree permutataion. */
+    vector<size_t> perm = tree.GetPermutation();
+    if ( rank == 0 )
+    {
+      ofstream perm_file( "perm.txt" );
+      for ( auto &id : perm ) perm_file << id << " ";
+      perm_file.close();
+    }
+
+
+    /** Redistribute neighbors i.e. NN[ *, CIDS ] = NN[ *, CBLK ]; */
+    DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, tree.GetComm() );
+    NN = NN_cblk;
+    tree.setup.NN = &NN;
+    beg = omp_get_wtime();
+    ExchangeNeighbors<T>( tree );
+    exchange_neighbor_time = omp_get_wtime() - beg;
+
+
+    beg = omp_get_wtime();
+    /** Construct near interaction lists. */
+    FindNearInteractions( tree );
+    /** Symmetrize interaction pairs by Alltoallv. */
+    mpigofmm::SymmetrizeNearInteractions( tree );
+    /** Split node interaction lists per MPI rank. */
+    BuildInteractionListPerRank( tree, true );
+    /** Exchange {leafs} and {paramsleafs)}.  */
+    ExchangeLET( tree, string( "leafgids" ) );
+    symmetrize_time = omp_get_wtime() - beg;
+
+
+    /** Find and merge far interactions. */
+    mpi::PrintProgress( "[BEG] MergeFarNodes ...", tree.GetComm() ); 
+    beg = omp_get_wtime();
+    tree.DependencyCleanUp();
+    MergeFarNodesTask<true, NODE, T> seqMERGEtask;
+    DistMergeFarNodesTask<true, MPINODE, T> mpiMERGEtask;
+    tree.LocaTraverseUp( seqMERGEtask );
+    tree.DistTraverseUp( mpiMERGEtask );
+    tree.ExecuteAllTasks();
+    mergefarnodes_time += omp_get_wtime() - beg;
+    mpi::PrintProgress( "[END] MergeFarNodes ...", tree.GetComm() ); 
+
+    /** Symmetrize interaction pairs by Alltoallv. */
+    beg = omp_get_wtime();
+    mpigofmm::SymmetrizeFarInteractions( tree );
+    /** Split node interaction lists per MPI rank. */
+    BuildInteractionListPerRank( tree, false );
+    symmetrize_time += omp_get_wtime() - beg;
+
+    mpi::PrintProgress( "[BEG] Skeletonization ...", tree.GetComm() ); 
+    /** Skeletonization */
+	  beg = omp_get_wtime();
+    tree.DependencyCleanUp();
+    /** Gather sample rows and skeleton columns, then ID */
+    gofmm::SkeletonKIJTask<NODE, T> seqGETMTXtask;
+    mpigofmm::DistSkeletonKIJTask<MPINODE, T> mpiGETMTXtask;
+    mpigofmm::SkeletonizeTask<NODE, T> seqSKELtask;
+    mpigofmm::DistSkeletonizeTask<MPINODE, T> mpiSKELtask;
+    tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+    //tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+    /** Compute the coefficient matrix of ID */
+    gofmm::InterpolateTask<NODE> seqPROJtask;
+    mpigofmm::InterpolateTask<MPINODE> mpiPROJtask;
+    tree.LocaTraverseUnOrdered( seqPROJtask );
+    //tree.DistTraverseUnOrdered( mpiPROJtask );
+
+    /** Cache near KIJ interactions */
+    mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+    //tree.LocaTraverseLeafs( seqNEARKIJtask );
+
+    tree.ExecuteAllTasks();
+    skel_time = omp_get_wtime() - beg;
+
+	  beg = omp_get_wtime();
+    tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+    tree.DistTraverseUnOrdered( mpiPROJtask );
+    tree.ExecuteAllTasks();
+    mpi_skel_time = omp_get_wtime() - beg;
+    mpi::PrintProgress( "[END] Skeletonization ...", tree.GetComm() ); 
+
+
+
+    /** Exchange {skels} and {params(skels)}.  */
+    ExchangeLET( tree, string( "skelgids" ) );
+    
+    beg = omp_get_wtime();
+    /** Cache near KIJ interactions */
+    //mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+    //tree.LocaTraverseLeafs( seqNEARKIJtask );
+    /** Cache far KIJ interactions */
+    mpigofmm::CacheFarNodesTask<NNPRUNE,    NODE> seqFARKIJtask;
+    mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
+    //tree.LocaTraverseUnOrdered( seqFARKIJtask );
+    //tree.DistTraverseUnOrdered( mpiFARKIJtask );
+    cachefarnodes_time = omp_get_wtime() - beg;
+    tree.ExecuteAllTasks();
+    cachefarnodes_time = omp_get_wtime() - beg;
+
+
+
+    /** Compute the ratio of exact evaluation. */
+    auto ratio = NonCompressedRatio( tree );
+
+    double exact_ratio = (double) m / n; 
+
+    if ( rank == 0 && REPORT_COMPRESS_STATUS )
+    {
+      compress_time += ann_time;
+      compress_time += tree_time;
+      compress_time += exchange_neighbor_time;
+      compress_time += symmetrize_time;
+      compress_time += skel_time;
+      compress_time += mpi_skel_time;
+      compress_time += mergefarnodes_time;
+      compress_time += cachefarnodes_time;
+      time_ratio = 100.0 / compress_time;
+      printf( "========================================================\n");
+      printf( "GOFMM compression phase\n" );
+      printf( "========================================================\n");
+      printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
+      printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
+      printf( "ExchangeNeighbors --------------------- %5.2lfs (%5.1lf%%)\n", exchange_neighbor_time, exchange_neighbor_time * time_ratio );
+      printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
+      printf( "Symmetrize ---------------------------- %5.2lfs (%5.1lf%%)\n", symmetrize_time, symmetrize_time * time_ratio );
+      printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
+      printf( "Skeletonization (MPI            ) ----- %5.2lfs (%5.1lf%%)\n", mpi_skel_time, mpi_skel_time * time_ratio );
+      printf( "Cache KIJ ----------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
+      printf( "========================================================\n");
+      printf( "%5.3lf%% and %5.3lf%% uncompressed--------- %5.2lfs (%5.1lf%%)\n", 
+          100 * ratio.first, 100 * ratio.second, compress_time, compress_time * time_ratio );
+      printf( "========================================================\n\n");
+    }
+
+    /** Cleanup all w/r dependencies on tree nodes */
+    tree_ptr->DependencyCleanUp();
+    /** Global barrier to make sure all processes have completed */
+    mpi::Barrier( tree.GetComm() );
+
+    return tree_ptr;
   }
-  ann_time = omp_get_wtime() - beg;
-
-  /** Initialize metric ball tree using approximate center split. */
-  auto *tree_ptr = new TREE( CommGOFMM );
-	auto &tree = *tree_ptr;
-
-	/** Global configuration for the metric tree. */
-  tree.setup.FromConfiguration( config, K, splitter, &NN_cblk );
-
-	/** Metric ball tree partitioning. */
-  beg = omp_get_wtime();
-  tree.TreePartition();
-  tree_time = omp_get_wtime() - beg;
-
-  /** Get tree permutataion. */
-  vector<size_t> perm = tree.GetPermutation();
-  if ( rank == 0 )
+  catch ( const exception & e )
   {
-    ofstream perm_file( "perm.txt" );
-    for ( auto &id : perm ) perm_file << id << " ";
-    perm_file.close();
+    cout << e.what() << endl;
+    exit( 1 );
   }
-
-
-  /** Redistribute neighbors i.e. NN[ *, CIDS ] = NN[ *, CBLK ]; */
-  DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, tree.GetComm() );
-  NN = NN_cblk;
-  tree.setup.NN = &NN;
-  beg = omp_get_wtime();
-  ExchangeNeighbors<T>( tree );
-  exchange_neighbor_time = omp_get_wtime() - beg;
-
-
-  beg = omp_get_wtime();
-  /** Construct near interaction lists. */
-  FindNearInteractions( tree );
-  /** Symmetrize interaction pairs by Alltoallv. */
-  mpigofmm::SymmetrizeNearInteractions( tree );
-  /** Split node interaction lists per MPI rank. */
-  BuildInteractionListPerRank( tree, true );
-  /** Exchange {leafs} and {paramsleafs)}.  */
-  ExchangeLET( tree, string( "leafgids" ) );
-  symmetrize_time = omp_get_wtime() - beg;
-
-
-  /** Find and merge far interactions. */
-  mpi::PrintProgress( "[BEG] MergeFarNodes ...", tree.GetComm() ); 
-  beg = omp_get_wtime();
-  tree.DependencyCleanUp();
-  MergeFarNodesTask<true, NODE, T> seqMERGEtask;
-  DistMergeFarNodesTask<true, MPINODE, T> mpiMERGEtask;
-  tree.LocaTraverseUp( seqMERGEtask );
-  tree.DistTraverseUp( mpiMERGEtask );
-  tree.ExecuteAllTasks();
-  mergefarnodes_time += omp_get_wtime() - beg;
-  mpi::PrintProgress( "[END] MergeFarNodes ...", tree.GetComm() ); 
-
-  /** Symmetrize interaction pairs by Alltoallv. */
-  beg = omp_get_wtime();
-  mpigofmm::SymmetrizeFarInteractions( tree );
-  /** Split node interaction lists per MPI rank. */
-  BuildInteractionListPerRank( tree, false );
-  symmetrize_time += omp_get_wtime() - beg;
-
-  mpi::PrintProgress( "[BEG] Skeletonization ...", tree.GetComm() ); 
-  /** Skeletonization */
-	beg = omp_get_wtime();
-  tree.DependencyCleanUp();
-  /** Gather sample rows and skeleton columns, then ID */
-  gofmm::SkeletonKIJTask<NODE, T> seqGETMTXtask;
-  mpigofmm::DistSkeletonKIJTask<MPINODE, T> mpiGETMTXtask;
-  mpigofmm::SkeletonizeTask<NODE, T> seqSKELtask;
-  mpigofmm::DistSkeletonizeTask<MPINODE, T> mpiSKELtask;
-  tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
-  //tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-  /** Compute the coefficient matrix of ID */
-  gofmm::InterpolateTask<NODE> seqPROJtask;
-  mpigofmm::InterpolateTask<MPINODE> mpiPROJtask;
-  tree.LocaTraverseUnOrdered( seqPROJtask );
-  //tree.DistTraverseUnOrdered( mpiPROJtask );
-
-  /** Cache near KIJ interactions */
-  mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-  //tree.LocaTraverseLeafs( seqNEARKIJtask );
-
-  tree.ExecuteAllTasks();
-  skel_time = omp_get_wtime() - beg;
-
-	beg = omp_get_wtime();
-  tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-  tree.DistTraverseUnOrdered( mpiPROJtask );
-  tree.ExecuteAllTasks();
-  mpi_skel_time = omp_get_wtime() - beg;
-  mpi::PrintProgress( "[END] Skeletonization ...", tree.GetComm() ); 
-
-
-
-  /** Exchange {skels} and {params(skels)}.  */
-  ExchangeLET( tree, string( "skelgids" ) );
-  
-  beg = omp_get_wtime();
-  /** Cache near KIJ interactions */
-  //mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-  //tree.LocaTraverseLeafs( seqNEARKIJtask );
-  /** Cache far KIJ interactions */
-  mpigofmm::CacheFarNodesTask<NNPRUNE,    NODE> seqFARKIJtask;
-  mpigofmm::CacheFarNodesTask<NNPRUNE, MPINODE> mpiFARKIJtask;
-  //tree.LocaTraverseUnOrdered( seqFARKIJtask );
-  //tree.DistTraverseUnOrdered( mpiFARKIJtask );
-  cachefarnodes_time = omp_get_wtime() - beg;
-  tree.ExecuteAllTasks();
-  cachefarnodes_time = omp_get_wtime() - beg;
-
-
-
-  /** Compute the ratio of exact evaluation. */
-  auto ratio = NonCompressedRatio( tree );
-
-  double exact_ratio = (double) m / n; 
-
-  if ( rank == 0 && REPORT_COMPRESS_STATUS )
-  {
-    compress_time += ann_time;
-    compress_time += tree_time;
-    compress_time += exchange_neighbor_time;
-    compress_time += symmetrize_time;
-    compress_time += skel_time;
-    compress_time += mpi_skel_time;
-    compress_time += mergefarnodes_time;
-    compress_time += cachefarnodes_time;
-    time_ratio = 100.0 / compress_time;
-    printf( "========================================================\n");
-    printf( "GOFMM compression phase\n" );
-    printf( "========================================================\n");
-    printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
-    printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
-    printf( "ExchangeNeighbors --------------------- %5.2lfs (%5.1lf%%)\n", exchange_neighbor_time, exchange_neighbor_time * time_ratio );
-    printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
-    printf( "Symmetrize ---------------------------- %5.2lfs (%5.1lf%%)\n", symmetrize_time, symmetrize_time * time_ratio );
-    printf( "Skeletonization (HMLP Runtime   ) ----- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
-    printf( "Skeletonization (MPI            ) ----- %5.2lfs (%5.1lf%%)\n", mpi_skel_time, mpi_skel_time * time_ratio );
-    printf( "Cache KIJ ----------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
-    printf( "========================================================\n");
-    printf( "%5.3lf%% and %5.3lf%% uncompressed--------- %5.2lfs (%5.1lf%%)\n", 
-        100 * ratio.first, 100 * ratio.second, compress_time, compress_time * time_ratio );
-    printf( "========================================================\n\n");
-  }
-
-
-
-
-
-
-
-
-
-
-  /** Cleanup all w/r dependencies on tree nodes */
-  tree_ptr->DependencyCleanUp();
-  /** Global barrier to make sure all processes have completed */
-  mpi::Barrier( tree.GetComm() );
-
-  return tree_ptr;
-
 }; /** end Compress() */
 
 

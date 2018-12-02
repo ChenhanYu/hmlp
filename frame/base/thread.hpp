@@ -36,9 +36,8 @@
 #include <omp.h>
 
 
-#include <hmlp_tci.hpp>
-
-#include <hmlp_device.hpp>
+#include <base/tci.hpp>
+#include <base/device.hpp>
 
 
 

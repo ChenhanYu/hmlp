@@ -46,12 +46,7 @@
 
 /** Use HMLP related support. */
 #include <hmlp.h>
-#include <hmlp_blas_lapack.h>
-#include <hmlp_util.hpp>
-#include <hmlp_thread.hpp>
-#include <hmlp_runtime.hpp>
-#include <Data.hpp>
-#include <View.hpp>
+#include <hmlp_base.hpp>
 /** Use HMLP primitives. */
 #include <primitives/lowrank.hpp>
 #include <primitives/combinatorics.hpp>

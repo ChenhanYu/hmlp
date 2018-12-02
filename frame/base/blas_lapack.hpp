@@ -22,6 +22,10 @@
 #ifndef HMLP_BLAS_LAPACK_H
 #define HMLP_BLAS_LAPACK_H
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+
 #ifdef HMLP_USE_CUDA
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
@@ -241,6 +245,6 @@ void xgeqp3
 
 #endif /** end ifdef HMLP_USE_CUDA */
 
-}; // end namespace hmlp
+}; /** end namespace hmlp */
 
-#endif // define HMLP_BLAS_LAPACK_H
+#endif /** define HMLP_BLAS_LAPACK_H */

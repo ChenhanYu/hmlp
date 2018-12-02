@@ -39,8 +39,7 @@
 
 /** Use HMLP related support. */
 #include <hmlp.h>
-#include <hmlp_runtime.hpp>
-#include <Data.hpp>
+#include <hmlp_base.hpp>
 /** Use HMLP primitives. */
 #include <primitives/combinatorics.hpp>
 /** Use STL and HMLP namespaces. */
@@ -657,47 +656,54 @@ class Node : public ReadWrite
 
     void Split()
     {
-      /** Early return if this is a leaf node. */
-      if ( isleaf ) return;
-
-      int m = setup->m;
-      int max_depth = setup->max_depth;
-
-      double beg = omp_get_wtime();
-      auto split = setup->splitter( gids );
-      double splitter_time = omp_get_wtime() - beg;
-      //printf( "splitter %5.3lfs\n", splitter_time );
-
-      if ( std::abs( (int)split[ 0 ].size() - (int)split[ 1 ].size() ) > 1 )
+      try
       {
-        if ( !has_uneven_split )
+        /** Early return if this is a leaf node. */
+        if ( isleaf ) return;
+
+        int m = setup->m;
+        int max_depth = setup->max_depth;
+
+        double beg = omp_get_wtime();
+        auto split = setup->splitter( gids );
+        double splitter_time = omp_get_wtime() - beg;
+        //printf( "splitter %5.3lfs\n", splitter_time );
+
+        if ( std::abs( (int)split[ 0 ].size() - (int)split[ 1 ].size() ) > 1 )
         {
-          printf( "\n\nWARNING! uneven split. Using random split instead %lu %lu\n\n",
-              split[ 0 ].size(), split[ 1 ].size() );
-          has_uneven_split = true;
+          if ( !has_uneven_split )
+          {
+            printf( "\n\nWARNING! uneven split. Using random split instead %lu %lu\n\n",
+                split[ 0 ].size(), split[ 1 ].size() );
+            has_uneven_split = true;
+          }
+          //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", 
+          //  split[ 0 ].size(), split[ 1 ].size() );
+          split[ 0 ].resize( gids.size() / 2 );
+          split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
+          //#pragma omp parallel for
+          for ( size_t i = 0; i < gids.size(); i ++ )
+          {
+            if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
+            else                       split[ 1 ][ i - ( gids.size() / 2 ) ] = i;
+          }
         }
-        //printf( "split[ 0 ].size() %lu split[ 1 ].size() %lu\n", 
-        //  split[ 0 ].size(), split[ 1 ].size() );
-        split[ 0 ].resize( gids.size() / 2 );
-        split[ 1 ].resize( gids.size() - ( gids.size() / 2 ) );
-        //#pragma omp parallel for
-        for ( size_t i = 0; i < gids.size(); i ++ )
+
+        for ( size_t i = 0; i < N_CHILDREN; i ++ )
         {
-          if ( i < gids.size() / 2 ) split[ 0 ][ i ] = i;
-          else                       split[ 1 ][ i - ( gids.size() / 2 ) ] = i;
+          int nchild = split[ i ].size();
+
+          /** TODO: need a better way */ 
+          kids[ i ]->Resize( nchild );
+          for ( int j = 0; j < nchild; j ++ )
+          {
+            kids[ i ]->gids[ j ] = gids[ split[ i ][ j ] ];
+          }
         }
       }
-
-      for ( size_t i = 0; i < N_CHILDREN; i ++ )
+      catch ( const exception & e )
       {
-        int nchild = split[ i ].size();
-
-        /** TODO: need a better way */ 
-        kids[ i ]->Resize( nchild );
-        for ( int j = 0; j < nchild; j ++ )
-        {
-          kids[ i ]->gids[ j ] = gids[ split[ i ][ j ] ];
-        }
+        cout << e.what() << endl;
       }
     }; /** end Split() */
 

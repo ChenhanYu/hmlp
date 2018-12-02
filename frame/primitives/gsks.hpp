@@ -29,12 +29,7 @@
 
 #include <hmlp.h>
 #include <hmlp_internal.hpp>
-#include <hmlp_blas_lapack.h>
-#include <hmlp_packing.hpp>
-#include <hmlp_util.hpp>
-#include <hmlp_thread.hpp>
-#include <hmlp_runtime.hpp>
-
+#include <hmlp_base.hpp>
 
 #include <KernelMatrix.hpp>
 

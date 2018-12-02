@@ -9,7 +9,7 @@
 
 #include <omp.h>
 
-#include <hmlp_util.hpp>
+#include <base/util.hpp>
 
 using namespace std;
 

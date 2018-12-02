@@ -19,8 +19,8 @@
  **/  
 
 
-#include <hmlp_runtime.hpp>
-#include <hmlp_thread.hpp>
+#include <base/runtime.hpp>
+#include <base/thread.hpp>
 
 
 using namespace std;

@@ -26,7 +26,7 @@
 #include <set>
 #include <map>
 
-#include <hmlp_runtime.hpp>
+#include <base/runtime.hpp>
 
 /** CUDA header files */
 #include <cuda_runtime.h>

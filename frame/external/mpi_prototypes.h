@@ -1,5 +1,5 @@
-#ifndef MPI_PROTOTYPES_HPP
-#define MPI_PROTOTYPES_HPP
+#ifndef MPI_PROTOTYPES_H
+#define MPI_PROTOTYPES_H
 #ifdef HMLP_USE_MPI
 /** Use vender mpi.h. */
 #include <mpi.h>
@@ -103,4 +103,4 @@ typedef int MPI_Request;
 #define MPI_ANY_TAG     (-1)
 
 #endif /** ifdef HMLP_USE_MPI */
-#endif /** define MPI_PROTOTYPES_HPP */
+#endif /** define MPI_PROTOTYPES_H */

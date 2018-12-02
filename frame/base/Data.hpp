@@ -49,10 +49,10 @@
 #include <fstream>
 #include <sstream>
 
-/** Use HMLP support. */
-#include <hmlp_device.hpp>
-#include <hmlp_runtime.hpp>
-#include <hmlp_util.hpp>
+/** Use HMLP support (device, read/write). */
+#include <base/device.hpp>
+#include <base/runtime.hpp>
+#include <base/util.hpp>
 
 
 /** -lmemkind */
@@ -140,68 +140,37 @@ class Data : public ReadWrite, public vector<T, Allocator>
   public:
 
     /** Default empty constructor. */
-    Data() : vector<T, Allocator>(), m( 0 ), n( 0 ) {};
+    Data() : vector<T, Allocator>() {};
 
     /** Copy constructor for hmlp::Data. */
     Data( const Data<T>& other_data ) : vector<T, Allocator>( other_data )
     {
-      this->m = other_data.row();
-      this->n = other_data.col();
+      resize_( other_data.row(), other_data.col() );
     }
 
     /** TODO: Copy constructor for std::vector. */
-    Data( size_t m, size_t n, const vector<T>& other_vector ) 
-      : vector<T, Allocator>( other_vector )
+    Data( size_t m, size_t n, const vector<T>& other_vector ) : vector<T, Allocator>( other_vector )
     {
       assert( other_vector.size() == m * n );
-      this->m = m;
-      this->n = n;
+      resize( m, n );
     };
 
-    Data( size_t m, size_t n ) : vector<T, Allocator>( m * n )
-    { 
-      this->m = m;
-      this->n = n;
-    };
+    Data( size_t m, size_t n ) { resize( m, n ); };
 
-    Data( size_t m, size_t n, T initT ) : vector<T, Allocator>( m * n, initT )
-    { 
-      this->m = m;
-      this->n = n;
-    };
+    Data( size_t m, size_t n, T initT ) { resize( m, n, initT ); };
 
-    Data( size_t m, size_t n, string &filename ) : vector<T, Allocator>( m * n )
+    Data( size_t m, size_t n, string &filename ) : Data( m, n )
     {
-      this->m = m;
-      this->n = n;
       this->read( m, n, filename );
     };
 
-    void resize( size_t m, size_t n )
-    { 
-      this->m = m;
-      this->n = n;
-      vector<T, Allocator>::resize( m * n );
-    };
+    void resize( size_t m, size_t n ) { resize_( m, n ); };
 
-    void resize( size_t m, size_t n, T initT )
-    {
-      this->m = m;
-      this->n = n;
-      vector<T, Allocator>::resize( m * n, initT );
-    };
+    void resize( size_t m, size_t n, T initT ) { resize_( m, n, initT ); };
 
-    void reserve( size_t m, size_t n ) 
-    {
-      vector<T, Allocator>::reserve( m * n );
-    };
+    void reserve( size_t m, size_t n ) { reserve_( m, n ); };
 
-    void clear()
-    {
-      this->m = 0;
-      this->n = 0;
-      vector<T, Allocator>::clear();
-    };
+    void clear() { clear_(); }; 
 
     void read( size_t m, size_t n, string &filename )
     {
@@ -282,10 +251,7 @@ class Data : public ReadWrite, public vector<T, Allocator>
 
 
 
-    tuple<size_t, size_t> shape()
-    {
-      return make_tuple( m, n );
-    };
+    tuple<size_t, size_t> shape() { return make_tuple( m, n ); };
 
    
     T* rowdata( size_t i ) 
@@ -562,6 +528,31 @@ class Data : public ReadWrite, public vector<T, Allocator>
 #endif
 
   private:
+
+    void resize_( size_t m, size_t n )
+    {
+      vector<T, Allocator>::resize( m * n );
+      this->m = m; 
+      this->n = n; 
+    };
+
+    void resize_( size_t m, size_t n, T initT )
+    {
+      vector<T, Allocator>::resize( m * n, initT );
+      this->m = m; this->n = n; 
+    };
+
+    void reserve_( size_t m, size_t n )
+    {
+      vector<T, Allocator>::reserve( m * n );
+    }
+
+    void clear_()
+    {
+      vector<T, Allocator>::clear();
+      this->m = 0; 
+      this->n = 0;
+    }
 
     size_t m = 0;
 
