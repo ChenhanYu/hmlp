@@ -367,9 +367,6 @@ class NodeData : public Factor<T>
     /** Sampling neighbors gids. */
     map<size_t, T> snids; 
 
-    /* Pruning neighbors ids. */
-    unordered_set<size_t> pnids; 
-
     /** (Buffer) nsamples row gids, and sl + sr skeleton columns of children. */
     vector<size_t> candidate_rows;
     vector<size_t> candidate_cols;
@@ -879,135 +876,6 @@ multimap<TB, TA> flip_map( const map<TA, TB> &src )
 }; /** end flip_map() */
 
 
-/**
- *  @brief Building neighbors for each tree node.
- */ 
-//template<typename NODE, typename T>
-//void BuildNeighbors( NODE *node, size_t nsamples )
-//{
-//  /** early return if no neighbors were provided */
-//  if ( !node->setup->NN ) return;
-//
-//
-//  auto &NN = *(node->setup->NN);
-//  std::vector<size_t> &gids = node->gids;
-//  auto &snids = node->data.snids;
-//  auto &pnids = node->data.pnids;
-//  int n = node->n;
-//  int k = NN.row();
-//  if ( node->isleaf )
-//  {
-//    /** Pruning neighbor lists/sets: */
-//    pnids = std::unordered_set<size_t>();
-//    for ( size_t jj = 0; jj < n; jj ++ )
-//    {
-//      for ( size_t ii = 0; ii < k / 2; ii ++ )
-//      {
-//        pnids.insert( NN( ii,  gids[ jj ] ).second );
-//      }
-//    }
-//    /** remove "own" points */
-//    for ( int i = 0; i < n; i ++ )
-//    {
-//      pnids.erase( gids[ i ] );
-//    }
-//    //printf("Size of pruning neighbor set: %lu \n", pnids.size());
-//    /**
-//		 *  Sampling neighbors
-//     *  To think about: Make building sampling neighbor adaptive.  
-//     *  E.g. request 0-100 closest neighbors, 
-//     *  if additional 100 neighbors are requested, return sneighbors 100-200 
-//		 */ 
-//    snids = std::map<size_t, T>(); 
-//    vector<pair<T, size_t>> tmp( k / 2 * n ); 
-//    set<size_t> nodeIdx( gids.begin() , gids.end() );    
-//    /** Allocate array for sorting */
-//    for ( size_t ii = ( k + 1 ) / 2; ii < k; ii ++ )
-//    {
-//      for ( size_t jj = 0; jj < n; jj ++ )
-//      {
-//        tmp[ ( ii - ( k + 1 ) / 2 ) * n + jj ] = NN( ii, gids[ jj ] );
-//      }
-//    }
-//    sort( tmp.begin() , tmp.end() );
-//    int i = 0;
-//    while ( snids.size() < nsamples && i <  (k-1) * n / 2 )
-//    {
-//      if ( !pnids.count( tmp[i].second ) && !nodeIdx.count( tmp[i].second ) )
-//      {
-//        snids.insert( std::pair<size_t,T>( tmp[i].second , tmp[i].first ) );
-//      }
-//      i++;
-//    } 
-//    //printf("Size of sampling neighbor list: %lu \n", snids.size());
-//  }
-//  else
-//  {
-//    /** At interior node */
-//    auto &lsnids = node->lchild->data.snids;
-//    auto &rsnids = node->rchild->data.snids;
-//    auto &lpnids = node->lchild->data.pnids;
-//    auto &rpnids = node->rchild->data.pnids;
-//
-//    /** 
-//     *  merge children's sampling neighbors...    
-//     *  start with left sampling neighbor list 
-//     */
-//    snids = lsnids;
-//
-//    /**
-//     *  Add right sampling neighbor list. If duplicate update distace if nec.
-//     */
-//    for ( auto cur = rsnids.begin(); cur != rsnids.end(); cur ++ )
-//    {
-//      auto ret = snids.insert( *cur );
-//      if ( ret.second == false )
-//      {
-//        // Update distance?
-//        if ( ret.first->second > (*cur).first)
-//        {
-//          ret.first->second = (*cur).first;
-//        }
-//      }
-//    }
-//
-//    // Remove "own" points
-//    for (int i = 0; i < n; i ++ )
-//    {
-//      snids.erase( gids[ i ] );
-//    }
-//
-//    // Remove pruning neighbors from left and right
-//    for (auto cur = lpnids.begin(); cur != lpnids.end(); cur++ )
-//    {
-//      snids.erase( *cur );
-//    }
-//    for (auto cur = rpnids.begin(); cur != rpnids.end(); cur++ )
-//    {
-//      snids.erase( *cur );
-//    }
-//
-//    //printf("Interior sampling neighbor size: %lu\n", snids.size());
-//  }
-//}; // end BuildNeighbors()
-//
-//
-//
-//
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 /** @brief Compute the cofficient matrix by R11^{-1} * proj. */ 
@@ -1101,7 +969,7 @@ class InterpolateTask : public Task
 /**
  *  TODO: I decided not to use the sampling pool
  */ 
-template<typename NODE>
+template<bool NNPRUNE, typename NODE>
 void RowSamples( NODE *node, size_t nsamples )
 {
   /** Derive type T from NODE. */
@@ -1123,59 +991,53 @@ void RowSamples( NODE *node, size_t nsamples )
     //    node->setup->NN->row(), node->setup->NN->col() ); fflush( stdout );
     auto &NN = *(setup.NN);
     auto &gids = node->gids;
-    auto &pnids = data.pnids;
     auto &snids = data.snids;
-    size_t kbeg = ( NN.row() + 1 ) / 2;
-    size_t kend = NN.row();
-    size_t knum = kend - kbeg;
+    size_t knum = NN.row();
 
     if ( node->isleaf )
     {
-      pnids.clear();
       snids.clear();
 
-      for ( auto gid : gids )
-        for ( size_t i = 0; i < NN.row() / 2; i ++ )
-          pnids.insert( NN( i, gid ).second );
-
-      /** Remove self on-diagonal indices. */
-      for ( auto gid : gids ) pnids.erase( gid );
-
       vector<pair<T, size_t>> tmp( knum * gids.size() );
-
       for ( size_t j = 0; j < gids.size(); j ++ )
-        for ( size_t i = kbeg; i < kend; i ++ )
-          tmp[ j * knum + ( i - kbeg ) ] = NN( i, gids[ j ] );
+        for ( size_t i = 0; i < knum; i ++ )
+          tmp[ j * knum + i ] = NN( i, gids[ j ] );
 
       /** Create a sorted list. */
       sort( tmp.begin(), tmp.end() );
     
-      /** Each candidate is a pair of (distance,gid). */
+      /** Each candidate is a pair of (distance, gid). */
       for ( auto it : tmp )
       {
         size_t it_gid = it.second;
         size_t it_morton = setup.morton[ it_gid ];
-        if ( !pnids.count( it_gid ) &&
-             !MortonHelper::IsMyParent( it_morton, node->morton ) )
+
+        if ( snids.size() >= nsamples ) break;
+
+        /** Accept the sample if it does not belong to any near node */
+        bool is_near;
+        if ( NNPRUNE ) is_near = node->NNNearNodeMortonIDs.count( it_morton );
+        else           is_near = (it_morton == node->morton );
+
+        if ( !is_near )
         {
           /** Duplication is handled by std::map. */
           auto ret = snids.insert( make_pair( it.second, it.first ) );
         }
-        
-        /** While we have enough samples, then exit */
-        if ( snids.size() >= nsamples ) break;
       }
     }
     else
     {
       auto &lsnids = node->lchild->data.snids;
       auto &rsnids = node->rchild->data.snids;
-      auto &lpnids = node->lchild->data.pnids;
-      auto &rpnids = node->rchild->data.pnids;
 
       /** Merge left children's sampling neighbors */
       snids = lsnids;
 
+      /**
+       *  TODO: Exclude lsnids (rsnids) that are near rchild (lchild),
+       *  perhaps using a NearNodes list defined for interior nodes.
+       **/
       /** Merge right child's sample neighbors and update duplicate. */
       for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
       {
@@ -1187,11 +1049,8 @@ void RowSamples( NODE *node, size_t nsamples )
         }
       }
 
-      /** Remove on-diagonal indicies (gids) */
-      for ( auto   gid :   gids ) snids.erase(   gid );
-      /** Remove direct evaluation indices */
-      for ( auto lpnid : lpnids ) snids.erase( lpnid );
-      for ( auto rpnid : lpnids ) snids.erase( rpnid );
+      /** Remove on-diagonal indices (gids) */
+      for ( auto gid : gids ) snids.erase( gid );
     }
 
 
@@ -1205,12 +1064,12 @@ void RowSamples( NODE *node, size_t nsamples )
       /** First we use important samples from snids. */
       for ( auto it : ordered_snids )
       {
+        if ( amap.size() >= nsamples ) break;
         /** it has type pair<T, size_t> */
         amap.push_back( it.second );
-        if ( amap.size() >= nsamples ) break;
       }
 
-      /** Use uniform samples if there is not enough samples. */
+      /** Use uniform samples with replacement if there are not enough samples. */
       while ( amap.size() < nsamples )
       {
         //size_t sample = rand() % K.col();
@@ -1218,8 +1077,7 @@ void RowSamples( NODE *node, size_t nsamples )
         size_t sample_gid = important_sample.second;
         size_t sample_morton = setup.morton[ sample_gid ];
 
-        if ( find( amap.begin(), amap.end(), sample_gid ) == amap.end() &&
-             !MortonHelper::IsMyParent( sample_morton, node->morton ) )
+        if ( !MortonHelper::IsMyParent( sample_morton, node->morton ) )
         {
           amap.push_back( sample_gid );
         }
@@ -1229,7 +1087,8 @@ void RowSamples( NODE *node, size_t nsamples )
     {
       for ( size_t sample = 0; sample < K.col(); sample ++ )
       {
-        if ( find( amap.begin(), amap.end(), sample ) == amap.end() )
+        size_t sample_morton = setup.morton[ sample ];
+        if ( !MortonHelper::IsMyParent( sample_morton, node->morton ) )
         {
           amap.push_back( sample );
         }
@@ -1246,7 +1105,7 @@ void RowSamples( NODE *node, size_t nsamples )
 
 
 
-template<typename NODE>
+template<bool NNPRUNE, typename NODE>
 void SkeletonKIJ( NODE *node )
 {
   /** Derive type T from NODE. */
@@ -1287,7 +1146,7 @@ void SkeletonKIJ( NODE *node )
     nsamples = 2 * node->setup->LeafNodeSize();
 
   /** Sample off-diagonal rows. */
-  RowSamples( node, nsamples );
+  RowSamples<NNPRUNE>( node, nsamples );
   
   /** Compute (or fetch) submatrix KIJ. */
   KIJ = K( candidate_rows, candidate_cols );
@@ -1305,7 +1164,7 @@ void SkeletonKIJ( NODE *node )
 /**
  *
  */ 
-template<typename NODE, typename T>
+template<bool NNPRUNE, typename NODE, typename T>
 class SkeletonKIJTask : public Task
 {
   public:
@@ -1325,7 +1184,7 @@ class SkeletonKIJTask : public Task
 
     void DependencyAnalysis() { arg->DependOnChildren( this ); };
 
-    void Execute( Worker* user_worker ) { SkeletonKIJ( arg ); };
+    void Execute( Worker* user_worker ) { SkeletonKIJ<NNPRUNE>( arg ); };
 
 }; /** end class SkeletonKIJTask */ 
 
@@ -1398,12 +1257,6 @@ void Skeletonize( NODE *node )
   
   /** Relabel skeletions with the real gids. */
   for ( size_t i = 0; i < skels.size(); i ++ ) skels[ i ] = candidate_cols[ skels[ i ] ];
-
-  /** Update pruning neighbor list. */
-  data.pnids.clear();
-  for ( auto skel : skels )
-    for ( size_t i = 0; i < NN.row() / 2; i ++ )
-      data.pnids.insert( NN( i, skel ).second );
 
 }; /** end Skeletonize() */
 
@@ -3497,7 +3350,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
   }
   beg = omp_get_wtime();
-  gofmm::SkeletonKIJTask<NODE, T> GETMTXtask;
+  gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> GETMTXtask;
   gofmm::SkeletonizeTask<NODE, T> SKELtask;
   gofmm::InterpolateTask<NODE> PROJtask;
   tree.DependencyCleanUp();
@@ -3834,7 +3687,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   printf( "========================================================\n");
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    size_t tar = i * 11;
+    size_t tar = i * n / ntest;
     Data<T> potentials;
     /** ASKIT treecode with NN pruning. */
     Evaluate<false, true>( tree, tar, potentials );
@@ -3865,11 +3718,14 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
       nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
   printf( "========================================================\n");
 
-  /** Factorization */
-  T lambda = 5.0;
-  gofmm::Factorize( tree, lambda ); 
-  /** Compute error. */
-  gofmm::ComputeError( tree, lambda, w, u );
+  if ( !tree.setup.SecureAccuracy() )
+  {
+    /** Factorization */
+    T lambda = 5.0;
+    gofmm::Factorize( tree, lambda );
+    /** Compute error. */
+    gofmm::ComputeError( tree, lambda, w, u );
+  }
 
 }; /** end SelfTesting() */
 

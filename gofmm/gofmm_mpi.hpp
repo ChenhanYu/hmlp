@@ -3161,7 +3161,7 @@ void DistRowSamples( NODE *node, size_t nsamples )
 
 
 /** @brief Involve MPI routins */ 
-template<typename NODE>
+template<bool NNPRUNE, typename NODE>
 void DistSkeletonKIJ( NODE *node )
 {
   /** Derive type T from NODE. */
@@ -3185,7 +3185,7 @@ void DistSkeletonKIJ( NODE *node )
   if ( size < 2 )
   {
     /** This node is the root of the local tree. */
-    gofmm::SkeletonKIJ( node );
+    gofmm::SkeletonKIJ<NNPRUNE>( node );
   }
   else
   {
@@ -3222,17 +3222,14 @@ void DistSkeletonKIJ( NODE *node )
       if ( nsamples < 2 * node->setup->LeafNodeSize() ) 
         nsamples = 2 * node->setup->LeafNodeSize();
 
-      /** Gather rpnids and rsnids. */
+      /** Gather rsnids. */
       auto &lsnids = node->child->data.snids;
-      auto &lpnids = node->child->data.pnids;
       vector<T>      recv_rsdist;
       vector<size_t> recv_rsnids;
-      vector<size_t> recv_rpnids;
 
       /** Receive rsnids from size / 2. */
       mpi::RecvVector( recv_rsdist, size / 2, 20, comm, &status );
       mpi::RecvVector( recv_rsnids, size / 2, 30, comm, &status );
-      mpi::RecvVector( recv_rpnids, size / 2, 40, comm, &status );
       /** Correspondingly, we need to redistribute the matrix K. */
       K.RecvIndices( size / 2, comm, &status );
 
@@ -3252,11 +3249,8 @@ void DistSkeletonKIJ( NODE *node )
         }
       }
 
-      /** Remove gids, lpnids and rpnids from snids */
+      /** Remove gids from snids */
       for ( auto gid : node->gids ) snids.erase( gid );
-      /** Remove lpnids and rpnids from snids  */
-      for ( auto lpnid : lpnids )      snids.erase( lpnid );
-      for ( auto rpnid : recv_rpnids ) snids.erase( rpnid );
     }
 
     if ( rank == size / 2 )
@@ -3268,15 +3262,12 @@ void DistSkeletonKIJ( NODE *node )
 
       /** Gather rsnids */
       auto &rsnids = node->child->data.snids;
-      auto &rpnids = node->child->data.pnids;
       vector<T>      send_rsdist;
       vector<size_t> send_rsnids;
-      vector<size_t> send_rpnids;
 
       /** reserve space and push in from map */
       send_rsdist.reserve( rsnids.size() );
       send_rsnids.reserve( rsnids.size() );
-      send_rpnids.reserve( rpnids.size() );
 
       for ( auto it = rsnids.begin(); it != rsnids.end(); it ++ )
       {
@@ -3285,17 +3276,9 @@ void DistSkeletonKIJ( NODE *node )
         send_rsdist.push_back( (*it).second );
       }
 
-      for ( auto it = rpnids.begin(); it != rpnids.end(); it ++ )
-      {
-        /** (*it) has type std::size_t  */
-        send_rpnids.push_back( *it );
-      }
-
-      /** send rsnids and rpnids to rank-0 */
+      /** send rsnids to rank-0 */
       mpi::SendVector( send_rsdist, 0, 20, comm );
       mpi::SendVector( send_rsnids, 0, 30, comm );
-      mpi::SendVector( send_rpnids, 0, 40, comm );
-
 
       /** Correspondingly, we need to redistribute the matrix K. */
       K.SendIndices( send_rsnids, 0, comm );
@@ -3324,7 +3307,7 @@ void DistSkeletonKIJ( NODE *node )
 /**
  *
  */ 
-template<typename NODE, typename T>
+template<bool NNPRUNE, typename NODE, typename T>
 class DistSkeletonKIJTask : public Task
 {
   public:
@@ -3344,7 +3327,7 @@ class DistSkeletonKIJTask : public Task
 
     void DependencyAnalysis() { arg->DependOnChildren( this ); };
 
-    void Execute( Worker* user_worker ) { DistSkeletonKIJ( arg ); };
+    void Execute( Worker* user_worker ) { DistSkeletonKIJ<NNPRUNE>( arg ); };
 
 }; /** end class DistSkeletonKIJTask */
 
@@ -3490,21 +3473,6 @@ class SkeletonizeTask : public hmlp::Task
 
       DistSkeletonize<NODE, T>( arg );
 
-      /** If neighbors were provided, then update the estimated prunning list. */
-      if ( arg->setup->NN )
-      {
-        auto &skels = arg->data.skels;
-        auto &pnids = arg->data.pnids;
-        auto &NN = *(arg->setup->NN);
-        pnids.clear();
-
-        for ( auto skel : skels )
-          //for ( size_t i = 0; i < NN.row() / 2; i ++ )
-          for ( size_t i = 0; i < NN.row(); i ++ )
-            pnids.insert( NN( i, skel ).second );
-      }
-
-
       //printf( "%d Par-Skel end\n", global_rank );
     };
 
@@ -3587,38 +3555,6 @@ class DistSkeletonizeTask : public hmlp::Task
       mpi::Bcast( &nskels, 1, 0, comm );
       if ( skels.size() != nskels ) skels.resize( nskels );
       mpi::Bcast( skels.data(), skels.size(), 0, comm );
-
-
-      /** If neighbors were provided, then update the estimated prunning list. */
-      if ( arg->setup->NN )
-      {
-        auto &pnids = arg->data.pnids;
-        auto &NN = *(arg->setup->NN);
-
-        /** Create the column distribution using cids */
-        vector<size_t> cids;
-        for ( size_t j = 0; j < skels.size(); j ++ )
-        {
-          if ( NN.HasColumn( skels[ j ] ) ) 
-          {
-            cids.push_back( j );
-          }
-        }
-
-        /** Create a k-by-nskels distributed matrix */
-        DistData<STAR, CIDS, size_t> X_cids( NN.row(), nskels, cids, comm );
-        DistData<CIRC, CIRC, size_t> X_circ( NN.row(), nskels,    0, comm );
-
-        /** Redistribute from <STAR, CIDS> to <CIRC, CIRC> on rank-0 */
-        X_circ = X_cids;
-
-        if ( arg->GetCommRank() == 0 )
-        {
-          pnids.clear();
-          for ( size_t i = 0; i < X_circ.size(); i ++ )
-            pnids.insert( X_circ[ i ] );
-        }
-      }
 
     };
 
@@ -4055,8 +3991,8 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 	  beg = omp_get_wtime();
     tree.DependencyCleanUp();
     /** Gather sample rows and skeleton columns, then ID */
-    gofmm::SkeletonKIJTask<NODE, T> seqGETMTXtask;
-    mpigofmm::DistSkeletonKIJTask<MPINODE, T> mpiGETMTXtask;
+    gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> seqGETMTXtask;
+    mpigofmm::DistSkeletonKIJTask<NNPRUNE, MPINODE, T> mpiGETMTXtask;
     mpigofmm::SkeletonizeTask<NODE, T> seqSKELtask;
     mpigofmm::DistSkeletonizeTask<MPINODE, T> mpiSKELtask;
     tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
@@ -4249,7 +4185,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   /** Loop over all testing gids and right hand sides. */
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    size_t tar = i * 11;
+    size_t tar = i * n / ntest;
     Data<T> potentials( (size_t)1, nrhs );
     if ( rank == ( tar % size ) ) potentials = u_rblk( vector<size_t>( 1, tar ), all_rhs );
     /** Bcast potentials to all MPI processes. */
