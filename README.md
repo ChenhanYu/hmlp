@@ -1,6 +1,11 @@
 
 ## HMLP (High Performance Machine Learning Primitives)
 
+### WARNING
+
+HMLP and GOFMM are research projects and not in production. For SC'17 and SC'18
+artifacts, see /artifact and our our GOFMM papers [SC'17 and SC'18] for details.
+
 ### README
 
 Thank you for deciding to give HMLP a try!
