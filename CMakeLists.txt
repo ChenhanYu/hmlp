@@ -1,52 +1,57 @@
 # ---[ Check cmake version.
-cmake_minimum_required(VERSION 2.8.12 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12 FATAL_ERROR)
 
 # ---[ Project specification.
-project(HMLP C CXX)
-set(HMLP_VERSION_MAJOR 1)
-set(HMLP_VERSION_MINOR 1)
-set(HMLP_VERSION_PATCH 0)
-set(HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
+PROJECT(hmlp C CXX)
+SET(HMLP_VERSION_MAJOR 1)
+SET(HMLP_VERSION_MINOR 1)
+SET(HMLP_VERSION_PATCH 0)
+SET(HMLP_VERSION ${HMLP_VERSION_MAJOR}.${HMLP_VERSION_MINOR}.${HMLP_VERSION_PATCH})
+
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  SET(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR} CACHE PATH "" FORCE)
+ENDIF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+
 
 # ---[ Build options (not completed yet).
-set(HMLP_LIBRARY_TYPE "default" CACHE STRING "Type of hmlp library (shared, static, or default) to build")
-set_property(CACHE HMLP_LIBRARY_TYPE PROPERTY STRINGS default static shared)
-option(HMLP_BUILD_TOOLS "Build command-line tools" ON)
-option(HMLP_BUILD_UNIT_TESTS "Build hmlp unit tests" ON)
-option(HMLP_BUILD_MOCK_TESTS "Build hmlp mock tests" ON)
-option(HMLP_BUILD_BENCHMARKS "Build hmlp micro-benchmarks" ON)
-option(HMLP_BUILD_ARTIFACTS "Build SC'XX artifacts" ON)
+SET(LIBRARY_TYPE "default" CACHE STRING "Type of hmlp library (shared, static, or default) to build")
+SET_PROPERTY(CACHE LIBRARY_TYPE PROPERTY STRINGS default static shared)
+OPTION(BUILD_TOOLS "Build command-line tools" ON)
+OPTION(BUILD_UNIT_TESTS "Build hmlp unit tests" ON)
+OPTION(BUILD_MOCK_TESTS "Build hmlp mock tests" ON)
+OPTION(BUILD_BENCHMARKS "Build hmlp micro-benchmarks" ON)
+OPTION(BUILD_ARTIFACTS "Build SC'XX artifacts" ON)
 
 # --[ Whether or not enable testing?
-if(HMLP_BUILD_UNIT_TESTS OR HMLP_BUILD_MOCK_TESTS)
+IF(BUILD_UNIT_TESTS OR BUILD_MOCK_TESTS)
   ENABLE_TESTING()
-endif()
+ENDIF()
 
 # ---[ Decide architecture.
-set(HMLP_SUPPORTED_PLATFORM TRUE)
-if(NOT CMAKE_SYSTEM_PROCESSOR)
+SET(SUPPORTED_PLATFORM TRUE)
+IF(NOT CMAKE_SYSTEM_PROCESSOR)
   message(WARNING "Target processor architecture is not specified.")
-  set(HMLP_SUPPORTED_PLATFORM FALSE)
-elseif(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|armv7|armv7f|armv7s|armv7k|arm64|aarch64)$")
+  set(SUPPORTED_PLATFORM FALSE)
+ELSEIF(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|armv7|armv7f|armv7s|armv7k|arm64|aarch64)$")
   message(WARNING "Target processor architecture ${CMAKE_SYSTEM_PROCESSOR} is not supported in hmlp.")
-  set(HMLP_SUPPORTED_PLATFORM FALSE)
-endif()
+  SET(SUPPORTED_PLATFORM FALSE)
+ENDIF()
 
-message(STATUS "${CMAKE_SYSTEM_PROCESSOR}/${CMAKE_SYSTEM_NAME}")
-set(HMLP_ARCH_MAJOR     $ENV{HMLP_ARCH_MAJOR})
-set(HMLP_ARCH_MINOR     $ENV{HMLP_ARCH_MINOR})
-set(HMLP_ARCH           ${HMLP_ARCH_MAJOR}/${HMLP_ARCH_MINOR})
-set(HMLP_GPU_ARCH_MAJOR $ENV{HMLP_GPU_ARCH_MAJOR})
-set(HMLP_GPU_ARCH_MINOR $ENV{HMLP_GPU_ARCH_MINOR})
-set(HMLP_GPU_ARCH       ${HMLP_GPU_ARCH_MAJOR}/${HMLP_GPU_ARCH_MINOR})
+MESSAGE(STATUS "${CMAKE_SYSTEM_PROCESSOR}/${CMAKE_SYSTEM_NAME}")
+SET(HMLP_ARCH_MAJOR     $ENV{HMLP_ARCH_MAJOR})
+SET(HMLP_ARCH_MINOR     $ENV{HMLP_ARCH_MINOR})
+SET(HMLP_ARCH           ${HMLP_ARCH_MAJOR}/${HMLP_ARCH_MINOR})
+SET(HMLP_GPU_ARCH_MAJOR $ENV{HMLP_GPU_ARCH_MAJOR})
+SET(HMLP_GPU_ARCH_MINOR $ENV{HMLP_GPU_ARCH_MINOR})
+SET(HMLP_GPU_ARCH       ${HMLP_GPU_ARCH_MAJOR}/${HMLP_GPU_ARCH_MINOR})
 
 # Detecting MacOS.
 # ---------------------------
-if ( APPLE )
-  message( STATUS "MacOS detected")
-  set (CMAKE_MACOSX_RPATH TRUE)
-endif ()
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+#IF( APPLE )
+#  message( STATUS "MacOS detected")
+#  set (CMAKE_MACOSX_RPATH TRUE)
+#ENDIF()
+#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 
 # ---[ Download dependencies.
@@ -56,8 +61,8 @@ set(CONFU_DEPENDENCIES_BINARY_DIR ${CMAKE_BINARY_DIR}/deps
   CACHE PATH "Confu-style dependencies binary directory")
 
 # ---[ Download googletest.
-if(HMLP_BUILD_MOCK_TESTS OR HMLP_BUILD_UNIT_TESTS)
-  if(HMLP_SUPPORTED_PLATFORM AND NOT DEFINED GOOGLETEST_SOURCE_DIR)
+IF(BUILD_MOCK_TESTS OR BUILD_UNIT_TESTS)
+  IF(SUPPORTED_PLATFORM AND NOT DEFINED GOOGLETEST_SOURCE_DIR)
     message(STATUS "Downloading Google Test to ${CONFU_DEPENDENCIES_SOURCE_DIR}/googletest (define GOOGLETEST_SOURCE_DIR to avoid it)")
     configure_file(cmake/DownloadGoogleTest.cmake "${CONFU_DEPENDENCIES_BINARY_DIR}/googletest-download/CMakeLists.txt")
     execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -69,8 +74,8 @@ if(HMLP_BUILD_MOCK_TESTS OR HMLP_BUILD_UNIT_TESTS)
 ENDIF()
 
 # ---[ Download googlebenchmark.
-if(HMLP_BUILD_BENCHMARKS)
-  if(HMLP_SUPPORTED_PLATFORM AND NOT DEFINED GOOGLEBENCHMARK_SOURCE_DIR)
+if(BUILD_BENCHMARKS)
+  if(SUPPORTED_PLATFORM AND NOT DEFINED GOOGLEBENCHMARK_SOURCE_DIR)
     message(STATUS "Downloading Google Benchmark to ${CONFU_DEPENDENCIES_SOURCE_DIR}/googlebenchmark (define GOOGLEBENCHMARK_SOURCE_DIR to avoid it)")
     configure_file(cmake/DownloadGoogleBenchmark.cmake "${CONFU_DEPENDENCIES_BINARY_DIR}/googlebenchmark-download/CMakeLists.txt")
     execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -220,16 +225,16 @@ find_program(VIRTUALENV "virtualenv")
 
 
 if (VIRTUALENV)
-	set(INSTA_SH_IN ${CMAKE_SOURCE_DIR}/python/install.in.sh)
+	set(INSTA_SH_IN ${hmlp_SOURCE_DIR}/python/install.in.sh)
 	set(INSTA_SH    ${CMAKE_BINARY_DIR}/python/install.sh)
 	configure_file(${INSTA_SH_IN} ${INSTA_SH})
-  set(SETUP_PY_IN ${CMAKE_SOURCE_DIR}/python/setup.in.py)
+  set(SETUP_PY_IN ${hmlp_SOURCE_DIR}/python/setup.in.py)
   set(SETUP_PY    ${CMAKE_BINARY_DIR}/python/setup.py)
   configure_file(${SETUP_PY_IN} ${SETUP_PY})
-  set(HMLP_PYX_IN ${CMAKE_SOURCE_DIR}/python/hmlp.py)
+  set(HMLP_PYX_IN ${hmlp_SOURCE_DIR}/python/hmlp.py)
   set(HMLP_PYX    ${CMAKE_BINARY_DIR}/python/hmlp.pyx)
   configure_file(${HMLP_PYX_IN} ${HMLP_PYX})
-  set(GOFMM_PYX_IN ${CMAKE_SOURCE_DIR}/python/gofmm.py)
+  set(GOFMM_PYX_IN ${hmlp_SOURCE_DIR}/python/gofmm.py)
   set(GOFMM_PYX    ${CMAKE_BINARY_DIR}/python/gofmm.pyx)
   configure_file(${GOFMM_PYX_IN} ${GOFMM_PYX})
 	## Create a Virtualenv environment for Python 2.7. 
@@ -313,10 +318,10 @@ endif()
 
 # Setup all flags
 # ---------------------------
-set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
-set(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS} -g")
-set(CMAKE_CXX_FLAGS       "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS} -std=c++11")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${HMLP_CFLAGS}")
+SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -g")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${HMLP_CFLAGS} -std=c++11")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
 
 
 
@@ -325,42 +330,92 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
 
 # Headers
 # ---------------------------
-include_directories ("include" "frame" "gofmm")
-include_directories ("frame/base" "frame/containers" "frame/mpi")
-include_directories ("kernel/reference" "kernel/${HMLP_ARCH}")
+#include_directories ("include" "frame" "gofmm")
+#include_directories ("frame/base" "frame/containers" "frame/mpi")
+#include_directories ("kernel/reference" "kernel/${HMLP_ARCH}")
 
-if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  include_directories ( "${CUDA_TOOLKIT_ROOT_DIR}/include" "${CMAKE_SOURCE_DIR}/kernel/${HMLP_GPU_ARCH}")
-endif ()
+#if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+#  include_directories ( "${CUDA_TOOLKIT_ROOT_DIR}/include" "${hmlp_SOURCE_DIR}/kernel/${HMLP_GPU_ARCH}")
+#endif ()
 
-file (GLOB HMLP_HDRS ${CMAKE_SOURCE_DIR}/include/*)
+file (GLOB HMLP_HDRS ${hmlp_SOURCE_DIR}/include/*)
 install (FILES ${HMLP_HDRS} DESTINATION ${CMAKE_BINARY_DIR}/include)
 
 
 # Library dependencies
 # ---------------------------
-file (GLOB FRAME_CC_SRC      ${CMAKE_SOURCE_DIR}/frame/external/*.c)
-file (GLOB FRAME_CXX_SRC     ${CMAKE_SOURCE_DIR}/frame/base/*.cpp)
-file (GLOB FRAME_MPI_CXX_SRC ${CMAKE_SOURCE_DIR}/frame/mpi/*.cpp)
-file (GLOB FRAME_CU_SRC      ${CMAKE_SOURCE_DIR}/frame/*.cu)
-file (GLOB GOFMM_CU_SRC      ${CMAKE_SOURCE_DIR}/frame/gofmm/*.cu)
-file (GLOB KERNEL_SRC        ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.cpp)
-file (GLOB ASSEMBLY_SRC      ${CMAKE_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.s)
-file (GLOB PACKAGE_CXX_SRC   ${CMAKE_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
-file (GLOB PACKAGE_CU_SRC    ${CMAKE_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
+file (GLOB FRAME_CC_SRC      ${hmlp_SOURCE_DIR}/frame/external/*.c)
+file (GLOB FRAME_CXX_SRC     ${hmlp_SOURCE_DIR}/frame/base/*.cpp)
+file (GLOB FRAME_MPI_CXX_SRC ${hmlp_SOURCE_DIR}/frame/mpi/*.cpp)
+file (GLOB FRAME_CU_SRC      ${hmlp_SOURCE_DIR}/frame/*.cu)
+file (GLOB GOFMM_CU_SRC      ${hmlp_SOURCE_DIR}/frame/gofmm/*.cu)
+file (GLOB KERNEL_SRC        ${hmlp_SOURCE_DIR}/kernel/${HMLP_ARCH}/*.cpp)
+file (GLOB PACKAGE_CXX_SRC   ${hmlp_SOURCE_DIR}/package/${HMLP_ARCH}/*.cpp)
+file (GLOB PACKAGE_CU_SRC    ${hmlp_SOURCE_DIR}/package/${HMLP_GPU_ARCH}/*.cu)
 
+FILE(GLOB CC_SRC 
+  frame/external/*.c
+  frame/base/*.cpp
+  frame/mpi/*.cpp
+  kernel/${HMLP_ARCH}/*.cpp
+  package/${HMLP_ARCH}/*.cpp)
 
-# Build the shared library.
+FILE(GLOB CU_SRC 
+  frame/*.cu
+  frame/gofmm/*.cu
+  package/${HMLP_GPU_ARCH}/*.cu)
+
+# Public Headers
 # ---------------------------
-if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-  cuda_add_library (hmlp SHARED ${FRAME_CC_SRC} 
-    ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
-    ${PACKAGE_CXX_SRC} ${FRAME_CU_SRC} ${GOFMM_CU_SRC} ${PACKAGE_CU_SRC})
-else ()
-  add_library (hmlp SHARED ${FRAME_CC_SRC} 
-    ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
-    ${PACKAGE_CXX_SRC} ${ASSEMBLY_SRC})
-endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+LIST(APPEND INC include)
+
+
+
+
+## Build the shared library.
+## ---------------------------
+#if ($ENV{HMLP_USE_CUDA} MATCHES "true")
+#  cuda_add_library (hmlp SHARED 
+#else ()
+#  add_library (hmlp SHARED ${FRAME_CC_SRC} 
+#    ${FRAME_CXX_SRC} ${FRAME_MPI_CXX_SRC} ${KERNEL_SRC}
+#    ${PACKAGE_CXX_SRC})
+#endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
+
+
+IF($ENV{HMLP_USE_CUDA} MATCHES "true")
+  IF(LIBRARY_TYPE STREQUAL "default")
+    CUDA_ADD_LIBRARY(hmlp ${CU_SRC})
+  ELSEIF(LIBRARY_TYPE STREQUAL "shared")
+    CUDA_ADD_LIBRARY(hmlp SHARED ${CU_SRC})
+  ELSEIF(LIBRARY_TYPE STREQUAL "static")
+    CUDA_ADD_LIBRARY(hmlp STATIC ${CU_SRC})
+  ELSE()
+    MESSAGE(FATAL_ERROR "Unsupported library type ${LIBRARY_TYPE}")
+  ENDIF()
+  TARGET_INCLUDE_DIRECTORIES(cuel BEFORE PUBLIC "${CUDA_TOOLKIT_ROOT_DIR}/include")
+ELSE()
+  IF(LIBRARY_TYPE STREQUAL "default")
+    ADD_LIBRARY(hmlp ${CC_SRC})
+  ELSEIF(LIBRARY_TYPE STREQUAL "shared")
+    ADD_LIBRARY(hmlp SHARED ${CC_SRC})
+  ELSEIF(LIBRARY_TYPE STREQUAL "static")
+    ADD_LIBRARY(hmlp STATIC ${CC_SRC})
+  ELSE()
+    MESSAGE(FATAL_ERROR "Unsupported library type ${LIBRARY_TYPE}")
+  ENDIF()
+ENDIF()
+SET_TARGET_PROPERTIES(hmlp PROPERTIES PUBLIC_HEADER include/hmlp.h)
+TARGET_INCLUDE_DIRECTORIES(hmlp BEFORE PUBLIC include)
+TARGET_INCLUDE_DIRECTORIES(hmlp BEFORE PRIVATE frame)
+TARGET_INCLUDE_DIRECTORIES(hmlp BEFORE PRIVATE gofmm)
+TARGET_INCLUDE_DIRECTORIES(hmlp BEFORE PRIVATE frame/base)
+TARGET_INCLUDE_DIRECTORIES(hmlp BEFORE PRIVATE frame/containers)
+TARGET_INCLUDE_DIRECTORIES(hmlp BEFORE PRIVATE frame/primitives)
+TARGET_INCLUDE_DIRECTORIES(hmlp BEFORE PRIVATE kernel/reference)
+TARGET_INCLUDE_DIRECTORIES(hmlp BEFORE PRIVATE kernel/${HMLP_ARCH})
+
+
 
 
 # # Build HMLP executables.
@@ -383,53 +438,102 @@ endif ($ENV{HMLP_USE_CUDA} MATCHES "true")
 # endforeach()
 
 
+
 # Build GOFMM executables.
 # ---------------------------
-file (GLOB TEST_CXX_SRC    ${CMAKE_SOURCE_DIR}/example/*.cpp)
-foreach( testsrc ${TEST_CXX_SRC} )
-  string( REPLACE ".cpp" ".x" testexe ${testsrc} )
-  get_filename_component( testexe ${testsrc} NAME_WE )
-  add_executable( "${testexe}.x" ${testsrc} )
-  target_link_libraries("${testexe}.x" hmlp ${MPI_CXX_LIBRARIES})
-  set_target_properties("${testexe}.x" PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
-  set_target_properties("${testexe}.x" PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
-  if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-    target_link_libraries( "${testexe}.x" cudart )
-    cuda_add_cublas_to_target( "${testexe}.x" )
-  endif ()
-  if ($ENV{HMLP_USE_MAGMA} MATCHES "true")
-    target_link_libraries( "${testexe}.x" magma )
-  endif()
-endforeach()
+FILE(GLOB TEST_CXX_SRC 
+  ${hmlp_SOURCE_DIR}/example/*.cpp)
+FOREACH(src ${TEST_CXX_SRC})
+  GET_FILENAME_COMPONENT(exe ${src} NAME_WE)
+  ADD_EXECUTABLE(${exe} ${src})
+  TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PUBLIC ${INC})
+  TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame)
+  TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE gofmm)
+  TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame/base)
+  TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame/containers)
+  TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame/primitives)
+  TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE kernel/reference)
+  TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE kernel/${HMLP_ARCH})
+  TARGET_LINK_LIBRARIES(${exe} hmlp ${MPI_CXX_LIBRARIES})
+  SET_TARGET_PROPERTIES(${exe} PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+  SET_TARGET_PROPERTIES(${exe} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+  IF($ENV{HMLP_USE_CUDA} MATCHES "true")
+    TARGET_LINK_LIBRARIES(${exe} cudart cublas nvToolsExt)
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PUBLIC "${CUDA_TOOLKIT_ROOT_DIR}/include")
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE "kernel/${HMLP_GPU_ARCH}")
+  ENDIF()
+  IF($ENV{HMLP_USE_MAGMA} MATCHES "true")
+    TARGET_LINK_LIBRARIES(${exe} magma)
+  ENDIF()
+  INSTALL(TARGETS ${exe} DESTINATION bin)
+ENDFOREACH()
 
 # Install GOFMM shell script
 # ---------------------------
-file (GLOB GOFMM_SCRIPTS ${CMAKE_SOURCE_DIR}/example/*.sh)
-install (FILES ${GOFMM_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
-
-
+FILE(GLOB GOFMM_SCRIPTS ${hmlp_SOURCE_DIR}/example/*.sh)
+INSTALL(FILES ${GOFMM_SCRIPTS} DESTINATION bin)
 
 ## Build paper artifacts
 # ---------------------------
-set(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
-if (ARTIFACT_PATH)
-  set(ARTIFACT_PATH "${CMAKE_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")
-  file (GLOB ARTIFACT_CXX_SRC    ${ARTIFACT_PATH}/*.cpp)
-  file (GLOB ARTIFACT_SCRIPTS    ${ARTIFACT_PATH}/*.sh)
-  file (GLOB ARTIFACT_DATASETS   ${ARTIFACT_PATH}/datasets/*.m)
-  foreach( artifactsrc ${ARTIFACT_CXX_SRC} )
-    string( REPLACE ".cpp" ".x" artifactexe ${artifactsrc} )
-    get_filename_component( artifactexe ${artifactsrc} NAME_WE )
-    add_executable( "${artifactexe}.x" ${artifactsrc} )
-    target_link_libraries( "${artifactexe}.x" hmlp ${MPI_CXX_LIBRARIES} )
-    if ($ENV{HMLP_USE_CUDA} MATCHES "true")
-      target_link_libraries( "${artifactexe}.x" cudart )
-      cuda_add_cublas_to_target( "${artifactexe}.x" )
-    endif()
-  endforeach( artifactsrc ${ARTIFACT_CXX_SRC} )
-  install (FILES ${ARTIFACT_SCRIPTS} DESTINATION ${CMAKE_BINARY_DIR}/bin)
-  install (FILES ${ARTIFACT_DATASETS} DESTINATION ${CMAKE_BINARY_DIR}/bin/datasets)
-endif()
+SET(ARTIFACT_PATH $ENV{HMLP_ARTIFACT_PATH})
+IF(ARTIFACT_PATH)
+  SET(ARTIFACT_PATH "${hmlp_SOURCE_DIR}/artifact/${ARTIFACT_PATH}")
+  FILE(GLOB ARTIFACT_CXX_SRC ${ARTIFACT_PATH}/*.cpp)
+  FILE(GLOB ARTIFACT_SCRIPTS ${ARTIFACT_PATH}/*.sh)
+  FILE(GLOB ARTIFACT_DATASETS ${ARTIFACT_PATH}/datasets/*.m)
+  FOREACH(src ${ARTIFACT_CXX_SRC} )
+    GET_FILENAME_COMPONENT(exe ${src} NAME_WE)
+    ADD_EXECUTABLE(${exe} ${src})
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PUBLIC ${INC})
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame)
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE gofmm)
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame/base)
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame/containers)
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame/primitives)
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE kernel/reference)
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE kernel/${HMLP_ARCH})
+    TARGET_LINK_LIBRARIES(${exe} hmlp ${MPI_CXX_LIBRARIES})
+    SET_TARGET_PROPERTIES(${exe} PROPERTIES COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+    SET_TARGET_PROPERTIES(${exe} PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+    IF($ENV{HMLP_USE_CUDA} MATCHES "true")
+      TARGET_LINK_LIBRARIES(${exe} cudart cublas nvToolsExt)
+      TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PUBLIC "${CUDA_TOOLKIT_ROOT_DIR}/include")
+      TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE "kernel/${HMLP_GPU_ARCH}")
+    ENDIF()
+    IF($ENV{HMLP_USE_MAGMA} MATCHES "true")
+      TARGET_LINK_LIBRARIES(${exe} magma)
+    ENDIF()
+    INSTALL(TARGETS ${exe} DESTINATION bin)
+  ENDFOREACH()
+  INSTALL(FILES ${ARTIFACT_SCRIPTS} DESTINATION bin)
+  INSTALL(FILES ${ARTIFACT_DATASETS} DESTINATION bin/datasets)
+ENDIF()
+
+
+# ---[ Build google test
+IF(BUILD_MOCK_TESTS OR BUILD_UNIT_TESTS)
+  IF(NOT TARGET gtest)
+    ADD_SUBDIRECTORY(
+      "${GOOGLETEST_SOURCE_DIR}"
+      "${CONFU_DEPENDENCIES_BINARY_DIR}/googletest")
+    INCLUDE_DIRECTORIES("${GOOGLETEST_SOURCE_DIR}/googletest/include")
+  ENDIF()
+  FILE(GLOB TEST_CXX_SRC 
+    ${hmlp_SOURCE_DIR}/test/*.cpp 
+    ${hmlp_SOURCE_DIR}/test/*.cu)
+  FOREACH(src ${TEST_CXX_SRC})
+    GET_FILENAME_COMPONENT(exe ${src} NAME_WE)
+    ADD_EXECUTABLE(${exe} ${src})
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PUBLIC ${INC})
+    TARGET_INCLUDE_DIRECTORIES(${exe} BEFORE PRIVATE frame)
+    TARGET_LINK_LIBRARIES(${exe} hmlp gtest gcov)
+    ADD_TEST(${exe} ${exe})  
+    INSTALL(TARGETS ${exe} DESTINATION bin)
+  ENDFOREACH()
+ENDIF()
+
+
+
 
 
 # ## Build the sandbox

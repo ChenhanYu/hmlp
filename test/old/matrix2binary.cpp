@@ -28,7 +28,8 @@
 #include <omp.h>
 #include <math.h>
 #include <hmlp.h>
-#include <hmlp_blas_lapack.h>
+
+#include <external/hmlp_blas_lapack.h>
 
 #include <Data.hpp>
 

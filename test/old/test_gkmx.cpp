@@ -20,8 +20,10 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <math.h>
+
 #include <hmlp.h>
-#include <hmlp_blas_lapack.h>
+
+#include <base/hmlp_blas_lapack.h>
 
 #ifdef HMLP_MIC_AVX512
 #include <hbwmalloc.h>

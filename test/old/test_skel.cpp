@@ -27,10 +27,11 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <math.h>
-#include <hmlp.h>
-#include <hmlp_blas_lapack.h>
 
-#include <Data.hpp>
+
+#include <hmlp.h>
+#include <base/hmlp_blas_lapack.h>
+#include <base/Data.hpp>
 #include <primitives/lowrank.hpp>
 
 #ifdef HMLP_MIC_AVX512

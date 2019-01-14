@@ -8,17 +8,17 @@ const char* getErrorString( hmlpError_t error )
   switch ( error )
   {
     case HMLP_ERROR_SUCCESS:
-      return "SUCCESS";
+      return "HMLP_ERROR_SUCCESS";
     case HMLP_ERROR_ALLOC_FAILED:
-      return "ALLOC_FAILED";
+      return "HMLP_ERROR_ALLOC_FAILED";
     case HMLP_ERROR_INVALID_VALUE:
-      return "INVALID_VALUE";
+      return "HMLP_ERROR_INVALID_VALUE";
     case HMLP_ERROR_EXECUTION_FAILED:
-      return "EXECUTION_FAILED";
+      return "HMLP_ERROR_EXECUTION_FAILED";
     case HMLP_ERROR_INTERNAL_ERROR:
-      return "INTERNAL_ERROR";
+      return "HMLP_ERROR_INTERNAL_ERROR";
     case HMLP_ERROR_NOT_SUPPORTED:
-      return "NOT_SUPPORTED";
+      return "HMLP_ERROR_NOT_SUPPORTED";
   }
   return "<unknown>";
 };

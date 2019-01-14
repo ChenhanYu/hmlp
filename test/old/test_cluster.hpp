@@ -28,8 +28,9 @@
 #include <fstream>
 #include <omp.h>
 #include <math.h>
+
 #include <hmlp.h>
-#include <hmlp_util.hpp>
+#include <base/hmlp_util.hpp>
 
 #include <primitives/cluster.hpp>
 
