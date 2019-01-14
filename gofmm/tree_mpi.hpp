@@ -24,10 +24,8 @@
 
 /** Inherit most of the classes from shared-memory GOFMM. */
 #include <tree.hpp>
-/** Use HMLP related support. */
-#include <hmlp_mpi.hpp>
 /** Use distributed matrices inspired by the Elemental notation. */
-#include <DistData.hpp>
+//#include <DistData.hpp>
 /** Use STL and HMLP namespaces. */
 using namespace std;
 using namespace hmlp;

@@ -1,8 +1,6 @@
 #ifndef MLPGAUSSNEWTON_HPP
 #define MLPGAUSSNEWTON_HPP
 
-/** BLAS/LAPACK support */
-#include <hmlp_blas_lapack.h>
 /** GEMM task support */
 #include <primitives/gemm.hpp>
 /** MLPGaussNewton uses VirtualMatrix<T> as base */

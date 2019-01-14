@@ -4,7 +4,7 @@
 #include <exception>
 
 /** BLAS/LAPACK support */
-#include <hmlp_blas_lapack.h>
+#include <base/blas_lapack.hpp>
 /** GEMM task support */
 #include <primitives/gemm.hpp>
 /** MLPGaussNewton uses VirtualMatrix<T> as base */

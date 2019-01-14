@@ -1,6 +1,6 @@
 #ifndef HMLP_MPI_HPP
 #define HMLP_MPI_HPP
-#include <mpi_prototypes.hpp>
+#include <external/mpi_prototypes.h>
 
 #include <vector>
 #include <stdlib.h>

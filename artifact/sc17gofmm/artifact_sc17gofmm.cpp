@@ -159,19 +159,19 @@ void test_gofmm_setup
   switch ( metric )
   {
     case GEOMETRY_DISTANCE:
-    {
-      assert( X );
-			/** using geometric splitters from hmlp::tree */
-      using SPLITTER     = tree::centersplit<N_CHILDREN, T>;
-      using RKDTSPLITTER = tree::randomsplit<N_CHILDREN, T>;
-			/** GOFMM tree splitter */
-      SPLITTER splitter;
-			/** randomized tree splitter */
-      RKDTSPLITTER rkdtsplitter;
-      test_gofmm<SPLITTER, RKDTSPLITTER, T>
-      ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
-      break;
-    }
+    //{
+    //  assert( X );
+    //    		/** using geometric splitters from hmlp::tree */
+    //  using SPLITTER     = tree::centersplit<N_CHILDREN, T>;
+    //  using RKDTSPLITTER = tree::randomsplit<N_CHILDREN, T>;
+    //    		/** GOFMM tree splitter */
+    //  SPLITTER splitter;
+    //    		/** randomized tree splitter */
+    //  RKDTSPLITTER rkdtsplitter;
+    //  test_gofmm<SPLITTER, RKDTSPLITTER, T>
+    //  ( X, K, NN, metric, splitter, rkdtsplitter, n, m, k, s, stol, budget, nrhs );
+    //  break;
+    //}
     case KERNEL_DISTANCE:
     case ANGLE_DISTANCE:
     {

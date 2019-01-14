@@ -30,11 +30,7 @@
 
 
 #include <hmlp.h>
-#include <hmlp_blas_lapack.h>
-#include <hmlp_util.hpp>
-#include <hmlp_thread.hpp>
-#include <hmlp_runtime.hpp>
-#include <Data.hpp>
+#include <hmlp_base.hpp>
 
 
 using namespace std;

@@ -24,7 +24,7 @@
 /** Using tgamma, M_PI, M_SQRT2 ... */
 #include <cmath>
 /** BLAS/LAPACK support. */
-#include <hmlp_blas_lapack.h>
+#include <base/blas_lapack.hpp>
 /** KernelMatrix uses VirtualMatrix<T> as base. */
 #include <containers/VirtualMatrix.hpp>
 /** DistData is used to store the data points. */
