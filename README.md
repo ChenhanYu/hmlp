@@ -49,26 +49,22 @@ guildline on implementing microkernel for HMLP at our wiki pages.
 ### INSTALL
 
 HMLP is tested on LINUX and OSX. Compilation **REQUIRES:**
-
-Intel or GNU compilers with c++11, AVX and OpenMP support (for x86_64);
-
-Arm GNU compilers (see [Cross Compilation]() for details on compilation on Android) with OpenMP support (for arm);
-
-Intel-16 or later compilers (for Intel MIC, KNL);
-
-nvcc (for NVIDIA GPU with capability > 2.0).
+  * Intel or GNU compilers with c++11, AVX and OpenMP support (for x86_64);
+  * Arm GNU compilers (see [Cross Compilation]() for details on compilation on Android) with OpenMP support (for arm);
+  * Intel-16 or later compilers (for Intel MIC, KNL);
+  * nvcc (for NVIDIA GPU with capability > 2.0).
 
 
 **Configuration:**
 
 Edit set_env.sh for compilation options.
 
-You MUST manually setup each environment variable in the "REQUIRED"
-CONGIFURATION if any of those variables were not defined properly
+You MUST manually setup each environment variable in the **"REQUIRED"
+CONGIFURATION** if any of those variables were not defined properly
 on you system.
 
 
-```
+```{engine='bash', count_lines}
 export CC             = icc    to use Intel C compilers
 export CXX            = icpc   to use Intel C++ compilers
 export CC             = gcc    to use GNU C compilers
@@ -76,7 +72,7 @@ export CXX            = g++    to use GNU C++ compilers
 export HMLP_USE_BLAS  = false  if you don't have a BLAS library.
 export MKLROOT        = xxx    to_the_path_of_intel_mkl
 export OPENBLASROOT   = xxx    to_the_path_of_OpenBLAS
-Set HMLP_USE_CUDA     = true   to compile code with cuda templates. 
+set HMLP_USE_CUDA     = true   to compile code with cuda templates. 
 ```
 
 The default BLAS library for Intel compiler is MKL. For GNU compilers, cmake
@@ -84,18 +80,15 @@ will try to find a proper BLAS/LAPACK library on you system. If cmake fails
 to locate BLAS/LAPACK, then the compilation will fail as well. You need to
 manually setup the path in the cmake file.
 
+**Cmake installation:**
 
-**Installation:**
-
-Use cmake:
-
-```{r, engine='bash', count_lines}
->source set_env.sh
->mkdir build
->cd build
->cmake ..
->make
->make install
+```{engine='bash', count_lines}
+source set_env.sh
+mkdir build
+cd build
+cmake ..
+make
+make install
 ```
 
 **Cross Compilation:**
@@ -115,29 +108,30 @@ follow these instructions:
 5. Use the following instructions to push executables and scripts in hmlp/build/bin.
 
 
-```{r, engine='bash', count_lines}
->adb devices
->adb push /hmlp/build/bin/* /data/local/tmp
->adb shell
->cd /data/local/tmp
->./run_hmlp.sh
->./run_gkmx.sh
+```{engine='bash', count_lines}
+adb devices
+adb push /hmlp/build/bin/* /data/local/tmp
+adb shell
+cd /data/local/tmp
+./run_hmlp.sh
+./run_gkmx.sh
 ```
 
-**Testing and compilation example:**
+### EXAMPLE
 
-The default compilation will also compile all the test drivers.
+The default compilation will also compile all the examples in /example.
 To run some basic examples from the testing drivers:
 
-```{r, engine='bash', count_lines}
->cd /build/bin
->./run_hmlp.sh
->./run_gkmx.sh
+```{engine='bash', count_lines}
+cd /build
+./run_hmlp.sh
+./run_gkmx.sh
 ```
 
-To us HMLP library you need to include the
-header files <hmlp.h> 
-and link HMLP statically wich is in ${HMLP_DIR}/build/lib/libhmlp.a.
+To us [HMLP](https://chenhanyu.github.io/hmlp/) library you need to include the
+header files <hmlp.h> and link 
+${HMLP_DIR}/build/libhmlp.a statically or 
+${HMLP_DIR}/build/libhmlp.so (or .dylib) dynamically.
 
 C/C++ example:
 
@@ -147,9 +141,19 @@ C/C++ example:
 ...
 ```
 
-Compilation example:
-```{r, engine='bash', count_lines}
-icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/lib/libhmlp.a
+Static linking example:
+```{engine='bash', count_lines}
+icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/libhmlp.a
+```
+
+Dynamic linking example on Linux:
+```{engine='bash', count_lines}
+icc ... -I$(HMLP_DIR)/build/include -L$(HMLP_DIR)/build/libhmlp.so
+```
+
+Dynamic linking example on Mac:
+```{engine='bash', count_lines}
+icc ... -I$(HMLP_DIR)/build/include -L$(HMLP_DIR)/build/libhmlp.dylib
 ```
 
 ### TESTING
@@ -171,8 +175,6 @@ make coverage
 The latest coverage report can be found at
   * https://chenhanyu.github.io/hmlp/docs/html/coverage.html
   * https://chenhanyu.github.io/hmlp/docs/html/coverage_details.html
-
-
 
 
 ## ACKNOWLEDGEMENTS
