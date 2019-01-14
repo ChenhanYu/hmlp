@@ -3,12 +3,12 @@
 
 ### WARNING
 
-HMLP and GOFMM are research projects and not in production. For SC'17 and SC'18
+[HMLP](https://chenhanyu.github.io/hmlp/) and GOFMM are research projects and not in production. For SC'17 and SC'18
 artifacts, see /artifact and our our GOFMM papers [SC'17 and SC'18] for details.
 
 ### README
 
-Thank you for deciding to give HMLP a try!
+Thank you for deciding to give [HMLP](https://chenhanyu.github.io/hmlp/) a try!
 This code can be used directly or pluged into many learning tasks such as
 kernel summation, nearest neighbor search, k-means clustering, convolution
 networks. It is also possible to create a specific general N-body operator by
