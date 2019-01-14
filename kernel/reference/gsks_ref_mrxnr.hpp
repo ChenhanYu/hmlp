@@ -48,7 +48,7 @@ struct gsks_ref_mrxnr
 
     switch ( kernel->type )
     {
-      case KS_GAUSSIAN:
+      case GAUSSIAN:
       {
         #pragma unroll
         for ( int j = 0; j < NR; j ++ )

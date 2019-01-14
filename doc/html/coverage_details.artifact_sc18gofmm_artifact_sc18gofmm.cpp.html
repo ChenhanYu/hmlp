@@ -1,0 +1,1019 @@
+
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <title>Head</title>
+  <style media="screen" type="text/css">
+  
+    body
+    {
+      color: #000000;
+      background-color: #FFFFFF;
+    }
+
+    /* Link formats: use maroon w/underlines */
+    a:link
+    {
+      color: navy;
+      text-decoration: underline;
+    }
+    a:visited
+    {
+      color: maroon;
+      text-decoration: underline;
+    }
+    a:active
+    {
+      color: navy;
+      text-decoration: underline;
+    }
+    
+    /*** TD formats ***/
+    td
+    {
+      font-family: sans-serif;
+    }
+    td.title
+    {
+      text-align: center;
+      padding-bottom: 10px;
+      font-size: 20pt;
+      font-weight: bold;
+    }
+    
+    /* TD Header Information */
+    td.headerName
+    {
+      text-align: right;
+      color: black;
+      padding-right: 6px;
+      font-weight: bold;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    td.headerValue
+    {
+      text-align: left;
+      color: blue;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    td.headerTableEntry
+    {
+      text-align: right;
+      color: black;
+      font-weight: bold;
+      white-space: nowrap;
+      padding-left: 12px;
+      padding-right: 4px;
+      background-color: LightBlue;
+    }
+    td.headerValueLeg
+    {
+      text-align: left;
+      color: black;
+      font-size: 80%;
+      white-space: nowrap;
+      padding-left: 10px;
+      padding-right: 10px;
+      padding-top: 2px;
+    }
+    
+    /* Color of horizontal ruler */
+    td.hr
+    {
+      background-color: navy;
+      height:3px;
+    }
+    /* Footer format */
+    td.footer
+    {
+      text-align: center;
+      padding-top: 3px;
+      font-family: sans-serif;
+    }
+
+    /* Coverage Table */    
+
+    td.coverTableHead
+    {
+      text-align: center;
+      color: white;
+      background-color: SteelBlue;
+      font-family: sans-serif;
+      font-size: 120%;
+      white-space: nowrap;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    td.coverFile
+    {
+      text-align: left;
+      padding-left: 10px;
+      padding-right: 20px; 
+      color: black;
+      background-color: LightBlue;
+      font-family: monospace;
+      font-weight: bold;
+      font-size: 110%;
+    }
+    td.coverBar
+    {
+      padding-left: 10px;
+      padding-right: 10px;
+      background-color: LightBlue;
+    }
+    td.coverBarOutline
+    {
+      background-color: white;
+    }
+    td.coverValue
+    {
+      padding-top: 2px;
+      text-align: right;
+      padding-left: 10px;
+      padding-right: 10px;
+      font-family: sans-serif;
+      white-space: nowrap;
+      font-weight: bold;
+    }
+    
+    /* Link Details */
+    a.detail:link
+    {
+      color: #B8D0FF;
+      font-size:80%;
+    }
+    a.detail:visited
+    {
+      color: #B8D0FF;
+      font-size:80%;
+    }
+    a.detail:active
+    {
+      color: #FFFFFF;
+      font-size:80%;
+    }
+    
+    .graphcont{
+        color:#000;
+        font-weight:700;
+        float:left
+    }
+
+    .graph{
+        float:left;
+        background-color: white;
+        position:relative;
+        width:280px;
+        padding:0
+    }
+
+    .graph .bar{
+        display:block;
+        position:relative;
+        border:black 1px solid;
+        text-align:center;
+        color:#fff;
+        height:10px;
+        font-family:Arial,Helvetica,sans-serif;
+        font-size:12px;
+        line-height:1.9em
+    }
+
+    .graph .bar span{
+        position:absolute;
+        left:1em
+    } 
+
+    td.coveredLine,
+    span.coveredLine
+    {
+        background-color: LightGreen!important;
+    }
+
+    td.uncoveredLine,
+    span.uncoveredLine
+    {
+        background-color: LightPink!important;
+    }
+
+    .linecount
+    {
+        border-right: 1px gray solid;
+        background-color: lightgray;
+    }
+
+    .src 
+    {
+        padding-left: 12px;
+    }
+
+    .srcHeader
+    {
+        font-family: monospace; 
+        font-weight: bold;
+    }
+
+    pre 
+    {
+        height : 15px;
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+
+    .lineno
+    {
+        background-color: #EFE383;
+        border-right: 1px solid #BBB15F;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr><td class="title">GCC Code Coverage Report</td></tr>
+    <tr><td class="hr"></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding="1" border="0" width="100%">
+          <tr>
+            <td width="10%" class="headerName">Directory:</td>
+            <td width="35%" class="headerValue">.</td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerValue" style="text-align:right;">Exec</td>
+            <td width="10%" class="headerValue" style="text-align:right;">Total</td>
+            <td width="15%" class="headerValue" style="text-align:right;">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerName">File:</td>
+            <td class="headerValue">artifact/sc18gofmm/artifact_sc18gofmm.cpp</td>
+            <td></td>
+            <td class="headerName">Lines:</td>
+            <td class="headerTableEntry">0</td>
+            <td class="headerTableEntry">29</td>
+            <td class="headerTableEntry" style="background-color:LightPink">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerName">Date:</td>
+            <td class="headerValue">2019-01-14</td>
+            <td></td>
+            <td class="headerName">Branches:</td>
+            <td class="headerTableEntry">0</td>
+            <td class="headerTableEntry">44</td>
+            <td class="headerTableEntry" style="background-color:LightPink">0.0 %</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="hr"></td></tr>
+  </table>
+
+  <br>
+  <table cellspacing="0" cellpadding="1">
+    <tr>
+      <td width="5%" align="right" class="srcHeader">Line</td>
+      <td width="10%" align="right" class="srcHeader">Exec</td>
+      <td width="75%" align="left" class="srcHeader src">Source</td>
+    </tr>
+
+    
+    <tr>
+    <td align="right" class="lineno"><pre>1</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/**</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>2</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  HMLP (High-Performance Machine Learning Primitives)</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>3</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>4</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  Copyright (C) 2014-2017, The University of Texas at Austin</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>5</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>6</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  This program is free software: you can redistribute it and/or modify</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>7</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  it under the terms of the GNU General Public License as published by</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>8</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  the Free Software Foundation, either version 3 of the License, or</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>9</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  (at your option) any later version.</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>10</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>11</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  This program is distributed in the hope that it will be useful,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>12</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  but WITHOUT ANY WARRANTY; without even the implied warranty of</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>13</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>14</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  GNU General Public License for more details.</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>15</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>16</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  You should have received a copy of the GNU General Public License</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>17</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  along with this program. If not, see the LICENSE file.</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>18</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>19</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> **/</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>20</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>21</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** GOFMM templates */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>22</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;gofmm_mpi.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>23</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** Use dense SPD matrices. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>24</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;containers/SPDMatrix.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>25</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** use implicit kernel matrices (only coordinates are stored). */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>26</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;containers/KernelMatrix.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>27</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** use distributed implicit kernel matrices (only coordinates are stored). */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>28</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;containers/VirtualMatrix.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>29</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** use implicit PVFMM kernel matrices. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>30</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;containers/OOCCovMatrix.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>31</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** Use STL and HMLP namespaces. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>32</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>using namespace std;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>33</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>using namespace hmlp;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>34</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>35</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>36</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>37</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** @brief Top level driver that reads arguments from the command line. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>38</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>int main( int argc, char *argv[] )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>39</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>40</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Parse arguments from the command line. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>41</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  gofmm::CommandLineHelper cmd( argc, argv );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>42</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>43</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** MPI (Message Passing Interface): check for THREAD_MULTIPLE support. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>44</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int size, rank, provided;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>45</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>	mpi::Init_thread( &amp;argc, &amp;argv, MPI_THREAD_MULTIPLE, &amp;provided );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>46</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>	if ( provided != MPI_THREAD_MULTIPLE )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>47</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>	{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>48</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>		printf( "MPI_THREAD_MULTIPLE is not supported\n" ); fflush( stdout );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>49</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    exit( 1 );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>50</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>	}</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>51</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>52</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** MPI (Message Passing Interface): create a specific comm for GOFMM. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>53</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  mpi::Comm CommGOFMM;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>54</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::Comm_dup( MPI_COMM_WORLD, &amp;CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>55</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>56</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::PrintProgress( "\n--- Artifact of GOFMM for Super Computing 2018\n", CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>57</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>58</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** HMLP API call to initialize the runtime. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>59</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  hmlp_init( CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>60</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>61</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Run the matrix file provided by users. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>62</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  if ( !cmd.spdmatrix_type.compare( "dense" ) )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>63</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>64</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    using T = float;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>65</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Dense spd matrix format. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>66</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    SPDMatrix&lt;T&gt; K( cmd.n, cmd.n, cmd.user_matrix_filename );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>67</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Launch self-testing routine. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>68</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    mpigofmm::LaunchHelper( K, cmd, CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>69</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>70</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>71</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Run the matrix file provided by users */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>72</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  if ( !cmd.spdmatrix_type.compare( "ooc" ) )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>73</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>74</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    using T = float;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>75</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Dense spd matrix format. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>76</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    OOCSPDMatrix&lt;T&gt; K( cmd.n, cmd.n, cmd.user_matrix_filename );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>77</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Launch self-testing routine. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>78</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    mpigofmm::LaunchHelper( K, cmd, CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>79</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>80</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>81</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Generate a kernel matrix from the coordinates. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>82</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  if ( !cmd.spdmatrix_type.compare( "kernel" ) )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>83</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>84</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    using T = double;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>85</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Read the coordinates from the file. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>86</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    DistData&lt;STAR, CBLK, T&gt; X( cmd.d, cmd.n, CommGOFMM, cmd.user_points_filename );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>87</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Setup the kernel object. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>88</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    kernel_s&lt;T, T&gt; kernel;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>89</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    kernel.type = GAUSSIAN;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>90</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    if ( !cmd.kernelmatrix_type.compare( "gaussian" ) ) kernel.type = GAUSSIAN;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>91</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = LAPLACE;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>92</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    kernel.scal = -0.5 / ( cmd.h * cmd.h );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>93</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Distributed spd kernel matrix format (implicitly create). */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>94</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    DistKernelMatrix&lt;T, T&gt; K( cmd.n, cmd.d, kernel, X, CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>95</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Launch self-testing routine. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>96</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    mpigofmm::LaunchHelper( K, cmd, CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>97</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>98</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>99</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Create a random spd matrix, which is diagonal-dominant. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>100</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  if ( !cmd.spdmatrix_type.compare( "testsuit" ) )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>101</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>102</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    using T = double;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>103</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** dense spd matrix format */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>104</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    SPDMatrix&lt;T&gt; K( cmd.n, cmd.n );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>105</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** random spd initialization */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>106</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    K.randspd( 0.0, 1.0 );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>107</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** broadcast K to all other rank */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>108</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    mpi::Bcast( K.data(), cmd.n * cmd.n, 0, CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>109</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Launch self-testing routine. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>110</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    mpigofmm::LaunchHelper( K, cmd, CommGOFMM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>111</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>112</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>113</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** HMLP API call to terminate the runtime */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>114</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  hmlp_finalize();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>115</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Message Passing Interface */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>116</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::Finalize();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>117</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>118</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  return 0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>119</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>120</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>}; /** end main() */</pre></td>
+    </tr>
+
+  </table>
+  <br>
+
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr><td class="hr"><td></tr>
+    <tr><td class="footer">Generated by: <a href="http://gcovr.com">GCOVR (Version 3.2)</a></td></tr>
+  </table>
+  <br>
+
+</body>
+
+</html>
+

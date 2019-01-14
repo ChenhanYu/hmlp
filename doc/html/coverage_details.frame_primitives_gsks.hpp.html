@@ -1,0 +1,4541 @@
+
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <title>Head</title>
+  <style media="screen" type="text/css">
+  
+    body
+    {
+      color: #000000;
+      background-color: #FFFFFF;
+    }
+
+    /* Link formats: use maroon w/underlines */
+    a:link
+    {
+      color: navy;
+      text-decoration: underline;
+    }
+    a:visited
+    {
+      color: maroon;
+      text-decoration: underline;
+    }
+    a:active
+    {
+      color: navy;
+      text-decoration: underline;
+    }
+    
+    /*** TD formats ***/
+    td
+    {
+      font-family: sans-serif;
+    }
+    td.title
+    {
+      text-align: center;
+      padding-bottom: 10px;
+      font-size: 20pt;
+      font-weight: bold;
+    }
+    
+    /* TD Header Information */
+    td.headerName
+    {
+      text-align: right;
+      color: black;
+      padding-right: 6px;
+      font-weight: bold;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    td.headerValue
+    {
+      text-align: left;
+      color: blue;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    td.headerTableEntry
+    {
+      text-align: right;
+      color: black;
+      font-weight: bold;
+      white-space: nowrap;
+      padding-left: 12px;
+      padding-right: 4px;
+      background-color: LightBlue;
+    }
+    td.headerValueLeg
+    {
+      text-align: left;
+      color: black;
+      font-size: 80%;
+      white-space: nowrap;
+      padding-left: 10px;
+      padding-right: 10px;
+      padding-top: 2px;
+    }
+    
+    /* Color of horizontal ruler */
+    td.hr
+    {
+      background-color: navy;
+      height:3px;
+    }
+    /* Footer format */
+    td.footer
+    {
+      text-align: center;
+      padding-top: 3px;
+      font-family: sans-serif;
+    }
+
+    /* Coverage Table */    
+
+    td.coverTableHead
+    {
+      text-align: center;
+      color: white;
+      background-color: SteelBlue;
+      font-family: sans-serif;
+      font-size: 120%;
+      white-space: nowrap;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    td.coverFile
+    {
+      text-align: left;
+      padding-left: 10px;
+      padding-right: 20px; 
+      color: black;
+      background-color: LightBlue;
+      font-family: monospace;
+      font-weight: bold;
+      font-size: 110%;
+    }
+    td.coverBar
+    {
+      padding-left: 10px;
+      padding-right: 10px;
+      background-color: LightBlue;
+    }
+    td.coverBarOutline
+    {
+      background-color: white;
+    }
+    td.coverValue
+    {
+      padding-top: 2px;
+      text-align: right;
+      padding-left: 10px;
+      padding-right: 10px;
+      font-family: sans-serif;
+      white-space: nowrap;
+      font-weight: bold;
+    }
+    
+    /* Link Details */
+    a.detail:link
+    {
+      color: #B8D0FF;
+      font-size:80%;
+    }
+    a.detail:visited
+    {
+      color: #B8D0FF;
+      font-size:80%;
+    }
+    a.detail:active
+    {
+      color: #FFFFFF;
+      font-size:80%;
+    }
+    
+    .graphcont{
+        color:#000;
+        font-weight:700;
+        float:left
+    }
+
+    .graph{
+        float:left;
+        background-color: white;
+        position:relative;
+        width:280px;
+        padding:0
+    }
+
+    .graph .bar{
+        display:block;
+        position:relative;
+        border:black 1px solid;
+        text-align:center;
+        color:#fff;
+        height:10px;
+        font-family:Arial,Helvetica,sans-serif;
+        font-size:12px;
+        line-height:1.9em
+    }
+
+    .graph .bar span{
+        position:absolute;
+        left:1em
+    } 
+
+    td.coveredLine,
+    span.coveredLine
+    {
+        background-color: LightGreen!important;
+    }
+
+    td.uncoveredLine,
+    span.uncoveredLine
+    {
+        background-color: LightPink!important;
+    }
+
+    .linecount
+    {
+        border-right: 1px gray solid;
+        background-color: lightgray;
+    }
+
+    .src 
+    {
+        padding-left: 12px;
+    }
+
+    .srcHeader
+    {
+        font-family: monospace; 
+        font-weight: bold;
+    }
+
+    pre 
+    {
+        height : 15px;
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+
+    .lineno
+    {
+        background-color: #EFE383;
+        border-right: 1px solid #BBB15F;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr><td class="title">GCC Code Coverage Report</td></tr>
+    <tr><td class="hr"></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding="1" border="0" width="100%">
+          <tr>
+            <td width="10%" class="headerName">Directory:</td>
+            <td width="35%" class="headerValue">.</td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerValue" style="text-align:right;">Exec</td>
+            <td width="10%" class="headerValue" style="text-align:right;">Total</td>
+            <td width="15%" class="headerValue" style="text-align:right;">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerName">File:</td>
+            <td class="headerValue">frame/primitives/gsks.hpp</td>
+            <td></td>
+            <td class="headerName">Lines:</td>
+            <td class="headerTableEntry">0</td>
+            <td class="headerTableEntry">58</td>
+            <td class="headerTableEntry" style="background-color:LightPink">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerName">Date:</td>
+            <td class="headerValue">2019-01-14</td>
+            <td></td>
+            <td class="headerName">Branches:</td>
+            <td class="headerTableEntry">0</td>
+            <td class="headerTableEntry">95</td>
+            <td class="headerTableEntry" style="background-color:LightPink">0.0 %</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="hr"></td></tr>
+  </table>
+
+  <br>
+  <table cellspacing="0" cellpadding="1">
+    <tr>
+      <td width="5%" align="right" class="srcHeader">Line</td>
+      <td width="10%" align="right" class="srcHeader">Exec</td>
+      <td width="75%" align="left" class="srcHeader src">Source</td>
+    </tr>
+
+    
+    <tr>
+    <td align="right" class="lineno"><pre>1</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/**</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>2</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  HMLP (High-Performance Machine Learning Primitives)</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>3</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>4</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  Copyright (C) 2014-2017, The University of Texas at Austin</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>5</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>6</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  This program is free software: you can redistribute it and/or modify</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>7</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  it under the terms of the GNU General Public License as published by</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>8</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  the Free Software Foundation, either version 3 of the License, or</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>9</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  (at your option) any later version.</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>10</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>11</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  This program is distributed in the hope that it will be useful,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>12</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  but WITHOUT ANY WARRANTY; without even the implied warranty of</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>13</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>14</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  GNU General Public License for more details.</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>15</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>16</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  You should have received a copy of the GNU General Public License</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>17</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  along with this program. If not, see the LICENSE file.</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>18</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>19</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> **/</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>20</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>21</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>22</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>23</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>24</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#ifndef GSKS_HXX</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>25</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#define GSKS_HXX</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>26</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>27</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;math.h&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>28</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;vector&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>29</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>30</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;hmlp.h&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>31</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;hmlp_internal.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>32</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;hmlp_base.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>33</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>34</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;KernelMatrix.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>35</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>36</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>37</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>namespace hmlp</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>38</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>39</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>namespace gsks</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>40</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>41</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>42</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#define min( i, j ) ( (i)&lt;(j) ? (i): (j) )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>43</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#define KS_RHS 1</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>44</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>45</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/**</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>46</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>47</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>48</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>49</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int KC, int MR, int NR, int PACK_MR, int PACK_NR,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>50</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  typename SEMIRINGKERNEL,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>51</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  typename TA, typename TB, typename TC, typename TV&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>52</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>void rank_k_macro_kernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>53</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>(</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>54</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  Worker &amp;thread,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>55</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int ic, int jc, int pc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>56</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int  m, int n,  int  k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>57</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TA *packA,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>58</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TB *packB,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>59</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TV *packC, int ldc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>60</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  SEMIRINGKERNEL semiringkernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>61</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>)</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>62</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>63</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  thread_communicator &amp;ic_comm = *thread.ic_comm;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>64</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>65</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>66</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto pack3rd = GetRange( 0, n, PACK_NR, thread.jr_id, ic_comm.GetNumThreads() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>67</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto loop2nd = GetRange( 0, m,      MR );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>68</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto pack2nd = GetRange( 0, m, PACK_MR );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>69</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>70</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int j   = loop3rd.beg(), jp  = pack3rd.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>71</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            j   &lt; loop3rd.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>72</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>73</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>74</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    struct aux_s&lt;TA, TB, TC, TV&gt; aux;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>75</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    aux.pc       = pc;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>76</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    aux.b_next   = packB;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>77</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    aux.do_packC = 1;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>78</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    aux.jb       = min( n - j, NR );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>79</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>80</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>81</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              i  &lt; loop2nd.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>82</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>83</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>84</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      aux.ib = min( m - i, MR );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>85</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      if ( i + MR &gt;= m )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>86</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>87</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>88</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>89</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      semiringkernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>90</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>91</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>92</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        &amp;packA[ ip * k ],</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>93</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        &amp;packB[ jp * k ],</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>94</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        //&amp;packC[ j * ldc + i * NR ], ldc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>95</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        &amp;packC[ j * ldc + i * NR ], 1, MR,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>96</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        &amp;aux</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>97</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>98</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }                                                      // end 2nd loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>99</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }                                                        // end 3rd loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>100</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}                                                          // end rank_k_macro_kernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>101</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>102</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/**</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>103</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>104</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>105</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>106</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int KC, int MR, int NR, int PACK_MR, int PACK_NR,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>107</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  typename MICROKERNEL,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>108</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  typename TA, typename TB, typename TC, typename TV&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>109</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>void fused_macro_kernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>110</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>(</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>111</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  //ks_t *kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>112</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  kernel_s&lt;TV, TC&gt; *kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>113</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  Worker &amp;thread,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>114</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int ic, int jc, int pc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>115</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int  m,  int n,  int k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>116</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *packu,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>117</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TA *packA, TA *packA2, TV *packAh,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>118</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TB *packB, TB *packB2, TV *packBh,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>119</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *packw,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>120</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TV *packC, int ldc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>121</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  MICROKERNEL microkernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>122</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>)</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>123</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>124</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  thread_communicator &amp;ic_comm = *thread.ic_comm;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>125</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>126</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto loop3rd = GetRange( 0, n,      NR, thread.jr_id, ic_comm.GetNumThreads() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>127</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto pack3rd = GetRange( 0, n, PACK_NR, thread.jr_id, ic_comm.GetNumThreads() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>128</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto loop2nd = GetRange( 0, m,      MR );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>129</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto pack2nd = GetRange( 0, m, PACK_MR );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>130</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>131</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int j   = loop3rd.beg(), jp  = pack3rd.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>132</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            j   &lt; loop3rd.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>133</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            j  += loop3rd.inc(), jp += pack3rd.inc() )     // beg 3rd loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>134</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>135</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    struct aux_s&lt;TA, TB, TC, TV&gt; aux;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>136</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    aux.pc       = pc;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>137</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    aux.b_next   = packB;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>138</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    aux.do_packC = 1;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>139</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    aux.jb       = min( n - j, NR );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>140</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>141</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    for ( int i  = loop2nd.beg(), ip  = pack2nd.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>142</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              i  &lt; loop2nd.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>143</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              i += loop2nd.inc(), ip += pack2nd.inc() )    // beg 2nd loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>144</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>145</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      aux.ib = min( m - i, MR );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>146</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      if ( i + MR &gt;= m )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>147</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>148</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        aux.b_next += ic_comm.GetNumThreads() * PACK_NR * k;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>149</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>150</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      aux.hi = packAh + ip;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>151</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      aux.hj = packBh + jp;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>152</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      microkernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>153</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>154</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>155</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>156</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        KS_RHS,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>157</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        packu  + ip * KS_RHS,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>158</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        packA  + ip * k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>159</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        packA2 + ip,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>160</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        packB  + jp * k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>161</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        packB2 + jp,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>162</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        packw  + jp * KS_RHS,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>163</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        packC  + j * ldc + i * NR, MR,                     // packed</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>164</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        &amp;aux</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>165</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>166</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }                                                      // end 2nd loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>167</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }                                                        // end 3rd loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>168</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}                                                          // end fused_macro_kernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>169</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>170</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>171</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/**</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>172</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>173</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>174</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>175</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int MC, int NC, int KC, int MR, int NR,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>176</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>177</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  bool USE_L2NORM, bool USE_VAR_BANDWIDTH, bool USE_STRASSEN,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>178</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  typename SEMIRINGKERNEL, typename MICROKERNEL,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>179</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  typename TA, typename TB, typename TC, typename TV&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>180</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>void gsks_internal</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>181</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>(</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>182</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  Worker &amp;thread,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>183</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  //ks_t *kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>184</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  kernel_s&lt;TV, TC&gt; *kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>185</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int m, int n, int k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>186</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *u,         int *umap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>187</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TA *A, TA *A2, int *amap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>188</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TB *B, TB *B2, int *bmap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>189</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *w,         int *wmap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>190</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  SEMIRINGKERNEL semiringkernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>191</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  MICROKERNEL microkernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>192</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int nc, int pack_nc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>193</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *packu,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>194</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TA *packA, TA *packA2, TA *packAh,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>195</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TB *packB, TB *packB2, TB *packBh,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>196</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *packw,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>197</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TV *packC, int ldpackc, int padn</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>198</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>)</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>199</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>200</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packu  += ( thread.jc_id * thread.ic_nt * thread.jr_nt ) * PACK_MC * KS_RHS</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>201</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          + ( thread.ic_id * thread.jr_nt + thread.jr_id ) * PACK_MC * KS_RHS;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>202</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packA  += ( thread.jc_id * thread.ic_nt                ) * PACK_MC * KC</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>203</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          + ( thread.ic_id                               ) * PACK_MC * KC;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>204</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packA2 += ( thread.jc_id * thread.ic_nt + thread.ic_id ) * PACK_MC;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>205</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packAh += ( thread.jc_id * thread.ic_nt + thread.ic_id ) * PACK_MC;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>206</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packB  += ( thread.jc_id                               ) * pack_nc * KC;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>207</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packB2 += ( thread.jc_id                               ) * pack_nc;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>208</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packBh += ( thread.jc_id                               ) * pack_nc;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>209</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packw  += ( thread.jc_id                               ) * pack_nc;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>210</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  packC  += ( thread.jc_id                               ) * ldpackc * padn;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>211</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>212</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto loop6th = GetRange( 0, n, nc, thread.jc_id, thread.jc_nt );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>213</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto loop5th = GetRange( 0, k, KC );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>214</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto loop4th = GetRange( 0, m, MC, thread.ic_id, thread.ic_nt );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>215</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>216</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int jc  = loop6th.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>217</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            jc  &lt; loop6th.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>218</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            jc += loop6th.inc() )                          // beg 6th loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>219</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>220</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    auto &amp;jc_comm = *thread.jc_comm;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>221</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    auto jb = min( n - jc, nc );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>222</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>223</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    for ( int pc  = loop5th.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>224</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              pc  &lt; loop5th.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>225</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              pc += loop5th.inc() )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>226</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>227</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto &amp;pc_comm = *thread.pc_comm;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>228</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto pb = min( k - pc, KC );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>229</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto is_the_last_pc_iteration = ( pc + KC &gt;= k );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>230</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>231</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto looppkB = GetRange( 0, jb,      NR, thread.ic_jr, pc_comm.GetNumThreads() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>232</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto packpkB = GetRange( 0, jb, PACK_NR, thread.ic_jr, pc_comm.GetNumThreads() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>233</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>234</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      for ( int j   = looppkB.beg(), jp  = packpkB.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>235</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                j   &lt; looppkB.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>236</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                j  += looppkB.inc(), jp += packpkB.inc() )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>237</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>238</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        pack2D&lt;true, PACK_NR&gt;                              // packB</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>239</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>240</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          min( jb - j, NR ), pb,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>241</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          &amp;B[ pc ], k, &amp;bmap[ jc + j ], &amp;packB[ jp * pb ]</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>242</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>243</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>244</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>245</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        if ( is_the_last_pc_iteration )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>246</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>247</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          pack2D&lt;true, PACK_NR, true&gt;                      // packw</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>248</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>249</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            min( jb - j, NR ), 1,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>250</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            &amp;w[ 0 ], 1, &amp;wmap[ jc + j ], &amp;packw[ jp * 1 ]</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>251</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>252</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>253</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          if ( USE_L2NORM )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>254</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>255</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            pack2D&lt;true, PACK_NR&gt;                          // packB2</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>256</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>257</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              min( jb - j, NR ), 1,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>258</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              &amp;B2[ 0 ], 1, &amp;bmap[ jc + j ], &amp;packB2[ jp * 1 ]</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>259</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>260</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>261</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>262</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          if ( USE_VAR_BANDWIDTH )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>263</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>264</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            pack2D&lt;true, PACK_NR&gt;                          // packBh</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>265</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>266</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              min( jb - j, NR ), 1,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>267</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              kernel-&gt;hj, 1, &amp;bmap[ jc + j ], &amp;packBh[ jp * 1 ]</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>268</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>269</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>270</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>271</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>272</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      pc_comm.Barrier();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>273</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>274</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      for ( int ic  = loop4th.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>275</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                ic  &lt; loop4th.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>276</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                ic += loop4th.inc() )                      // beg 4th loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>277</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>278</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        auto &amp;ic_comm = *thread.ic_comm;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>279</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        auto ib = min( m - ic, MC );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>280</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>281</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        auto looppkA = GetRange( 0, ib,      MR, thread.jr_id, thread.jr_nt );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>282</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        auto packpkA = GetRange( 0, ib, PACK_MR, thread.jr_id, thread.jr_nt );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>283</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>284</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        for ( int i   = looppkA.beg(), ip  = packpkA.beg();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>285</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                  i   &lt; looppkA.end();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>286</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                  i  += looppkA.inc(), ip += packpkA.inc() )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>287</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>288</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          pack2D&lt;true, PACK_MR&gt;                            // packA</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>289</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>290</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            min( ib - i, MR ), pb,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>291</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            &amp;A[ pc ], k, &amp;amap[ ic + i ], &amp;packA[ ip * pb ]</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>292</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>293</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>294</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          if ( is_the_last_pc_iteration )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>295</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>296</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            if ( USE_L2NORM )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>297</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>298</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              pack2D&lt;true, PACK_MR&gt;                        // packA2</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>299</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>300</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                min( ib - i, MR ), 1,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>301</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                &amp;A2[ 0 ], 1, &amp;amap[ ic + i ], &amp;packA2[ ip * 1 ]</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>302</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>303</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>304</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>305</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            if ( USE_VAR_BANDWIDTH )                       // variable bandwidths</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>306</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>307</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              pack2D&lt;true, PACK_MR&gt;                        // packAh</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>308</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>309</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                min( ib - i, MR ), 1,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>310</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                kernel-&gt;hi, 1, &amp;amap[ ic + i ], &amp;packAh[ ip * 1 ]</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>311</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>312</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>313</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>314</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>315</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>316</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        if ( is_the_last_pc_iteration )                    // Initialize packu to zeros.</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>317</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>318</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          for ( auto i = 0, ip = 0; i &lt; ib; i += MR, ip += PACK_MR )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>319</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>320</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            for ( auto ir = 0; ir &lt; min( ib - i, MR ); ir ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>321</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>322</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              packu[ ip + ir ] = 0.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>323</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>324</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>325</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>326</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        ic_comm.Barrier();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>327</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>328</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>329</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        if ( is_the_last_pc_iteration )                    // fused_macro_kernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>330</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>331</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          fused_macro_kernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>332</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          &lt;KC, MR, NR, PACK_MR, PACK_NR, MICROKERNEL, TA, TB, TC, TV&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>333</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>334</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>335</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            thread,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>336</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            ic, jc, pc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>337</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            ib, jb, pb,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>338</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            packu,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>339</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            packA, packA2, packAh,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>340</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            packB, packB2, packBh,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>341</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            packw,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>342</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            packC + ic * padn,                             // packed</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>343</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            ( ( ib - 1 ) / MR + 1 ) * MR,                  // packed ldc</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>344</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            microkernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>345</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>346</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>347</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        else                                               // semiring rank-k update</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>348</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>349</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          rank_k_macro_kernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>350</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          &lt;KC, MR, NR, PACK_MR, PACK_NR, SEMIRINGKERNEL, TA, TB, TC, TV&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>351</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>352</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            thread,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>353</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            ic, jc, pc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>354</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            ib, jb, pb,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>355</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            packA,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>356</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            packB,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>357</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            packC + ic * padn,                             // packed</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>358</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            ( ( ib - 1 ) / MR + 1 ) * MR,                  // packed ldc</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>359</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            semiringkernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>360</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>361</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>362</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        ic_comm.Barrier();                                 // sync all jr_id!!</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>363</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>364</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        if ( is_the_last_pc_iteration )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>365</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>366</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          for ( auto i = 0, ip = 0; i &lt; ib; i += MR, ip += PACK_MR )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>367</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>368</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            for ( auto ir = 0; ir &lt; min( ib - i, MR ); ir ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>369</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>370</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              TC *uptr = &amp;( u[ umap[ ic + i + ir ] ] );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>371</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              #pragma omp atomic update                    // concurrent write</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>372</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>              *uptr += packu[ ip + ir ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>373</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>            }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>374</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>375</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          ic_comm.Barrier();                               // sync all jr_id!!</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>376</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>377</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }                                                    // end 4th loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>378</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      pc_comm.Barrier();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>379</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }                                                      // end 5th loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>380</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }                                                        // end 6th loop</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>381</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}                                                          // end gsks_internal</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>382</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>383</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>384</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>385</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>386</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>387</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/**</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>388</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>389</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>390</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>391</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int MC, int NC, int KC, int MR, int NR,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>392</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int PACK_MC, int PACK_NC, int PACK_MR, int PACK_NR, int ALIGN_SIZE,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>393</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  bool USE_L2NORM, bool USE_VAR_BANDWIDTH, bool USE_STRASSEN,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>394</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  typename SEMIRINGKERNEL, typename MICROKERNEL,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>395</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  typename TA, typename TB, typename TC, typename TV&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>396</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>void gsks</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>397</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>(</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>398</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  kernel_s&lt;TV, TC&gt; *kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>399</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int m, int n, int k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>400</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *u,         int *umap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>401</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TA *A, TA *A2, int *amap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>402</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TB *B, TB *B2, int *bmap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>403</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *w,         int *wmap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>404</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  SEMIRINGKERNEL semiringkernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>405</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  MICROKERNEL microkernel</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>406</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>)</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>407</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>408</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int jc_nt = 1, pc_nt = 1, ic_nt = 1, jr_nt = 1;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>409</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int ldpackc = 0, padn = 0, nc = NC, pack_nc = PACK_NC;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>410</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  char *str;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>411</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>412</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *packu_buff = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>413</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TA *packA_buff = NULL, *packA2_buff = NULL, *packAh_buff = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>414</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TB *packB_buff = NULL, *packB2_buff = NULL, *packBh_buff = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>415</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TC *packw_buff = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>416</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  TV *packC_buff = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>417</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>418</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  // Early return if possible</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>419</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  if ( m == 0 || n == 0 || k == 0 ) return;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>420</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>421</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  // Check the environment variable.</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>422</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  jc_nt = hmlp_read_nway_from_env( "KS_JC_NT" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>423</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  ic_nt = hmlp_read_nway_from_env( "KS_IC_NT" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>424</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  jr_nt = hmlp_read_nway_from_env( "KS_JR_NT" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>425</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>426</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  if ( jc_nt &gt; 1 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>427</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>428</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    nc = ( ( n - 1 ) / ( NR * jc_nt ) + 1 ) * NR;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>429</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    pack_nc = ( nc / NR ) * PACK_NR;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>430</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>431</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>432</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  // allocate packing memory</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>433</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>434</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packA_buff  = hmlp_malloc&lt;ALIGN_SIZE, TA&gt;( KC, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>435</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packB_buff  = hmlp_malloc&lt;ALIGN_SIZE, TB&gt;( KC, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>436</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packu_buff  = hmlp_malloc&lt;ALIGN_SIZE, TC&gt;(  1, ( PACK_MC + 1 ) * jc_nt * ic_nt * jr_nt, sizeof(TC) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>437</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packw_buff  = hmlp_malloc&lt;ALIGN_SIZE, TC&gt;(  1, ( pack_nc + 1 ) * jc_nt,                 sizeof(TC) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>438</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>439</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>440</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  // allocate extra packing buffer</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>441</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  if ( USE_L2NORM )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>442</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>443</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packA2_buff = hmlp_malloc&lt;ALIGN_SIZE, TA&gt;(  1, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>444</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packB2_buff = hmlp_malloc&lt;ALIGN_SIZE, TB&gt;(  1, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>445</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>446</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>447</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  if ( USE_VAR_BANDWIDTH )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>448</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>449</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packAh_buff = hmlp_malloc&lt;ALIGN_SIZE, TA&gt;(  1, ( PACK_MC + 1 ) * jc_nt * ic_nt,         sizeof(TA) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>450</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packBh_buff = hmlp_malloc&lt;ALIGN_SIZE, TB&gt;(  1, ( pack_nc + 1 ) * jc_nt,                 sizeof(TB) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>451</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>452</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>453</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  // Temporary bufferm &lt;TV&gt; to store the semi-ring rank-k update</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>454</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  if ( k &gt; KC )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>455</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>456</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    ldpackc  = ( ( m - 1 ) / PACK_MR + 1 ) * PACK_MR;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>457</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    padn = pack_nc;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>458</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    if ( n &lt; nc ) padn = ( ( n - 1 ) / PACK_NR + 1 ) * PACK_NR ;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>459</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    packC_buff = hmlp_malloc&lt;ALIGN_SIZE, TV&gt;( ldpackc, padn * jc_nt, sizeof(TV) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>460</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>461</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>462</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  // allocate tree communicator</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>463</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  thread_communicator my_comm( jc_nt, pc_nt, ic_nt, jr_nt );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>464</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>465</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>466</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  #pragma omp parallel num_threads( my_comm.GetNumThreads() )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>467</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>468</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    Worker thread( &amp;my_comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>469</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>470</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    if ( USE_STRASSEN )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>471</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>472</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      printf( "gsks: strassen algorithms haven't been implemented." );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>473</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      exit( 1 );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>474</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>475</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>476</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    gsks_internal</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>477</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    &lt;MC, NC, KC, MR, NR, PACK_MC, PACK_NC, PACK_MR, PACK_NR, ALIGN_SIZE,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>478</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    USE_L2NORM, USE_VAR_BANDWIDTH, USE_STRASSEN,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>479</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    SEMIRINGKERNEL, MICROKERNEL,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>480</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    TA, TB, TC, TB&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>481</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>482</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      thread,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>483</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>484</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      m, n, k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>485</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      u,     umap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>486</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      A, A2, amap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>487</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      B, B2, bmap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>488</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      w,     wmap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>489</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      semiringkernel, microkernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>490</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      nc, pack_nc,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>491</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      packu_buff,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>492</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      packA_buff, packA2_buff, packAh_buff,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>493</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      packB_buff, packB2_buff, packBh_buff,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>494</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      packw_buff,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>495</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      packC_buff, ldpackc, padn</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>496</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>497</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>498</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  } /** end omp region */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>499</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>500</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  hmlp_free( packA_buff );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>501</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  hmlp_free( packB_buff );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>502</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  hmlp_free( packu_buff );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>503</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  hmlp_free( packw_buff );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>504</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  if ( USE_L2NORM )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>505</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>506</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    hmlp_free( packA2_buff );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>507</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    hmlp_free( packB2_buff );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>508</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>509</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>} /** end gsks() */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>510</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>511</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>512</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/**</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>513</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>514</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>515</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename T&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>516</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>void gsks_ref</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>517</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>(</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>518</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  //ks_t *kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>519</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  kernel_s&lt;T, T&gt; *kernel,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>520</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int m, int n, int k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>521</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  T *u,        int *umap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>522</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  T *A, T *A2, int *amap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>523</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  T *B, T *B2, int *bmap,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>524</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  T *w,        int *wmap</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>525</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>)</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>526</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>527</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  int nrhs = KS_RHS;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>528</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  T rank_k_scale, fone = 1.0, fzero = 0.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>529</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  std::vector&lt;T&gt; packA, packB, C, packu, packw;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>530</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>531</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  // Early return if possible</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>532</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  if ( m == 0 || n == 0 || k == 0 ) return;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>533</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>534</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  packA.resize( k * m );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>535</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  packB.resize( k * n );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>536</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  C.resize( m * n );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>537</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  packu.resize( m );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>538</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  packw.resize( n );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>539</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>540</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  switch ( kernel-&gt;type )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>541</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>542</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    case GAUSSIAN:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>543</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      rank_k_scale = -2.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>544</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      break;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>545</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    case GAUSSIAN_VAR_BANDWIDTH:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>546</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      rank_k_scale = -2.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>547</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      break;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>548</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    default:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>549</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      exit( 1 );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>550</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>551</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>552</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /*</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>553</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   *  Collect packA and packu</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>554</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>555</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  #pragma omp parallel for</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>556</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>557</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>558</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( int p = 0; p &lt; k; p ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>559</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>560</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      packA[ i * k + p ] = A[ amap[ i ] * k + p ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>561</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>562</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( int p = 0; p &lt; KS_RHS; p ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>563</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>564</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      packu[ p * m + i ] = u[ umap[ i ] * KS_RHS + p ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>565</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>566</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>567</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>568</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /*</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>569</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   *  Collect packB and packw</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>570</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>571</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  #pragma omp parallel for</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>572</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int j = 0; j &lt; n; j ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>573</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>574</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( int p = 0; p &lt; k; p ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>575</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>576</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      packB[ j * k + p ] = B[ bmap[ j ] * k + p ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>577</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>578</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( int p = 0; p &lt; KS_RHS; p ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>579</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>580</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      packw[ p * n + j ] = w[ wmap[ j ] * KS_RHS + p ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>581</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>582</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>583</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>584</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /*</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>585</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   *  C = -2.0 * A^T * B (GEMM)</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>586</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>587</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#ifdef USE_BLAS</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>588</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  xgemm</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>589</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>590</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    "T", "N",</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>591</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    m, n, k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>592</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    rank_k_scale, packA.data(), k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>593</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                  packB.data(), k,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>594</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    fzero,        C.data(),     m</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>595</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>596</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#else</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>597</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  #pragma omp parallel for</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>598</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int j = 0; j &lt; n; j ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>599</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>600</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>601</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>602</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      C[ j * m + i ] = 0.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>603</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      for ( int p = 0; p &lt; k; p ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>604</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>605</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        C[ j * m + i ] += packA[ i * k + p ] * packB[ j * k + p ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>606</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>607</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>608</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>609</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  #pragma omp parallel for</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>610</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int j = 0; j &lt; n; j ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>611</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>612</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>613</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>614</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      C[ j * m + i ] *= rank_k_scale;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>615</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>616</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>617</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#endif</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>618</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>619</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  switch ( kernel-&gt;type )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>620</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>621</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    case GAUSSIAN:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>622</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>623</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        #pragma omp parallel for</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>624</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        for ( int j = 0; j &lt; n; j ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>625</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>626</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>          for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>627</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>628</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] += A2[ amap[ i ] ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>629</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] += B2[ bmap[ j ] ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>630</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] *= kernel-&gt;scal;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>631</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>632</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>          for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>633</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>634</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] = exp( C[ j * m + i ] );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>635</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>636</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>637</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        break;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>638</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>639</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    case GAUSSIAN_VAR_BANDWIDTH:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>640</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>641</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        #pragma omp parallel for</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>642</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        for ( int j = 0; j &lt; n; j ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>643</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>644</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>          for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>645</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>646</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] += A2[ amap[ i ] ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>647</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] += B2[ bmap[ j ] ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>648</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] *= -0.5;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>649</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] *= kernel-&gt;hi[ i ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>650</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] *= kernel-&gt;hj[ j ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>651</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>652</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>          for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>653</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>654</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>            C[ j * m + i ] = exp( C[ j * m + i ] );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>655</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>656</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>657</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        break;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>658</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>659</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    default:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>660</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      exit( 1 );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>661</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>662</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>663</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /*</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>664</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   *  Kernel Summation</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>665</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>666</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#ifdef USE_BLAS</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>667</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  xgemm</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>668</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  (</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>669</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    "N", "N",</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>670</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    m, nrhs, n,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>671</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    fone, C.data(),     m,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>672</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          packw.data(), n,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>673</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    fone, packu.data(), m</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>674</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>675</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#else</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>676</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  #pragma omp parallel for</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>677</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>678</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>679</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( int j = 0; j &lt; nrhs; j ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>680</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>681</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      for ( int p = 0; p &lt; n; p ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>682</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>683</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        packu[ j * m + i ] += C[ p * m + i ] * packw[ j * n + p ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>684</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>685</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>686</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>687</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#endif</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>688</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>689</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /*</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>690</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   *  Assemble packu back</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>691</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>   */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>692</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  #pragma omp parallel for</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>693</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  for ( int i = 0; i &lt; m; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>694</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>695</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( int p = 0; p &lt; KS_RHS; p ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>696</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>697</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      u[ umap[ i ] * KS_RHS + p ] = packu[ p * m + i ];</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>698</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>699</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>700</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>701</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>} // end void gsks_ref</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>702</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>703</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>704</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}; /** end namespace gsks */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>705</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}; /** end namespace hmlp */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>706</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>707</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#endif // define GSKS_HXX</pre></td>
+    </tr>
+
+  </table>
+  <br>
+
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr><td class="hr"><td></tr>
+    <tr><td class="footer">Generated by: <a href="http://gcovr.com">GCOVR (Version 3.2)</a></td></tr>
+  </table>
+  <br>
+
+</body>
+
+</html>
+

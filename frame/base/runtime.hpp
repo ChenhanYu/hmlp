@@ -694,9 +694,9 @@ class RunTime
 
     ~RunTime();
 
-    void Init( mpi::Comm comm );
+    hmlpError_t Init( mpi::Comm comm );
 
-    void Init( int *argc, char ***argv, mpi::Comm comm );
+    hmlpError_t Init( int *argc, char ***argv, mpi::Comm comm );
 
     void Run();
 

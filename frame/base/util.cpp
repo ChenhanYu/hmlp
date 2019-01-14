@@ -3,6 +3,9 @@
 namespace hmlp
 {
 
+/** 
+ *  \breif Translate hmlpError_t to error string.
+ */
 const char* getErrorString( hmlpError_t error )  
 {
   switch ( error )
@@ -15,22 +18,24 @@ const char* getErrorString( hmlpError_t error )
       return "HMLP_ERROR_INVALID_VALUE";
     case HMLP_ERROR_EXECUTION_FAILED:
       return "HMLP_ERROR_EXECUTION_FAILED";
-    case HMLP_ERROR_INTERNAL_ERROR:
-      return "HMLP_ERROR_INTERNAL_ERROR";
     case HMLP_ERROR_NOT_SUPPORTED:
       return "HMLP_ERROR_NOT_SUPPORTED";
+    case HMLP_ERROR_INTERNAL_ERROR:
+      return "HMLP_ERROR_INTERNAL_ERROR";
   }
   return "<unknown>";
 };
 
 
-/** Handling runtime error with information. */
+/** 
+ *  \breif Handling runtime error with information. 
+ */
 void handleError( hmlpError_t error, const char* file, int line )
 {
   if ( error == HMLP_ERROR_SUCCESS ) return;
   /** Otherwise, handle the error and provide information. */
   printf( "Error: %s in %s at line %d\n", getErrorString( error ), file, line );
-  exit( -1 );
+  throw std::invalid_argument( "Program encounters hmlp error." );
 };
 
-}; /** end namespace hmlp */
+}; /* end namespace hmlp */

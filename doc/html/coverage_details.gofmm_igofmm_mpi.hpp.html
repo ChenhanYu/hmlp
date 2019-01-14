@@ -1,0 +1,3293 @@
+
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <title>Head</title>
+  <style media="screen" type="text/css">
+  
+    body
+    {
+      color: #000000;
+      background-color: #FFFFFF;
+    }
+
+    /* Link formats: use maroon w/underlines */
+    a:link
+    {
+      color: navy;
+      text-decoration: underline;
+    }
+    a:visited
+    {
+      color: maroon;
+      text-decoration: underline;
+    }
+    a:active
+    {
+      color: navy;
+      text-decoration: underline;
+    }
+    
+    /*** TD formats ***/
+    td
+    {
+      font-family: sans-serif;
+    }
+    td.title
+    {
+      text-align: center;
+      padding-bottom: 10px;
+      font-size: 20pt;
+      font-weight: bold;
+    }
+    
+    /* TD Header Information */
+    td.headerName
+    {
+      text-align: right;
+      color: black;
+      padding-right: 6px;
+      font-weight: bold;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    td.headerValue
+    {
+      text-align: left;
+      color: blue;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    td.headerTableEntry
+    {
+      text-align: right;
+      color: black;
+      font-weight: bold;
+      white-space: nowrap;
+      padding-left: 12px;
+      padding-right: 4px;
+      background-color: LightBlue;
+    }
+    td.headerValueLeg
+    {
+      text-align: left;
+      color: black;
+      font-size: 80%;
+      white-space: nowrap;
+      padding-left: 10px;
+      padding-right: 10px;
+      padding-top: 2px;
+    }
+    
+    /* Color of horizontal ruler */
+    td.hr
+    {
+      background-color: navy;
+      height:3px;
+    }
+    /* Footer format */
+    td.footer
+    {
+      text-align: center;
+      padding-top: 3px;
+      font-family: sans-serif;
+    }
+
+    /* Coverage Table */    
+
+    td.coverTableHead
+    {
+      text-align: center;
+      color: white;
+      background-color: SteelBlue;
+      font-family: sans-serif;
+      font-size: 120%;
+      white-space: nowrap;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    td.coverFile
+    {
+      text-align: left;
+      padding-left: 10px;
+      padding-right: 20px; 
+      color: black;
+      background-color: LightBlue;
+      font-family: monospace;
+      font-weight: bold;
+      font-size: 110%;
+    }
+    td.coverBar
+    {
+      padding-left: 10px;
+      padding-right: 10px;
+      background-color: LightBlue;
+    }
+    td.coverBarOutline
+    {
+      background-color: white;
+    }
+    td.coverValue
+    {
+      padding-top: 2px;
+      text-align: right;
+      padding-left: 10px;
+      padding-right: 10px;
+      font-family: sans-serif;
+      white-space: nowrap;
+      font-weight: bold;
+    }
+    
+    /* Link Details */
+    a.detail:link
+    {
+      color: #B8D0FF;
+      font-size:80%;
+    }
+    a.detail:visited
+    {
+      color: #B8D0FF;
+      font-size:80%;
+    }
+    a.detail:active
+    {
+      color: #FFFFFF;
+      font-size:80%;
+    }
+    
+    .graphcont{
+        color:#000;
+        font-weight:700;
+        float:left
+    }
+
+    .graph{
+        float:left;
+        background-color: white;
+        position:relative;
+        width:280px;
+        padding:0
+    }
+
+    .graph .bar{
+        display:block;
+        position:relative;
+        border:black 1px solid;
+        text-align:center;
+        color:#fff;
+        height:10px;
+        font-family:Arial,Helvetica,sans-serif;
+        font-size:12px;
+        line-height:1.9em
+    }
+
+    .graph .bar span{
+        position:absolute;
+        left:1em
+    } 
+
+    td.coveredLine,
+    span.coveredLine
+    {
+        background-color: LightGreen!important;
+    }
+
+    td.uncoveredLine,
+    span.uncoveredLine
+    {
+        background-color: LightPink!important;
+    }
+
+    .linecount
+    {
+        border-right: 1px gray solid;
+        background-color: lightgray;
+    }
+
+    .src 
+    {
+        padding-left: 12px;
+    }
+
+    .srcHeader
+    {
+        font-family: monospace; 
+        font-weight: bold;
+    }
+
+    pre 
+    {
+        height : 15px;
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+
+    .lineno
+    {
+        background-color: #EFE383;
+        border-right: 1px solid #BBB15F;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr><td class="title">GCC Code Coverage Report</td></tr>
+    <tr><td class="hr"></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding="1" border="0" width="100%">
+          <tr>
+            <td width="10%" class="headerName">Directory:</td>
+            <td width="35%" class="headerValue">.</td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerValue" style="text-align:right;">Exec</td>
+            <td width="10%" class="headerValue" style="text-align:right;">Total</td>
+            <td width="15%" class="headerValue" style="text-align:right;">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerName">File:</td>
+            <td class="headerValue">gofmm/igofmm_mpi.hpp</td>
+            <td></td>
+            <td class="headerName">Lines:</td>
+            <td class="headerTableEntry">0</td>
+            <td class="headerTableEntry">188</td>
+            <td class="headerTableEntry" style="background-color:LightPink">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerName">Date:</td>
+            <td class="headerValue">2019-01-14</td>
+            <td></td>
+            <td class="headerName">Branches:</td>
+            <td class="headerTableEntry">0</td>
+            <td class="headerTableEntry">800</td>
+            <td class="headerTableEntry" style="background-color:LightPink">0.0 %</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="hr"></td></tr>
+  </table>
+
+  <br>
+  <table cellspacing="0" cellpadding="1">
+    <tr>
+      <td width="5%" align="right" class="srcHeader">Line</td>
+      <td width="10%" align="right" class="srcHeader">Exec</td>
+      <td width="75%" align="left" class="srcHeader src">Source</td>
+    </tr>
+
+    
+    <tr>
+    <td align="right" class="lineno"><pre>1</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#ifndef IGOFMM_MPI_HPP</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>2</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#define IGOFMM_MPI_HPP</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>3</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>4</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** MPI support. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>5</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;hmlp_mpi.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>6</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** Shared-memory Inv-GOFMM templates. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>7</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#include &lt;igofmm.hpp&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>8</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** Use STL and HMLP namespaces. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>9</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>using namespace std;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>10</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>using namespace hmlp;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>11</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>12</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>13</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>namespace hmlp</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>14</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>15</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>namespace mpigofmm</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>16</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>17</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>18</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename NODE, typename T&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>19</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>class DistSetupFactorTask : public Task</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>20</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>21</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  public:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>22</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>23</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    NODE *arg = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>24</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>25</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Set( NODE *user_arg )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>26</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>27</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      arg = user_arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>28</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      name = string( "PSF" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>29</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      label = to_string( arg-&gt;treelist_id );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>30</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>31</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>32</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void DependencyAnalysis() { arg-&gt;DependOnChildren( this ); };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>33</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>34</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Execute( Worker *user_worker )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>35</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>36</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto *node   = arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>37</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto &amp;data   = node-&gt;data;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>38</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto *setup  = node-&gt;setup;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>39</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>40</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Get node MPI size and rank. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>41</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto comm = node-&gt;GetComm();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>42</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int  size = node-&gt;GetCommSize();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>43</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int  rank = node-&gt;GetCommRank();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>44</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>45</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( size == 1 ) return gofmm::SetupFactor&lt;NODE, T&gt;( arg );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>46</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>47</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      size_t n, nl, nr, s, sl, sr;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>48</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      bool issymmetric, do_ulv_factorization;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>49</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>50</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      issymmetric = setup-&gt;IsSymmetric();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>51</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      do_ulv_factorization = setup-&gt;do_ulv_factorization;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>52</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      n  = node-&gt;n;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>53</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      nl = 0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>54</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      nr = 0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>55</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      s  = data.skels.size();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>56</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      sl = 0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>57</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      sr = 0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>58</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>59</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Bcast( &amp;n, 1, 0, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>60</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Bcast( &amp;s, 1, 0, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>61</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>62</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank &lt; size / 2 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>63</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>64</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        nl = node-&gt;child-&gt;n;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>65</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        sl = node-&gt;child-&gt;data.s;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>66</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>67</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      else</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>68</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>69</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        nr = node-&gt;child-&gt;n;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>70</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        sr = node-&gt;child-&gt;data.s;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>71</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>72</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>73</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Bcast( &amp;nl, 1,        0, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>74</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Bcast( &amp;nr, 1, size / 2, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>75</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Bcast( &amp;sl, 1,        0, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>76</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Bcast( &amp;sr, 1, size / 2, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>77</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>78</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      data.SetupFactor( issymmetric, do_ulv_factorization,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>79</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        node-&gt;isleaf, !node-&gt;l, n, nl, nr, s, sl, sr );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>80</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>81</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      //printf( "n %lu nl %lu nr %lu s %lu sl %lu sr %lu\n",</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>82</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      //    n, nl, nr, s, sl, sr ); fflush( stdout );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>83</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>84</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>};</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>85</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>86</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>87</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>88</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename NODE, typename T&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>89</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>class DistFactorizeTask : public Task</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>90</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>91</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  public:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>92</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>93</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    NODE *arg = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>94</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>95</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Set( NODE *user_arg )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>96</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>97</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      arg = user_arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>98</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      name = string( "PULVF" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>99</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      label = to_string( arg-&gt;treelist_id );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>100</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** We don't know the exact cost here */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>101</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      cost = 5.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>102</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>103</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>104</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void DependencyAnalysis() { arg-&gt;DependOnChildren( this ); };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>105</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>106</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Execute( Worker *user_worker )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>107</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>108</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto *node   = arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>109</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto &amp;data   = node-&gt;data;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>110</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto *setup  = node-&gt;setup;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>111</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto &amp;K      = *setup-&gt;K;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>112</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>113</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Get node MPI size and rank. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>114</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto comm = node-&gt;GetComm();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>115</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int  size = node-&gt;GetCommSize();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>116</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int  rank = node-&gt;GetCommRank();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>117</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Status status;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>118</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>119</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( size == 1 ) return gofmm::Factorize&lt;NODE, T&gt;( node );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>120</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>121</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank == 0 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>122</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>123</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Recv Ur from my sibling.*/</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>124</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        Data&lt;T&gt; Ur, &amp;Ul = node-&gt;child-&gt;data.U;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>125</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::RecvData( Ur, size / 2, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>126</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        //printf( "Ur %lux%lu\n", Ur.row(), Ur.col() ); fflush( stdout );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>127</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** TODO: implement symmetric ULV factorization. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>128</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        Data&lt;T&gt; Vl, Vr;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>129</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Recv Zr from my sibing. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>130</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        View&lt;T&gt; &amp;Zl = node-&gt;child-&gt;data.Zbr;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>131</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        Data&lt;T&gt;  Zr;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>132</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::RecvData( Zr, size / 2, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>133</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        View&lt;T&gt; Zrv( Zr );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>134</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Get the skeleton rows and columns. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>135</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        auto &amp;amap = node-&gt;child-&gt;data.skels;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>136</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        vector&lt;size_t&gt; bmap( data.sr );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>137</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::Recv( bmap.data(), bmap.size(), size / 2, 20, comm, &amp;status );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>138</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>139</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Get the skeleton row and column basis. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>140</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.Crl = K( bmap, amap );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>141</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>142</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        if ( node-&gt;l )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>143</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>144</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>          data.Telescope( false, data.U, data.proj, Ul, Ur );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>145</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>          data.Orthogonalization();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>146</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>147</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.PartialFactorize( Zl, Zrv, Ul, Ur, Vl, Vr );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>148</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>149</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>150</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank == size / 2 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>151</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>152</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Send Ur to my sibling. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>153</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        auto &amp;Ur = node-&gt;child-&gt;data.U;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>154</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::SendData( Ur, 0, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>155</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Send Zr to my sibing. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>156</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        auto  Zr = node-&gt;child-&gt;data.Zbr.toData();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>157</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::SendData( Zr, 0, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>158</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Evluate the skeleton rows and columns. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>159</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        auto &amp;bmap = node-&gt;child-&gt;data.skels;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>160</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::Send( bmap.data(), bmap.size(), 0, 20, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>161</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>162</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>163</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}; /** end class DistFactorizeTask */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>164</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>165</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>166</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>167</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename NODE, typename T&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>168</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>class DistFactorTreeViewTask : public Task</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>169</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>170</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  public:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>171</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>172</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    NODE *arg = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>173</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>174</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Set( NODE *user_arg )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>175</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>176</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      arg = user_arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>177</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      name = string( "PTV" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>178</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      label = to_string( arg-&gt;treelist_id );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>179</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** We don't know the exact cost here */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>180</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      cost = 5.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>181</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>182</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>183</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void DependencyAnalysis() { arg-&gt;DependOnParent( this ); };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>184</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>185</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Execute( Worker *user_worker )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>186</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>187</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto *node   = arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>188</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto &amp;data   = node-&gt;data;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>189</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto *setup  = node-&gt;setup;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>190</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto &amp;input  = *(setup-&gt;input);</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>191</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto &amp;output = *(setup-&gt;output);</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>192</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>193</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Get node MPI size and rank. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>194</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int size = node-&gt;GetCommSize();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>195</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int rank = node-&gt;GetCommRank();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>196</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>197</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Create contigious matrix view for output at root level. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>198</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      data.bview.Set( output );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>199</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>200</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Case: distributed leaf node. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>201</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( size == 1 ) return gofmm::SolverTreeView( arg );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>202</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>203</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank == 0 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>204</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>205</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Allocate working buffer for ULV solve. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>206</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.B.resize( data.sl + data.sr, input.col() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>207</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Partition B = [ Bf; Bc ] with matrix view. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>208</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.Bv.Set( data.B );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>209</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.Bv.Partition2x1( data.Bf,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>210</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                              data.Bc,  data.s, BOTTOM );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>211</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Bv = [ cdata.Bp; Bsibling ], and receive Bsiling. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>212</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        auto &amp;cdata = node-&gt;child-&gt;data;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>213</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.Bv.Partition2x1( cdata.Bp,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>214</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>                               data.Bsibling, data.sl, TOP );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>215</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>216</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>217</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank == size / 2 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>218</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>219</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Allocate working buffer for mpi::send(). */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>220</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.B.resize( data.sr, input.col() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>221</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Directly map cdata.Bp to parent's data.B. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>222</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        auto &amp;cdata = node-&gt;child-&gt;data;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>223</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        cdata.Bp.Set( data.B );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>224</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>225</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>226</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>227</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}; /** end class DistSolverTreeViewTask */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>228</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>229</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>230</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>231</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>232</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename NODE, typename T&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>233</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>class DistULVForwardSolveTask : public Task</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>234</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>235</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  public:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>236</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>237</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    NODE *arg = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>238</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>239</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Set( NODE *user_arg )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>240</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>241</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      arg = user_arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>242</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      name = string( "PULVS1" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>243</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      label = to_string( arg-&gt;treelist_id );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>244</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** We don't know the exact cost here */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>245</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      cost = 5.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>246</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** "High" priority */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>247</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      priority = true;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>248</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>249</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>250</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void DependencyAnalysis() { arg-&gt;DependOnChildren( this ); };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>251</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>252</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Execute( Worker *user_worker )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>253</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>254</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      //printf( "[BEG] level-%lu\n", arg-&gt;l ); fflush( stdout );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>255</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto *node = arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>256</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto &amp;data = node-&gt;data;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>257</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Get node MPI size and rank. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>258</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto comm = node-&gt;GetComm();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>259</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int  size = node-&gt;GetCommSize();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>260</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int  rank = node-&gt;GetCommRank();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>261</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Status status;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>262</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>263</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Perform the forward step locally on distributed leaf nodes. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>264</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( size == 1 ) return data.ULVForward();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>265</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>266</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank == 0 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>267</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>268</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        auto Br = data.Bsibling.toData();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>269</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Receive Br from my sibling. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>270</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::Recv( Br.data(), Br.size(), size / 2, 0, comm, &amp;status );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>271</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Copy valus from temporary buffer to the view of my B. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>272</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.Bsibling.CopyValuesFrom( Br );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>273</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Perform the forward step locally. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>274</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.ULVForward();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>275</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>276</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>277</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank == size / 2 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>278</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>279</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        auto &amp;Br = data.B;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>280</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Send Br from my sibling. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>281</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::Send( Br.data(), Br.size(), 0, 0, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>282</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>283</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      //printf( "[END] level-%lu\n", arg-&gt;l ); fflush( stdout );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>284</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>285</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}; /** end class DistULVForwardSolveTask */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>286</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>287</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>288</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename NODE, typename T&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>289</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>class DistULVBackwardSolveTask : public Task</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>290</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>291</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  public:</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>292</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>293</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    NODE *arg = NULL;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>294</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>295</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Set( NODE *user_arg )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>296</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>297</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      arg = user_arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>298</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      name = string( "PULVS2" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>299</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      label = to_string( arg-&gt;treelist_id );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>300</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** We don't know the exact cost here */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>301</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      cost = 5.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>302</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** "High" priority */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>303</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      priority = true;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>304</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>305</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>306</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void DependencyAnalysis() { arg-&gt;DependOnParent( this ); };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>307</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>308</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    void Execute( Worker *user_worker )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>309</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>310</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      //printf( "[BEG] level-%lu\n", arg-&gt;l ); fflush( stdout );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>311</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      auto *node = arg;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>312</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto &amp;data = node-&gt;data;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>313</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Get node MPI size and rank. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>314</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      auto comm = node-&gt;GetComm();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>315</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int  size = node-&gt;GetCommSize();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>316</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      int  rank = node-&gt;GetCommRank();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>317</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      mpi::Status status;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>318</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>319</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      /** Perform the forward step locally on distributed leaf nodes. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>320</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( size == 1 ) return data.ULVBackward();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>321</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>322</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank == 0 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>323</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>324</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Perform the backward step locally. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>325</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        data.ULVBackward();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>326</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Pack Br using matrix view Bsibling. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>327</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        auto Br = data.Bsibling.toData();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>328</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Send Br to my sibling. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>329</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::Send( Br.data(), Br.size(), size / 2, 0, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>330</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>331</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>332</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      if ( rank == size / 2 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>333</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>334</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        auto &amp;Br = data.B;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>335</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>        /** Receive Br from my sibling. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>336</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>        mpi::Recv( Br.data(), Br.size(), 0, 0, comm, &amp;status );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>337</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>338</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>      //printf( "[END] level-%lu\n", arg-&gt;l ); fflush( stdout );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>339</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    };</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>340</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>341</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}; /** end class DistULVBackwardSolveTask */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>342</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>343</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>344</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>345</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>346</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>347</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>348</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>349</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/** @biref Top-level factorization routine. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>350</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename T, typename TREE&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>351</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>void DistFactorize( TREE &amp;tree, T lambda )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>352</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>353</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  using NODE    = typename TREE::NODE;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>354</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  using MPINODE = typename TREE::MPINODE;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>355</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>356</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** setup the regularization parameter lambda */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>357</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.setup.lambda = lambda;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>358</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** setup factorization type */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>359</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.setup.do_ulv_factorization = true;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>360</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>361</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Traverse the tree upward to prepare thr ULV factorization. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>362</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  gofmm::SetupFactorTask&lt;NODE, T&gt; seqSETUPFACTORtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>363</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  DistSetupFactorTask&lt;MPINODE, T&gt; parSETUPFACTORtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>364</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>365</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::PrintProgress( "[BEG] DistFactorize setup ...\n", tree.GetComm() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>366</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.DependencyCleanUp();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>367</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.LocaTraverseUp( seqSETUPFACTORtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>368</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.DistTraverseUp( parSETUPFACTORtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>369</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.ExecuteAllTasks();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>370</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::PrintProgress( "[END] DistFactorize setup ...\n", tree.GetComm() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>371</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>372</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::PrintProgress( "[BEG] DistFactorize ...\n", tree.GetComm() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>373</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  gofmm::FactorizeTask&lt;   NODE, T&gt; seqFACTORIZEtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>374</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  DistFactorizeTask&lt;MPINODE, T&gt; parFACTORIZEtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>375</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.LocaTraverseUp( seqFACTORIZEtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>376</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.DistTraverseUp( parFACTORIZEtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>377</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.ExecuteAllTasks();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>378</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::PrintProgress( "[END] DistFactorize ...\n", tree.GetComm() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>379</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>380</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>}; /** end DistFactorize() */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>381</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>382</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>383</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename T, typename TREE&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>384</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>void DistSolve( TREE &amp;tree, Data&lt;T&gt; &amp;input )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>385</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>386</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  using NODE    = typename TREE::NODE;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>387</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  using MPINODE = typename TREE::MPINODE;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>388</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>389</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Attach the pointer to the tree structure. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>390</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.setup.input  = &amp;input;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>391</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.setup.output = &amp;input;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>392</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>393</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** All factorization tasks. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>394</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  gofmm::SolverTreeViewTask&lt;NODE&gt; seqTREEVIEWtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>395</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  DistFactorTreeViewTask&lt;MPINODE, T&gt;   parTREEVIEWtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>396</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  gofmm::ULVForwardSolveTask&lt;NODE, T&gt; seqFORWARDtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>397</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  DistULVForwardSolveTask&lt;MPINODE, T&gt;   parFORWARDtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>398</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  gofmm::ULVBackwardSolveTask&lt;NODE, T&gt; seqBACKWARDtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>399</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  DistULVBackwardSolveTask&lt;MPINODE, T&gt;   parBACKWARDtask;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>400</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>401</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.DistTraverseDown( parTREEVIEWtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>402</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.LocaTraverseDown( seqTREEVIEWtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>403</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.LocaTraverseUp( seqFORWARDtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>404</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.DistTraverseUp( parFORWARDtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>405</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.DistTraverseDown( parBACKWARDtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>406</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.LocaTraverseDown( seqBACKWARDtask );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>407</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::PrintProgress( "[PREP] DistSolve ...\n", tree.GetComm() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>408</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  tree.ExecuteAllTasks();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>409</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  mpi::PrintProgress( "[DONE] DistSolve ...\n", tree.GetComm() );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>410</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>411</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>}; /** end DistSolve() */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>412</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>413</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>414</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>/**</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>415</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *  @brief Compute the average 2-norm error. That is given</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>416</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> *         lambda and weights,</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>417</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre> */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>418</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>template&lt;typename TREE, typename T&gt;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>419</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>void ComputeError( TREE &amp;tree, T lambda, Data&lt;T&gt; weights, Data&lt;T&gt; potentials )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>420</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>{</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>421</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  using NODE    = typename TREE::NODE;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>422</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  using MPINODE = typename TREE::MPINODE;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>423</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>424</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto comm = tree.GetComm();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>425</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto size = tree.GetCommSize();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>426</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  auto rank = tree.GetCommRank();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>427</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>428</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>429</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  size_t n    = weights.row();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>430</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  size_t nrhs = weights.col();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>431</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>432</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Shift lambda and make it a column vector. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>433</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  Data&lt;T&gt; rhs( n, nrhs );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>434</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  for ( size_t j = 0; j &lt; nrhs; j ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>435</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( size_t i = 0; i &lt; n; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>436</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      rhs( i, j ) = potentials( i, j ) + lambda * weights( i, j );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>437</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>438</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Solver. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>439</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  DistSolve( tree, rhs );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>440</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>441</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>442</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  /** Compute relative error = sqrt( err / nrm2 ) for each rhs. */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>443</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  if ( rank == 0 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>444</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>445</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    printf( "========================================================\n" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>446</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    printf( "Inverse accuracy report\n" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>447</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    printf( "========================================================\n" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>448</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    printf( "#rhs,  max err,        @,  min err,        @,  relative \n" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>449</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    printf( "========================================================\n" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>450</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>451</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>452</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  size_t ntest = 10;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>453</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  T total_err  = 0.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>454</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  T total_nrm  = 0.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>455</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  T total_max  = 0.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>456</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  T total_min  = 0.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>457</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  for ( size_t j = 0; j &lt; std::min( nrhs, ntest ); j ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>458</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>459</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    /** Counters */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>460</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    T nrm2 = 0.0, err2 = 0.0;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>461</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    T max2 = 0.0, min2 = std::numeric_limits&lt;T&gt;::max();</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>462</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>463</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    for ( size_t i = 0; i &lt; n; i ++ )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>464</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>465</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      T sse = rhs( i, j ) - weights( i, j );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>466</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      assert( rhs( i, j ) == rhs( i, j ) );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>467</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      sse = sse * sse;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>468</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      nrm2 += weights( i, j ) * weights( i, j );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>469</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      err2 += sse;</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>470</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      max2 = std::max( max2, sse );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>471</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      min2 = std::min( min2, sse );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>472</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>473</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>474</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    mpi::Allreduce( &amp;err2, &amp;total_err, 1, MPI_SUM, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>475</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    mpi::Allreduce( &amp;nrm2, &amp;total_nrm, 1, MPI_SUM, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>476</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    mpi::Allreduce( &amp;max2, &amp;total_max, 1, MPI_MAX, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>477</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    mpi::Allreduce( &amp;min2, &amp;total_min, 1, MPI_MIN, comm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>478</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>479</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    total_err += std::sqrt( total_err / total_nrm );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>480</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    total_max  = std::sqrt( total_max );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>481</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    total_min  = std::sqrt( total_min );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>482</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>483</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    if ( rank == 0 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>484</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>485</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>      printf( "%4lu,  %3.1E,  %7lu,  %3.1E,  %7lu,   %3.1E\n",</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>486</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>          j, total_max, (size_t)0,  total_min, (size_t)0, total_err );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>487</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>    }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>488</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>489</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>  if ( rank == 0 )</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>490</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  {</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>491</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>    printf( "========================================================\n" );</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>492</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>  }</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>493</pre></td>
+    <td align="right" class="linecount uncoveredLine"><pre></pre></td>
+    <td align="left" class="src uncoveredLine"><pre>};</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>494</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>495</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>496</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}; /** end namespace mpigofmm */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>497</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>}; /** end namespace hmlp */</pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>498</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre></pre></td>
+    </tr>
+
+    <tr>
+    <td align="right" class="lineno"><pre>499</pre></td>
+    <td align="right" class="linecount "><pre></pre></td>
+    <td align="left" class="src "><pre>#endif /** define IGOFMM_MPI_HPP */</pre></td>
+    </tr>
+
+  </table>
+  <br>
+
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr><td class="hr"><td></tr>
+    <tr><td class="footer">Generated by: <a href="http://gcovr.com">GCOVR (Version 3.2)</a></td></tr>
+  </table>
+  <br>
+
+</body>
+
+</html>
+

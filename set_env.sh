@@ -4,11 +4,11 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=icc
-export CXX=icpc
+export CC=gcc
+export CXX=g++
 
 ## Whether use BLAS or not?
-export HMLP_USE_BLAS=true
+export HMLP_USE_BLAS=false
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
 export MKLROOT=${MKLROOT}

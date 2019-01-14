@@ -1267,7 +1267,7 @@ RunTime::RunTime() {};
 RunTime::~RunTime() {};
 
 /** @brief */
-void RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
+hmlpError_t RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
 {
   #pragma omp critical (init)
   {
@@ -1278,11 +1278,9 @@ void RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
       /** Check whether MPI has been initialized? */
       int is_mpi_init = false;
       mpi::Initialized( &is_mpi_init );
-      if ( !is_mpi_init )
-      {
-      }
 
       scheduler = new Scheduler( comm );
+
 #ifdef HMLP_USE_CUDA
       /** TODO: detect devices */
       device[ 0 ] = new hmlp::gpu::Nvidia( 0 );
@@ -1294,15 +1292,20 @@ void RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
 #ifdef HMLP_USE_MAGMA
         magma_init();
 #endif
-      /** Set the flag such that this is only executed once. */
+      /* Set the flag such that this is only executed once. */
       is_init = true;
     }
-  } /** end pragma omp critical */
-}; /** end RunTime::Init() */
+  } /* end pragma omp critical */
+
+  /* Return error if the scheduler was failed in allocation. */
+  if ( !scheduler ) return HMLP_ERROR_ALLOC_FAILED;
+  /* Return without error. */
+  return HMLP_ERROR_SUCCESS;
+}; /* end RunTime::Init() */
 
 
 /** @brief */
-void RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WORLD )
+hmlpError_t RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WORLD )
 {
   #pragma omp critical
   {
@@ -1344,8 +1347,12 @@ void RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WORLD )
       /** Set the flag such that this is only executed once. */
       is_init = true;
     }
-  } /** end pragma omp critical */
-}; /** end RunTime::Init() */
+  } /* end pragma omp critical */
+  /* Return error if the scheduler was failed in allocation. */
+  if ( !scheduler ) return HMLP_ERROR_ALLOC_FAILED;
+  /* Return without error. */
+  return HMLP_ERROR_SUCCESS;
+}; /* end RunTime::Init() */
 
 
 
@@ -1444,25 +1451,49 @@ void hmlp_msg_dependency_analysis( int key, int p, ReadWriteType type, Task *tas
 }; /** end namespace hmlp */
 
 
-/** @brief */
-void hmlp_init() { hmlp::rt.Init(); };
-void hmlp_init( mpi::Comm comm = MPI_COMM_WORLD ) 
+/** 
+ *  \brief Initialize the runtime without MPI.
+ *  \return the error code.
+ */
+hmlpError_t hmlp_init() 
 { 
-  hmlp::rt.Init( comm );
+  return hmlp::rt.Init(); 
 };
 
-void hmlp_init( int *argc, char ***argv )
+/** 
+ *  \brief Initialize the runtime with MPI.
+ *  \return the error code.
+ */
+hmlpError_t hmlp_init( mpi::Comm comm ) 
+{ 
+  return hmlp::rt.Init( comm );
+};
+
+/** 
+ *  \brief Initialize the runtime and parse arguments without MPI.
+ *  \return the error code.
+ */
+hmlpError_t hmlp_init( int *argc, char ***argv )
 {
-  hmlp::rt.Init( argc, argv );
+  return hmlp::rt.Init( argc, argv );
 };
 
-void hmlp_init( int *argc, char ***argv, mpi::Comm comm )
+/** 
+ *  \brief Initialize the runtime and parse arguments with MPI.
+ *  \return the error code.
+ */
+hmlpError_t hmlp_init( int *argc, char ***argv, mpi::Comm comm )
 {
-  hmlp::rt.Init( argc, argv, comm );
+  return hmlp::rt.Init( argc, argv, comm );
 };
 
-/** @brief */
-void hmlp_set_num_workers( int n_worker ) { hmlp::rt.n_worker = n_worker; };
+/** 
+ *  \brief 
+ */
+void hmlp_set_num_workers( int n_worker ) 
+{ 
+  hmlp::rt.n_worker = n_worker; 
+};
 
 
 

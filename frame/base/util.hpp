@@ -45,11 +45,13 @@ using namespace std;
 namespace hmlp
 {
 
-/** Handling runtime error with information. */
+/** 
+ *  \breif Handling runtime error with information. 
+ */
 void handleError( hmlpError_t error, const char* file, int line );
 
 /**
- *  @brief The default function to allocate memory for HMLP.
+ *  \brief The default function to allocate memory for HMLP.
  *         Memory allocated by this function is aligned. Most of the
  *         HMLP primitives require memory alignment.
  */
