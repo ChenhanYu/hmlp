@@ -152,13 +152,25 @@ Compilation example:
 icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/lib/libhmlp.a
 ```
 
-<figure class="video_container">
-<iframe jsname="L5Fo6c" class="YMEQtf KfXz0b" frameborder="0"
-aria-label="Chart, GSKS&lt;ADD,MUL,DOUBLE&gt;"
-src="https://docs.google.com/spreadsheets/d/e/2CAIWO3elj2q1iA2x7PfXyiwRjScxokvUFH4Etki1iAyJR1PUgMpzjaiFUFtnZBAraCGhd8H0ARHGX2fYlcw/gviz/chartiframe?authuser=0&amp;autosize=true&amp;oid=21359979"
-allowfullscreen></iframe>
-</figure>
+### TESTING
 
+Following the steps in [INSTALL](https://github.com/ChenhanYu/hmlp#install)
+using cmake, Google Test will be downloaded and
+compiled. All testing routines located in /test will be compiled.
+All executables locate in /build. To perform the whole test suits,
+follow these instructions.
+```{engine='bash', count_lines}
+cd build
+make test
+```
+Optionally, you can perform and coverage analysis and update the report by
+```{engine='bash', count_lines}
+make coverage
+```
+
+The latest coverage report can be found at
+  * https://chenhanyu.github.io/hmlp/docs/html/coverage.html
+  * https://chenhanyu.github.io/hmlp/docs/html/coverage_details.html
 
 
 
