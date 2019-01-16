@@ -3,8 +3,11 @@
 
 ### WARNING
 
-[HMLP](https://chenhanyu.github.io/hmlp/) and GOFMM are research projects and not in production. For SC'17 and SC'18
-artifacts, see /artifact and our our GOFMM papers [SC'17 and SC'18] for details.
+[HMLP](https://chenhanyu.github.io/hmlp/) and GOFMM are research projects 
+and not in production. 
+For SC'17 and SC'18 artifacts, see /artifact and our our GOFMM papers 
+[SC'17](https://arxiv.org/pdf/1707.00164.pdf) and [SC'18](https://dl.acm.org/citation.cfm?id=3291676) for details.
+For fast kernels, see our GSKNN paper [SC'15](http://padas.ices.utexas.edu/static/papers/sc15nn.pdf) for details.
 
 ### README
 
@@ -42,6 +45,37 @@ saperated from the c++ loop base framework. Thus, porting any HMLP primitive
 to an new architecture **only require** rewriting the kernel part. 
 You are welcome to contribute more kernels beyond this list. Checkout the
 guildline on implementing microkernel for HMLP at our wiki pages.
+
+### CITATION
+```
+@inproceedings{yu2015performance,
+  title={Performance optimization for the k-nearest neighbors kernel on x86 architectures},
+  author={Yu, Chenhan D and Huang, Jianyu and Austin, Woody and Xiao, Bo and Biros, George},
+  booktitle={Proceedings of the International Conference for High Performance Computing,
+    Networking, Storage and Analysis},
+  pages={7},
+  year={2015},
+  organization={ACM}
+}
+@inproceedings{yu2017geometry,
+  title={Geometry-oblivious FMM for compressing dense SPD matrices},
+  author={Yu, Chenhan D and Levitt, James and Reiz, Severin and Biros, George},
+  booktitle={Proceedings of the International Conference for High Performance Computing,
+    Networking, Storage and Analysis},
+  pages={53},
+  year={2017},
+  organization={ACM}
+}
+@inproceedings{yu2018distributed,
+  title={Distributed-memory hierarchical compression of dense SPD matrices},
+  author={Yu, Chenhan D and Reiz, Severin and Biros, George},
+  booktitle={Proceedings of the International Conference for High Performance Computing,
+    Networking, Storage, and Analysis},
+  pages={15},
+  year={2018},
+  organization={IEEE Press}
+}
+```
 
 ### DOCUMENTATION
 GOFMM, MPI-GOFMM, HMLP templates, and HMLP runtime APIs are documented
