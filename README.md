@@ -176,6 +176,10 @@ The latest coverage report can be found at
   * https://chenhanyu.github.io/hmlp/docs/html/coverage.html
   * https://chenhanyu.github.io/hmlp/docs/html/coverage_details.html
 
+### DOCUMENTATION
+GOFMM, MPI-GOFMM, HMLP templates, and HMLP runtime APIs are documented
+by doxygen:
+  * https://chenhanyu.github.io/hmlp/docs/html
 
 ## ACKNOWLEDGEMENTS
 ```
