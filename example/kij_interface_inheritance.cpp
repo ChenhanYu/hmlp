@@ -76,57 +76,64 @@ class SparseSPDMatrix : public VirtualMatrix<T, Allocator>,
  */ 
 int main( int argc, char *argv[] )
 {
-  /** Use float as data type. */
-  using T = float;
-  /** [Required] Problem size. */
-  size_t n = 5000;
-  /** Maximum leaf node size (not used in neighbor search). */
-  size_t m = 128;
-  /** [Required] Number of nearest neighbors. */
-  size_t k = 64;
-  /** Maximum off-diagonal rank (not used in neighbor search). */
-  size_t s = 128;
-  /** Approximation tolerance (not used in neighbor search). */
-  T stol = 1E-5;
-  /** The amount of direct evaluation (not used in neighbor search). */
-  T budget = 0.01;
-  /** Number of right-hand sides. */
-  size_t nrhs = 10;
-  /** Regularization for the system (K+lambda*I). */
-  T lambda = 1.0;
+  try
+  {
+    /** Use float as data type. */
+    using T = float;
+    /** [Required] Problem size. */
+    size_t n = 5000;
+    /** Maximum leaf node size (not used in neighbor search). */
+    size_t m = 128;
+    /** [Required] Number of nearest neighbors. */
+    size_t k = 64;
+    /** Maximum off-diagonal rank (not used in neighbor search). */
+    size_t s = 128;
+    /** Approximation tolerance (not used in neighbor search). */
+    T stol = 1E-5;
+    /** The amount of direct evaluation (not used in neighbor search). */
+    T budget = 0.01;
+    /** Number of right-hand sides. */
+    size_t nrhs = 10;
+    /** Regularization for the system (K+lambda*I). */
+    T lambda = 1.0;
 
-  /** HMLP API call to initialize the runtime. */
-  hmlp_init( &argc, &argv );
-	/** Create a configuration for generic SPD matrices. */
-  gofmm::Configuration<T> config1( ANGLE_DISTANCE, n, m, k, s, stol, budget );
-  /** Create a sparse diagonal matrix. */
-  size_t nnz = n;
-  vector<T> vals( nnz, 1.0 );
-  vector<size_t> col_ptr( n + 1, 0 );
-  vector<size_t> row_ind( nnz, 0 );
-  for ( size_t i = 0; i < col_ptr.size(); i ++ ) col_ptr[ i ] = i;
-  for ( size_t i = 0; i < row_ind.size(); i ++ ) row_ind[ i ] = i;
-  SparseSPDMatrix<T> K1; 
-  K1.fromCSC( n, n, nnz /** number of nonzeros */, true /** is symmetric */,
-      vals.data(), col_ptr.data(), row_ind.data() );
-  printf( "K( 0, 0 ) %E here1\n", K1( 0, 0 ) ); fflush( stdout );
-  printf( "K( 1, 0 ) %E here1\n", K1( 1, 0 ) ); fflush( stdout );
-  printf( "K( 0, 1 ) %E here1\n", K1( 0, 1 ) ); fflush( stdout );
-  printf( "K( 5, 0 ) %E here1\n", K1( 5, 0 ) ); fflush( stdout );
-  printf( "K( 0, 4 ) %E here1\n", K1( 0, 4 ) ); fflush( stdout );
-  vector<size_t> I( 5 ), J( 5 );
-  for ( size_t i = 0; i < I.size(); i ++ ) I[ i ] = i;
-  for ( size_t j = 0; j < J.size(); j ++ ) J[ j ] = j;
-  auto KIJ = K1( I, J );
-  KIJ.Print();
-  /** Create randomized and center splitters. */
-  gofmm::randomsplit<SparseSPDMatrix<T>, 2, T> rkdtsplitter1( K1 );
-  gofmm::centersplit<SparseSPDMatrix<T>, 2, T> splitter1( K1 );
-  /** Perform the iterative neighbor search. */
-  auto neighbors1 = gofmm::FindNeighbors( K1, rkdtsplitter1, config1 );
+    /** HMLP API call to initialize the runtime. */
+    HANDLE_ERROR( hmlp_init( &argc, &argv ) );
+    /** Create a configuration for generic SPD matrices. */
+    gofmm::Configuration<T> config1( ANGLE_DISTANCE, n, m, k, s, stol, budget );
+    /** Create a sparse diagonal matrix. */
+    size_t nnz = n;
+    vector<T> vals( nnz, 1.0 );
+    vector<size_t> col_ptr( n + 1, 0 );
+    vector<size_t> row_ind( nnz, 0 );
+    for ( size_t i = 0; i < col_ptr.size(); i ++ ) col_ptr[ i ] = i;
+    for ( size_t i = 0; i < row_ind.size(); i ++ ) row_ind[ i ] = i;
+    SparseSPDMatrix<T> K1; 
+    K1.fromCSC( n, n, nnz /** number of nonzeros */, true /** is symmetric */,
+        vals.data(), col_ptr.data(), row_ind.data() );
+    printf( "K( 0, 0 ) %E here1\n", K1( 0, 0 ) ); fflush( stdout );
+    printf( "K( 1, 0 ) %E here1\n", K1( 1, 0 ) ); fflush( stdout );
+    printf( "K( 0, 1 ) %E here1\n", K1( 0, 1 ) ); fflush( stdout );
+    printf( "K( 5, 0 ) %E here1\n", K1( 5, 0 ) ); fflush( stdout );
+    printf( "K( 0, 4 ) %E here1\n", K1( 0, 4 ) ); fflush( stdout );
+    vector<size_t> I( 5 ), J( 5 );
+    for ( size_t i = 0; i < I.size(); i ++ ) I[ i ] = i;
+    for ( size_t j = 0; j < J.size(); j ++ ) J[ j ] = j;
+    auto KIJ = K1( I, J );
+    KIJ.Print();
+    /** Create randomized and center splitters. */
+    gofmm::randomsplit<SparseSPDMatrix<T>, 2, T> rkdtsplitter1( K1 );
+    gofmm::centersplit<SparseSPDMatrix<T>, 2, T> splitter1( K1 );
+    /** Perform the iterative neighbor search. */
+    auto neighbors1 = gofmm::FindNeighbors( K1, rkdtsplitter1, config1 );
 
-  /** HMLP API call to terminate the runtime. */
-  hmlp_finalize();
-
+    /** HMLP API call to terminate the runtime. */
+    hmlp_finalize();
+  }
+  catch ( const exception & e )
+  {
+    cout << e.what() << endl;
+    return -1;
+  }
   return 0;
 }; /** end main() */

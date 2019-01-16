@@ -207,215 +207,221 @@ void test_gofmm_setup
  */ 
 int main( int argc, char *argv[] )
 {
-  printf( "\n--- Artifact of GOFMM for Super Computing 2017\n" );
-
-  /** default geometric-oblivious scheme */
-  DistanceMetric metric = ANGLE_DISTANCE;
-
-  /** test suit options */
-  const bool RANDOMMATRIX = true;
-  const bool USE_LOWRANK = true;
-  const bool SPARSETESTSUIT = false;
-
-  /** default data directory */
-  string DATADIR( "/" );
-
-  /** default precision */
-  using T = float;
-
-  /** read all parameters */
-  size_t n, m, d, k, s, nrhs;
-  double stol, budget;
-
-	/** (optional) */
-  size_t nnz; 
-	string distance_type;
-	string spdmatrix_type;
-  string user_matrix_filename;
-  string user_points_filename;
-
-  /** (optional) set the default Gaussian kernel bandwidth */
-  float h = 1.0;
-
-  /** number of columns and rows, i.e. problem size */
-  sscanf( argv[ 1 ], "%lu", &n );
-
-  /** on-diagonal block size, such that the tree has log(n/m) levels */
-  sscanf( argv[ 2 ], "%lu", &m );
-
-  /** number of neighbors to use */
-  sscanf( argv[ 3 ], "%lu", &k );
-
-  /** maximum off-diagonal ranks */
-  sscanf( argv[ 4 ], "%lu", &s );
-
-  /** number of right hand sides */
-  sscanf( argv[ 5 ], "%lu", &nrhs );
-
-  /** desired approximation accuracy */
-  sscanf( argv[ 6 ], "%lf", &stol );
-
-  /** the maximum percentage of direct matrix-multiplication */
-  sscanf( argv[ 7 ], "%lf", &budget );
-
-	/** specify distance type */
-	distance_type = argv[ 8 ];
-
-	if ( !distance_type.compare( "geometry" ) )
-	{
-    printf( "--- using geometry distance\n" );
-    metric = GEOMETRY_DISTANCE;
-	}
-	else if ( !distance_type.compare( "kernel" ) )
-	{
-    printf( "--- using Gram vector distance\n" );
-    metric = KERNEL_DISTANCE;
-	}
-	else if ( !distance_type.compare( "angle" ) )
-	{
-    printf( "--- using Gram vector consine similarity\n" );
-    metric = ANGLE_DISTANCE;
-	}
-	else
-	{
-		printf( "%s is not supported\n", argv[ 9 ] );
-		exit( 1 );
-	}
-
-
-	/** specify what kind of spdmatrix is used */
-  spdmatrix_type = argv[ 9 ];
-  printf( "--- mode (%s)\n", spdmatrix_type.data() );
-
-	if ( !spdmatrix_type.compare( "testsuit" ) )
-	{
-		/** do nothing */
-	}
-	else if ( !spdmatrix_type.compare( "userdefine" ) )
-	{
-		/** do nothing */
-	}
-	else if ( !spdmatrix_type.compare( "dense" ) )
-	{
-    /** (optional) provide the path to the matrix file */
-    user_matrix_filename = argv[ 10 ];
-    printf( "--- dense binary matrix file (%s)\n", user_matrix_filename.data() );
-    if ( argc > 11 ) 
-    {
-      /** (optional) provide the path to the data file */
-      user_points_filename = argv[ 11 ];
-		  /** dimension of the data set */
-      sscanf( argv[ 12 ], "%lu", &d );
-      printf( "--- with auxilary points in %lu dimensions (%s)\n", 
-          d, user_points_filename.data() );
-    }
-	}
-	else if ( !spdmatrix_type.compare( "kernel" ) )
-	{
-    user_points_filename = argv[ 10 ];
-		/** number of attributes (dimensions) */
-    sscanf( argv[ 11 ], "%lu", &d );
-		/** (optional) provide Gaussian kernel bandwidth */
-    if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
-    printf( "--- Gaussian kernel matrix (h=%5.2f) in %lu dimensions (%s)\n",
-        h, d, user_points_filename.data() );
-	}
-	else
-	{
-		printf( "--- mode (%s) is not supported\n", argv[ 9 ] );
-		exit( 1 );
-	}
-
-  /** HMLP API call to initialize the runtime */
-  hmlp_init();
-  printf( "--- runtime system initialization\n" );
-
-  /** run the matrix file provided by users */
-  if ( !spdmatrix_type.compare( "dense" ) && user_matrix_filename.size() )
+  try
   {
+    printf( "\n--- Artifact of GOFMM for Super Computing 2017\n" );
+
+    /** default geometric-oblivious scheme */
+    DistanceMetric metric = ANGLE_DISTANCE;
+
+    /** test suit options */
+    const bool RANDOMMATRIX = true;
+    const bool USE_LOWRANK = true;
+    const bool SPARSETESTSUIT = false;
+
+    /** default data directory */
+    string DATADIR( "/" );
+
+    /** default precision */
+    using T = float;
+
+    /** read all parameters */
+    size_t n, m, d, k, s, nrhs;
+    double stol, budget;
+
+    /** (optional) */
+    size_t nnz; 
+    string distance_type;
+    string spdmatrix_type;
+    string user_matrix_filename;
+    string user_points_filename;
+
+    /** (optional) set the default Gaussian kernel bandwidth */
+    float h = 1.0;
+
+    /** number of columns and rows, i.e. problem size */
+    sscanf( argv[ 1 ], "%lu", &n );
+
+    /** on-diagonal block size, such that the tree has log(n/m) levels */
+    sscanf( argv[ 2 ], "%lu", &m );
+
+    /** number of neighbors to use */
+    sscanf( argv[ 3 ], "%lu", &k );
+
+    /** maximum off-diagonal ranks */
+    sscanf( argv[ 4 ], "%lu", &s );
+
+    /** number of right hand sides */
+    sscanf( argv[ 5 ], "%lu", &nrhs );
+
+    /** desired approximation accuracy */
+    sscanf( argv[ 6 ], "%lf", &stol );
+
+    /** the maximum percentage of direct matrix-multiplication */
+    sscanf( argv[ 7 ], "%lf", &budget );
+
+    /** specify distance type */
+    distance_type = argv[ 8 ];
+
+    if ( !distance_type.compare( "geometry" ) )
     {
-      /** dense spd matrix format */
-      SPDMatrix<T> K;
-      K.resize( n, n );
-      K.read( n, n, user_matrix_filename );
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      Data<pair<T, size_t>> NN;
-			/** (optional) provide coordinates */
-      if ( user_points_filename.size() )
+      printf( "--- using geometry distance\n" );
+      metric = GEOMETRY_DISTANCE;
+    }
+    else if ( !distance_type.compare( "kernel" ) )
+    {
+      printf( "--- using Gram vector distance\n" );
+      metric = KERNEL_DISTANCE;
+    }
+    else if ( !distance_type.compare( "angle" ) )
+    {
+      printf( "--- using Gram vector consine similarity\n" );
+      metric = ANGLE_DISTANCE;
+    }
+    else
+    {
+      printf( "%s is not supported\n", argv[ 9 ] );
+      exit( 1 );
+    }
+
+
+    /** specify what kind of spdmatrix is used */
+    spdmatrix_type = argv[ 9 ];
+    printf( "--- mode (%s)\n", spdmatrix_type.data() );
+
+    if ( !spdmatrix_type.compare( "testsuit" ) )
+    {
+      /** do nothing */
+    }
+    else if ( !spdmatrix_type.compare( "userdefine" ) )
+    {
+      /** do nothing */
+    }
+    else if ( !spdmatrix_type.compare( "dense" ) )
+    {
+      /** (optional) provide the path to the matrix file */
+      user_matrix_filename = argv[ 10 ];
+      printf( "--- dense binary matrix file (%s)\n", user_matrix_filename.data() );
+      if ( argc > 11 ) 
       {
+        /** (optional) provide the path to the data file */
+        user_points_filename = argv[ 11 ];
+        /** dimension of the data set */
+        sscanf( argv[ 12 ], "%lu", &d );
+        printf( "--- with auxilary points in %lu dimensions (%s)\n", 
+            d, user_points_filename.data() );
+      }
+    }
+    else if ( !spdmatrix_type.compare( "kernel" ) )
+    {
+      user_points_filename = argv[ 10 ];
+      /** number of attributes (dimensions) */
+      sscanf( argv[ 11 ], "%lu", &d );
+      /** (optional) provide Gaussian kernel bandwidth */
+      if ( argc > 12 ) sscanf( argv[ 12 ], "%f", &h );
+      printf( "--- Gaussian kernel matrix (h=%5.2f) in %lu dimensions (%s)\n",
+          h, d, user_points_filename.data() );
+    }
+    else
+    {
+      printf( "--- mode (%s) is not supported\n", argv[ 9 ] );
+      exit( 1 );
+    }
+
+    /** HMLP API call to initialize the runtime */
+    HANDLE_ERROR( hmlp_init() );
+    printf( "--- runtime system initialization\n" );
+
+    /** run the matrix file provided by users */
+    if ( !spdmatrix_type.compare( "dense" ) && user_matrix_filename.size() )
+    {
+      {
+        /** dense spd matrix format */
+        SPDMatrix<T> K;
+        K.resize( n, n );
+        K.read( n, n, user_matrix_filename );
+        /** (optional) provide neighbors, leave uninitialized otherwise */
+        Data<pair<T, size_t>> NN;
+        /** (optional) provide coordinates */
+        if ( user_points_filename.size() )
+        {
+          Data<T> X( d, n, user_points_filename );
+          gofmm::test_gofmm_setup<T>
+            ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+        }
+        else
+        {
+          Data<T> *X = NULL;
+          gofmm::test_gofmm_setup<T>
+            ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+        }
+      }
+    }
+
+
+    /** generate a Gaussian kernel matrix from the coordinates */
+    if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
+    {
+      {
+        /** read the coordinates from the file */
         Data<T> X( d, n, user_points_filename );
+        /** setup the kernel object as Gaussian */
+        kernel_s<T, T> kernel;
+        kernel.type = GAUSSIAN;
+        kernel.scal = -0.5 / ( h * h );
+        /** spd kernel matrix format (implicitly create) */
+        KernelMatrix<T> K( n, n, d, kernel, X );
+        /** (optional) provide neighbors, leave uninitialized otherwise */
+        Data<pair<T, size_t>> NN;
+        /** routine */
         gofmm::test_gofmm_setup<T>
-        ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-      }
-      else
-      {
-        Data<T> *X = NULL;
-        gofmm::test_gofmm_setup<T>
-        ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+          ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
       }
     }
-  }
 
 
-  /** generate a Gaussian kernel matrix from the coordinates */
-  if ( !spdmatrix_type.compare( "kernel" ) && user_points_filename.size() )
-  {
+    /** create a random spd matrix, which is diagonal-dominant */
+    if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
     {
-      /** read the coordinates from the file */
-      Data<T> X( d, n, user_points_filename );
-      /** setup the kernel object as Gaussian */
-      kernel_s<T, T> kernel;
-      kernel.type = GAUSSIAN;
-      kernel.scal = -0.5 / ( h * h );
-      /** spd kernel matrix format (implicitly create) */
-      KernelMatrix<T> K( n, n, d, kernel, X );
-      /** (optional) provide neighbors, leave uninitialized otherwise */
-      Data<pair<T, size_t>> NN;
-      /** routine */
-      gofmm::test_gofmm_setup<T>
-      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+      {
+        /** no geometric coordinates provided */
+        Data<T> *X = NULL;
+        /** dense spd matrix format */
+        SPDMatrix<T> K;
+        K.resize( n, n );
+        /** random spd initialization */
+        K.randspd<USE_LOWRANK>( 0.0, 1.0 );
+        /** (optional) provide neighbors, leave uninitialized otherwise */
+        Data<pair<T, size_t>> NN;
+        /** routine */
+        gofmm::test_gofmm_setup<T>
+          ( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+      }
+      {
+        d = 4;
+        /** generate coordinates from normal(0,1) distribution */
+        Data<T> X( d, n ); X.randn( 0.0, 1.0 );
+        /** setup the kernel object as Gaussian */
+        kernel_s<T, T> kernel;
+        kernel.type = GAUSSIAN;
+        kernel.scal = -0.5 / ( h * h );
+        /** spd kernel matrix format (implicitly create) */
+        KernelMatrix<T> K( n, n, d, kernel, X );
+        /** (optional) provide neighbors, leave uninitialized otherwise */
+        Data<pair<T, size_t>> NN;
+        /** routine */
+        gofmm::test_gofmm_setup<T>
+          ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
+      }
     }
+    /** HMLP API call to terminate the runtime */
+    hmlp_finalize();
   }
-
-
-  /** create a random spd matrix, which is diagonal-dominant */
-	if ( !spdmatrix_type.compare( "testsuit" ) && RANDOMMATRIX )
+  catch ( const exception & e )
   {
-		{
-			/** no geometric coordinates provided */
-			Data<T> *X = NULL;
-			/** dense spd matrix format */
-			SPDMatrix<T> K;
-			K.resize( n, n );
-			/** random spd initialization */
-			K.randspd<USE_LOWRANK>( 0.0, 1.0 );
-			/** (optional) provide neighbors, leave uninitialized otherwise */
-			Data<pair<T, size_t>> NN;
-			/** routine */
-      gofmm::test_gofmm_setup<T>
-				( X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-		}
-		{
-      d = 4;
-			/** generate coordinates from normal(0,1) distribution */
-			Data<T> X( d, n ); X.randn( 0.0, 1.0 );
-      /** setup the kernel object as Gaussian */
-      kernel_s<T, T> kernel;
-      kernel.type = GAUSSIAN;
-      kernel.scal = -0.5 / ( h * h );
-      /** spd kernel matrix format (implicitly create) */
-      KernelMatrix<T> K( n, n, d, kernel, X );
-			/** (optional) provide neighbors, leave uninitialized otherwise */
-			Data<pair<T, size_t>> NN;
-			/** routine */
-      gofmm::test_gofmm_setup<T>
-      ( &X, K, NN, metric, n, m, k, s, stol, budget, nrhs );
-		}
+    cout << e.what() << endl;
+    return -1;
   }
-
-
-  /** HMLP API call to terminate the runtime */
-  hmlp_finalize();
 
   return 0;
 

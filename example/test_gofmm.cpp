@@ -40,66 +40,64 @@ using namespace hmlp;
 /** @brief Top level driver that reads arguments from the command line. */ 
 int main( int argc, char *argv[] )
 {
-  /** Parse arguments from the command line. */
-  gofmm::CommandLineHelper cmd( argc, argv );
-
-  /** (Message Passing Interface) This function must be called.  */
-  //mpi::Init( &argc, &argv );
-
-  /** HMLP API call to initialize the runtime */
-  hmlp_init( &argc, &argv );
-
-  /** Run the matrix file provided by users. */
-  if ( !cmd.spdmatrix_type.compare( "dense" ) )
+  try
   {
-    using T = float;
-    /** Dense spd matrix format. */
-    SPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
-    gofmm::LaunchHelper( K, cmd );
-  }
+    /** Parse arguments from the command line. */
+    gofmm::CommandLineHelper cmd( argc, argv );
+    /** HMLP API call to initialize the runtime */
+    HANDLE_ERROR( hmlp_init( &argc, &argv ) );
 
-  /** Run the matrix file provided by users. */
-  if ( !cmd.spdmatrix_type.compare( "ooc" ) )
-  {
-    using T = float;
-    /** Dense spd matrix format. */
-    OOCSPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
-    gofmm::LaunchHelper( K, cmd );
-  }
+    /** Run the matrix file provided by users. */
+    if ( !cmd.spdmatrix_type.compare( "dense" ) )
+    {
+      using T = float;
+      /** Dense spd matrix format. */
+      SPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
+      gofmm::LaunchHelper( K, cmd );
+    }
 
-  /** generate a Gaussian kernel matrix from the coordinates */
-  if ( !cmd.spdmatrix_type.compare( "kernel" ) )
-  {
-    using T = double;
-    /** Read the coordinates from the file. */
-    Data<T> X( cmd.d, cmd.n, cmd.user_points_filename );
-    /** Set the kernel object as Gaussian. */
-    kernel_s<T, T> kernel;
-    kernel.type = GAUSSIAN;
-    if ( !cmd.kernelmatrix_type.compare( "gaussian" ) ) kernel.type = GAUSSIAN;
-    if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = LAPLACE;
-    kernel.scal = -0.5 / ( cmd.h * cmd.h );
-    /** SPD kernel matrix format (implicitly create). */
-    KernelMatrix<T> K( cmd.n, cmd.n, cmd.d, kernel, X );
-    gofmm::LaunchHelper( K, cmd );
-  }
+    /** Run the matrix file provided by users. */
+    if ( !cmd.spdmatrix_type.compare( "ooc" ) )
+    {
+      using T = float;
+      /** Dense spd matrix format. */
+      OOCSPDMatrix<T> K( cmd.n, cmd.n, cmd.user_matrix_filename );
+      gofmm::LaunchHelper( K, cmd );
+    }
 
-
-  /** create a random spd matrix, which is diagonal-dominant */
-  if ( !cmd.spdmatrix_type.compare( "testsuit" ) )
-  {
-    using T = double;
-    /** dense spd matrix format */
-    SPDMatrix<T> K( cmd.n, cmd.n );
-    /** random spd initialization */
-    K.randspd( 0.0, 1.0 );
-    gofmm::LaunchHelper( K, cmd );
-  }
+    /** generate a Gaussian kernel matrix from the coordinates */
+    if ( !cmd.spdmatrix_type.compare( "kernel" ) )
+    {
+      using T = double;
+      /** Read the coordinates from the file. */
+      Data<T> X( cmd.d, cmd.n, cmd.user_points_filename );
+      /** Set the kernel object as Gaussian. */
+      kernel_s<T, T> kernel;
+      kernel.type = GAUSSIAN;
+      if ( !cmd.kernelmatrix_type.compare( "gaussian" ) ) kernel.type = GAUSSIAN;
+      if ( !cmd.kernelmatrix_type.compare(  "laplace" ) ) kernel.type = LAPLACE;
+      kernel.scal = -0.5 / ( cmd.h * cmd.h );
+      /** SPD kernel matrix format (implicitly create). */
+      KernelMatrix<T> K( cmd.n, cmd.n, cmd.d, kernel, X );
+      gofmm::LaunchHelper( K, cmd );
+    }
 
 
-  if ( !cmd.spdmatrix_type.compare( "mlp" ) )
-  {
-    using T = double;
+    /** create a random spd matrix, which is diagonal-dominant */
+    if ( !cmd.spdmatrix_type.compare( "testsuit" ) )
+    {
+      using T = double;
+      /** dense spd matrix format */
+      SPDMatrix<T> K( cmd.n, cmd.n );
+      /** random spd initialization */
+      K.randspd( 0.0, 1.0 );
+      gofmm::LaunchHelper( K, cmd );
+    }
+
+
+    if ( !cmd.spdmatrix_type.compare( "mlp" ) )
+    {
+      using T = double;
       /** Read the coordinates from the file. */
       Data<T> X( cmd.d, cmd.n, cmd.user_points_filename );
       /** Multilevel perceptron Gauss-Newton */
@@ -117,23 +115,24 @@ int main( int argc, char *argv[] )
       K.AppendFCLayer( layer_fc2 );
       /** Feed forward and compute all products */
       K.Update( X );
+    }
+
+    if ( !cmd.spdmatrix_type.compare( "cov" ) )
+    {
+      using T = float;
+      OOCCovMatrix<T> K( cmd.n, cmd.d, cmd.nb, cmd.user_points_filename );
+      gofmm::LaunchHelper( K, cmd );
+    }
+
+    /** HMLP API call to terminate the runtime */
+    hmlp_finalize();
+    /** Message Passing Interface */
+    //mpi::Finalize();
   }
-
-
-  if ( !cmd.spdmatrix_type.compare( "cov" ) )
+  catch ( const exception & e )
   {
-    using T = float;
-    OOCCovMatrix<T> K( cmd.n, cmd.d, cmd.nb, cmd.user_points_filename );
-    gofmm::LaunchHelper( K, cmd );
+    cout << e.what() << endl;
+    return -1;
   }
-
-
-
-  /** HMLP API call to terminate the runtime */
-  hmlp_finalize();
-  /** Message Passing Interface */
-  //mpi::Finalize();
-
   return 0;
-
 }; /** end main() */

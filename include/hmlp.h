@@ -18,15 +18,16 @@
  *
  **/  
 
-
 #ifndef HMLP_H
 #define HMLP_H
 
+/* Use STL tempaltes. */
 #include <vector>
-
+/* External prototypes. */
 #include <external/blas_lapack_prototypes.h>
 #include <external/mpi_prototypes.h>
 
+/* Use STL namespace */
 using namespace std;
 
 
@@ -35,7 +36,6 @@ typedef enum
   HMLP_OP_N,
   HMLP_OP_T
 } hmlpOperation_t;
-
 
 typedef enum
 {
@@ -48,12 +48,12 @@ typedef enum
   HMLP_ERROR_INTERNAL_ERROR
 } hmlpError_t;
 
-/** HMLP runtime API. */
+/* HMLP runtime API. */
 hmlpError_t hmlp_init( int *argc, char ***argv );
 hmlpError_t hmlp_init( int *argc, char ***argv, MPI_Comm comm );
 hmlpError_t hmlp_init();
 hmlpError_t hmlp_init( MPI_Comm comm );
-void hmlp_set_num_workers( int n_worker );
+hmlpError_t hmlp_set_num_workers( int n_worker );
 void hmlp_run();
 void hmlp_finalize();
 

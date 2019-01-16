@@ -379,7 +379,7 @@ void Task::Enqueue( size_t tid )
   /** Dispatch to nested queue if created in the epoch session. */
   if ( is_created_in_epoch_session )
   {
-    assert( created_by < rt.n_worker );
+    assert( created_by < rt.getNumberOfWorkers() );
     rt.scheduler->nested_queue_lock[ created_by ].Acquire();
     {
       /** Move forward to next status "QUEUED". */
@@ -395,9 +395,9 @@ void Task::Enqueue( size_t tid )
   };
 
   /** Determine which worker the task should go to using HEFT policy. */
-  for ( int p = 0; p < rt.n_worker; p ++ )
+  for ( int p = 0; p < rt.getNumberOfWorkers(); p ++ )
   {
-    int i = ( tid + p ) % rt.n_worker;
+    int i = ( tid + p ) % rt.getNumberOfWorkers();
     float cost = rt.workers[ i ].EstimateCost( this );
     float terminate_t = rt.scheduler->time_remaining[ i ];
     if ( earliest_t == -1.0 || terminate_t + cost < earliest_t )
@@ -656,7 +656,7 @@ void Scheduler::Finalize()
   printf( "Scheduler::Finalize()\n" );
 #endif
 #ifdef USE_PTHREAD_RUNTIME
-  for ( int i = 0; i < rt.n_worker; i ++ )
+  for ( int i = 0; i < rt.getNumberOfWorkers(); i ++ )
   {
     pthread_join( rt.workers[ i ].pthreadid, NULL );
   }
@@ -702,7 +702,7 @@ void Scheduler::ReportRemainingTime()
 {
   printf( "ReportRemainingTime:" ); fflush( stdout );
   printf( "--------------------\n" ); fflush( stdout );
-  for ( int i = 0; i < rt.n_worker; i ++ )
+  for ( int i = 0; i < rt.getNumberOfWorkers(); i ++ )
   {
     printf( "worker %2d --> %7.2lf (%4lu jobs)\n", 
         i, rt.scheduler->time_remaining[ i ], 
@@ -1266,15 +1266,23 @@ RunTime::RunTime() {};
 /** @brief */
 RunTime::~RunTime() {};
 
-/** @brief */
+/** 
+ *  \brief Initialize the runtime system with an MPI communicator.
+ *  \param [in] comm the MPI communicator.
+ *  \return error code
+ */
 hmlpError_t RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
 {
   #pragma omp critical (init)
   {
     if ( !is_init )
     {
-      n_worker = omp_get_max_threads();
-      n_max_worker = n_worker;
+      /* Set the maximum number of workers according to OpenMP. */
+      num_of_max_workers_ = omp_get_max_threads();
+      setNumberOfWorkers( num_of_max_workers_ );
+      /* Set the number of workers. */
+      //n_worker = omp_get_max_threads();
+      //num_of_max_workers_ = n_worker;
       /** Check whether MPI has been initialized? */
       int is_mpi_init = false;
       mpi::Initialized( &is_mpi_init );
@@ -1284,10 +1292,7 @@ hmlpError_t RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
 #ifdef HMLP_USE_CUDA
       /** TODO: detect devices */
       device[ 0 ] = new hmlp::gpu::Nvidia( 0 );
-      if ( n_worker )
-      {
-        workers[ 0 ].SetDevice( device[ 0 ] );
-      }
+      workers[ 0 ].SetDevice( device[ 0 ] );
 #endif
 #ifdef HMLP_USE_MAGMA
         magma_init();
@@ -1304,7 +1309,13 @@ hmlpError_t RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
 }; /* end RunTime::Init() */
 
 
-/** @brief */
+/** 
+ *  \brief Initialize the runtime system with arguments and an MPI communicator.
+ *  \param [in] argc the &argc from main().
+ *  \param [in] argv the &argv from main().
+ *  \param [in] comm the MPI communicator.
+ *  \return error code
+ */
 hmlpError_t RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WORLD )
 {
   #pragma omp critical
@@ -1315,9 +1326,12 @@ hmlpError_t RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WO
       this->argc = argc;
       /** Set argument values. */
       this->argv = argv;
+      /* Set the maximum number of workers according to OpenMP. */
+      num_of_max_workers_ = omp_get_max_threads();
+      setNumberOfWorkers( num_of_max_workers_ );
       /** Acquire the number of (maximum) workers from OpenMP. */
-      n_worker = omp_get_max_threads();
-      n_max_worker = n_worker;
+      //n_worker = omp_get_max_threads();
+      //num_of_max_workers_ = n_worker;
       /** Check whether MPI has been initialized? */
       int is_mpi_init = false;
       mpi::Initialized( &is_mpi_init );
@@ -1336,10 +1350,7 @@ hmlpError_t RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WO
 #ifdef HMLP_USE_CUDA
       /** TODO: detect devices */
       device[ 0 ] = new hmlp::gpu::Nvidia( 0 );
-      if ( n_worker )
-      {
-        workers[ 0 ].SetDevice( device[ 0 ] );
-      }
+      workers[ 0 ].SetDevice( device[ 0 ] );
 #endif
 #ifdef HMLP_USE_MAGMA
         magma_init();
@@ -1369,7 +1380,7 @@ void RunTime::Run()
   /** begin this epoch session */
   is_in_epoch_session = true;
   /** schedule jobs to n workers */
-  scheduler->Init( n_worker );
+  scheduler->Init( getNumberOfWorkers() );
   /** clean up */
   scheduler->Finalize();
   /** finish this epoch session */
@@ -1409,6 +1420,25 @@ void RunTime::ExecuteNestedTasksWhileWaiting( Task *waiting_task )
   }
 }; /** end RunTime::ExecuteNestedTasksWhileWaiting() */
 
+/**
+ *  \brief Adjust the number of workers in the next epoch.
+ *  \param [in] num_of_workers the number of workers
+ *  \return error code
+ */ 
+hmlpError_t RunTime::setNumberOfWorkers( int num_of_workers ) noexcept
+{
+  if ( num_of_workers < 1 ) return HMLP_ERROR_INVALID_VALUE;
+  num_of_workers_ = std::min( num_of_workers, num_of_max_workers_ );
+  return HMLP_ERROR_SUCCESS; 
+};
+
+/**
+ *  \return the number of workers
+ */ 
+int RunTime::getNumberOfWorkers() const noexcept
+{
+  return num_of_workers_;
+};
 
 void RunTime::Print( string msg )
 {
@@ -1452,7 +1482,7 @@ void hmlp_msg_dependency_analysis( int key, int p, ReadWriteType type, Task *tas
 
 
 /** 
- *  \brief Initialize the runtime without MPI.
+ *  \brief Initialize the runtime system.
  *  \return the error code.
  */
 hmlpError_t hmlp_init() 
@@ -1461,8 +1491,9 @@ hmlpError_t hmlp_init()
 };
 
 /** 
- *  \brief Initialize the runtime with MPI.
- *  \return the error code.
+ *  \brief Initialize the runtime system with an MPI communicator.
+ *  \param [in] comm the MPI communicator.
+ *  \return error code
  */
 hmlpError_t hmlp_init( mpi::Comm comm ) 
 { 
@@ -1470,8 +1501,10 @@ hmlpError_t hmlp_init( mpi::Comm comm )
 };
 
 /** 
- *  \brief Initialize the runtime and parse arguments without MPI.
- *  \return the error code.
+ *  \brief Initialize the runtime system with arguments.
+ *  \param [in] argc the &argc from main().
+ *  \param [in] argv the &argv from main().
+ *  \return error code
  */
 hmlpError_t hmlp_init( int *argc, char ***argv )
 {
@@ -1479,8 +1512,11 @@ hmlpError_t hmlp_init( int *argc, char ***argv )
 };
 
 /** 
- *  \brief Initialize the runtime and parse arguments with MPI.
- *  \return the error code.
+ *  \brief Initialize the runtime system with arguments and an MPI communicator.
+ *  \param [in] argc the &argc from main().
+ *  \param [in] argv the &argv from main().
+ *  \param [in] comm the MPI communicator.
+ *  \return error code
  */
 hmlpError_t hmlp_init( int *argc, char ***argv, mpi::Comm comm )
 {
@@ -1488,14 +1524,14 @@ hmlpError_t hmlp_init( int *argc, char ***argv, mpi::Comm comm )
 };
 
 /** 
- *  \brief 
+ *  \brief Set the number of workers that will participate in the epoch.
+ *  \param [in] n_worker the number of workers
+ *  \return error code
  */
-void hmlp_set_num_workers( int n_worker ) 
+hmlpError_t hmlp_set_num_workers( int num_of_workers ) 
 { 
-  hmlp::rt.n_worker = n_worker; 
+  return hmlp::rt.setNumberOfWorkers( num_of_workers );
 };
-
-
 
 void hmlp_run() { hmlp::rt.Run(); };
 

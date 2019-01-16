@@ -714,11 +714,9 @@ class RunTime
 
     //void release_memory( void* ptr );
 
-    int n_worker = 0;
+    hmlpError_t setNumberOfWorkers( int num_of_workers ) noexcept;
 
-    int n_max_worker = 0;
-
-    int n_background_worker = 1;
+    int getNumberOfWorkers() const noexcept;
 
     thread_communicator *mycomm;
 
@@ -731,7 +729,10 @@ class RunTime
     Scheduler *scheduler;
 
   private:
-  
+
+    /** Number of workers and maximum workers. */
+    int num_of_workers_ = 1;
+    int num_of_max_workers_ = 1;
     /** Argument count. */
     int* argc = NULL;
     /** Argument varliables. */
@@ -759,7 +760,6 @@ bool hmlp_is_in_epoch_session();
 
 //bool hmlp_is_nested_queue_empty();
 
-//void hmlp_set_num_background_worker( int n_background_worker );
 
 int hmlp_get_mpi_rank();
 
