@@ -1,6 +1,7 @@
 var NAVTREE =
 [
   [ "HMLP: High-performance Machine Learning Primitives", "index.html", [
+    [ "HMLP (High Performance Machine Learning Primitives)", "index.html", null ],
     [ "Namespaces", null, [
       [ "Namespace List", "namespaces.html", "namespaces" ],
       [ "Namespace Members", "namespacemembers.html", [
@@ -36,7 +37,7 @@ var NAVTREEINDEX =
 "classhmlp_1_1mpigofmm_1_1_l2_l_task2.html",
 "classhmlp_1_1tree_1_1_setup.html",
 "index.html",
-"structpvfmm_1_1_laplace3_d.html"
+"structknn__int__s12x32.html#af410b8f5606739eede83f1636924cc7b"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

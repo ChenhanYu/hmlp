@@ -12,6 +12,7 @@ var searchData=
   ['hmlp_5fget_5fdevice_5fhost',['hmlp_get_device_host',['../namespacehmlp.html#ae4e08c601743b34e250231bb3595434b',1,'hmlp']]],
   ['hmlp_5fmalloc',['hmlp_malloc',['../namespacehmlp.html#a495b52d11456e934ac770456afa786a4',1,'hmlp::hmlp_malloc(int m, int n, int size)'],['../namespacehmlp.html#af6babec782780ed605bb52b6ee2aa0d5',1,'hmlp::hmlp_malloc(int n)']]],
   ['hmlp_5fmsg_5fdependency_5fanalysis',['hmlp_msg_dependency_analysis',['../namespacehmlp.html#a0ba98d6d877979f19584bd52f5ff1598',1,'hmlp']]],
+  ['hmlp_20_28high_20performance_20machine_20learning_20primitives_29',['HMLP (High Performance Machine Learning Primitives)',['../index.html',1,'']]],
   ['mpi',['mpi',['../namespacehmlp_1_1mpi.html',1,'hmlp']]],
   ['tci',['tci',['../namespacehmlp_1_1tci.html',1,'hmlp']]],
   ['tree',['tree',['../namespacehmlp_1_1tree.html',1,'hmlp']]]
