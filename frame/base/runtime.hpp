@@ -694,25 +694,22 @@ class RunTime
 
     ~RunTime();
 
-    hmlpError_t Init( mpi::Comm comm );
+    hmlpError_t init( mpi::Comm comm );
 
-    hmlpError_t Init( int *argc, char ***argv, mpi::Comm comm );
+    hmlpError_t init( int *argc, char ***argv, mpi::Comm comm );
 
-    void Run();
+    hmlpError_t run();
 
-    void Finalize();
+    hmlpError_t finalize();
+
+    /** Whether the runtime is initialized. */
+    bool isInit() const noexcept;
 
     /** Whether the runtime is in a epoch session. */
-    bool IsInEpochSession();
+    bool isInEpochSession() const noexcept;
 
     /** Consuming nested tasks while in a epoch session. */
     void ExecuteNestedTasksWhileWaiting( Task *waiting_task );
-
-    //void pool_init();
-
-    //void acquire_memory();
-
-    //void release_memory( void* ptr );
 
     hmlpError_t setNumberOfWorkers( int num_of_workers ) noexcept;
 
@@ -738,11 +735,11 @@ class RunTime
     /** Argument varliables. */
     char*** argv = NULL;
     /** Whether the runtime has been initialized on this process? */
-    bool is_init = false;
+    bool is_init_ = false;
     /** Whether MPI is initialized by the runtime? */
-    bool is_mpi_init_by_hmlp = false;
+    bool is_mpi_init_by_hmlp_ = false;
     /** Whether the runtime is in a epoch sesson? */
-    bool is_in_epoch_session = false;
+    bool is_in_epoch_session_ = false;
     /** Print progress with prefix information. */
     void Print( string msg );
     /** Print error message and exit with error. */
@@ -755,11 +752,6 @@ class RunTime
 hmlp::RunTime *hmlp_get_runtime_handle();
 
 hmlp::Device *hmlp_get_device( int i );
-
-bool hmlp_is_in_epoch_session();
-
-//bool hmlp_is_nested_queue_empty();
-
 
 int hmlp_get_mpi_rank();
 

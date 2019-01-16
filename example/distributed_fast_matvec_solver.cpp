@@ -143,7 +143,7 @@ int main( int argc, char *argv[] )
     mpigofmm::DistSolve( tree2, x2 ); 
 
     /** [Step#9] HMLP API call to terminate the runtime. */
-    hmlp_finalize();
+    HANDLE_ERROR( hmlp_finalize() );
     /** Finalize Message Passing Interface. */
     mpi::Finalize();
   }

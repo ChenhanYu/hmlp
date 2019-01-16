@@ -100,7 +100,7 @@ int main( int argc, char *argv[] )
     auto x2 = u2;
     gofmm::Solve( tree2, x2 ); 
     /** HMLP API call to terminate the runtime. */
-    hmlp_finalize();
+    HANDLE_ERROR( hmlp_finalize() );
   }
   catch ( const exception & e )
   {

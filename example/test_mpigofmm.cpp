@@ -162,7 +162,7 @@ int main( int argc, char *argv[] )
     }
 
     /** HMLP API call to terminate the runtime */
-    hmlp_finalize();
+    HANDLE_ERROR( hmlp_finalize() );
     /** Message Passing Interface */
     mpi::Finalize();
   }

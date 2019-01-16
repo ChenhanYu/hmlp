@@ -128,7 +128,7 @@ int main( int argc, char *argv[] )
     auto neighbors1 = gofmm::FindNeighbors( K1, rkdtsplitter1, config1 );
 
     /** HMLP API call to terminate the runtime. */
-    hmlp_finalize();
+    HANDLE_ERROR( hmlp_finalize() );
   }
   catch ( const exception & e )
   {

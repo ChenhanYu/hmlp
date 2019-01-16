@@ -80,7 +80,7 @@ int main( int argc, char *argv[] )
     DistData<RBLK, STAR, T> Y3( n, nrhs, Y3_local, CommGOFMM );
 
     /** [Step#4] HMLP API call to terminate the runtime. */
-    hmlp_finalize();
+    HANDLE_ERROR( hmlp_finalize() );
     /** Finalize Message Passing Interface. */
     mpi::Finalize();
   }

@@ -94,7 +94,7 @@ int main( int argc, char *argv[] )
       printf( "[%E,%5lu]\n", neighbors2( i, 0 ).first, neighbors2( i, 0 ).second );
 
     /** [Step#5] HMLP API call to terminate the runtime. */
-    hmlp_finalize();
+    HANDLE_ERROR( hmlp_finalize() );
   }
   catch ( const exception & e )
   {

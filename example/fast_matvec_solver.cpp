@@ -104,7 +104,7 @@ int main( int argc, char *argv[] )
     gofmm::Solve( tree2, x2 ); 
 
     /** [Step#9] HMLP API call to terminate the runtime. */
-    hmlp_finalize();
+    HANDLE_ERROR( hmlp_finalize() );
   }
   catch ( const exception & e )
   {

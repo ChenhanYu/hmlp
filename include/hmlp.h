@@ -54,9 +54,12 @@ hmlpError_t hmlp_init( int *argc, char ***argv, MPI_Comm comm );
 hmlpError_t hmlp_init();
 hmlpError_t hmlp_init( MPI_Comm comm );
 hmlpError_t hmlp_set_num_workers( int n_worker );
-void hmlp_run();
-void hmlp_finalize();
+hmlpError_t hmlp_run();
+hmlpError_t hmlp_finalize();
 
+int hmlp_is_in_epoch_session();
+int hmlp_get_mpi_rank();
+int hmlp_get_mpi_size();
 
 
 

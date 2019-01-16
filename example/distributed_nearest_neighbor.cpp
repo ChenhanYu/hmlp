@@ -99,7 +99,7 @@ int main( int argc, char *argv[] )
     auto neighbors2 = mpigofmm::FindNeighbors( K2, rkdtsplitter2, config2, CommGOFMM );
 
     /** [Step#5] HMLP API call to terminate the runtime. */
-    hmlp_finalize();
+    HANDLE_ERROR( hmlp_finalize() );
     /** Finalize Message Passing Interface. */
     mpi::Finalize();
   }

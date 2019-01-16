@@ -21,7 +21,7 @@
 #include <base/runtime.hpp>
 
 #ifdef HMLP_USE_CUDA
-#include <hmlp_gpu.hpp>
+#include <base/hmlp_gpu.hpp>
 #endif
 
 #ifdef HMLP_USE_MAGMA
@@ -221,7 +221,7 @@ Task::Task()
   /** Change status to allocated. */
   SetStatus( ALLOCATED );
   /** Whether this is a nested task? */
-  is_created_in_epoch_session = rt.IsInEpochSession();
+  is_created_in_epoch_session = rt.isInEpochSession();
   /** Which thread creates me? */
   created_by = omp_get_thread_num();
   /** Move forward to next status "NOTREADY". */
@@ -598,7 +598,7 @@ void Scheduler::NewTask( Task *task )
   /** Acquire the exclusive right to access the tasklist. */
   tasklist_lock.Acquire();
   {
-    if ( rt.IsInEpochSession() ) 
+    if ( rt.isInEpochSession() ) 
     {
       task->task_lock = &(task_lock[ nested_tasklist.size() % ( 2 * MAX_WORKER ) ]);
       nested_tasklist.push_back( task );
@@ -1271,18 +1271,15 @@ RunTime::~RunTime() {};
  *  \param [in] comm the MPI communicator.
  *  \return error code
  */
-hmlpError_t RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
+hmlpError_t RunTime::init( mpi::Comm comm = MPI_COMM_WORLD )
 {
   #pragma omp critical (init)
   {
-    if ( !is_init )
+    if ( !isInit() )
     {
       /* Set the maximum number of workers according to OpenMP. */
       num_of_max_workers_ = omp_get_max_threads();
-      setNumberOfWorkers( num_of_max_workers_ );
-      /* Set the number of workers. */
-      //n_worker = omp_get_max_threads();
-      //num_of_max_workers_ = n_worker;
+      auto dummy_error = setNumberOfWorkers( num_of_max_workers_ );
       /** Check whether MPI has been initialized? */
       int is_mpi_init = false;
       mpi::Initialized( &is_mpi_init );
@@ -1298,7 +1295,7 @@ hmlpError_t RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
         magma_init();
 #endif
       /* Set the flag such that this is only executed once. */
-      is_init = true;
+      is_init_ = true;
     }
   } /* end pragma omp critical */
 
@@ -1306,7 +1303,7 @@ hmlpError_t RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
   if ( !scheduler ) return HMLP_ERROR_ALLOC_FAILED;
   /* Return without error. */
   return HMLP_ERROR_SUCCESS;
-}; /* end RunTime::Init() */
+}; /* end RunTime::init() */
 
 
 /** 
@@ -1316,11 +1313,11 @@ hmlpError_t RunTime::Init( mpi::Comm comm = MPI_COMM_WORLD )
  *  \param [in] comm the MPI communicator.
  *  \return error code
  */
-hmlpError_t RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WORLD )
+hmlpError_t RunTime::init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WORLD )
 {
   #pragma omp critical
   {
-    if ( !is_init )
+    if ( !isInit() )
     {
       /** Set argument count. */
       this->argc = argc;
@@ -1343,7 +1340,7 @@ hmlpError_t RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WO
 	      if ( provided != MPI_THREAD_MULTIPLE ) 
           ExitWithError( string( "MPI_THTREAD_MULTIPLE is not supported" ) );
         /** Flag that MPI is initialized by HMLP. */
-        is_mpi_init_by_hmlp = true;
+        is_mpi_init_by_hmlp_ = true;
       }
       /** Initialize the scheduler. */
       scheduler = new Scheduler( comm );
@@ -1356,57 +1353,84 @@ hmlpError_t RunTime::Init( int* argc, char*** argv, mpi::Comm comm = MPI_COMM_WO
         magma_init();
 #endif
       /** Set the flag such that this is only executed once. */
-      is_init = true;
+      is_init_ = true;
     }
   } /* end pragma omp critical */
   /* Return error if the scheduler was failed in allocation. */
   if ( !scheduler ) return HMLP_ERROR_ALLOC_FAILED;
   /* Return without error. */
   return HMLP_ERROR_SUCCESS;
-}; /* end RunTime::Init() */
+}; /* end RunTime::init() */
 
 
 
 
-/** @brief **/
-void RunTime::Run()
+/** 
+ * \brief Consume all tasks in the graph.
+ * \return error code
+ */
+hmlpError_t RunTime::run()
 {
-  if ( is_in_epoch_session )
+  if ( isInEpochSession() )
   {
-    printf( "Fatal Error: more than one concurrent epoch session!\n" );
-    exit( 1 );
+    fprintf( stderr, "Error: more than one concurrent epoch session!\n" );
+    return HMLP_ERROR_NOT_SUPPORTED;
   }
-  if ( !is_init ) Init();
-  /** begin this epoch session */
-  is_in_epoch_session = true;
-  /** schedule jobs to n workers */
+  if ( !isInit() ) 
+  {
+    fprintf( stderr, "Error: the runtime system was not initialized!\n" );
+    return HMLP_ERROR_NOT_INITIALIZED;
+  }
+  /** Begin this epoch session. */
+  is_in_epoch_session_ = true;
+  /** Schedule jobs to n workers. */
   scheduler->Init( getNumberOfWorkers() );
-  /** clean up */
+  /** Clean up. */
   scheduler->Finalize();
-  /** finish this epoch session */
-  is_in_epoch_session = false;
+  /** Finish this epoch session. */
+  is_in_epoch_session_ = false;
+  /** Return without error. */
+  return HMLP_ERROR_SUCCESS;
 }; /** end RunTime::Run() */
 
-/** @brief */
-void RunTime::Finalize()
+/**
+ *  \breif Stop and clean up the runtime syste.
+ *  \return error code
+ */ 
+hmlpError_t RunTime::finalize()
 {
   #pragma omp critical (init)
   {
-    if ( is_init )
+    if ( isInit() )
     {
       /** Finalize the scheduler and delete it. */
       scheduler->Finalize();
       delete scheduler;
       /** Set the initialized flag to false. */
-      is_init = false;
+      is_init_ = false;
       /** Finalize MPI if it was initialized by HMLP. */
-      if ( is_mpi_init_by_hmlp ) mpi::Finalize();
+      if ( is_mpi_init_by_hmlp_ ) mpi::Finalize();
     }
   }
-}; /** end RunTime::Finalize() */
+  return HMLP_ERROR_SUCCESS;
+}; /** end RunTime::finalize() */
 
-/** @brief */
-bool RunTime::IsInEpochSession() { return is_in_epoch_session; };
+
+/** 
+ *  \return whether or not the runtime is initialized.
+ */
+bool RunTime::isInit() const noexcept
+{
+  return is_init_;
+};
+
+/** 
+ *  \return whether or not the current execution is in an epoch.
+ */
+bool RunTime::isInEpochSession() const noexcept 
+{ 
+  return is_in_epoch_session_; 
+};
 
 /** @brief */
 void RunTime::ExecuteNestedTasksWhileWaiting( Task *waiting_task )
@@ -1414,7 +1438,7 @@ void RunTime::ExecuteNestedTasksWhileWaiting( Task *waiting_task )
   /** Use omp_get_thread_num() to acquire tid. */
   auto *me = &(workers[ omp_get_thread_num() ]);
   /** If I am not in a epoch session, then return. */
-  if ( IsInEpochSession() )
+  if ( isInEpochSession() )
   {
     scheduler->ExecuteNestedTasksWhileWaiting( me, waiting_task );
   }
@@ -1453,20 +1477,6 @@ void RunTime::ExitWithError( string msg )
 }; /** end RunTime::ExitWithError() */
 
 
-//void hmlp_runtime::pool_init()
-//{
-//
-//};
-//
-//void hmlp_runtime::acquire_memory()
-//{
-//
-//};
-//
-//void hmlp_runtime::release_memory( void *ptr )
-//{
-//
-//};
 
 
 /** @brief */
@@ -1487,7 +1497,7 @@ void hmlp_msg_dependency_analysis( int key, int p, ReadWriteType type, Task *tas
  */
 hmlpError_t hmlp_init() 
 { 
-  return hmlp::rt.Init(); 
+  return hmlp::rt.init(); 
 };
 
 /** 
@@ -1497,7 +1507,7 @@ hmlpError_t hmlp_init()
  */
 hmlpError_t hmlp_init( mpi::Comm comm ) 
 { 
-  return hmlp::rt.Init( comm );
+  return hmlp::rt.init( comm );
 };
 
 /** 
@@ -1508,7 +1518,7 @@ hmlpError_t hmlp_init( mpi::Comm comm )
  */
 hmlpError_t hmlp_init( int *argc, char ***argv )
 {
-  return hmlp::rt.Init( argc, argv );
+  return hmlp::rt.init( argc, argv );
 };
 
 /** 
@@ -1520,7 +1530,7 @@ hmlpError_t hmlp_init( int *argc, char ***argv )
  */
 hmlpError_t hmlp_init( int *argc, char ***argv, mpi::Comm comm )
 {
-  return hmlp::rt.Init( argc, argv, comm );
+  return hmlp::rt.init( argc, argv, comm );
 };
 
 /** 
@@ -1533,22 +1543,48 @@ hmlpError_t hmlp_set_num_workers( int num_of_workers )
   return hmlp::rt.setNumberOfWorkers( num_of_workers );
 };
 
-void hmlp_run() { hmlp::rt.Run(); };
+/** 
+ *  \brief Consume all tasks in the graph.
+ *  \return error code
+ */
+hmlpError_t hmlp_run() 
+{ 
+  return hmlp::rt.run(); 
+};
 
-void hmlp_finalize() { hmlp::rt.Finalize(); };
+/**
+ *  \breif Stop and clean up the runtime syste.
+ *  \return error code
+ */ 
+hmlpError_t hmlp_finalize() 
+{ 
+  return hmlp::rt.finalize(); 
+};
 
 hmlp::RunTime *hmlp_get_runtime_handle() { return &hmlp::rt; };
 
 hmlp::Device *hmlp_get_device( int i ) { return hmlp::rt.device[ i ]; };
 
-bool hmlp_is_in_epoch_session() { return hmlp::rt.IsInEpochSession(); };
+/** 
+ *  \return whether or not the current execution is in an epoch.
+ */
+int hmlp_is_in_epoch_session() 
+{ 
+  return (int)hmlp::rt.isInEpochSession(); 
+};
 
-int hmlp_get_mpi_rank() { return hmlp::rt.scheduler->GetCommRank(); };
+/**
+ *  \return the rank in the communicator attached to the runtime.
+ */ 
+int hmlp_get_mpi_rank() 
+{ 
+  return hmlp::rt.scheduler->GetCommRank(); 
+};
 
-int hmlp_get_mpi_size() { return hmlp::rt.scheduler->GetCommSize(); };
-
-//void hmlp_msg_dependency_analysis( int key, int p, ReadWriteType type, Task *task )
-//{
-//  hmlp::rt.scheduler->MessageDependencyAnalysis( key, p, type, task );
-//};
-
+/**
+ *  \return the size of the communicator attached to the runtime.
+ */ 
+int hmlp_get_mpi_size() 
+{ 
+  return hmlp::rt.scheduler->GetCommSize(); 
+};

@@ -28,6 +28,12 @@ TEST(runtime, hmlp_init_with_arguments)
       HMLP_ERROR_SUCCESS );
 }
 
+TEST(runtime, hmlp_finalize)
+{
+  EXPECT_EQ( hmlp_finalize(),
+      HMLP_ERROR_SUCCESS );
+}
+
 TEST(runtime, hmlp_set_num_workers)
 {
   EXPECT_EQ( hmlp_init(),
@@ -42,8 +48,13 @@ TEST(runtime, hmlp_set_num_workers)
       HMLP_ERROR_INVALID_VALUE );
 }
 
-
-
+TEST(runtime, hmlp_is_in_epoch_session)
+{
+  EXPECT_EQ( hmlp_init(),
+      HMLP_ERROR_SUCCESS );
+  EXPECT_EQ( hmlp_is_in_epoch_session(),
+      0 );
+}
 
 /* Put all tests involving MPI here. */
 #ifdef HMLP_USE_MPI
@@ -59,6 +70,26 @@ TEST(runtime, hmlp_init_with_arguments_and_comm)
   char **argv = nullptr;
   EXPECT_EQ( hmlp_init( &argc, &argv, MPI_COMM_WORLD ),
       HMLP_ERROR_SUCCESS );
+}
+
+TEST(runtime, hmlp_get_mpi_rank)
+{
+  int rank;
+  hmlp::mpi::Comm_rank( &rank, MPI_COMM_WORLD );
+  EXPECT_EQ( hmlp_init(),
+      HMLP_ERROR_SUCCESS );
+  EXPECT_EQ( hmlp_get_mpi_rank(),
+      rank );
+}
+
+TEST(runtime, hmlp_get_mpi_size)
+{
+  int size;
+  hmlp::mpi::Comm_size( &size, MPI_COMM_WORLD );
+  EXPECT_EQ( hmlp_init(),
+      HMLP_ERROR_SUCCESS );
+  EXPECT_EQ( hmlp_get_mpi_size(),
+      size );
 }
 #endif /* ifdef HMLP_USE_MPI */
 
