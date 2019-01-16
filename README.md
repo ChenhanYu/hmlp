@@ -43,10 +43,13 @@ to an new architecture **only require** rewriting the kernel part.
 You are welcome to contribute more kernels beyond this list. Checkout the
 guildline on implementing microkernel for HMLP at our wiki pages.
 
+### DOCUMENTATION
+GOFMM, MPI-GOFMM, HMLP templates, and HMLP runtime APIs are documented
+by doxygen:
+  * https://chenhanyu.github.io/hmlp/docs/html
 
 
-
-### INSTALL
+## INSTALL
 
 HMLP is tested on LINUX and OSX. Compilation **REQUIRES:**
   * Intel or GNU compilers with c++11, AVX and OpenMP support (for x86_64);
@@ -55,7 +58,7 @@ HMLP is tested on LINUX and OSX. Compilation **REQUIRES:**
   * nvcc (for NVIDIA GPU with capability > 2.0).
 
 
-**Configuration:**
+### Configuration
 
 Edit set_env.sh for compilation options.
 
@@ -64,7 +67,7 @@ CONGIFURATION** if any of those variables were not defined properly
 on you system.
 
 
-```{engine='bash', count_lines}
+```
 export CC             = icc    to use Intel C compilers
 export CXX            = icpc   to use Intel C++ compilers
 export CC             = gcc    to use GNU C compilers
@@ -80,9 +83,9 @@ will try to find a proper BLAS/LAPACK library on you system. If cmake fails
 to locate BLAS/LAPACK, then the compilation will fail as well. You need to
 manually setup the path in the cmake file.
 
-**Cmake installation:**
+### Cmake installation
 
-```{engine='bash', count_lines}
+```
 source set_env.sh
 mkdir build
 cd build
@@ -91,7 +94,7 @@ make
 make install
 ```
 
-**Cross Compilation:**
+### Cross Compilation
 
 If your Arm is run with OS that has native compiler and cmake support, then the
 installation instruction above should work just fine.
@@ -108,7 +111,7 @@ follow these instructions:
 5. Use the following instructions to push executables and scripts in hmlp/build/bin.
 
 
-```{engine='bash', count_lines}
+```
 adb devices
 adb push /hmlp/build/bin/* /data/local/tmp
 adb shell
@@ -122,7 +125,7 @@ cd /data/local/tmp
 The default compilation will also compile all the examples in /example.
 To run some basic examples from the testing drivers:
 
-```{engine='bash', count_lines}
+```
 cd /build
 ./run_hmlp.sh
 ./run_gkmx.sh
@@ -142,17 +145,17 @@ C/C++ example:
 ```
 
 Static linking example:
-```{engine='bash', count_lines}
+```
 icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/libhmlp.a
 ```
 
 Dynamic linking example on Linux:
-```{engine='bash', count_lines}
+```
 icc ... -I$(HMLP_DIR)/build/include -L$(HMLP_DIR)/build/libhmlp.so
 ```
 
 Dynamic linking example on Mac:
-```{engine='bash', count_lines}
+```
 icc ... -I$(HMLP_DIR)/build/include -L$(HMLP_DIR)/build/libhmlp.dylib
 ```
 
@@ -163,12 +166,12 @@ using cmake, Google Test will be downloaded and
 compiled. All testing routines located in /test will be compiled.
 All executables locate in /build. To perform the whole test suits,
 follow these instructions.
-```{engine='bash', count_lines}
+```
 cd build
 make test
 ```
 Optionally, you can perform and coverage analysis and update the report by
-```{engine='bash', count_lines}
+```
 make coverage
 ```
 
@@ -176,10 +179,6 @@ The latest coverage report can be found at
   * https://chenhanyu.github.io/hmlp/docs/html/coverage.html
   * https://chenhanyu.github.io/hmlp/docs/html/coverage_details.html
 
-### DOCUMENTATION
-GOFMM, MPI-GOFMM, HMLP templates, and HMLP runtime APIs are documented
-by doxygen:
-  * https://chenhanyu.github.io/hmlp/docs/html
 
 ## ACKNOWLEDGEMENTS
 ```
