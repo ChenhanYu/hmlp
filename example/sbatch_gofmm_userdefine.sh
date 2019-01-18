@@ -9,13 +9,7 @@
 
 export OMP_PLACES=cores
 export OMP_PROC_BIND=spread,close
-
 export OMP_NUM_THREADS=48
-export HMLP_NORMAL_WORKER=11
-export HMLP_SERVER_WORKER=10
-export HMLP_NESTED_WORKER=10
-export KS_IC_NT=20
-export GSKNN_IC_NT=20
 
 ulimit -Hc unlimited
 ulimit -Sc unlimited
