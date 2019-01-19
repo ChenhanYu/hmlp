@@ -9,8 +9,9 @@ matrix:
             - ubuntu-toolchain-r-test
           package:
             - g++-5
-            - libblas-dev
-            - liblapack-dev
+        apt:
+          - libblas-dev
+          - liblapack-dev
       env:
         - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
 
