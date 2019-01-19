@@ -75,7 +75,7 @@ TEST(runtime, hmlp_init_with_arguments_and_comm)
 TEST(runtime, hmlp_get_mpi_rank)
 {
   int rank;
-  hmlp::mpi::Comm_rank( &rank, MPI_COMM_WORLD );
+  hmlp::mpi::Comm_rank( MPI_COMM_WORLD, &rank );
   EXPECT_EQ( hmlp_init(),
       HMLP_ERROR_SUCCESS );
   EXPECT_EQ( hmlp_get_mpi_rank(),
@@ -85,7 +85,7 @@ TEST(runtime, hmlp_get_mpi_rank)
 TEST(runtime, hmlp_get_mpi_size)
 {
   int size;
-  hmlp::mpi::Comm_size( &size, MPI_COMM_WORLD );
+  hmlp::mpi::Comm_size( MPI_COMM_WORLD, &size );
   EXPECT_EQ( hmlp_init(),
       HMLP_ERROR_SUCCESS );
   EXPECT_EQ( hmlp_get_mpi_size(),
