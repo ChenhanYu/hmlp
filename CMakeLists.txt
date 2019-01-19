@@ -548,7 +548,8 @@ ENDIF()
 
 
 ADD_CUSTOM_TARGET(coverage
-  COMMAND gcovr -r ${hmlp_SOURCE_DIR} -e deps -e example -e test 
+  COMMAND gcovr -r ${hmlp_SOURCE_DIR} -e deps -e example -e test) 
+ADD_CUSTOM_TARGET(coverage-html
   COMMAND gcovr -r ${hmlp_SOURCE_DIR} -e deps -e example -e test --html -o ${hmlp_SOURCE_DIR}/doc/html/coverage.html
   COMMAND gcovr -r ${hmlp_SOURCE_DIR} -e deps -e example -e test --html --html-details -o ${hmlp_SOURCE_DIR}/doc/html/coverage_details.html)
 
