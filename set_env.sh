@@ -8,7 +8,7 @@ export CC=${CC}
 export CXX=${CXX}
 
 ## Whether use BLAS or not?
-export HMLP_USE_BLAS=false
+export HMLP_USE_BLAS=true
 
 ## Make sure MKLROOT is defined in your system. (icc/icpc)
 export MKLROOT=${MKLROOT}
