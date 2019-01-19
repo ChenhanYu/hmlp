@@ -17,10 +17,10 @@ matrix:
         - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
         - NETLIBROOT="/usr/lib"
 
+before_script:
+  - pip install --user gcovr
+
 script:
-  - ls /usr/local/lib/libblas*
-  - ls /usr/lib/libblas*
-  - ls /lib/libblas*
   - source set_env.sh
   - mkdir build
   - cd build
