@@ -1,5 +1,6 @@
-
 ## HMLP (High Performance Machine Learning Primitives)
+
+[![Build Status](https://travis-ci.org/ChenhanYu/hmlp.svg?branch=develop)](https://travis-ci.org/ChenhanYu/hmlp)
 
 ### WARNING
 
