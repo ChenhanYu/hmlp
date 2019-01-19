@@ -18,6 +18,7 @@ matrix:
 script:
   - ls /usr/local/lib/libblas*
   - ls /usr/lib/libblas*
+  - ls /lib/libblas*
   - source set_env.sh
   - mkdir build
   - cd build
