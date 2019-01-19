@@ -7,7 +7,7 @@ matrix:
         apt:
           sources:
             - ubuntu-toolchain-r-test
-          package:
+          packages:
             - g++-5
             - libblas-dev
             - liblapack-dev
