@@ -9,13 +9,15 @@ matrix:
             - ubuntu-toolchain-r-test
           package:
             - g++-5
-        apt:
-          - libblas-dev
-          - liblapack-dev
+            - libblas-dev
+            - liblapack-dev
       env:
         - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
+        - NETLIBROOT="/usr/local/lib"
 
 script:
+  - ls /usr/local/lib/libblas*
+  - ls /usr/lib/libblas*
   - source set_env.sh
   - mkdir build
   - cd build

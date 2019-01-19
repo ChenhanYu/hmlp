@@ -20,7 +20,7 @@ export OPENBLASROOT=${OPENBLASROOT}
 export BLISROOT=${BLISROOT}
 
 ## Make sure NETLIBROOT is defined. (icc/icpc, gcc/g++)
-export NETLIBROOT=/usr/lib
+export NETLIBROOT=${NETLIBROOT}
 
 ## Setup the maximum number of threads.
 export OMP_NUM_THREADS=2
