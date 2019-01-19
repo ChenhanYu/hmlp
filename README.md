@@ -1,12 +1,12 @@
 ## HMLP (High Performance Machine Learning Primitives)
 
-[![Branch](https://img.shields.io/badge/develop-branch-orange.svg)]()
-[![Build Status](https://travis-ci.org/ChenhanYu/hmlp.svg?branch=develop)](https://travis-ci.org/ChenhanYu/hmlp)
-[![codecov](https://codecov.io/gh/ChenhanYu/hmlp/branch/develop/graph/badge.svg)](https://codecov.io/gh/ChenhanYu/hmlp)
-[![Inline docs](http://inch-ci.org/github/chenhanyu/hmlp.svg?branch=develop)](http://inch-ci.org/github/chenhanyu/hmlp)
 [![Branch](https://img.shields.io/badge/master-branch-orange.svg)]()
 [![Build Status](https://travis-ci.org/ChenhanYu/hmlp.svg?branch=master)](https://travis-ci.org/ChenhanYu/hmlp)
 [![codecov](https://codecov.io/gh/ChenhanYu/hmlp/branch/master/graph/badge.svg)](https://codecov.io/gh/ChenhanYu/hmlp)
+
+[![Branch](https://img.shields.io/badge/develop-branch-orange.svg)]()
+[![Build Status](https://travis-ci.org/ChenhanYu/hmlp.svg?branch=develop)](https://travis-ci.org/ChenhanYu/hmlp)
+[![codecov](https://codecov.io/gh/ChenhanYu/hmlp/branch/develop/graph/badge.svg)](https://codecov.io/gh/ChenhanYu/hmlp)
 
 ### WARNING
 
