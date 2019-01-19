@@ -4,8 +4,8 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=gcc
-export CXX=g++
+export CC=${CC}
+export CXX=${CXX}
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=false
