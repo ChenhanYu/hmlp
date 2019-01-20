@@ -40,6 +40,8 @@
 
 
 #define HANDLE_ERROR( err ) (hmlp::handleError( err, __FILE__, __LINE__ ))
+#define RETURN_IF_ERROR( err ) { auto hmlp_err = hmlp::returnIfError( err, __FILE__, __LINE__ );\
+                                  if ( hmlp_err != HMLP_ERROR_SUCCESS ) return hmlp_err; }
 
 /* Use STL namespace. */
 using namespace std;
@@ -52,6 +54,12 @@ namespace hmlp
  *  \breif Handling runtime error with information. 
  */
 void handleError( hmlpError_t error, const char* file, int line );
+
+/** 
+ *  \breif Handling runtime error with information. 
+ */
+hmlpError_t returnIfError( hmlpError_t error, const char* file, int line );
+
 
 /**
  *  \brief The default function to allocate memory for HMLP.

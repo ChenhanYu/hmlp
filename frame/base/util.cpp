@@ -38,4 +38,14 @@ void handleError( hmlpError_t error, const char* file, int line )
   throw std::invalid_argument( "Program encounters hmlp error." );
 };
 
+hmlpError_t returnIfError( hmlpError_t error, const char* file, int line )
+{
+  if ( error == HMLP_ERROR_SUCCESS ) return error;
+  /** Otherwise, handle the error and provide information. */
+  fprintf( stderr, "Error: %s in %s at line %d\n",
+      getErrorString( error ), file, line );
+  return error;
+};
+
+
 }; /* end namespace hmlp */

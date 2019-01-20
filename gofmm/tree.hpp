@@ -714,7 +714,7 @@ class Node : public ReadWrite
 		 *         needs to be accessed using gids.
      *
      */ 
-    bool ContainAny( vector<size_t> &queries )
+    bool ContainAny( const vector<size_t> & queries )
     {
       if ( !setup->morton.size() )
       {

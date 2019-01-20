@@ -2786,8 +2786,15 @@ double DrawInteraction( TREE &tree )
   return exact_ratio / ( tree.n * tree.n );
 }; /** end DrawInteration() */
 
-
-
+/**
+ *
+ */ 
+typedef enum
+{
+  EVALUATE_OPTION_EXACT,
+  EVALUATE_OPTION_NEIGHBOR_PRUNING,
+  EVALUATE_OPTION_SELF_PRUNING
+} evaluateOption_t;
 
 /**
  *  @breif This is a fake evaluation setup aimming to figure out
@@ -2795,111 +2802,58 @@ double DrawInteraction( TREE &tree )
  *         will be stored in each node as two lists, prune and noprune.
  *
  */ 
-template<bool SYMBOLIC, bool NNPRUNE, typename NODE, typename T>
-void Evaluate
-( 
-  NODE *node, 
-  size_t gid, 
-  vector<size_t> &nnandi, // k + 1 non-prunable lists
-  Data<T> &potentials 
-)
+template<typename NODE, typename T>
+hmlpError_t Evaluate( NODE *node, const size_t gid, Data<T> & potentials, const vector<size_t> & neighbors )
 {
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
-  auto &gids = node->gids;
   auto &data = node->data;
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
   size_t nrhs = w.col();
 
-  auto amap = std::vector<size_t>( 1 );
-  amap[ 0 ] = gid;
+  assert( potentials.size() == nrhs );
 
-  if ( !SYMBOLIC ) // No potential evaluation.
+  if ( !data.isskel || node->ContainAny( neighbors ) )
   {
-    assert( potentials.size() == amap.size() * nrhs );
-  }
-
-  if ( !data.isskel || node->ContainAny( nnandi ) )
-  {
+    auto   I = vector<size_t>( 1, gid );
+    auto & J = node->gids;
     if ( node->isleaf )
     {
-      if ( SYMBOLIC )
-      {
-        /** add gid to notprune list. We use a lock */
-        data.lock.Acquire();
-        {
-          if ( NNPRUNE ) node->NNNearIDs.insert( gid );
-          else           node->NearIDs.insert(   gid );
-        }
-        data.lock.Release();
-      }
-      else
-      {
-#ifdef DEBUG_SPDASKIT
-        printf( "level %lu direct evaluation\n", node->l );
-#endif
-        /** amap.size()-by-gids.size() */
-        auto Kab = K( amap, gids ); 
+      /** I.size()-by-J.size(). */
+      auto Kab = K( I, J ); 
+      /** All right hand sides [ 0, 1,..., nrhs -1 ]. */
+      vector<size_t> bmap( nrhs );
+      for ( size_t j = 0; j < bmap.size(); j ++ ) bmap[ j ] = j;
+      /** J.size()-by-nrhs */
+      auto wb  = w( J, bmap ); 
 
-        /** all right hand sides */
-        std::vector<size_t> bmap( nrhs );
-        for ( size_t j = 0; j < bmap.size(); j ++ )
-          bmap[ j ] = j;
-
-        /** gids.size()-by-nrhs */
-        auto wb  = w( gids, bmap ); 
-
-        xgemm
-        (
-          "N", "N",
-          Kab.row(), wb.col(), wb.row(),
-          1.0, Kab.data(),        Kab.row(),
-                wb.data(),         wb.row(),
-          1.0, potentials.data(), potentials.row()
-        );
-      }
-    }
-    else
-    {
-      Evaluate<SYMBOLIC, NNPRUNE>( lchild, gid, nnandi, potentials );      
-      Evaluate<SYMBOLIC, NNPRUNE>( rchild, gid, nnandi, potentials );
-    }
-  }
-  else // need gid's morton and neighbors' mortons
-  {
-    //printf( "level %lu is prunable\n", node->l );
-    if ( SYMBOLIC )
-    {
-      data.lock.Acquire();
-      {
-        // Add gid to prunable list.
-        if ( NNPRUNE ) node->FarIDs.insert(   gid );
-        else           node->NNFarIDs.insert( gid );
-      }
-      data.lock.Release();
-    }
-    else
-    {
-#ifdef DEBUG_SPDASKIT
-      printf( "level %lu is prunable\n", node->l );
-#endif
-      auto Kab = K( amap, node->data.skels );
-      auto &w_skel = node->data.w_skel;
-      xgemm
-      (
-        "N", "N",
-        Kab.row(), w_skel.col(), w_skel.row(),
+      xgemm( "No transpose", "No transpose",
+        Kab.row(), wb.col(), wb.row(),
         1.0, Kab.data(),        Kab.row(),
-          w_skel.data(),     w_skel.row(),
-        1.0, potentials.data(), potentials.row()
-      );          
+              wb.data(),         wb.row(),
+        1.0, potentials.data(), potentials.row() );
+    }
+    else
+    {
+      RETURN_IF_ERROR( Evaluate( lchild, gid, potentials, neighbors ) );
+      RETURN_IF_ERROR( Evaluate( rchild, gid, potentials, neighbors ) );
     }
   }
-
-
-
+  else 
+  {
+    auto   I = vector<size_t>( 1, gid );
+    auto & J = node->data.skels;
+    auto Kab = K( I, J );
+    auto & w_skel = node->data.w_skel;
+    xgemm( "No transpose", "No transpose",
+      Kab.row(), w_skel.col(), w_skel.row(),
+      1.0, Kab.data(),        Kab.row(),
+        w_skel.data(),     w_skel.row(),
+      1.0, potentials.data(), potentials.row() );          
+  }
+  return HMLP_ERROR_SUCCESS;
 }; /** end Evaluate() */
 
 
@@ -2907,42 +2861,35 @@ void Evaluate
  *         Notice in this case, the approximation is unsymmetric.
  *
  **/
-template<bool SYMBOLIC, bool NNPRUNE, typename TREE, typename T>
-void Evaluate
-( 
-  TREE &tree, 
-  size_t gid, 
-  Data<T> &potentials
-)
+template<typename TREE, typename T>
+hmlpError_t Evaluate( TREE &tree, const size_t gid, Data<T> & potentials, const evaluateOption_t option )
 {
-  vector<size_t> nnandi;
+  /* Put gid itself into the neighbor list. */
+  vector<size_t> neighbors( 1, gid );
   auto &w = *tree.setup.w;
-
+  /* Clean up and properly initialize the output vector. */
   potentials.clear();
   potentials.resize( 1, w.col(), 0.0 );
 
-  if ( NNPRUNE )
+  switch ( option )
   {
-    auto &NN = *tree.setup.NN;
-    nnandi.reserve( NN.row() + 1 );
-    nnandi.push_back( gid );
-    for ( size_t i = 0; i < NN.row(); i ++ )
-    {
-      nnandi.push_back( NN( i, gid ).second );
-    }
-#ifdef DEBUG_SPDASKIT
-    printf( "nnandi.size() %lu\n", nnandi.size() );
-#endif
+    case EVALUATE_OPTION_NEIGHBOR_PRUNING:
+      auto & all_neighbors = *tree.setup.NN;
+      /* Get the number of neighbors. */
+      auto kappa = all_neighbors.row();
+      neighbors.reserve( kappa + 1 );
+      /* Insert all neighbor gids into neighbors. */
+      for ( size_t i = 0; i < kappa; i ++ )
+      {
+        neighbors.push_back( all_neighbors( i, gid ).second );
+      }
+    case EVALUATE_OPTION_SELF_PRUNING:
+      return Evaluate( tree.treelist[ 0 ], gid, potentials, neighbors );
+    case EVALUATE_OPTION_EXACT:
+      return HMLP_ERROR_INVALID_VALUE;
   }
-  else
-  {
-    nnandi.reserve( 1 );
-    nnandi.push_back( gid );
-  }
-
-  Evaluate<SYMBOLIC, NNPRUNE>( tree.treelist[ 0 ], gid, nnandi, potentials );
-
-}; /** end Evaluate() */
+  return HMLP_ERROR_INVALID_VALUE;
+}; /* end Evaluate() */
 
 
 /**
@@ -3685,10 +3632,10 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
     size_t tar = i * n / ntest;
     Data<T> potentials;
     /** ASKIT treecode with NN pruning. */
-    Evaluate<false, true>( tree, tar, potentials );
+    Evaluate( tree, tar, potentials, EVALUATE_OPTION_NEIGHBOR_PRUNING );
     auto nnerr = ComputeError( tree, tar, potentials );
     /** ASKIT treecode without NN pruning. */
-    Evaluate<false, false>( tree, tar, potentials );
+    Evaluate( tree, tar, potentials, EVALUATE_OPTION_SELF_PRUNING );
     auto nonnerr = ComputeError( tree, tar, potentials );
     /** Get results from GOFMM */
     //potentials = u( vector<size_t>( i ), all_rhs );
