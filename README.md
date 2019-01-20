@@ -1,10 +1,8 @@
 ## HMLP (High Performance Machine Learning Primitives)
 
-<div style="text-align: right">
 [![Branch](https://img.shields.io/badge/branch-master-orange.svg)](https://github.com/ChenhanYu/hmlp)
 [![Build Status](https://travis-ci.org/ChenhanYu/hmlp.svg?branch=master)](https://travis-ci.org/ChenhanYu/hmlp)
 [![codecov](https://codecov.io/gh/ChenhanYu/hmlp/branch/master/graph/badge.svg)](https://codecov.io/gh/ChenhanYu/hmlp)
-</div>
 [![Branch](https://img.shields.io/badge/branch-develop-orange.svg)](https://github.com/ChenhanYu/hmlp/tree/develop)
 [![Build Status](https://travis-ci.org/ChenhanYu/hmlp.svg?branch=develop)](https://travis-ci.org/ChenhanYu/hmlp)
 [![codecov](https://codecov.io/gh/ChenhanYu/hmlp/branch/develop/graph/badge.svg)](https://codecov.io/gh/ChenhanYu/hmlp)
