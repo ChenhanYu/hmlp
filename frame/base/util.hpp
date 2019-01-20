@@ -22,6 +22,7 @@
 #ifndef HMLP_UTIL_HPP
 #define HMLP_UTIL_HPP
 
+/* Use STL templates. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <cmath>
@@ -30,15 +31,17 @@
 #include <algorithm>
 #include <type_traits>
 #include <cstdint>
+#include <iostream>
+#include <exception>
+/* Use OpenMP for threading. */
 #include <omp.h>
-
-
+/* HMLP public header. */
 #include <hmlp.h>
+
 
 #define HANDLE_ERROR( err ) (hmlp::handleError( err, __FILE__, __LINE__ ))
 
-
-
+/* Use STL namespace. */
 using namespace std;
 
 
