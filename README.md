@@ -1,13 +1,15 @@
 ## HMLP (High Performance Machine Learning Primitives)
 
+<div style="text-align: right">
 [![Branch](https://img.shields.io/badge/branch-master-orange.svg)](https://github.com/ChenhanYu/hmlp)
 [![Build Status](https://travis-ci.org/ChenhanYu/hmlp.svg?branch=master)](https://travis-ci.org/ChenhanYu/hmlp)
 [![codecov](https://codecov.io/gh/ChenhanYu/hmlp/branch/master/graph/badge.svg)](https://codecov.io/gh/ChenhanYu/hmlp)
+</div>
 [![Branch](https://img.shields.io/badge/branch-develop-orange.svg)](https://github.com/ChenhanYu/hmlp/tree/develop)
 [![Build Status](https://travis-ci.org/ChenhanYu/hmlp.svg?branch=develop)](https://travis-ci.org/ChenhanYu/hmlp)
 [![codecov](https://codecov.io/gh/ChenhanYu/hmlp/branch/develop/graph/badge.svg)](https://codecov.io/gh/ChenhanYu/hmlp)
 
-### WARNING
+### Warning!
 
 [HMLP](https://chenhanyu.github.io/hmlp/) and GOFMM are research projects 
 and not in production. 
@@ -15,35 +17,28 @@ For SC'17 and SC'18 artifacts, see /artifact and our our GOFMM papers
 [SC'17](https://arxiv.org/pdf/1707.00164.pdf) and [SC'18](https://dl.acm.org/citation.cfm?id=3291676) for details.
 For fast kernels, see our GSKNN paper [SC'15](http://padas.ices.utexas.edu/static/papers/sc15nn.pdf) for details.
 
-### README
+### Readme
 
 Thank you for deciding to give [HMLP](https://chenhanyu.github.io/hmlp/) a try!
 This code can be used directly or pluged into many learning tasks such as
 kernel summation, nearest neighbor search, k-means clustering, convolution
 networks. It is also possible to create a specific general N-body operator by
-using our template frameworks.
+using our templates. 
 
-See [INSTALL](https://github.com/ChenhanYu/hmlp#install) on how to install it.
-Checkout [LICENSE](https://github.com/ChenhanYu/hmlp#license) if you want to 
+See the [INSTALL](https://github.com/ChenhanYu/hmlp#install) section on how to install it.
+Checkout the [LICENSE](https://github.com/ChenhanYu/hmlp#license) section if you want to 
 use or redistribute any part of HMLP. Notice that different parts of HMLP may
 have different licenses. We usually annotate the specific license on the top
 of the file.
 
 HMLP (High Performance Machine Learning Primitives) is a portable framework 
-that provides high performance, memory efficient matrix-matrix multiplication
+that provides high-performance, memory-efficient matrix-matrix multiplication
 like operations and their extension based on the BLIS framework. 
-Currently, HMLP has implementations on Intel x86_64, Knights Landing, ARM and 
-NVIDIA GPU. We may further support other architectures in the future.
-
 
 Depending on your need, you may only require the basic features if you just
 want to use some existing primitives. Acoording to the feature you require we
-suggest that you read different part of documents. Please checkout the wiki
-pages at:
-
-[WIKI PAGE](https:://github.com/ChenhanYu/hmlp/wiki)
-
-to see what feature better suit your need.
+suggest that you read different part of documents. Please checkout the [wiki
+pages](https:://github.com/ChenhanYu/hmlp/wiki) to see what feature better suit your need.
 
 Architecture dependent
 implementations (a.k.a microkernels or kernels in short) are identified and
@@ -52,7 +47,7 @@ to an new architecture **only require** rewriting the kernel part.
 You are welcome to contribute more kernels beyond this list. Checkout the
 guildline on implementing microkernel for HMLP at our wiki pages.
 
-### CITATION
+### Citation
 ```
 @inproceedings{yu2015performance,
   title={Performance optimization for the k-nearest neighbors kernel on x86 architectures},
@@ -83,7 +78,7 @@ guildline on implementing microkernel for HMLP at our wiki pages.
 }
 ```
 
-### DOCUMENTATION
+### Documentation
 GOFMM, MPI-GOFMM, HMLP templates, and HMLP runtime APIs are documented
 by doxygen:
   * https://chenhanyu.github.io/hmlp/docs/html
@@ -91,21 +86,17 @@ by doxygen:
 
 ## INSTALL
 
-HMLP is tested on LINUX and OSX. Compilation **REQUIRES:**
-  * Intel or GNU compilers with c++11, AVX and OpenMP support (for x86_64);
-  * Arm GNU compilers (see [Cross Compilation]() for details on compilation on Android) with OpenMP support (for arm);
-  * Intel-16 or later compilers (for Intel MIC, KNL);
-  * nvcc (for NVIDIA GPU with capability > 2.0).
-
+### Requirement
+  * Linux or OSX
+  * Intel or GNU compilers with c++11, AVX and OpenMP support (for x86_64)
+  * Arm GNU compilers (see [Cross Compilation]() for details on compilation on Android) with OpenMP support (for arm)
+  * Intel-16 or later compilers (for Intel MIC, KNL)
+  * CUDA-9 (and NVIDIA GPUs with capability > 3.5).
 
 ### Configuration
 
-Edit set_env.sh for compilation options.
-
-You MUST manually setup each environment variable in the **"REQUIRED"
-CONGIFURATION** if any of those variables were not defined properly
-on you system.
-
+Edit **set_env.sh** for compilation options. You MUST manually setup each environment variable in the **"REQUIRED"
+CONGIFURATION** if any of those variables were not defined properly on you system.
 
 ```
 export CC             = icc    to use Intel C compilers
@@ -134,7 +125,7 @@ make
 make install
 ```
 
-### Cross Compilation
+### Cross compilation
 
 If your Arm is run with OS that has native compiler and cmake support, then the
 installation instruction above should work just fine.
@@ -160,7 +151,7 @@ cd /data/local/tmp
 ./run_gkmx.sh
 ```
 
-### EXAMPLE
+### Example
 
 The default compilation will also compile all the examples in /example.
 To run some basic examples from the testing drivers:
@@ -174,7 +165,7 @@ cd /build
 To us [HMLP](https://chenhanyu.github.io/hmlp/) library you need to include the
 header files <hmlp.h> and link 
 ${HMLP_DIR}/build/libhmlp.a statically or 
-${HMLP_DIR}/build/libhmlp.so (or .dylib) dynamically.
+${HMLP_DIR}/build/libhmlp.so (.dylib on OSX) dynamically.
 
 C/C++ example:
 
@@ -184,22 +175,13 @@ C/C++ example:
 ...
 ```
 
-Static linking example:
+Static and dynamic linking example:
 ```
 icc ... -I$(HMLP_DIR)/build/include $(HMLP_DIR)/build/libhmlp.a
+icc ... -I$(HMLP_DIR)/build/include -L$(HMLP_DIR)/build -lhmlp
 ```
 
-Dynamic linking example on Linux:
-```
-icc ... -I$(HMLP_DIR)/build/include -L$(HMLP_DIR)/build/libhmlp.so
-```
-
-Dynamic linking example on Mac:
-```
-icc ... -I$(HMLP_DIR)/build/include -L$(HMLP_DIR)/build/libhmlp.dylib
-```
-
-### TESTING
+### Testing
 
 Following the steps in [INSTALL](https://github.com/ChenhanYu/hmlp#install)
 using cmake, Google Test will be downloaded and
@@ -210,15 +192,6 @@ follow these instructions.
 cd build
 make test
 ```
-Optionally, you can perform and coverage analysis and update the report by
-```
-make coverage
-```
-
-The latest coverage report can be found at
-  * https://chenhanyu.github.io/hmlp/docs/html/coverage.html
-  * https://chenhanyu.github.io/hmlp/docs/html/coverage_details.html
-
 
 ## ACKNOWLEDGEMENTS
 ```
@@ -229,13 +202,11 @@ The HMLP library was primarily authored by
 but many others have contributed input and feedback. Contributors
 are listed acoording to the part they contribute to:
 
-
   GOFMM (Geometry-Oblivious FMM) in SC'17
   
   James Levitt              (The University of Texas at Austin)
   Severin Reiz              (Technische Universität München)
   George Biros              (The University of Texas at Austin)
-
 
   General Stride K-Nearest Neighbors in SC'15
 
@@ -243,24 +214,20 @@ are listed acoording to the part they contribute to:
   Woody Austin              (The University of Texas at Austin)
   George Biros              (The University of Texas at Austin)
 
-
   General Stride Kernel Summation in IPDPS'15
 
   Bill March                (The University of Texas at Austin)
   George Biros              (The University of Texas at Austin)
-
 
   2-level Strassen in SC'16
 
   Jianyu Huang              (The University of Texas at Austin)
   Leslie Rice               (The University of Texas at Austin)
 
-
   HMLP on Arm
 
   Jianyu Huang              (The University of Texas at Austin)
   Matthew Badin             (Qualcomm Corp. Santa Clara)
-
 
   BLIS framework support
 
@@ -268,17 +235,15 @@ are listed acoording to the part they contribute to:
   Robert van de Geijn       (The University of Texas at Austin)
   Field Van Zee             (The University of Texas at Austin)
   
-
 The gratitude especially goes to the following individual who walks
 me through the whole BLIS framework.
 
   Field Van Zee             (The University of Texas at Austin)
 ```
 
-
 Thank you again for being intersted in HMLP!
 
 Best regards,
 
-Chenhan D. Yu --- chenhan@cs.utexas.edu
+Chenhan D. Yu --- chenhan@utexas.edu
 

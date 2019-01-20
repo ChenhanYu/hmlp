@@ -165,6 +165,39 @@ void hmlp_acquire_mpart
   }
 };
 
+
+/**
+ *  \brief Compute the relative error given the root of square error (rse) and 2-norm (nrm).
+ *  \param [in] T the compute type
+ *  \param [in] rse the root of square error
+ *  \param [in] nrm the 2-norm
+ */
+template<typename T>
+T relative_error_from_rse_and_nrm( T rse, T nrm )
+{
+  try
+  {
+    /* Throw an exception. */
+    if ( rse < 0 || nrm < 0 ) 
+    {
+      throw std::invalid_argument( "sse and ss should be non-negative" );
+    }
+    /* Return the relative error directlu. */
+    if ( nrm ) return rse / nrm;
+    /** Sum of square is zero but SSE is not. */
+    if ( rse ) return 1;
+    /* Both SSE and SS are zero. */
+    return 0;
+  }
+  catch ( const exception & e )
+  {
+    cout << e.what() << endl;
+    exit( 1 );
+  }
+};
+
+
+
 template<typename T>
 T hmlp_norm
 (

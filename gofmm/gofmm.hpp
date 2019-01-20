@@ -189,6 +189,7 @@ class CommandLineHelper
     /** (Default) user-defined approximation toleratnce and budget. */
     double stol = 1E-3;
     double budget = 0.0;
+    bool secure_accuracy = true;
     /** (Default) geometric-oblivious scheme. */
     DistanceMetric metric = ANGLE_DISTANCE;
 
@@ -218,16 +219,16 @@ class Configuration
 		Configuration( DistanceMetric metric_type,
 		  size_t problem_size, size_t leaf_node_size, 
       size_t neighbor_size, size_t maximum_rank, 
-			T tolerance, T budget ) 
+			T tolerance, T budget, bool secure_accuracy = true ) 
 		{
       Set( metric_type, problem_size, leaf_node_size, 
-          neighbor_size, maximum_rank, tolerance, budget );
+          neighbor_size, maximum_rank, tolerance, budget, secure_accuracy );
 		};
 
 		void Set( DistanceMetric metric_type,
 		  size_t problem_size, size_t leaf_node_size, 
       size_t neighbor_size, size_t maximum_rank, 
-			T tolerance, T budget ) 
+			T tolerance, T budget, bool secure_accuracy ) 
 		{
 			this->metric_type = metric_type;
 			this->problem_size = problem_size;
@@ -236,29 +237,30 @@ class Configuration
 			this->maximum_rank = maximum_rank;
 			this->tolerance = tolerance;
 			this->budget = budget;
+			this->secure_accuracy = secure_accuracy;
 		};
 
     void CopyFrom( Configuration<T> &config ) { *this = config; };
 
-		DistanceMetric MetricType() { return metric_type; };
+		DistanceMetric MetricType() const noexcept { return metric_type; };
 
-		size_t ProblemSize() { return problem_size; };
+		size_t ProblemSize() const noexcept { return problem_size; };
 
-		size_t LeafNodeSize() { return leaf_node_size; };
+		size_t LeafNodeSize() const noexcept { return leaf_node_size; };
 
-		size_t NeighborSize() { return neighbor_size; };
+		size_t NeighborSize() const noexcept { return neighbor_size; };
 
-		size_t MaximumRank() { return maximum_rank; };
+		size_t MaximumRank() const noexcept { return maximum_rank; };
 
-		T Tolerance() { return tolerance; };
+		T Tolerance() const noexcept { return tolerance; };
 
-		T Budget() { return budget; };
+		T Budget() const noexcept { return budget; };
 
-    bool IsSymmetric() { return is_symmetric; };
+    bool IsSymmetric() const noexcept { return is_symmetric; };
 
-    bool UseAdaptiveRanks() { return use_adaptive_ranks; };
+    bool UseAdaptiveRanks() const noexcept { return use_adaptive_ranks; };
 
-    bool SecureAccuracy() { return secure_accuracy; };
+    bool SecureAccuracy() const noexcept { return secure_accuracy; };
 
 	private:
 
@@ -290,7 +292,7 @@ class Configuration
 		bool use_adaptive_ranks = true;
 
     /** (Default, Advanced) whether or not securing the accuracy. */
-    bool secure_accuracy = false;
+    bool secure_accuracy = true;
 
 }; /** end class Configuration */
 
@@ -3629,33 +3631,26 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials )
   auto Kab = K( amap, bmap );
   auto exact = potentials;
 
-  xgemm
-  (
-    "N", "N",
-    Kab.row(), w.col(), w.row(),
+  xgemm( "No transpose", "No transpose", 
+      Kab.row(), w.col(), w.row(),
     1.0,   Kab.data(),   Kab.row(),
              w.data(),     w.row(),
-    0.0, exact.data(), exact.row()
-  );          
+    0.0, exact.data(), exact.row() );          
 
 
-  auto nrm2 = hmlp_norm( exact.row(),  exact.col(), 
-                         exact.data(), exact.row() ); 
+  auto nrm2 = hmlp_norm( exact.row(),  exact.col(), exact.data(), exact.row() ); 
 
-  xgemm
-  (
-    "N", "N",
+  xgemm( "No transpose", "No transpose",
     Kab.row(), w.col(), w.row(),
     -1.0, Kab.data(),       Kab.row(),
           w.data(),          w.row(),
-     1.0, potentials.data(), potentials.row()
-  );          
+     1.0, potentials.data(), potentials.row() );          
 
-  auto err = hmlp_norm( potentials.row(), potentials.col(), 
-                        potentials.data(), potentials.row() ); 
+  auto err = hmlp_norm( potentials.row(), potentials.col(), potentials.data(), potentials.row() ); 
 
-  return err / nrm2;
-}; /** end ComputeError() */
+  //return err / nrm2;
+  return relative_error_from_rse_and_nrm( err, nrm2 );
+}; /* end ComputeError() */
 
 
 
@@ -3750,7 +3745,7 @@ void LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
   rkdtsplitter.metric = cmd.metric;
 	/** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( cmd.metric, 
-      cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget );
+      cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget, cmd.secure_accuracy );
   /** (Optional) provide neighbors, leave uninitialized otherwise. */
   Data<pair<T, size_t>> NN;
   /** Compress K. */

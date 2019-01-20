@@ -4193,7 +4193,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
     /** Compare potentials with exact MATVEC. */
     auto sse_ssv = mpigofmm::ComputeError( tree, tar, potentials );
     /** Compute element-wise 2-norm error. */
-    auto fmmerr  = sqrt( sse_ssv.first / sse_ssv.second ); 
+    auto fmmerr  = relative_error_from_rse_and_nrm( sqrt( sse_ssv.first ), sqrt( sse_ssv.second ) ); 
     /** Accumulate element-wise 2-norm error. */
     fmmerr_avg += fmmerr;
     /** Accumulate SSE and SSV. */
@@ -4212,7 +4212,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
     printf( "Elementwise ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
         nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
     printf( "F-norm      ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-        0.0, 0.0, sqrt( sse_2norm / ssv_2norm ) );
+        0.0, 0.0, relative_error_from_rse_and_nrm( sqrt( sse_2norm ), sqrt( ssv_2norm ) ) );
     printf( "========================================================\n");
   }
 
