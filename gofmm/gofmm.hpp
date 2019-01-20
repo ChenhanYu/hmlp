@@ -2874,19 +2874,30 @@ hmlpError_t Evaluate( TREE &tree, const size_t gid, Data<T> & potentials, const 
   switch ( option )
   {
     case EVALUATE_OPTION_NEIGHBOR_PRUNING:
+    {
       auto & all_neighbors = *tree.setup.NN;
       /* Get the number of neighbors. */
-      auto kappa = all_neighbors.row();
+      size_t kappa = all_neighbors.row();
       neighbors.reserve( kappa + 1 );
       /* Insert all neighbor gids into neighbors. */
       for ( size_t i = 0; i < kappa; i ++ )
       {
         neighbors.push_back( all_neighbors( i, gid ).second );
       }
-    case EVALUATE_OPTION_SELF_PRUNING:
       return Evaluate( tree.treelist[ 0 ], gid, potentials, neighbors );
+    }
+    case EVALUATE_OPTION_SELF_PRUNING:
+    {
+      return Evaluate( tree.treelist[ 0 ], gid, potentials, neighbors );
+    }
     case EVALUATE_OPTION_EXACT:
+    {
       return HMLP_ERROR_INVALID_VALUE;
+    }
+    default:
+    {
+      return HMLP_ERROR_INVALID_VALUE;
+    }
   }
   return HMLP_ERROR_INVALID_VALUE;
 }; /* end Evaluate() */
