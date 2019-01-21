@@ -3402,9 +3402,15 @@ void DistSkeletonize( NODE *node )
 
   /** Bill's l2 norm scaling factor */
   T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
-
   /** account for uniform sampling */
   scaled_stol *= std::sqrt( (T)q / N );
+
+  if ( m == 0 ) 
+  {
+    printf( "m %lu n %lu q %lu node level %lu\n", m, n, q, node->l );
+    return;
+  }
+
 
   lowrank::id
   (
@@ -4263,7 +4269,7 @@ void LaunchHelper( SPDMATRIX &K, gofmm::CommandLineHelper &cmd, mpi::Comm CommGO
   rkdtsplitter.metric = cmd.metric;
 	/** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( cmd.metric, 
-      cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget );
+      cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget, cmd.secure_accuracy );
   /** (Optional) provide neighbors, leave uninitialized otherwise. */
   DistData<STAR, CBLK, pair<T, size_t>> NN( 0, cmd.n, CommGOFMM );
   /** Compress matrix K. */
