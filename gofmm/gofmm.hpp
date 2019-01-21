@@ -355,7 +355,7 @@ class NodeData : public Factor<T>
     Lock lock;
 
     /** Whether the node can be compressed (with skel and proj). */
-    bool isskel = false;
+    bool is_compressed = false;
 
     /** Skeleton gids (subset of gids). */
     vector<size_t> skels;
@@ -898,14 +898,14 @@ void Interpolate( NODE *node )
   auto n = proj.col();
 
   /** Early return if the node is incompressible or all zeros. */
-  if ( !data.isskel || proj[ 0 ] == 0 ) return;
+  if ( !data.is_compressed || proj[ 0 ] == 0 ) return;
 
   assert( s );
   assert( s <= n );
   assert( jpvt.size() == n );
 
   /** If is skeletonized, reserve space for w_skel and u_skel */
-  if ( data.isskel )
+  if ( data.is_compressed )
   {
     data.w_skel.reserve( skels.size(), MAX_NRHS );
     data.u_skel.reserve( skels.size(), MAX_NRHS );
@@ -1222,16 +1222,17 @@ void Skeletonize( NODE *node )
   size_t n = KIJ.col();
   size_t q = node->n;
 
-  if ( secure_accuracy )
-  {
-    if ( !node->isleaf && ( !node->lchild->data.isskel || !node->rchild->data.isskel ) )
-    {
-      skels.clear();
-      proj.resize( 0, 0 );
-      data.isskel = false;
-      return;
-    }
-  }
+//  /* IMTODO: change this decision to a function call. */
+//  if ( secure_accuracy )
+//  {
+//    if ( !node->isleaf && ( !node->lchild->data.is_compressed || !node->rchild->data.is_compressed ) )
+//    {
+//      skels.clear();
+//      proj.resize( 0, 0 );
+//      data.is_compressed = false;
+//      return;
+//    }
+//  }
 
   /** Bill's l2 norm scaling factor. */
   T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
@@ -1241,26 +1242,21 @@ void Skeletonize( NODE *node )
   /** Call adaptive interpolative decomposition primitive. */
   lowrank::id( use_adaptive_ranks, secure_accuracy,
     KIJ.row(), KIJ.col(), maxs, scaled_stol, KIJ, skels, proj, jpvt );
-
-  /** free KIJ for spaces */
-  KIJ.resize( 0, 0 );
-
-  /** Depending on the flag, decide isskel or not. */
-  if ( secure_accuracy )
-  {
-    /** TODO: this needs to be bcast to other nodes */
-    data.isskel = (skels.size() != 0);
-  }
-  else
-  {
-    assert( skels.size() && proj.size() && jpvt.size() );
-    data.isskel = true;
-  }
-  
+  /** Free KIJ for spaces. */
+  KIJ.clear();
   /** Relabel skeletions with the real gids. */
-  for ( size_t i = 0; i < skels.size(); i ++ ) skels[ i ] = candidate_cols[ skels[ i ] ];
+  for ( size_t i = 0; i < skels.size(); i ++ ) 
+  {
+    skels[ i ] = candidate_cols[ skels[ i ] ];
+  }
 
-}; /** end Skeletonize() */
+//  /** Depending on the flag, decide is_compressed or not. */
+//  data.is_compressed = ( secure_accuracy ) ? skels.size() : true;
+//
+//  /** Sanity check. */
+//  if ( data.is_compressed ) assert( skels.size() && proj.size() && jpvt.size() );
+
+}; /* end Skeletonize() */
 
 
 template<typename NODE, typename T>
@@ -1311,7 +1307,32 @@ class SkeletonizeTask : public Task
 
     void DependencyAnalysis() { arg->DependOnNoOne( this ); };
 
-    void Execute( Worker* user_worker ) { Skeletonize( arg ); };
+    void Execute( Worker* user_worker ) 
+    { 
+      /* Check if we need to secure the accuracy? */
+      bool secure_accuracy = arg->setup->SecureAccuracy();
+      /* Gather per node data and create reference. */
+      auto &data  = arg->data;
+      /* Clear skels and proj. */
+      data.skels.clear();
+      data.proj.clear();
+      /* If one of my children is not compreesed, so am I. */
+      if ( secure_accuracy && !arg->isleaf ) 
+      {
+        if ( !arg->lchild->data.is_compressed || !arg->rchild->data.is_compressed )
+        {
+          data.is_compressed = false;
+          return;
+        }
+      }
+      /* Skeletonization using interpolative decomposition. */
+      Skeletonize( arg );
+      /* Depending on the flag, decide is_compressed or not. */
+      data.is_compressed = ( secure_accuracy ) ? data.skels.size() : true;
+      /* Sanity check. */
+      if ( data.is_compressed ) assert( data.skels.size() && data.proj.size() && data.jpvt.size() );
+
+    };
 
 }; /** end class SkeletonizeTask */
 
@@ -1354,7 +1375,7 @@ void UpdateWeights( NODE *node )
   /** Derive type T from NODE. */
   using T = typename NODE::T;
   /** Early return if possible. */
-  if ( !node->parent || !node->data.isskel ) return;
+  if ( !node->parent || !node->data.is_compressed ) return;
 
   /** Gather shared data and create reference */
   auto &w = *node->setup->w;
@@ -1587,7 +1608,7 @@ void SkeletonsToSkeletons( NODE *node )
   /** Derive type T from NODE. */
   using T = typename NODE::T;
   /** Early return if possible. */
-  if ( !node->parent || !node->data.isskel ) return;
+  if ( !node->parent || !node->data.is_compressed ) return;
 
   double beg, u_skel_time, s2s_time;
 
@@ -1800,7 +1821,7 @@ void SkeletonsToNodes( NODE *node )
       u_leaf.resize( gids.size(), nrhs, 0.0 );
 
       /** accumulate far interactions */
-      if ( data.isskel )
+      if ( data.is_compressed )
       {
         /** u_leaf += P' * u_skel */
         xgemm
@@ -1816,7 +1837,7 @@ void SkeletonsToNodes( NODE *node )
   }
   else
   {
-    if ( !node->parent || !node->data.isskel ) return;
+    if ( !node->parent || !node->data.is_compressed ) return;
 
     auto &u_lskel = lchild->data.u_skel;
     auto &u_rskel = rchild->data.u_skel;
@@ -1896,7 +1917,7 @@ class SkeletonsToNodesTask : public Task
       }
       else
       {
-        if ( !arg->parent || !arg->data.isskel )
+        if ( !arg->parent || !arg->data.is_compressed )
         {
           // No computation.
         }
@@ -2489,7 +2510,7 @@ void FindFarNodes( NODE *node, NODE *target )
   NearNodes = &target->NearNodes;
 
   /** If this node contains any Near( target ) or isn't skeletonized */
-  if ( !data.isskel || node->ContainAny( *NearNodes ) )
+  if ( !data.is_compressed || node->ContainAny( *NearNodes ) )
   {
     if ( !node->isleaf )
     {
@@ -2514,7 +2535,7 @@ void FindFarNodes( NODE *node, NODE *target )
   NearNodes = &target->NNNearNodes;
 
   /** If this node contains any Near( target ) or isn't skeletonized */
-  if ( !data.isskel || node->ContainAny( *NearNodes ) )
+  if ( !data.is_compressed || node->ContainAny( *NearNodes ) )
   {
     if ( !node->isleaf )
     {
@@ -2564,7 +2585,7 @@ void MergeFarNodes( TREE &tree )
       auto *node = *(level_beg + node_ind);
 
       /** if I don't have any skeleton, then I'm nobody's far field */
-      if ( !node->data.isskel ) continue;
+      if ( !node->data.is_compressed ) continue;
 
       if ( node->isleaf )
       {
@@ -2815,7 +2836,7 @@ hmlpError_t Evaluate( NODE *node, const size_t gid, Data<T> & potentials, const 
 
   assert( potentials.size() == nrhs );
 
-  if ( !data.isskel || node->ContainAny( neighbors ) )
+  if ( !data.is_compressed || node->ContainAny( neighbors ) )
   {
     auto   I = vector<size_t>( 1, gid );
     auto & J = node->gids;

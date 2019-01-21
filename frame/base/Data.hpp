@@ -170,6 +170,10 @@ class Data : public ReadWrite, public vector<T, Allocator>
 
     void reserve( size_t m, size_t n ) { reserve_( m, n ); };
 
+    /**
+     *  \brief Make it a 0-by-0 matrix and also call vector::clear() 
+     *         and vector::shrink_to_fit().
+     */ 
     void clear() { clear_(); }; 
 
     void read( size_t m, size_t n, string &filename )
@@ -550,6 +554,7 @@ class Data : public ReadWrite, public vector<T, Allocator>
     void clear_()
     {
       vector<T, Allocator>::clear();
+      vector<T, Allocator>::shrink_to_fit();
       this->m = 0; 
       this->n = 0;
     }

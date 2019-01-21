@@ -61,7 +61,7 @@ void UpdateWeights( DEVICE *dev, NODE *node )
   printf( "\n%lu UpdateWeight on GPU\n", node->treelist_id ); fflush( stdout );
 #endif
   /** early return */
-  if ( !node->parent || !node->data.isskel ) return;
+  if ( !node->parent || !node->data.is_compressed ) return;
 
   double beg, flops;
 
@@ -220,7 +220,7 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
 
 
     /** accumulate far interactions */
-    if ( data.isskel )
+    if ( data.is_compressed )
     {
       proj.CacheD( dev );
       proj.PrefetchH2D( dev, stream_id );
@@ -260,7 +260,7 @@ void SkeletonsToNodes( DEVICE *dev, NODE *node )
   }
   else
   {
-    if ( !node->parent || !node->data.isskel ) return;
+    tif ( !node->parent || !node->data.is_compressed ) return;
 
     auto &u_lskel = lchild->data.u_skel;
     auto &u_rskel = rchild->data.u_skel;

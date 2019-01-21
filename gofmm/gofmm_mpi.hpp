@@ -697,7 +697,7 @@ void DistUpdateWeights( NODE *node )
   int  rank = node->GetCommRank();
 
   /** Early return if this is the root or there is no skeleton. */
-  if ( !node->parent || !node->data.isskel ) return;
+  if ( !node->parent || !node->data.is_compressed ) return;
 
   if ( size < 2 )
   {
@@ -996,7 +996,7 @@ class S2STask2 : public Task
     void Execute( Worker* user_worker )
     {
       auto *node = arg;
-      if ( !node->parent || !node->data.isskel ) return;
+      if ( !node->parent || !node->data.is_compressed ) return;
       size_t nrhs = node->setup->w->col();
       auto &K = *node->setup->K;
       auto &I = node->data.skels;
@@ -1163,7 +1163,7 @@ void DistSkeletonsToNodes( NODE *node )
 
 
   /** Early return if this is the root or has no skeleton. */
-  if ( !node->parent || !node->data.isskel ) return;
+  if ( !node->parent || !node->data.is_compressed ) return;
 
   if ( size < 2 )
   {
@@ -2705,7 +2705,7 @@ template<bool SYMMETRIC, typename NODE, typename T>
 void MergeFarNodes( NODE *node )
 {
   /** if I don't have any skeleton, then I'm nobody's far field */
-  //if ( !node->data.isskel ) return;
+  //if ( !node->data.is_compressed ) return;
 
   /**
    *  Examine "Near" interaction list
@@ -2838,7 +2838,7 @@ void DistMergeFarNodes( NODE *node )
   int comm_rank = node->GetCommRank();
 
   /** if I don't have any skeleton, then I'm nobody's far field */
-  //if ( !node->data.isskel ) return;
+  //if ( !node->data.is_compressed ) return;
 
 
   /** Early return if this is the root node. */ 
@@ -3192,17 +3192,17 @@ void DistSkeletonKIJ( NODE *node )
     /** This node (mpitree::Node) belongs to the distributed tree 
      *  only executed by 0th and size/2 th rank of 
      *  the node communicator. At this moment, children have been
-     *  skeletonized. Thus, we should first update (isskel) to 
+     *  skeletonized. Thus, we should first update (is_compressed) to 
      *  all MPI processes. Then we gather information for the
      *  skeletonization.
      */
     NODE *child = node->child;
 		size_t nsamples = 0;
 
-    /** Bcast (isskel) to all MPI processes using children's communicator. */ 
-    int child_isskel = child->data.isskel;
-    mpi::Bcast( &child_isskel, 1, 0, child->GetComm() );
-    child->data.isskel = child_isskel;
+    /** Bcast (is_compressed) to all MPI processes using children's communicator. */ 
+    int child_is_compressed = child->data.is_compressed;
+    mpi::Bcast( &child_is_compressed, 1, 0, child->GetComm() );
+    child->data.is_compressed = child_is_compressed;
 
 
     /** rank-0 owns data of this node, and it also owns the left child. */ 
@@ -3335,6 +3335,27 @@ class DistSkeletonKIJTask : public Task
 
 
 
+/**
+ *  @brief Skeletonization with interpolative decomposition.
+ */ 
+template<typename NODE, typename T>
+void DistSkeletonize_v2( NODE *node )
+{
+  /** Early return if we do not need to skeletonize. */
+  if ( !node->parent ) return;
+
+  /* Get the node communicator. */
+  mpi::Comm comm = arg->GetComm();
+
+  /* All children should have is_compressed properly set. Use a Reduce to AND all is_compressed. */
+
+
+
+  //if ( arg->GetCommRank() == 0 )
+  //    {
+  //      DistSkeletonize<NODE, T>( arg );
+  //    }
+};
 
 
 
@@ -3375,7 +3396,7 @@ void DistSkeletonize( NODE *node )
 
   if ( secure_accuracy )
   {
-    /** TODO: need to check of both children's isskel to preceed */
+    /** TODO: need to check of both children's is_compressed to preceed */
   }
 
 
@@ -3396,18 +3417,18 @@ void DistSkeletonize( NODE *node )
   KIJ.resize( 0, 0 );
   KIJ.shrink_to_fit();
 
-  /** depending on the flag, decide isskel or not */
+  /** depending on the flag, decide is_compressed or not */
   if ( secure_accuracy )
   {
     /** TODO: this needs to be bcast to other nodes */
-    data.isskel = (skels.size() != 0);
+    data.is_compressed = (skels.size() != 0);
   }
   else
   {
     assert( skels.size() );
     assert( proj.size() );
     assert( jpvt.size() );
-    data.isskel = true;
+    data.is_compressed = true;
   }
   
   /** Relabel skeletions with the real gids */
@@ -3544,10 +3565,10 @@ class DistSkeletonizeTask : public hmlp::Task
       }
       double skel_t = omp_get_wtime() - beg;
 
-			/** Bcast isskel to every MPI processes in the same comm */
-			int isskel = arg->data.isskel;
-			mpi::Bcast( &isskel, 1, 0, comm );
-			arg->data.isskel = isskel;
+			/** Bcast is_compressed to every MPI processes in the same comm */
+			int is_compressed = arg->data.is_compressed;
+			mpi::Bcast( &is_compressed, 1, 0, comm );
+			arg->data.is_compressed = is_compressed;
 
       /** Bcast skels and proj to every MPI processes in the same comm */
       auto &skels = arg->data.skels;

@@ -228,39 +228,62 @@ void id
 //#endif
   //printf( "end xgeqp3\n" );
 
-  /** shift jpvt from 1-base to 0-base index. */
-  for ( int j = 0; j < jpvt.size(); j ++ ) jpvt[ j ] = jpvt[ j ] - 1;
+  /** Shift jpvt from 1-base to 0-base index. */
+  for ( int j = 0; j < jpvt.size(); j ++ ) 
+  {
+    jpvt[ j ] = jpvt[ j ] - 1;
+  }
 
-  /** search for rank 1 <= s <= maxs that satisfies the error tolerance */
+  /** Search for rank 1 <= s <= maxs that satisfies the error tolerance */
   for ( s = 1; s < n; s ++ )
   {
-    if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) < stol ) break;
-    //if ( s > maxs || std::abs( A_tmp[ s * m + s ] ) / std::abs( A_tmp[ 0 ] ) < stol ) break;
+    if ( std::abs( A_tmp[ s * m + s ] ) < stol ) break;
   }
 
-  /** If using fixed rank, then */
-  if ( !use_adaptive_ranks ) s = std::min( maxs, n );
-
-  /** Failed to satisfy error tolerance. */
   if ( s > maxs )
   {
-    //if ( LEVELRESTRICTION ) /** abort */
-    if ( secure_accuracy ) /** abort */
+    s = maxs;
+    if ( secure_accuracy )
     {
       skels.clear();
-      proj.resize( 0, 0 );
-      jpvt.resize( 0 );
+      proj.clear();
+      jpvt.clear();
       return;
-    }
-    else /** Continue with rank maxs */
-    {
-      s = maxs;
     }
   }
 
-  /** now #skeleton has been decided, resize skels to fit */
+  /** If using fixed rank, then take the minimum between maxs and n. */
+  if ( !use_adaptive_ranks ) 
+  {
+    s = std::min( maxs, n );
+  }
+  else
+  {
+    s = std::min( s, n );
+  }
+
+  /** If the required rank exceeds maxs. */
+  //if ( s > maxs )
+  //{
+  //  if ( secure_accuracy )
+  //  {
+  //    skels.clear();
+  //    proj.clear();
+  //    jpvt.clear();
+  //    return;
+  //  }
+  //  else /** Continue with rank maxs */
+  //  {
+  //    s = maxs;
+  //  }
+  //}
+
+  /** Now #skeleton has been decided, resize skels to fit */
   skels.resize( s );
-  for ( int j = 0; j < skels.size(); j ++ ) skels[ j ] = jpvt[ j ]; 
+  for ( int j = 0; j < skels.size(); j ++ ) 
+  {
+    skels[ j ] = jpvt[ j ]; 
+  }
 
 
   // TODO: Here we only need several things to get rid of xgels.
