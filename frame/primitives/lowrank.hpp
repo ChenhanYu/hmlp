@@ -201,33 +201,15 @@ void id
   jpvt.clear();
   jpvt.resize( n, 0 );
 
-  /** Traditional pivoting QR (GEQP3) */
-//#ifdef HMLP_USE_CUDA
-//  auto *dev = hmlp_get_device( 0 );
-//  cublasHandle_t &handle = 
-//      reinterpret_cast<hmlp::gpu::Nvidia*>( dev )->gethandle( 0 );
-//  hmlp::xgeqp3
-//  (
-//    handle,
-//    m, n, 
-//    A_tmp.data(), m,
-//    jpvt.data(), 
-//    tau.data(),
-//    work.data(), lwork
-//  );
-//#else
-  hmlp::xgeqp4
-  //hmlp::xgeqp3
-  (
-    m, n, 
-    A_tmp.data(), m,
-    jpvt.data(), 
-    tau.data(),
-    work.data(), lwork
-  );
-//#endif
-  //printf( "end xgeqp3\n" );
-
+  /** Pivoting QR (GEQP3 or GEQP4). */
+  if ( true )
+  {
+    hmlp::xgeqp4( m, n, A_tmp.data(), m, jpvt.data(), tau.data(), work.data(), lwork );
+  }
+  else
+  {
+    hmlp::xgeqp3( m, n, A_tmp.data(), m, jpvt.data(), tau.data(), work.data(), lwork );
+  }
   /** Shift jpvt from 1-base to 0-base index. */
   for ( int j = 0; j < jpvt.size(); j ++ ) 
   {
@@ -312,10 +294,10 @@ void id
         }
         else
         {
-	      proj[ j * s + i ] = A_tmp[ j * m + i ];
-	    }
-	  }
-	}
+          proj[ j * s + i ] = A_tmp[ j * m + i ];
+        }
+      }
+    }
   }
   else /** in the old version we use xgels, which is expensive */
   {

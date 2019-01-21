@@ -3335,27 +3335,27 @@ class DistSkeletonKIJTask : public Task
 
 
 
-/**
- *  @brief Skeletonization with interpolative decomposition.
- */ 
-template<typename NODE, typename T>
-void DistSkeletonize_v2( NODE *node )
-{
-  /** Early return if we do not need to skeletonize. */
-  if ( !node->parent ) return;
-
-  /* Get the node communicator. */
-  mpi::Comm comm = arg->GetComm();
-
-  /* All children should have is_compressed properly set. Use a Reduce to AND all is_compressed. */
-
-
-
-  //if ( arg->GetCommRank() == 0 )
-  //    {
-  //      DistSkeletonize<NODE, T>( arg );
-  //    }
-};
+///**
+// *  @brief Skeletonization with interpolative decomposition.
+// */ 
+//template<typename NODE, typename T>
+//void DistSkeletonize_v2( NODE *node )
+//{
+//  /** Early return if we do not need to skeletonize. */
+//  if ( !node->parent ) return;
+//
+//  /* Get the node communicator. */
+//  mpi::Comm comm = arg->GetComm();
+//
+//  /* All children should have is_compressed properly set. Use a Reduce to AND all is_compressed. */
+//
+//
+//
+//  //if ( arg->GetCommRank() == 0 )
+//  //    {
+//  //      DistSkeletonize<NODE, T>( arg );
+//  //    }
+//};
 
 
 

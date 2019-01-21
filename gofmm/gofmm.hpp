@@ -189,7 +189,7 @@ class CommandLineHelper
     /** (Default) user-defined approximation toleratnce and budget. */
     double stol = 1E-3;
     double budget = 0.0;
-    bool secure_accuracy = true;
+    bool secure_accuracy = false;
     /** (Default) geometric-oblivious scheme. */
     DistanceMetric metric = ANGLE_DISTANCE;
 
@@ -1197,17 +1197,12 @@ void Skeletonize( NODE *node )
 {
   /** Derive type T from NODE. */
   using T = typename NODE::T;
-  /** Early return if we do not need to skeletonize. */
-  if ( !node->parent ) return;
-
   /** Gather shared data and create reference. */
   auto &K   = *(node->setup->K);
-  auto &NN  = *(node->setup->NN);
   auto maxs = node->setup->MaximumRank();
   auto stol = node->setup->Tolerance();
   bool secure_accuracy = node->setup->SecureAccuracy();
   bool use_adaptive_ranks = node->setup->UseAdaptiveRanks();
-
   /** Gather per node data and create reference. */
   auto &data  = node->data;
   auto &skels = data.skels;
@@ -1215,30 +1210,15 @@ void Skeletonize( NODE *node )
   auto &jpvt  = data.jpvt;
   auto &KIJ   = data.KIJ;
   auto &candidate_cols = data.candidate_cols;
-
   /** Interpolative decomposition (ID). */
   size_t N = K.col();
   size_t m = KIJ.row();
   size_t n = KIJ.col();
   size_t q = node->n;
-
-//  /* IMTODO: change this decision to a function call. */
-//  if ( secure_accuracy )
-//  {
-//    if ( !node->isleaf && ( !node->lchild->data.is_compressed || !node->rchild->data.is_compressed ) )
-//    {
-//      skels.clear();
-//      proj.resize( 0, 0 );
-//      data.is_compressed = false;
-//      return;
-//    }
-//  }
-
   /** Bill's l2 norm scaling factor. */
   T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
-  /** Account for uniform sampling. */
-  scaled_stol *= std::sqrt( (T)q / N );
-
+  /** TODO: check if this is needed? Account for uniform sampling. */
+  if ( true ) scaled_stol *= std::sqrt( (T)q / N );
   /** Call adaptive interpolative decomposition primitive. */
   lowrank::id( use_adaptive_ranks, secure_accuracy,
     KIJ.row(), KIJ.col(), maxs, scaled_stol, KIJ, skels, proj, jpvt );
@@ -1249,13 +1229,6 @@ void Skeletonize( NODE *node )
   {
     skels[ i ] = candidate_cols[ skels[ i ] ];
   }
-
-//  /** Depending on the flag, decide is_compressed or not. */
-//  data.is_compressed = ( secure_accuracy ) ? skels.size() : true;
-//
-//  /** Sanity check. */
-//  if ( data.is_compressed ) assert( skels.size() && proj.size() && jpvt.size() );
-
 }; /* end Skeletonize() */
 
 
@@ -1309,6 +1282,8 @@ class SkeletonizeTask : public Task
 
     void Execute( Worker* user_worker ) 
     { 
+      /** Early return if we do not need to skeletonize. */
+      if ( !arg->parent ) return;
       /* Check if we need to secure the accuracy? */
       bool secure_accuracy = arg->setup->SecureAccuracy();
       /* Gather per node data and create reference. */
@@ -3661,7 +3636,8 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   printf( "========================================================\n");
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    size_t tar = i * n / ntest;
+    //size_t tar = i * n / ntest;
+    size_t tar = i * 1000;
     Data<T> potentials;
     /** ASKIT treecode with NN pruning. */
     Evaluate( tree, tar, potentials, EVALUATE_OPTION_NEIGHBOR_PRUNING );

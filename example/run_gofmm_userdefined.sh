@@ -39,8 +39,8 @@ then mpiexec="mpirun -n 4";
 else mpiexec=""; 
 fi
 if [ "${HMLP_USE_MPI}" = true ]; 
-then executable="./test_mpigofmm.x"
-else executable="./test_gofmm.x";
+then executable="./test_mpigofmm"
+else executable="./test_gofmm";
 fi
 echo "@PRIM"
 echo 'gofmm'

@@ -80,9 +80,9 @@ hiddenlayer="512-512-512"
 # ======= Do not change anything below this line ========
 mpiexec="ibrun tacc_affinity"
 #mpiexec="prun"
-#executable="./test_mpigofmm.x"
+#executable="./test_mpigofmm"
 #executable="gdb -ex run --args ./test_mpigofmm.x"
-executable="./test_gofmm.x"
+executable="./test_gofmm"
 
 
 echo "@PRIM"
