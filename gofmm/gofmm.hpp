@@ -434,8 +434,8 @@ class NodeData : public Factor<T>
     Event s2n;
 
     /** knn accuracy */
-    double knn_acc = 0.0;
-    size_t num_acc = 0;
+    //double knn_acc = 0.0;
+    //size_t num_acc = 0;
 
 }; /** end class Data */
 

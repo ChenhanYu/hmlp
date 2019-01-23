@@ -1200,70 +1200,24 @@ class Tree
         return HMLP_ERROR_INVALID_VALUE;
       }
 
-      /** k-by-N, neighbor pairs in neigType. */
+      /* k-by-N, neighbor pairs in neigType. */
       neighbors.clear();
       neighbors.resize( kappa, setup.ProblemSize(), initNN );
-      //Data<pair<T, size_t>> NN( 
-      //    k, setup.ProblemSize(), initNN );
 
-      /** Use leaf_size = 4 * k. */
+      /* Use leaf_size = 4 * k. */
       RETURN_IF_ERROR( this->setup.setLeafNodeSize( ( 4 * kappa < 512 ) ? 512 : 4 * kappa ) );
 
       /* We need to assign the buffer to the setup structure. */
       setup.NN = &neighbors;
 
-      if ( REPORT_ANN_STATUS )
-      {
-        printf( "========================================================\n");
-      }
-
       /** This loop has to be sequential to avoid race condiditon on NN. */
       for ( int t = 0; t < n_tree; t ++ )      
       {
-        /** Report accuracy */
-        double knn_acc = 0.0;
-        size_t num_acc = 0;
         /** Randomize metric tree and exhausted search for each leaf node. */
         TreePartition();
         TraverseLeafs( dummy );
         ExecuteAllTasks();
-
-        size_t n_nodes = 1 << depth;
-        auto level_beg = treelist.begin() + n_nodes - 1;
-        for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
-        {
-          auto *node = *(level_beg + node_ind);
-          knn_acc += node->data.knn_acc;
-          num_acc += node->data.num_acc;
-        }
-        if ( REPORT_ANN_STATUS )
-        {
-          printf( "ANN iter %2d, average accuracy %.2lf%% (over %4lu samples)\n", 
-              t, knn_acc / num_acc, num_acc );
-        }
-
-        /** Increase leaf_size with less than 80% accuracy. */
-        if ( knn_acc / num_acc < 0.8 )
-        { 
-          if ( 2.0 * setup.m < 2048 ) setup.m = 2.0 * setup.m;
-        }
-        //else break;
-
-
-#ifdef DEBUG_TREE
-        printf( "Iter %2d NN 0 ", t );
-        for ( size_t i = 0; i < kappa; i ++ )
-        {
-          printf( "%E(%lu) ", neighbors[ i ].first, neighbors[ i ].second );
-        }
-        printf( "\n" );
-#endif
-      } /** end for each tree. */
-
-      if ( REPORT_ANN_STATUS )
-      {
-        printf( "========================================================\n\n");
-      }
+      } 
 
       /** Sort neighbor pairs in ascending order. */
       #pragma omp parallel for
