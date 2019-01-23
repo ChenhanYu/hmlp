@@ -71,6 +71,7 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
   public:
 
     typedef DATATYPE T;
+    typedef pair<T, size_t> neigType;
 
     VirtualMatrix() {};
 
@@ -120,6 +121,18 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
       auto KIJ = (*this)( I, J );
       auto DII = Diagonal( I );
       auto DJJ = Diagonal( J );
+
+      for ( auto & kii : DII )
+      {
+        if ( kii == 0 ) throw overflow_error( "[ERROR] diagonals have zero entries" );
+      }
+
+      for ( auto & kjj : DJJ )
+      {
+        if ( kjj == 0 ) throw overflow_error( "[ERROR] diagonals have zero entries" );
+      }
+
+
       for ( size_t j = 0; j < J.size(); j ++ )
       {
         for ( size_t i = 0; i < I.size(); i ++ )
@@ -127,7 +140,15 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
           auto kij = KIJ( i, j );
           auto kii = DII[ i ];
           auto kjj = DJJ[ j ];
-          KIJ( i, j ) = 1.0 - ( kij * kij ) / ( kii * kjj );
+          
+          if ( kij == 0 )
+          {
+            KIJ( i, j ) = 0.0;
+          }
+          else
+          {
+            KIJ( i, j ) = 1.0 - ( kij * kij ) / ( kii * kjj );
+          }
         }
       }
       return KIJ;
@@ -162,23 +183,39 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
       }
     };
 
-    virtual Data<pair<T, size_t>> NeighborSearch( 
+    //virtual Data<pair<T, size_t>> 
+    hmlpError_t NeighborSearch( 
         DistanceMetric metric, size_t kappa, 
         const vector<size_t> &Q,
-        const vector<size_t> &R, pair<T, size_t> init )
+        const vector<size_t> &R,
+        Data<neigType>& neighbors,
+        const neigType init )
     {
-      Data<pair<T, size_t>> NN( kappa, Q.size(), init );
+      if ( R.size() < kappa )
+      {
+        printf( "\n[ERROR] the reference size %lu must be larger than kappa %lu.\n\n",
+            R.size(), kappa );
+        return HMLP_ERROR_INVALID_VALUE;
+      }
+      //Data<pair<T, size_t>> NN( kappa, Q.size(), init );
+      neighbors.clear();
+      neighbors.resize( kappa, Q.size(), init );
 
       /** Compute all pairwise distances. */
       auto DRQ = Distances( metric, R, Q );
       /** Sanity check: distance must be >= 0. */
-      for ( auto &dij: DRQ ) dij = std::max( dij, T(0) );
+      for ( auto &dij: DRQ ) 
+      {
+        if ( std::isnan( dij ) ) printf( "[ERROR] is nan\n" );
+        if ( std::isinf( dij ) ) printf( "[ERROR] is inf\n" );
+        dij = std::max( dij, T(0) );
+      }
 
       /** Loop over each query. */
       for ( size_t j = 0; j < Q.size(); j ++ )
       {
         vector<pair<T, size_t>> candidates( R.size() );
-        for ( size_t i = 0; i < R.size(); i ++)
+        for ( size_t i = 0; i < R.size(); i ++ )
         {
           candidates[ i ].first  = DRQ( i, j );
           candidates[ i ].second = R[ i ];
@@ -186,10 +223,20 @@ class VirtualMatrix : public SPDMatrixMPISupport<DATATYPE>
         /** Sort the query according to distances. */
         sort( candidates.begin(), candidates.end() );
         /** Fill-in the neighbor list. */
-        for ( size_t i = 0; i < kappa; i ++ ) NN( i, j ) = candidates[ i ];
+        for ( size_t i = 0; i < kappa; i ++ ) 
+        {
+          if ( candidates[ i ].second == init.second )
+          {
+            printf( "\n[ERROR] invalid neighbor (%lu, %lu) with (%e, %lu)\n\n", 
+                i, Q[ j ], candidates[ i ].first, candidates[ i ].second );
+            return HMLP_ERROR_INTERNAL_ERROR;
+          }
+          neighbors( i, j ) = candidates[ i ];
+        }
       }
 
-      return NN;
+      //return NN;
+      return HMLP_ERROR_SUCCESS;
     };
 
 		virtual Data<T> Diagonal( const vector<size_t> &I )

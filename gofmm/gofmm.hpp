@@ -214,6 +214,9 @@ class Configuration
 {
 	public:
 
+    typedef size_t sizeType;
+    typedef size_t idType;
+
     Configuration() {};
 
 		Configuration( DistanceMetric metric_type,
@@ -221,23 +224,34 @@ class Configuration
       size_t neighbor_size, size_t maximum_rank, 
 			T tolerance, T budget, bool secure_accuracy = true ) 
 		{
-      Set( metric_type, problem_size, leaf_node_size, 
-          neighbor_size, maximum_rank, tolerance, budget, secure_accuracy );
+		  try
+      {
+        HANDLE_ERROR( Set( metric_type, problem_size, leaf_node_size, 
+          neighbor_size, maximum_rank, tolerance, budget, secure_accuracy ) );
+      }
+      catch ( const exception & e )
+      {
+        cout << e.what() << endl;
+        exit( -1 );
+      }
 		};
 
-		void Set( DistanceMetric metric_type,
+		hmlpError_t Set( DistanceMetric metric_type,
 		  size_t problem_size, size_t leaf_node_size, 
       size_t neighbor_size, size_t maximum_rank, 
 			T tolerance, T budget, bool secure_accuracy ) 
 		{
 			this->metric_type = metric_type;
 			this->problem_size = problem_size;
-			this->leaf_node_size = leaf_node_size;
+			//this->leaf_node_size_ = leaf_node_size;
+			RETURN_IF_ERROR( setLeafNodeSize( leaf_node_size ) );
 			this->neighbor_size = neighbor_size;
 			this->maximum_rank = maximum_rank;
 			this->tolerance = tolerance;
 			this->budget = budget;
 			this->secure_accuracy = secure_accuracy;
+      /* Return with no error. */
+			return HMLP_ERROR_SUCCESS;
 		};
 
     void CopyFrom( Configuration<T> &config ) { *this = config; };
@@ -246,7 +260,24 @@ class Configuration
 
 		size_t ProblemSize() const noexcept { return problem_size; };
 
-		size_t LeafNodeSize() const noexcept { return leaf_node_size; };
+    hmlpError_t setLeafNodeSize( sizeType leaf_node_size ) noexcept 
+    {
+      /* Check if arguments are valid. */
+      if ( leaf_node_size < 1 ) 
+      {
+        fprintf( stderr, "[ERROR] leaf node size must be > 0\n" );
+        return HMLP_ERROR_INVALID_VALUE;
+      }
+      /* Set the value. */
+      leaf_node_size_ = leaf_node_size;
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    };
+
+		size_t getLeafNodeSize() const noexcept 
+		{ 
+		  return leaf_node_size_; 
+		};
 
 		size_t NeighborSize() const noexcept { return neighbor_size; };
 
@@ -271,7 +302,7 @@ class Configuration
 		size_t problem_size = 0;
 
 		/** (Default) maximum leaf node size. */
-		size_t leaf_node_size = 64;
+		sizeType leaf_node_size_ = 64;
 
 		/** (Default) number of neighbors. */
 		size_t neighbor_size = 32;
@@ -704,8 +735,13 @@ struct randomsplit
 
 
 
+/**
+ *  \brief Compute the all kappa-nearest neighbors for indices
+ *         in node using the target distance metric.
+ *  \return the error code
+ */
 template<typename NODE>
-void FindNeighbors( NODE *node, DistanceMetric metric )
+hmlpError_t FindNeighbors( NODE *node, DistanceMetric metric )
 {
   /** Derive type T from NODE. */
   using T = typename NODE::T;
@@ -717,8 +753,9 @@ void FindNeighbors( NODE *node, DistanceMetric metric )
   size_t kappa = NN.row();
   /** Initial value for the neighbor select. */
   pair<T, size_t> init( numeric_limits<T>::max(), NN.col() );
+  Data<pair<T, size_t>> candidates;
   /** k-nearest neighbor search kernel. */
-  auto candidates = K.NeighborSearch( metric, kappa, I, I, init );
+  RETURN_IF_ERROR( K.NeighborSearch( metric, kappa, I, I, candidates, init ) );
   /** Merge and update neighbors. */
 	#pragma omp parallel
   {
@@ -730,7 +767,8 @@ void FindNeighbors( NODE *node, DistanceMetric metric )
           candidates.columndata( j ), aux );
     }
   }
-}; /** end FindNeighbors() */
+  return HMLP_ERROR_SUCCESS;
+}; /* end FindNeighbors() */
 
 
 
@@ -774,7 +812,10 @@ class NeighborsTask : public Task
 
     void DependencyAnalysis() { arg->DependOnNoOne( this ); };
 
-    void Execute( Worker* user_worker ) { FindNeighbors( arg, metric ); };
+    void Execute( Worker* user_worker ) 
+    { 
+      HANDLE_ERROR( FindNeighbors( arg, metric ) ); 
+    };
 
 }; /** end class NeighborsTask */
 
@@ -1144,8 +1185,10 @@ void SkeletonKIJ( NODE *node )
   size_t nsamples = 2 * candidate_cols.size();
 
   /** Make sure we at least m samples. */
-  if ( nsamples < 2 * node->setup->LeafNodeSize() ) 
-    nsamples = 2 * node->setup->LeafNodeSize();
+  if ( nsamples < 2 * node->setup->getLeafNodeSize() ) 
+  {
+    nsamples = 2 * node->setup->getLeafNodeSize();
+  }
 
   /** Sample off-diagonal rows. */
   RowSamples<NNPRUNE>( node, nsamples );
@@ -3175,30 +3218,35 @@ Data<T> Evaluate
 
 
 template<typename SPLITTER, typename T, typename SPDMATRIX>
-Data<pair<T, size_t>> FindNeighbors
-(
-  SPDMATRIX &K, 
-  SPLITTER splitter, 
-	Configuration<T> &config,
-  size_t n_iter = 10
-)
+Data<pair<T, size_t>> FindNeighbors( SPDMATRIX &K, SPLITTER splitter, 
+    Configuration<T> &config, size_t n_iter = 20 )
 {
-  /** Instantiation for the randomisze tree. */
-  using DATA  = gofmm::NodeData<T>;
-  using SETUP = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using TREE  = tree::Tree<SETUP, DATA>;
-  /** Derive type NODE from TREE. */
-  using NODE  = typename TREE::NODE;
-  /** Get all user-defined parameters. */
-  DistanceMetric metric = config.MetricType();
-  size_t n = config.ProblemSize();
-	size_t k = config.NeighborSize(); 
-  /** Iterative all nearnest-neighbor (ANN). */
-  pair<T, size_t> init( numeric_limits<T>::max(), n );
-  gofmm::NeighborsTask<NODE, T> NEIGHBORStask;
-  TREE rkdt;
-  rkdt.setup.FromConfiguration( config, K, splitter, NULL );
-  return rkdt.AllNearestNeighbor( n_iter, k, n_iter, init, NEIGHBORStask );
+  try
+  {
+    /** Instantiation for the randomisze tree. */
+    using DATA  = gofmm::NodeData<T>;
+    using SETUP = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+    using TREE  = tree::Tree<SETUP, DATA>;
+    /** Derive type NODE from TREE. */
+    using NODE  = typename TREE::NODE;
+    /** Get all user-defined parameters. */
+    DistanceMetric metric = config.MetricType();
+    size_t n = config.ProblemSize();
+	  size_t k = config.NeighborSize(); 
+    /** Iterative all nearnest-neighbor (ANN). */
+    pair<T, size_t> init( numeric_limits<T>::max(), n );
+    gofmm::NeighborsTask<NODE, T> NEIGHBORStask;
+    TREE rkdt;
+    rkdt.setup.FromConfiguration( config, K, splitter, NULL );
+    Data<pair<T, size_t>> neighbors;
+    HANDLE_ERROR( rkdt.AllNearestNeighbor( n_iter, k, n_iter, neighbors, init, NEIGHBORStask ) );
+    return neighbors;
+  }
+  catch ( const exception & e )
+  {
+    cout << e.what() << endl;
+    exit( -1 );
+  }
 }; /** end FindNeighbors() */
 
 
@@ -3207,172 +3255,172 @@ Data<pair<T, size_t>> FindNeighbors
  */ 
 template<typename SPLITTER, typename RKDTSPLITTER, typename T, typename SPDMATRIX>
 tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
-*Compress
-( 
-  SPDMATRIX &K, 
-  Data<pair<T, size_t>> &NN,
-  SPLITTER splitter, 
-  RKDTSPLITTER rkdtsplitter,
-	Configuration<T> &config
-)
+*Compress( SPDMATRIX &K, Data<pair<T, size_t>> &NN, 
+    SPLITTER splitter, RKDTSPLITTER rkdtsplitter, Configuration<T> &config )
 {
-  /** Get all user-defined parameters. */
-  DistanceMetric metric = config.MetricType();
-  size_t n = config.ProblemSize();
-	size_t m = config.LeafNodeSize();
-	size_t k = config.NeighborSize(); 
-	size_t s = config.MaximumRank(); 
-  T stol = config.Tolerance();
-	T budget = config.Budget(); 
-
-  /** options */
-  const bool NNPRUNE   = true;
-  const bool CACHE     = true;
-
-  /** instantiation for the Spd-Askit tree */
-  using SETUP = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
-  using DATA  = gofmm::NodeData<T>;
-  using TREE  = tree::Tree<SETUP, DATA>;
-  /** Derive type NODE from TREE. */
-  using NODE  = typename TREE::NODE;
-
-
-  /** all timers */
-  double beg, omptask45_time, omptask_time, ref_time;
-  double time_ratio, compress_time = 0.0, other_time = 0.0;
-  double ann_time, tree_time, skel_time, mergefarnodes_time, cachefarnodes_time;
-  double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
-
-  /** Iterative all nearnest-neighbor (ANN). */
-  beg = omp_get_wtime();
-  if ( NN.size() != n * k ) 
+  try
   {
-    NN = gofmm::FindNeighbors( K, rkdtsplitter, config );
-  }
-  ann_time = omp_get_wtime() - beg;
+    /** Get all user-defined parameters. */
+    DistanceMetric metric = config.MetricType();
+    size_t n = config.ProblemSize();
+    size_t m = config.getLeafNodeSize();
+    size_t k = config.NeighborSize(); 
+    size_t s = config.MaximumRank(); 
+    T stol = config.Tolerance();
+    T budget = config.Budget(); 
+
+    /** options */
+    const bool NNPRUNE   = true;
+    const bool CACHE     = true;
+
+    /** instantiation for the Spd-Askit tree */
+    using SETUP = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+    using DATA  = gofmm::NodeData<T>;
+    using TREE  = tree::Tree<SETUP, DATA>;
+    /** Derive type NODE from TREE. */
+    using NODE  = typename TREE::NODE;
 
 
-  /** Initialize metric ball tree using approximate center split. */
-  auto *tree_ptr = new TREE();
-	auto &tree = *tree_ptr;
-  tree.setup.FromConfiguration( config, K, splitter, &NN );
+    /** all timers */
+    double beg, omptask45_time, omptask_time, ref_time;
+    double time_ratio, compress_time = 0.0, other_time = 0.0;
+    double ann_time, tree_time, skel_time, mergefarnodes_time, cachefarnodes_time;
+    double nneval_time, nonneval_time, fmm_evaluation_time, symbolic_evaluation_time;
+
+    /** Iterative all nearnest-neighbor (ANN). */
+    beg = omp_get_wtime();
+    if ( NN.size() != n * k ) 
+    {
+      NN = gofmm::FindNeighbors( K, rkdtsplitter, config );
+    }
+    ann_time = omp_get_wtime() - beg;
 
 
-  if ( REPORT_COMPRESS_STATUS )
-  {
-    printf( "TreePartitioning ...\n" ); fflush( stdout );
-  }
-  beg = omp_get_wtime();
-  tree.TreePartition();
-  tree_time = omp_get_wtime() - beg;
+    /** Initialize metric ball tree using approximate center split. */
+    auto *tree_ptr = new TREE();
+    auto &tree = *tree_ptr;
+    tree.setup.FromConfiguration( config, K, splitter, &NN );
+
+
+    if ( REPORT_COMPRESS_STATUS )
+    {
+      printf( "TreePartitioning ...\n" ); fflush( stdout );
+    }
+    beg = omp_get_wtime();
+    tree.TreePartition();
+    tree_time = omp_get_wtime() - beg;
 
 
 #ifdef HMLP_AVX512
-  /** if we are using KNL, use nested omp construct */
-  assert( omp_get_max_threads() == 68 );
-  //mkl_set_dynamic( 0 );
-  //mkl_set_num_threads( 4 );
-  hmlp_set_num_workers( 17 );
+    /** if we are using KNL, use nested omp construct */
+    assert( omp_get_max_threads() == 68 );
+    //mkl_set_dynamic( 0 );
+    //mkl_set_num_threads( 4 );
+    hmlp_set_num_workers( 17 );
 #else
-  //if ( omp_get_max_threads() > 8 )
-  //{
-  //  hmlp_set_num_workers( omp_get_max_threads() / 2 );
-  //}
-  if ( REPORT_COMPRESS_STATUS )
-  {
-    printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
-  }
+    //if ( omp_get_max_threads() > 8 )
+    //{
+    //  hmlp_set_num_workers( omp_get_max_threads() / 2 );
+    //}
+    if ( REPORT_COMPRESS_STATUS )
+    {
+      printf( "omp_get_max_threads() %d\n", omp_get_max_threads() );
+    }
 #endif
 
 
 
 
-  /** Build near interaction lists. */ 
-  NearSamplesTask<NODE, T> NEARSAMPLEStask;
-  tree.DependencyCleanUp();
-  printf( "Dependency clean up\n" ); fflush( stdout );
-  tree.TraverseLeafs( NEARSAMPLEStask );
-  tree.ExecuteAllTasks();
-  //hmlp_run();
-  printf( "Finish NearSamplesTask\n" ); fflush( stdout );
-  SymmetrizeNearInteractions( tree );
-  printf( "Finish SymmetrizeNearInteractions\n" ); fflush( stdout );
+    /** Build near interaction lists. */ 
+    NearSamplesTask<NODE, T> NEARSAMPLEStask;
+    tree.DependencyCleanUp();
+    printf( "Dependency clean up\n" ); fflush( stdout );
+    tree.TraverseLeafs( NEARSAMPLEStask );
+    tree.ExecuteAllTasks();
+    //hmlp_run();
+    printf( "Finish NearSamplesTask\n" ); fflush( stdout );
+    SymmetrizeNearInteractions( tree );
+    printf( "Finish SymmetrizeNearInteractions\n" ); fflush( stdout );
 
 
 
-  /** Skeletonization */
-  if ( REPORT_COMPRESS_STATUS )
-  {
-    printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
+    /** Skeletonization */
+    if ( REPORT_COMPRESS_STATUS )
+    {
+      printf( "Skeletonization (HMLP Runtime) ...\n" ); fflush( stdout );
+    }
+    beg = omp_get_wtime();
+    gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> GETMTXtask;
+    gofmm::SkeletonizeTask<NODE, T> SKELtask;
+    gofmm::InterpolateTask<NODE> PROJtask;
+    tree.DependencyCleanUp();
+    tree.TraverseUp( GETMTXtask, SKELtask );
+    tree.TraverseUnOrdered( PROJtask );
+    if ( CACHE )
+    {
+      gofmm::CacheNearNodesTask<NNPRUNE, NODE> KIJtask;
+      tree.template TraverseLeafs( KIJtask );
+    }
+    other_time += omp_get_wtime() - beg;
+    hmlp_run();
+    skel_time = omp_get_wtime() - beg;
+
+
+
+
+    /** MergeFarNodes */
+    beg = omp_get_wtime();
+    if ( REPORT_COMPRESS_STATUS )
+    {
+      printf( "MergeFarNodes ...\n" ); fflush( stdout );
+    }
+    gofmm::MergeFarNodes( tree );
+    mergefarnodes_time = omp_get_wtime() - beg;
+
+    /** CacheFarNodes */
+    beg = omp_get_wtime();
+    if ( REPORT_COMPRESS_STATUS )
+    {
+      printf( "CacheFarNodes ...\n" ); fflush( stdout );
+    }
+    gofmm::CacheFarNodes<NNPRUNE, CACHE>( tree );
+    cachefarnodes_time = omp_get_wtime() - beg;
+
+    /** plot iteraction matrix */  
+    auto exact_ratio = hmlp::gofmm::DrawInteraction<true>( tree );
+
+    compress_time += ann_time;
+    compress_time += tree_time;
+    compress_time += skel_time;
+    compress_time += mergefarnodes_time;
+    compress_time += cachefarnodes_time;
+    time_ratio = 100.0 / compress_time;
+    if ( REPORT_COMPRESS_STATUS )
+    {
+      printf( "========================================================\n");
+      printf( "GOFMM compression phase\n" );
+      printf( "========================================================\n");
+      printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
+      printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
+      printf( "Skeletonization ----------------------- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
+      printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
+      printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
+      printf( "========================================================\n");
+      printf( "Compress (%4.2lf not compressed) -------- %5.2lfs (%5.1lf%%)\n", 
+          exact_ratio, compress_time, compress_time * time_ratio );
+      printf( "========================================================\n\n");
+    }
+
+    /** Clean up all r/w dependencies left on tree nodes. */
+    tree_ptr->DependencyCleanUp();
+    /** Return the hierarhical compreesion of K as a binary tree. */
+    return tree_ptr;
   }
-  beg = omp_get_wtime();
-  gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> GETMTXtask;
-  gofmm::SkeletonizeTask<NODE, T> SKELtask;
-  gofmm::InterpolateTask<NODE> PROJtask;
-  tree.DependencyCleanUp();
-  tree.TraverseUp( GETMTXtask, SKELtask );
-  tree.TraverseUnOrdered( PROJtask );
-  if ( CACHE )
+  catch ( const exception & e )
   {
-    gofmm::CacheNearNodesTask<NNPRUNE, NODE> KIJtask;
-    tree.template TraverseLeafs( KIJtask );
+    cout << e.what() << endl;
+    exit( -1 );
   }
-  other_time += omp_get_wtime() - beg;
-  hmlp_run();
-  skel_time = omp_get_wtime() - beg;
-
-
-
-
-  /** MergeFarNodes */
-  beg = omp_get_wtime();
-  if ( REPORT_COMPRESS_STATUS )
-  {
-    printf( "MergeFarNodes ...\n" ); fflush( stdout );
-  }
-  gofmm::MergeFarNodes( tree );
-  mergefarnodes_time = omp_get_wtime() - beg;
-
-  /** CacheFarNodes */
-  beg = omp_get_wtime();
-  if ( REPORT_COMPRESS_STATUS )
-  {
-    printf( "CacheFarNodes ...\n" ); fflush( stdout );
-  }
-  gofmm::CacheFarNodes<NNPRUNE, CACHE>( tree );
-  cachefarnodes_time = omp_get_wtime() - beg;
-
-  /** plot iteraction matrix */  
-  auto exact_ratio = hmlp::gofmm::DrawInteraction<true>( tree );
-
-  compress_time += ann_time;
-  compress_time += tree_time;
-  compress_time += skel_time;
-  compress_time += mergefarnodes_time;
-  compress_time += cachefarnodes_time;
-  time_ratio = 100.0 / compress_time;
-  if ( REPORT_COMPRESS_STATUS )
-  {
-    printf( "========================================================\n");
-    printf( "GOFMM compression phase\n" );
-    printf( "========================================================\n");
-    printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
-    printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
-    printf( "Skeletonization ----------------------- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
-    printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
-    printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
-    printf( "========================================================\n");
-    printf( "Compress (%4.2lf not compressed) -------- %5.2lfs (%5.1lf%%)\n", 
-        exact_ratio, compress_time, compress_time * time_ratio );
-    printf( "========================================================\n\n");
-  }
-
-  /** Clean up all r/w dependencies left on tree nodes. */
-  tree_ptr->DependencyCleanUp();
-
-  /** Return the hierarhical compreesion of K as a binary tree. */
-  return tree_ptr;
-
 }; /** end Compress() */
 
 

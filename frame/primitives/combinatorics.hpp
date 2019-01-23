@@ -389,7 +389,20 @@ template<typename T>
 vector<vector<size_t>> MedianThreeWaySplit( vector<T> &v, T tol )
 {
   size_t n = v.size();
-  auto median = Select( n, n / 2, v );
+  auto median = Select( n, 0.5 * n, v );
+
+  auto left = median;
+  auto right = median;
+  T perc = 0.0;
+
+  while ( left == median || right == median )
+  {
+    if ( perc == 0.5 ) break;
+    perc += 0.1;
+    left = Select( n, ( 0.5 - perc ) * n, v );
+    right = Select( n, ( 0.5 + perc ) * n, v );
+  }
+
   /** Split indices of v into 3-way: lhs, rhs, and mid. */
   vector<vector<size_t>> three_ways( 3 );
   auto & lhs = three_ways[ 0 ];
@@ -397,8 +410,15 @@ vector<vector<size_t>> MedianThreeWaySplit( vector<T> &v, T tol )
   auto & mid = three_ways[ 2 ];
   for ( size_t i = 0; i < v.size(); i ++ )
   {
-    if ( std::fabs( v[ i ] - median ) < tol ) mid.push_back( i );
-    else if ( v[ i ] < median ) lhs.push_back( i );
+    //if ( std::fabs( v[ i ] - median ) < tol ) mid.push_back( i );
+    if ( v[ i ] >= left && v[ i ] <= right ) 
+    {
+      mid.push_back( i );
+    }
+    else if ( v[ i ] < median ) 
+    {
+      lhs.push_back( i );
+    }
     else rhs.push_back( i );
   }
   return three_ways;

@@ -326,7 +326,19 @@ vector<vector<size_t>> DistMedianSplit( vector<T> &values, mpi::Comm comm )
   int num_points_owned = values.size();
   /** n = sum( num_points_owned ) over all MPI processes in comm */
   mpi::Allreduce( &num_points_owned, &n, 1, MPI_SUM, comm );
-  T  median = combinatorics::Select( n / 2, values, comm );
+  T median = combinatorics::Select( 0.5 * n, values, comm );
+  T med_l = median;
+  T med_r = median;
+  T perc = 0.0;
+  while ( med_l == median || med_r == median )
+  {
+    if ( perc == 0.5 ) break;
+    perc += 0.1;
+    med_l = combinatorics::Select( ( 0.5 - perc ) * n, values, comm );
+    med_r = combinatorics::Select( ( 0.5 + perc ) * n, values, comm );
+    printf( "[WARNING] increase the middle gap to %d percent!\n", 
+        (int)(perc * 100) );
+  }
 
   vector<vector<size_t>> split( 2 );
   vector<size_t> middle;
@@ -336,9 +348,18 @@ vector<vector<size_t>> DistMedianSplit( vector<T> &values, mpi::Comm comm )
   for ( size_t i = 0; i < values.size(); i ++ )
   {
     auto v = values[ i ];
-    if ( std::fabs( v - median ) < 1E-6 ) middle.push_back( i );
-    else if ( v < median ) split[ 0 ].push_back( i );
-    else split[ 1 ].push_back( i );
+    if ( v >= med_l && v <= med_r ) 
+    {
+      middle.push_back( i );
+    }
+    else if ( v < median )
+    {
+      split[ 0 ].push_back( i );
+    }
+    else 
+    {
+      split[ 1 ].push_back( i );
+    }
   }
 
   int nmid = 0;
@@ -356,31 +377,23 @@ vector<vector<size_t>> DistMedianSplit( vector<T> &values, mpi::Comm comm )
   /** Assign points in the middle to left or right. */
   if ( nmid )
   {
-    int nlhs_required, nrhs_required;
-
-    if ( nlhs > nrhs )
-    {
-      nlhs_required = ( n - 1 ) / 2 + 1 - nlhs;
-      nrhs_required = nmid - nlhs_required;
-    }
-    else
-    {
-      nrhs_required = ( n - 1 ) / 2 + 1 - nrhs;
-      nlhs_required = nmid - nrhs_required;
-    }
-
-    assert( nlhs_required >= 0 && nrhs_required >= 0 );
+    int nlhs_required = std::max( 0, n / 2 - nlhs );
+    int nrhs_required = std::max( 0, ( n - n / 2 ) - nrhs );
 
     /** Now decide the portion */
-    double lhs_ratio = ( (double)nlhs_required ) / nmid;
+    double lhs_ratio = (double)nlhs_required / ( nlhs_required + nrhs_required );
     int nlhs_required_owned = num_mid_owned * lhs_ratio;
     int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
 
-    //printf( "rank %d [ %d %d ] [ %d %d ]\n",
-    //  global_rank, 
+
+    //printf( "\nrank %d [ %d %d ] nlhs %d mid %d (med40 %e med50 %e med60 %e) nrhs %d [ %d %d ]\n",
+    //  //global_rank,
+    //  0,
     //  nlhs_required_owned, nlhs_required,
+    //  nlhs, nmid, med40, median, med60, nrhs,
     //  nrhs_required_owned, nrhs_required ); fflush( stdout );
 
+    //assert( nlhs_required >= 0 && nrhs_required >= 0 );
     assert( nlhs_required_owned >= 0 && nrhs_required_owned >= 0 );
 
     for ( size_t i = 0; i < middle.size(); i ++ )
@@ -3219,8 +3232,8 @@ void DistSkeletonKIJ( NODE *node )
 			/** Use two times of skeletons */
       nsamples = 2 * candidate_cols.size();
       /** Make sure we at least m samples */
-      if ( nsamples < 2 * node->setup->LeafNodeSize() ) 
-        nsamples = 2 * node->setup->LeafNodeSize();
+      if ( nsamples < 2 * node->setup->getLeafNodeSize() ) 
+        nsamples = 2 * node->setup->getLeafNodeSize();
 
       /** Gather rsnids. */
       auto &lsnids = node->child->data.snids;
@@ -3917,7 +3930,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     /** Get all user-defined parameters. */
     DistanceMetric metric = config.MetricType();
     size_t n = config.ProblemSize();
-	  size_t m = config.LeafNodeSize();
+	  size_t m = config.getLeafNodeSize();
 	  size_t k = config.NeighborSize(); 
 	  size_t s = config.MaximumRank(); 
 

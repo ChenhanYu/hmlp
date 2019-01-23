@@ -22,7 +22,7 @@
 #define TREE_HPP
 
 
-#include <assert.h>
+#include <cassert>
 #include <typeinfo>
 #include <type_traits>
 #include <algorithm>
@@ -32,6 +32,7 @@
 #include <deque>
 #include <iostream>
 #include <random>
+#include <cmath>
 #include <cstdint>
 
 
@@ -212,25 +213,31 @@ template<typename T>
 void MergeNeighbors( size_t k, pair<T, size_t> *A, 
     pair<T, size_t> *B, vector<pair<T, size_t>> &aux )
 {
-  /** Enlarge temporary buffer if it is too small. */
-  if ( aux.size() != 2 * k ) aux.resize( 2 * k );
-
-  for ( size_t i = 0; i < k; i++ ) aux[     i ] = A[ i ];
-  for ( size_t i = 0; i < k; i++ ) aux[ k + i ] = B[ i ];
-
+  /* Enlarge temporary buffer if it is too small. */
+  aux.resize( 2 * k );
+  /* Merge two lists into one. */
+  for ( size_t i = 0; i < k; i++ ) 
+  {
+    aux[     i ] = A[ i ];
+    aux[ k + i ] = B[ i ];
+  }
+  /* First sort according to the index. */
   sort( aux.begin(), aux.end(), less_second<T> );
-  auto it = unique( aux.begin(), aux.end(), equal_second<T> );
-  sort( aux.begin(), it, less_first<T> );
+  auto last = unique( aux.begin(), aux.end(), equal_second<T> );
+  sort( aux.begin(), last, less_first<T> );
 
   for ( size_t i = 0; i < k; i++ ) A[ i ] = aux[ i ];
 }; /** end MergeNeighbors() */
 
 
 template<typename T>
-void MergeNeighbors( size_t k, size_t n,
+hmlpError_t MergeNeighbors( size_t k, size_t n,
   vector<pair<T, size_t>> &A, vector<pair<T, size_t>> &B )
 {
-  assert( A.size() >= n * k && B.size() >= n * k );
+  if ( A.size() < n * k || B.size() < n * k )
+  {
+    return HMLP_ERROR_INVALID_VALUE;
+  }
 	#pragma omp parallel
   {
     vector<pair<T, size_t> > aux( 2 * k );
@@ -240,6 +247,7 @@ void MergeNeighbors( size_t k, size_t n,
       MergeNeighbors( k, &(A[ i * k ]), &(B[ i * k ]), aux );
     }
   }
+  return HMLP_ERROR_SUCCESS;
 }; /** end MergeNeighbors() */
 
 
@@ -957,21 +965,20 @@ class Tree
   public:
 
     typedef typename SETUP::T T;
+    typedef typename std::pair<T, size_t> neigType;
     /** Define our tree node type as NODE. */
     typedef Node<SETUP, NODEDATA> NODE;
 
     static const int N_CHILDREN = 2;
 
-
-
-    /** data shared by all tree nodes */
+    /* Data shared by all tree nodes. */
     SETUP setup;
 
     /** number of points */
     size_t n = 0;
 
     /** maximum leaf node size */
-    size_t m = 0;
+    //size_t m = 0;
 
     /** depth of local tree */
     size_t depth = 0;
@@ -1048,7 +1055,7 @@ class Tree
     void AllocateNodes( NODE *root )
     {
       /** Compute the global tree depth using std::log2(). */
-			int glb_depth = std::ceil( std::log2( (double)n / m ) );
+			int glb_depth = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
 			if ( glb_depth > setup.max_depth ) glb_depth = setup.max_depth;
 			/** Compute the local tree depth. */
 			depth = glb_depth - root->l;
@@ -1104,7 +1111,7 @@ class Tree
       double beg, alloc_time, split_time, morton_time, permute_time;
 
       this->n = setup.ProblemSize();
-      this->m = setup.LeafNodeSize();
+      //this->m = setup.LeafNodeSize();
 
       /** Reset and initialize global indices with lexicographical order. */
       global_indices.clear();
@@ -1172,20 +1179,38 @@ class Tree
 
 
     /**
-     *
+     *  \brief Compute approximated kappa-nearest neighbors using 
+     *         randomized spatial trees.
+     *  \param [in] KNNTASK the type of the knn kernel
+     *  \param [in] n_tree the number of maximum iterations
+     *  \param [in] kappa the number of neighbors to compute
+     *  \param [in] max_depth the maximum depth 
+     *  \param [inout] neighbors all neighbors in Data<neigType>
+     *  \param [in] initNN the initial value
+     *  \param [in] dummy
+     *  \return error code
      */ 
     template<typename KNNTASK>
-    Data<pair<T, size_t>> AllNearestNeighbor( size_t n_tree, size_t k, 
-      size_t max_depth, pair<T, size_t> initNN,
-      KNNTASK &dummy )
+    hmlpError_t AllNearestNeighbor( size_t n_tree, size_t kappa, 
+      size_t max_depth, Data<neigType>& neighbors, const neigType initNN, KNNTASK &dummy )
     {
-      /** k-by-N, neighbor pairs. */
-      Data<pair<T, size_t>> NN( k, setup.ProblemSize(), initNN );
+      /* Check if arguments are valid. */
+      if ( n_tree < 0 || kappa < 0 || max_depth < 1 )
+      {
+        return HMLP_ERROR_INVALID_VALUE;
+      }
+
+      /** k-by-N, neighbor pairs in neigType. */
+      neighbors.clear();
+      neighbors.resize( kappa, setup.ProblemSize(), initNN );
+      //Data<pair<T, size_t>> NN( 
+      //    k, setup.ProblemSize(), initNN );
 
       /** Use leaf_size = 4 * k. */
-      setup.m = 4 * k;
-      if ( setup.m < 32 ) setup.m = 32;
-      setup.NN = &NN;
+      RETURN_IF_ERROR( this->setup.setLeafNodeSize( ( 4 * kappa < 512 ) ? 512 : 4 * kappa ) );
+
+      /* We need to assign the buffer to the setup structure. */
+      setup.NN = &neighbors;
 
       if ( REPORT_ANN_STATUS )
       {
@@ -1222,14 +1247,14 @@ class Tree
         { 
           if ( 2.0 * setup.m < 2048 ) setup.m = 2.0 * setup.m;
         }
-        else break;
+        //else break;
 
 
 #ifdef DEBUG_TREE
         printf( "Iter %2d NN 0 ", t );
-        for ( size_t i = 0; i < NN.row(); i ++ )
+        for ( size_t i = 0; i < kappa; i ++ )
         {
-          printf( "%E(%lu) ", NN[ i ].first, NN[ i ].second );
+          printf( "%E(%lu) ", neighbors[ i ].first, neighbors[ i ].second );
         }
         printf( "\n" );
 #endif
@@ -1242,23 +1267,29 @@ class Tree
 
       /** Sort neighbor pairs in ascending order. */
       #pragma omp parallel for
-      for ( size_t j = 0; j < NN.col(); j ++ )
-        sort( NN.data() + j * NN.row(), NN.data() + ( j + 1 ) * NN.row() );
+      for ( size_t j = 0; j < neighbors.col(); j ++ )
+      {
+        sort( neighbors.data() + j * kappa, neighbors.data() + ( j + 1 ) * kappa );
+      }
 
       /** Check for illegle values. */
-      for ( auto &neig : NN )
+      for ( size_t j = 0; j < neighbors.col(); j ++ )
       {
-        if ( neig.second < 0 || neig.second >= NN.col() )
+        for ( size_t i = 0; i < kappa; i ++ )
         {
-          printf( "Illegle neighbor gid %lu\n", neig.second );
-          break;
+          auto & neig = neighbors[ j * kappa + i ];
+          if ( neig.second < 0 || neig.second >= neighbors.col() )
+          {
+            fprintf( stderr, "\n\x1B[31m[ERROR] \x1B Illegle neighbor (%lu,%lu) with gid %lu\n\n", 
+                i, j, neig.second );
+            return HMLP_ERROR_INTERNAL_ERROR;
+          }
         }
       }
 
-      /** Return a matrix of neighbor pairs. */
-      return NN;
-
-    }; /** end AllNearestNeighbor() */
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }; /* end AllNearestNeighbor() */
 
 
     Data<int> CheckAllInteractions()

@@ -816,9 +816,10 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** k-by-N, column major. */
       DistData<STAR, CBLK, pair<T, size_t>> NN( k, n, initNN, this->GetComm() );
       /** Use leaf size = 4 * k.  */
-      this->setup.m = 4 * k;
-      if ( this->setup.m < 512 ) this->setup.m = 512;
-      this->m = this->setup.m;
+      this->setup.setLeafNodeSize( ( 4 * k < 512 ) ? 512 : 4 * k );
+      //this->setup.m = 4 * k;
+      //if ( this->setup.m < 512 ) this->setup.m = 512;
+      //this->m = this->setup.m;
 
 
       ///** Local problem size (assuming Round-Robin) */
@@ -961,7 +962,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
       /** Set up total problem size n and leaf node size m. */
       this->n = this->setup.ProblemSize();
-      this->m = this->setup.LeafNodeSize();
+      //this->m = this->setup.getLeafNodeSize();
 
       /** Initial gids distribution (asssuming Round-Robin). */
       //for ( size_t i = rank; i < this->n; i += size ) 
