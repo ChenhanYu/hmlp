@@ -1519,7 +1519,7 @@ class SolveTask : public Task
  *
  */ 
 template<typename T, typename TREE>
-void Solve( TREE &tree, Data<T> &input )
+hmlpError_t Solve( TREE &tree, Data<T> &input )
 {
   using NODE = typename TREE::NODE;
 
@@ -1574,6 +1574,7 @@ void Solve( TREE &tree, Data<T> &input )
   /** delete buffer space */
   delete output;
 
+  return HMLP_ERROR_SUCCESS;
 }; /** end Solve() */
 
 
@@ -1628,7 +1629,7 @@ void LowRankError( NODE *node )
  *  @brief Factorizarion using LU and SMW
  */ 
 template<typename NODE, typename T>
-void Factorize( NODE *node )
+hmlpError_t Factorize( NODE *node )
 {
   auto &data = node->data;
   auto &setup = node->setup;
@@ -1708,6 +1709,7 @@ void Factorize( NODE *node )
     }
   }
 
+  return HMLP_ERROR_SUCCESS;
 
 
 
@@ -1848,7 +1850,7 @@ class FactorizeTask : public Task
 
 /** @biref Top-level factorization routine. */
 template<typename T, typename TREE>
-void Factorize( TREE &tree, T lambda )
+hmlpError_t Factorize( TREE &tree, T lambda )
 {
   using NODE = typename TREE::NODE;
 
@@ -1870,6 +1872,8 @@ void Factorize( TREE &tree, T lambda )
   FactorizeTask<NODE, T> factorizetask; 
   tree.TraverseUp( factorizetask );
   tree.ExecuteAllTasks();
+
+  return HMLP_ERROR_SUCCESS;
 
 }; /** end Factorize() */
 

@@ -116,7 +116,11 @@ class DistFactorizeTask : public Task
       int  rank = node->GetCommRank();
       mpi::Status status;
 
-      if ( size == 1 ) return gofmm::Factorize<NODE, T>( node );
+      if ( size == 1 ) 
+      {
+        auto error = gofmm::Factorize<NODE, T>( node );
+        return;
+      }
 
       if ( rank == 0 )
       {

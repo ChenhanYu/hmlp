@@ -3657,7 +3657,7 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials )
 
 
 template<typename TREE>
-void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
+hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
 {
   /** Derive type T from TREE. */
   using T = typename TREE::T;
@@ -3720,11 +3720,12 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   {
     /** Factorization */
     T lambda = 5.0;
-    gofmm::Factorize( tree, lambda );
+    RETURN_IF_ERROR( gofmm::Factorize( tree, lambda ) );
     /** Compute error. */
     gofmm::ComputeError( tree, lambda, w, u );
   }
 
+  return HMLP_ERROR_SUCCESS;
 }; /** end SelfTesting() */
 
 
@@ -3756,7 +3757,7 @@ void LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
   auto *tree_ptr = gofmm::Compress( K, NN, splitter, rkdtsplitter, config );
 	auto &tree = *tree_ptr;
   /** Examine accuracies. */
-  gofmm::SelfTesting( tree, 100, cmd.nrhs );
+  auto error = gofmm::SelfTesting( tree, 100, cmd.nrhs );
 
 
 //  //#ifdef DUMP_ANALYSIS_DATA

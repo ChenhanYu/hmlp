@@ -4,10 +4,8 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-#export CC=${CC}
-export CC=icc
-#export CXX=${CXX}
-export CXX=icpc
+export CC=${CC}
+export CXX=${CXX}
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
@@ -51,7 +49,8 @@ export HMLP_ARCH_MINOR=haswell
 export QSMLROOT=/Users/chenhan/Documents/Projects/qsml/aarch64-linux-android
 
 ## Distributed environment poptions (if true, compile with MPI)
-export HMLP_USE_MPI=false
+#export HMLP_USE_MPI=true
+export HMLP_USE_MPI=true
 
 ## GPU compiler options (if true, compile the gpu library as well).
 ## Manually setup CUDA TOOLKIT path (otherwise cmake will try to find it).
