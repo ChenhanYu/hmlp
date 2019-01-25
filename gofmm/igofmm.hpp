@@ -700,7 +700,14 @@ class Factor
       assert( n == nl + nr );
       assert( Pl.col() == sl );
       assert( Pr.col() == sr );
-      assert( Palr.row() == s  ); assert( Palr.col() == ( sl + sr ) );
+      assert( Palr.row() == s  ); 
+      
+      if( Palr.col() != ( sl + sr ) )
+      {
+        printf( "Palr.col %lu sl %lu sr %lu\n", Palr.col(), sl, sr );
+      }
+      
+      assert( Palr.col() == ( sl + sr ) );
 
       /** Initialize Pa */
       Pa.resize( 0, 0 );
@@ -1680,6 +1687,7 @@ void Factorize( NODE *node )
     {
       if ( !node->data.isroot )
       {
+        printf( "here level %lu\n", node->l );
         data.Telescope( false, data.U, proj, Ul, Ur );
         data.Orthogonalization();
       }

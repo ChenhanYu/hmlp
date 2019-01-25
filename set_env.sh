@@ -4,8 +4,10 @@
 ## ======================================
 
 ## Make sure CC and CXX are set properly in your system.
-export CC=${CC}
-export CXX=${CXX}
+#export CC=${CC}
+export CC=icc
+#export CXX=${CXX}
+export CXX=icpc
 
 ## Whether use BLAS or not?
 export HMLP_USE_BLAS=true
