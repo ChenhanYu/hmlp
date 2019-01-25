@@ -50,28 +50,34 @@ Lock::~Lock()
 #endif
 }; /** end Lock::~Lock() */
 
-void Lock::Acquire()
+hmlpError_t Lock::Acquire()
 {
 #ifdef USE_PTHREAD_RUNTIME
   if ( pthread_mutex_lock( &lock ) )
   {
-    printf( "pthread_mutex_lock(): cannot acquire locks properly\n" );
+    fprintf( stderr, "pthread_mutex_lock(): cannot acquire locks properly\n" );
+    return HMLP_ERROR_INTERNAL_ERROR;
   }
 #else
   omp_set_lock( &lock );
 #endif
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
 };
 
-void Lock::Release()
+hmlpError_t Lock::Release()
 {
 #ifdef USE_PTHREAD_RUNTIME
   if ( pthread_mutex_unlock( &lock ) )
   {
-    printf( "pthread_mutex_lock(): cannot release locks properly\n" );
+    fprintf( stderr, "pthread_mutex_lock(): cannot release locks properly\n" );
+    return HMLP_ERROR_INTERNAL_ERROR;
   }
 #else
   omp_unset_lock( &lock );
 #endif
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
 };
 
 

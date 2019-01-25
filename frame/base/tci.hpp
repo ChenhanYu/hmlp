@@ -55,9 +55,9 @@ class Lock
 
     ~Lock();
 
-    void Acquire();
+    hmlpError_t Acquire();
 
-    void Release();
+    hmlpError_t Release();
 
   private:
 #ifdef USE_PTHREAD_RUNTIME
