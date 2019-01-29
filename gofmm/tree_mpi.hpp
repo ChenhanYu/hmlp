@@ -309,14 +309,7 @@ class Setup
 
 
     /** maximum leaf node size */
-    size_t m;
-    
-    /** by default we use 4 bits = 0-15 levels */
-    size_t max_depth = 15;
-
-    /** coordinates (accessed with gids) */
-    //DistData<STAR, CBLK, T> *X_cblk = NULL;
-    //DistData<STAR, CIDS, T> *X      = NULL;
+    //size_t m;
 
     /** neighbors<distance, gid> (accessed with gids) */
     DistData<STAR, CBLK, pair<T, size_t>> *NN_cblk = NULL;
@@ -774,9 +767,10 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 			/** Allocate local tree nodes. */
       auto *local_tree_root = mpitreelists.back();
-      tree::Tree<SETUP, NODEDATA>::AllocateNodes( local_tree_root );
+      //tree::Tree<SETUP, NODEDATA>::allocateNodes( local_tree_root );
+      HANDLE_ERROR( this->allocateNodes( local_tree_root ) );
 
-    }; /** end AllocateNodes() */
+    }; /* end AllocateNodes() */
 
 
 
@@ -1250,7 +1244,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 			//printf( "depth %lu\n", this->depth ); fflush( stdout );
 
-      for ( int l = this->depth; l >= 1; l -- )
+      for ( int l = this->getDepth(); l >= 1; l -- )
       {
         size_t n_nodes = 1 << l;
         auto level_beg = this->treelist.begin() + n_nodes - 1;
@@ -1292,7 +1286,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
        *  IMPORTANT: here l must be int, size_t will wrap over 
        *
        */
-      for ( int l = 1; l <= this->depth; l ++ )
+      for ( int l = 1; l <= this->getDepth(); l ++ )
       {
         size_t n_nodes = 1 << l;
         auto level_beg = this->treelist.begin() + n_nodes - 1;
@@ -1332,7 +1326,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** contain at lesat one tree node */
       assert( this->treelist.size() );
 
-      int n_nodes = 1 << this->depth;
+      int n_nodes = 1 << this->getDepth();
       auto level_beg = this->treelist.begin() + n_nodes - 1;
 
       for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )

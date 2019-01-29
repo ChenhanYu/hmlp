@@ -1556,7 +1556,7 @@ void FindNearInteractions( TREE &tree )
   auto &setup = tree.setup;
   auto &NN = *setup.NN;
   double budget = setup.Budget();
-  size_t n_leafs = ( 1 << tree.depth );
+  size_t n_leafs = ( 1 << tree.getDepth() );
   /** 
    *  The type here is tree::Node but not mpitree::Node.
    *  NearNodes and NNNearNodes also take tree::Node.
@@ -1665,7 +1665,7 @@ void SymmetrizeNearInteractions( TREE & tree )
    *  Loop over all near node MortonIDs, create
    *
    */ 
-  int n_nodes = 1 << tree.depth;
+  int n_nodes = 1 << tree.getDepth();
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
   #pragma omp parallel
@@ -1885,7 +1885,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
   if ( is_near )
   {
     /** Traverse leaf nodes (near interation lists) */ 
-    int n_nodes = 1 << tree.depth;
+    int n_nodes = 1 << tree.getDepth();
     auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
     #pragma omp parallel

@@ -669,9 +669,6 @@ class Node : public ReadWrite
         /** Early return if this is a leaf node. */
         if ( isleaf ) return;
 
-        int m = setup->m;
-        int max_depth = setup->max_depth;
-
         double beg = omp_get_wtime();
         auto split = setup->splitter( gids );
         double splitter_time = omp_get_wtime() - beg;
@@ -891,15 +888,6 @@ class Setup
 
     ~Setup() {};
 
-    /** maximum leaf node size */
-    size_t m = 0;
-    
-    /** by default we use 4 bits = 0-15 levels */
-    size_t max_depth = 15;
-
-    /** Coordinates (accessed with gids) */
-    //Data<T> *X = NULL;
-
     /** neighbors<distance, gid> (accessed with gids) */
     Data<pair<T, size_t>> *NN = NULL;
 
@@ -908,8 +896,6 @@ class Setup
 
     /** Tree splitter */
     SPLITTER splitter;
-
-
 
     /**
      *  @brief Check if this node contain any query using morton.
@@ -947,14 +933,6 @@ class Setup
 
     }; /** end ContainAny() */
 
-
-
-
-
-
-
-
-
 }; /** end class Setup */
 
 
@@ -977,11 +955,8 @@ class Tree
     /** number of points */
     size_t n = 0;
 
-    /** maximum leaf node size */
-    //size_t m = 0;
-
     /** depth of local tree */
-    size_t depth = 0;
+    //size_t depth = 0;
 
 
     /** Mutex for exclusive right to modify treelist and morton2node. */ 
@@ -1011,6 +986,8 @@ class Tree
       morton2node.clear();
       //printf( "end ~Tree() shared\n" );
     };
+
+    size_t getDepth() const noexcept { return loc_depth_; };
 
     /** Currently only used in DrawInteraction() */ 
     void Offset( NODE *node, size_t offset )
@@ -1044,67 +1021,6 @@ class Tree
     };
 
 
-    /**
-     *  @brief Allocate the local tree using the local root
-     *         with n points and depth l.
-     *
-     *         This routine will be called in two situations:
-     *         1) called by Tree::TreePartition(), or
-     *         2) called by MPITree::TreePartition().
-     */ 
-    void AllocateNodes( NODE *root )
-    {
-      /** Compute the global tree depth using std::log2(). */
-			int glb_depth = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
-			if ( glb_depth > setup.max_depth ) glb_depth = setup.max_depth;
-			/** Compute the local tree depth. */
-			depth = glb_depth - root->l;
-
-			//printf( "local AllocateNodes n %lu m %lu glb_depth %d loc_depth %lu\n", 
-			//		n, m, glb_depth, depth );
-
-      /** Clean up and reserve space for local tree nodes. */
-      for ( auto node_ptr : treelist ) delete node_ptr;
-      treelist.clear();
-      morton2node.clear();
-      treelist.reserve( 1 << ( depth + 1 ) );
-      deque<NODE*> treequeue;
-      /** Push root into the treelist. */
-      treequeue.push_back( root );
-
-
-      /** Allocate children with BFS (queue solution). */
-      while ( auto *node = treequeue.front() )
-      {
-        /** Assign local treenode_id. */
-        node->treelist_id = treelist.size();
-        /** Account for the depth of the distributed tree. */
-        if ( node->l < glb_depth )
-        {
-          for ( int i = 0; i < N_CHILDREN; i ++ )
-          {
-            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node, &morton2node, &lock );
-            treequeue.push_back( node->kids[ i ] );
-          }
-					node->lchild = node->kids[ 0 ];
-					node->rchild = node->kids[ 1 ];
-          if ( node->lchild ) node->lchild->sibling = node->rchild;
-          if ( node->rchild ) node->rchild->sibling = node->lchild;
-        }
-        else
-        {
-					/** Leaf nodes are annotated with this flag */
-					node->isleaf = true;
-          treequeue.push_back( NULL );
-        }
-        treelist.push_back( node );
-        treequeue.pop_front();
-      }
-
-    }; /** end AllocateNodes() */
-
-
-
     /** @brief Shared-memory tree partition. */ 
     void TreePartition()
     {
@@ -1122,7 +1038,7 @@ class Tree
 
       /** Allocate all tree nodes in advance. */
       beg = omp_get_wtime();
-      AllocateNodes( new NODE( &setup, n, 0, global_indices, NULL, &morton2node, &lock ) );
+      HANDLE_ERROR( allocateNodes( new NODE( &setup, n, 0, global_indices, NULL, &morton2node, &lock ) ) );
       alloc_time = omp_get_wtime() - beg;
 
       /** Recursive spliting (topdown). */
@@ -1159,7 +1075,7 @@ class Tree
 
     vector<size_t> GetPermutation()
     {
-      int n_nodes = 1 << this->depth;
+      int n_nodes = 1 << this->getDepth();
       auto level_beg = this->treelist.begin() + n_nodes - 1;
 
       vector<size_t> perm;
@@ -1298,7 +1214,7 @@ class Tree
       /** Contain at lesat one tree node. */
       assert( this->treelist.size() );
 
-      int n_nodes = 1 << this->depth;
+      int n_nodes = 1 << this->getDepth();
       auto level_beg = this->treelist.begin() + n_nodes - 1;
 
       if ( out_of_order_traversal )
@@ -1343,7 +1259,7 @@ class Tree
       int local_begin_level = ( treelist[ 0 ]->l ) ? 1 : 0;
 
       /** traverse level-by-level in sequential */
-      for ( int l = this->depth; l >= local_begin_level; l -- )
+      for ( int l = this->getDepth(); l >= local_begin_level; l -- )
       {
         size_t n_nodes = 1 << l;
         auto level_beg = this->treelist.begin() + n_nodes - 1;
@@ -1392,7 +1308,7 @@ class Tree
        */
       int local_begin_level = ( treelist[ 0 ]->l ) ? 1 : 0;
 
-      for ( int l = local_begin_level; l <= this->depth; l ++ )
+      for ( int l = local_begin_level; l <= this->getDepth(); l ++ )
       {
         size_t n_nodes = 1 << l;
         auto level_beg = this->treelist.begin() + n_nodes - 1;
@@ -1464,7 +1380,7 @@ class Tree
     {
       assert( N_CHILDREN == 2 );
 
-      for ( std::size_t l = 0; l <= depth; l ++ )
+      for ( std::size_t l = 0; l <= getDepth(); l ++ )
       {
         size_t n_nodes = 1 << l;
         auto level_beg = treelist.begin() + n_nodes - 1;
@@ -1483,7 +1399,80 @@ class Tree
 
   protected:
 
+    /* Depth of the local tree. */
+    size_t loc_depth_ = 0;
+    /* Depth of the global tree. */
+    size_t glb_depth_ = 0;
+
     vector<size_t> global_indices;
+
+
+    /**
+     *  @brief Allocate the local tree using the local root
+     *         with n points and depth l.
+     *
+     *         This routine will be called in two situations:
+     *         1) called by Tree::TreePartition(), or
+     *         2) called by MPITree::TreePartition().
+     */ 
+    hmlpError_t allocateNodes( NODE *root )
+    {
+      /* Compute the global tree depth using std::log2(). */
+			glb_depth_ = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
+			/* If the global depth exceeds the limit, then set it to the maximum depth. */
+			if ( glb_depth_ > setup.getMaximumDepth() ) glb_depth_ = setup.getMaximumDepth();
+			/** Compute the local tree depth. */
+			loc_depth_ = glb_depth_ - root->l;
+
+
+      /* Clean up and reserve space for local tree nodes. */
+      for ( auto node_ptr : treelist ) delete node_ptr;
+      treelist.clear();
+      morton2node.clear();
+      treelist.reserve( 1 << ( getDepth() + 1 ) );
+      deque<NODE*> treequeue;
+      /** Push root into the treelist. */
+      treequeue.push_back( root );
+
+
+      /** Allocate children with BFS (queue solution). */
+      while ( auto *node = treequeue.front() )
+      {
+        /** Assign local treenode_id. */
+        node->treelist_id = treelist.size();
+        /** Account for the depth of the distributed tree. */
+        if ( node->l < glb_depth_ )
+        {
+          for ( int i = 0; i < N_CHILDREN; i ++ )
+          {
+            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node, &morton2node, &lock );
+            treequeue.push_back( node->kids[ i ] );
+          }
+					node->lchild = node->kids[ 0 ];
+					node->rchild = node->kids[ 1 ];
+          if ( node->lchild ) node->lchild->sibling = node->rchild;
+          if ( node->rchild ) node->rchild->sibling = node->lchild;
+        }
+        else
+        {
+					/** Leaf nodes are annotated with this flag */
+					node->isleaf = true;
+          treequeue.push_back( NULL );
+        }
+        treelist.push_back( node );
+        treequeue.pop_front();
+      }
+
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }; /* end allocateNodes() */
+
+
+
+
+
+
+
 
 }; /** end class Tree */
 }; /** end namespace tree */

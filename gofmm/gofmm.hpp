@@ -260,6 +260,8 @@ class Configuration
 
 		size_t ProblemSize() const noexcept { return problem_size; };
 
+    size_t getMaximumDepth() const noexcept { return maximum_depth_; };
+
     hmlpError_t setLeafNodeSize( sizeType leaf_node_size ) noexcept 
     {
       /* Check if arguments are valid. */
@@ -300,6 +302,9 @@ class Configuration
 
 		/** (Default) problem size. */
 		size_t problem_size = 0;
+
+    /** (Default) maximum tree depth. By defaultm we use 4 bits = 0-15 levels. */
+    size_t maximum_depth_ = 15;
 
 		/** (Default) maximum leaf node size. */
 		sizeType leaf_node_size_ = 64;
@@ -2393,7 +2398,7 @@ class NearSamplesTask : public Task
 template<typename TREE>
 void SymmetrizeNearInteractions( TREE & tree )
 {
-  int n_nodes = 1 << tree.depth;
+  int n_nodes = 1 << tree.getDepth();
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
@@ -2593,7 +2598,7 @@ void FindFarNodes( NODE *node, NODE *target )
 template<typename TREE>
 void MergeFarNodes( TREE &tree )
 {
-  for ( int l = tree.depth; l >= 0; l -- )
+  for ( int l = tree.getDepth(); l >= 0; l -- )
   {
     size_t n_nodes = ( 1 << l );
     auto level_beg = tree.treelist.begin() + n_nodes - 1;
@@ -2664,7 +2669,7 @@ void MergeFarNodes( TREE &tree )
   if ( tree.setup.IsSymmetric() )
   {
     /** symmetrinize FarNodes to FarNodes interaction */
-    for ( int l = tree.depth; l >= 0; l -- )
+    for ( int l = tree.getDepth(); l >= 0; l -- )
     {
       std::size_t n_nodes = 1 << l;
       auto level_beg = tree.treelist.begin() + n_nodes - 1;
@@ -2682,7 +2687,7 @@ void MergeFarNodes( TREE &tree )
   }
   
 #ifdef DEBUG_SPDASKIT
-  for ( int l = tree.depth; l >= 0; l -- )
+  for ( int l = tree.getDepth(); l >= 0; l -- )
   {
     std::size_t n_nodes = 1 << l;
     auto level_beg = tree.treelist.begin() + n_nodes - 1;
@@ -2782,7 +2787,7 @@ double DrawInteraction( TREE &tree )
   fprintf( pFile, "axis square;" );
   fprintf( pFile, "axis ij;" );
 
-  for ( int l = tree.depth; l >= 0; l -- )
+  for ( int l = tree.getDepth(); l >= 0; l -- )
   {
     std::size_t n_nodes = 1 << l;
     auto level_beg = tree.treelist.begin() + n_nodes - 1;
@@ -2797,7 +2802,7 @@ double DrawInteraction( TREE &tree )
         auto &pFarNodes = node->NNFarNodes;
         for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
         {
-          double gb = (double)std::min( node->l, (*it)->l ) / tree.depth;
+          double gb = (double)std::min( node->l, (*it)->l ) / tree.getDepth();
           //printf( "node->l %lu (*it)->l %lu depth %lu\n", node->l, (*it)->l, tree.depth );
           fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[1.0,%lf,%lf]);\n",
               node->offset,      (*it)->offset,
@@ -2987,7 +2992,7 @@ Data<T> Evaluate
     printf( "Forward permute ...\n" ); fflush( stdout );
   }
   beg = omp_get_wtime();
-  int n_nodes = ( 1 << tree.depth );
+  int n_nodes = ( 1 << tree.getDepth() );
   auto level_beg = tree.treelist.begin() + n_nodes - 1;
   #pragma omp parallel for
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
