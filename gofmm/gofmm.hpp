@@ -254,9 +254,16 @@ class Configuration
 			return HMLP_ERROR_SUCCESS;
 		};
 
-    void CopyFrom( Configuration<T> &config ) { *this = config; };
+    hmlpError_t CopyFrom( Configuration<T> &config ) 
+    { 
+      *this = config; 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-		DistanceMetric MetricType() const noexcept { return metric_type; };
+		DistanceMetric MetricType() const noexcept 
+		{ 
+		  return metric_type; 
+		};
 
 		size_t ProblemSize() const noexcept { return problem_size; };
 
@@ -344,13 +351,16 @@ class Setup : public tree::Setup<SPLITTER, T>,
     Setup() {};
 
     /** Shallow copy from the config. */
-    void FromConfiguration( Configuration<T> &config,
+    hmlpError_t FromConfiguration( Configuration<T> &config,
         SPDMATRIX &K, SPLITTER &splitter, Data<pair<T, size_t>> *NN )
     { 
-      this->CopyFrom( config ); 
+      /* Copy the setup from the configuration. */
+      RETURN_IF_ERROR( this->CopyFrom( config ) ); 
       this->K = &K;
       this->splitter = splitter;
       this->NN = NN;
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
     };
 
     /** The SPDMATRIX (accessed with gids: dense, CSC or OOC). */
@@ -2957,11 +2967,7 @@ template<
   bool     CACHE = true, 
   typename TREE, 
   typename T>
-Data<T> Evaluate
-( 
-  TREE &tree,
-  Data<T> &weights
-)
+Data<T> Evaluate( TREE &tree, Data<T> &weights )
 {
   const bool AUTO_DEPENDENCY = true;
 
@@ -3662,7 +3668,7 @@ T ComputeError( TREE &tree, size_t gid, Data<T> potentials )
 
 
 template<typename TREE>
-void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
+hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
 {
   /** Derive type T from TREE. */
   using T = typename TREE::T;
@@ -3693,10 +3699,10 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
     size_t tar = i * 1000;
     Data<T> potentials;
     /** ASKIT treecode with NN pruning. */
-    Evaluate( tree, tar, potentials, EVALUATE_OPTION_NEIGHBOR_PRUNING );
+    RETURN_IF_ERROR( Evaluate( tree, tar, potentials, EVALUATE_OPTION_NEIGHBOR_PRUNING ) );
     auto nnerr = ComputeError( tree, tar, potentials );
     /** ASKIT treecode without NN pruning. */
-    Evaluate( tree, tar, potentials, EVALUATE_OPTION_SELF_PRUNING );
+    RETURN_IF_ERROR( Evaluate( tree, tar, potentials, EVALUATE_OPTION_SELF_PRUNING ) );
     auto nonnerr = ComputeError( tree, tar, potentials );
     /** Get results from GOFMM */
     //potentials = u( vector<size_t>( i ), all_rhs );
@@ -3725,17 +3731,20 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   {
     /** Factorization */
     T lambda = 5.0;
-    gofmm::Factorize( tree, lambda );
+    RETURN_IF_ERROR( gofmm::Factorize( tree, lambda ) );
     /** Compute error. */
     gofmm::ComputeError( tree, lambda, w, u );
   }
 
+  return HMLP_ERROR_SUCCESS;
 }; /** end SelfTesting() */
 
 
-/** @brief Instantiate the splitters here. */ 
+/** 
+ *  \brief Instantiate the splitters here. 
+ */ 
 template<typename SPDMATRIX>
-void LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
+hmlpError_t LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
 {
   using T = typename SPDMATRIX::T;
 
@@ -3761,7 +3770,7 @@ void LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
   auto *tree_ptr = gofmm::Compress( K, NN, splitter, rkdtsplitter, config );
 	auto &tree = *tree_ptr;
   /** Examine accuracies. */
-  gofmm::SelfTesting( tree, 100, cmd.nrhs );
+  auto error = gofmm::SelfTesting( tree, 100, cmd.nrhs );
 
 
 //  //#ifdef DUMP_ANALYSIS_DATA
@@ -3771,7 +3780,10 @@ void LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
 
 	/** delete tree_ptr */
   delete tree_ptr;
-}; /** end LaunchHelper() */
+
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
+}; /* end LaunchHelper() */
 
 
 

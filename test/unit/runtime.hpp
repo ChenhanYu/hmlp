@@ -56,6 +56,8 @@ TEST(runtime, hmlp_is_in_epoch_session)
       0 );
 }
 
+
+
 /* Put all tests involving MPI here. */
 #ifdef HMLP_USE_MPI
 TEST(runtime, hmlp_init_with_comm)

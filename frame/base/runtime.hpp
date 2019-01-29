@@ -38,9 +38,6 @@
 #include <cstddef>
 #include <omp.h>
 
-//#ifdef USE_INTEL
-//#include <mkl.h>
-//#endif
 
 #ifdef USE_PTHREAD_RUNTIME
 #include <pthread.h>
@@ -76,34 +73,6 @@ typedef enum { ALLOCATED, NOTREADY, QUEUED, RUNNING, EXECUTED, DONE, CANCELLED }
 
 /** @brief */
 typedef enum { R, W, RW } ReadWriteType;
-
-
-///**
-// *  class Lock
-// */ 
-//
-///** @brief Wrapper for omp or pthread mutex.  */ 
-//class Lock
-//{
-//  public:
-//
-//    Lock();
-//
-//    ~Lock();
-//
-//    void Acquire();
-//
-//    void Release();
-//
-//  private:
-//#ifdef USE_PTHREAD_RUNTIME
-//    pthread_mutex_t lock;
-//#else
-//    omp_lock_t lock;
-//#endif
-//}; /** end class Lock */
-//
-//
 
 /**
  *  class Event
@@ -198,7 +167,7 @@ class Task
     void SetStatus( TaskStatus status );
     void SetBatchStatus( TaskStatus status );
 
-    void Submit();
+    hmlpError_t Submit();
 
 
     virtual void Set( string user_name, void (*user_function)(Task*), void *user_arg );
@@ -228,16 +197,18 @@ class Task
     void *arg;
 
     /* Dependencies related members */
-    volatile int n_dependencies_remaining = 0;
-    void DependenciesUpdate();
+    hmlpError_t dependenciesUpdate();
+
+    hmlpError_t addDependencyFrom( Task* source );
+    hmlpError_t addDependencyTo( Task* target );
 
     /** Read/write sets for dependency analysis */ 
     deque<Task*> in;
     deque<Task*> out;
 
     /** Task lock */
-    void Acquire();
-    void Release();
+    hmlpError_t Acquire();
+    hmlpError_t Release();
     
     Lock* task_lock = NULL;
 
@@ -253,6 +224,10 @@ class Task
     volatile int created_by = 0;
 
     bool IsNested();
+
+  protected:
+
+    volatile int n_dependencies_remaining_ = 0;
 
   private:
 
@@ -507,9 +482,9 @@ class ReadWrite
     /** Tracking the write set of the object. */
     deque<Task*> write;
 
-    void DependencyAnalysis( ReadWriteType type, Task *task );
+    hmlpError_t DependencyAnalysis( ReadWriteType type, Task *task );
 
-    void DependencyCleanUp();
+    hmlpError_t DependencyCleanUp();
 
   private:
 
@@ -567,9 +542,9 @@ class Scheduler : public mpi::MPIObject
     
     ~Scheduler();
 
-    void Init( int n_worker );
+    hmlpError_t Init( int n_worker );
 
-    void Finalize();
+    hmlpError_t Finalize();
 
     int n_worker = 0;
 
@@ -601,11 +576,11 @@ class Scheduler : public mpi::MPIObject
     void ReportRemainingTime();
 
     /** Manually describe the dependencies */
-    static void DependencyAdd( Task *source, Task *target );
+    static hmlpError_t DependencyAdd( Task *source, Task *target );
 
     void MessageDependencyAnalysis( int key, int p, ReadWriteType type, Task *task );
 
-    void NewTask( Task *task );
+    hmlpError_t NewTask( Task *task );
 
     void NewMessageTask( MessageTask *task );
 

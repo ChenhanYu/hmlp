@@ -50,6 +50,8 @@ int main( int argc, char *argv[] )
     T stol = 1E-5;
     /** The amount of direct evaluation (not used in neighbor search). */
     T budget = 0.01;
+    /** Whether are not to stop compressing when failing to achieve target accuracy. */
+    bool secure_accuracy = false;
     /** Number of right-hand sides. */
     size_t nrhs = 10;
     /** Regularization for the system (K+lambda*I). */
@@ -59,7 +61,7 @@ int main( int argc, char *argv[] )
     HANDLE_ERROR( hmlp_init( &argc, &argv ) );
 
     /** [Step#1] Create a configuration for generic SPD matrices. */
-    gofmm::Configuration<T> config1( ANGLE_DISTANCE, n, m, k, s, stol, budget );
+    gofmm::Configuration<T> config1( ANGLE_DISTANCE, n, m, k, s, stol, budget, secure_accuracy );
     /** [Step#2] Create a dense random SPD matrix. */
     SPDMatrix<T> K1( n, n ); 
     K1.randspd( 0.0, 1.0 );
@@ -74,14 +76,17 @@ int main( int argc, char *argv[] )
     /** [Step#6] Compute an approximate MATVEC. */
     Data<T> w1( n, nrhs ); w1.randn();
     auto u1 = gofmm::Evaluate( tree1, w1 );
-    /** [Step#7] Factorization (HSS using ULV). */
-    gofmm::Factorize( tree1, lambda ); 
-    /** [Step#8] Solve (K+lambda*I)w = u approximately with HSS. */
-    auto x1 = u1;
-    gofmm::Solve( tree1, x1 ); 
+    if ( secure_accuracy )
+    {
+      /** [Step#7] Factorization (HSS using ULV). */
+      gofmm::Factorize( tree1, lambda ); 
+      /** [Step#8] Solve (K+lambda*I)w = u approximately with HSS. */
+      auto x1 = u1;
+      gofmm::Solve( tree1, x1 ); 
+    }
 
     /** [Step#1] Create a configuration for kernel matrices. */
-    gofmm::Configuration<T> config2( GEOMETRY_DISTANCE, n, m, k, s, stol, budget );
+    gofmm::Configuration<T> config2( GEOMETRY_DISTANCE, n, m, k, s, stol, budget, secure_accuracy );
     /** [Step#2] Create a Gaussian kernel matrix with random 6D data. */
     size_t d = 6;
     Data<T> X( d, n ); X.randn();
@@ -97,11 +102,14 @@ int main( int argc, char *argv[] )
     /** [Step#6] Compute an approximate MATVEC. */
     Data<T> w2( n, nrhs ); w2.randn();
     auto u2 = gofmm::Evaluate( tree2, w2 );
-    /** [Step#7] Factorization (HSS using ULV). */
-    gofmm::Factorize( tree2, lambda ); 
-    /** [Step#8] Solve (K+lambda*I)w = u approximately with HSS. */
-    auto x2 = u2;
-    gofmm::Solve( tree2, x2 ); 
+    if ( secure_accuracy )
+    {
+      /** [Step#7] Factorization (HSS using ULV). */
+      gofmm::Factorize( tree2, lambda ); 
+      /** [Step#8] Solve (K+lambda*I)w = u approximately with HSS. */
+      auto x2 = u2;
+      gofmm::Solve( tree2, x2 ); 
+    }
 
     /** [Step#9] HMLP API call to terminate the runtime. */
     HANDLE_ERROR( hmlp_finalize() );

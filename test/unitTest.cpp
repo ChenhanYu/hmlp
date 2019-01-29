@@ -3,6 +3,9 @@
 #include "external/gtest-mpi-listener.hpp"
 #endif 
 
+/* GOFMM and MPI-GOFMM */
+#include "unit/gofmm.hpp"
+
 /* [INTERNAL] Runtime */
 #include "unit/runtime.hpp"
 

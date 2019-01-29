@@ -55,60 +55,6 @@ namespace hmlp
 static RunTime rt;
 
 /** 
- *  class Lock
- */ 
-
-///** @brief Shared-memory lock that calls either pthread or omp mutex.. */ 
-//Lock::Lock()
-//{
-//#ifdef USE_PTHREAD_RUNTIME
-//  if ( pthread_mutex_init( &lock, NULL ) )
-//  {
-//    printf( "pthread_mutex_init(): cannot initialize locks properly\n" );
-//  }
-//#else
-//  omp_init_lock( &lock );
-//#endif
-//}; /** end Lock::Lock() */
-//
-//Lock::~Lock()
-//{
-//#ifdef USE_PTHREAD_RUNTIME
-//  if ( pthread_mutex_destroy( &lock ) )
-//  {
-//    printf( "pthread_mutex_destroy(): cannot destroy locks properly\n" );
-//  }
-//#else
-//  omp_destroy_lock( &lock );
-//#endif
-//}; /** end Lock::~Lock() */
-//
-//void Lock::Acquire()
-//{
-//#ifdef USE_PTHREAD_RUNTIME
-//  if ( pthread_mutex_lock( &lock ) )
-//  {
-//    printf( "pthread_mutex_lock(): cannot acquire locks properly\n" );
-//  }
-//#else
-//  omp_set_lock( &lock );
-//#endif
-//};
-//
-//void Lock::Release()
-//{
-//#ifdef USE_PTHREAD_RUNTIME
-//  if ( pthread_mutex_unlock( &lock ) )
-//  {
-//    printf( "pthread_mutex_lock(): cannot release locks properly\n" );
-//  }
-//#else
-//  omp_unset_lock( &lock );
-//#endif
-//};
-//
-
-/** 
  *  class Event
  */ 
 
@@ -218,14 +164,21 @@ void Event::MatlabTimeline( FILE *pFile )
 /** @brief (Default) Task constructor. */ 
 Task::Task()
 {
-  /** Change status to allocated. */
-  SetStatus( ALLOCATED );
-  /** Whether this is a nested task? */
-  is_created_in_epoch_session = rt.isInEpochSession();
-  /** Which thread creates me? */
-  created_by = omp_get_thread_num();
-  /** Move forward to next status "NOTREADY". */
-  SetStatus( NOTREADY );
+  try
+  {
+    /** Change status to allocated. */
+    SetStatus( ALLOCATED );
+    /** Whether this is a nested task? */
+    is_created_in_epoch_session = rt.isInEpochSession();
+    /** Which thread creates me? */
+    created_by = omp_get_thread_num();
+    /** Move forward to next status "NOTREADY". */
+    SetStatus( NOTREADY );
+  }
+  catch ( const exception & e )
+  {
+    cout << e.what() << endl;
+  }
 }; /** end Task::Task() */
 
 /** @brief (Default) Task destructor. */ 
@@ -260,8 +213,14 @@ void Task::SetBatchStatus( TaskStatus next_status )
   }
 };
 
-/** @brief Ask the runtime to create an normal task in file. */
-void Task::Submit() { rt.scheduler->NewTask( this ); };
+/** 
+ *  \brief Ask the runtime to create an normal task in file. 
+ *  \return the error code
+ */
+hmlpError_t Task::Submit() 
+{ 
+  return rt.scheduler->NewTask( this );
+};
 
 /** @brief Ask the runtime to create an message task in file. */
 void MessageTask::Submit() { rt.scheduler->NewMessageTask( this ); };
@@ -278,55 +237,86 @@ void Task::Set( string user_name, void (*user_function)(Task*), void *user_arg )
   status = NOTREADY;
 }; /** end Task::Set() */
 
+
+hmlpError_t Task::addDependencyFrom( Task* source )
+{
+  RETURN_IF_ERROR( Acquire() );
+  {
+    /* Update the incoming edges. */
+    in.push_back( source );
+    /** Only increase the dependency count for incompleted tasks. */
+    if ( source->GetStatus() != DONE )
+    {
+      n_dependencies_remaining_ ++;
+    }
+  }
+  RETURN_IF_ERROR( Release() );
+  return HMLP_ERROR_SUCCESS;
+};
+
+
+hmlpError_t Task::addDependencyTo( Task* target )
+{
+  RETURN_IF_ERROR( Acquire() );
+  {
+    out.push_back( target );
+  }
+  RETURN_IF_ERROR( Release() );
+  return HMLP_ERROR_SUCCESS;
+};
+
 /** @brief Update the my outgoing and children's incoming edges. */
-void Task::DependenciesUpdate()
+hmlpError_t Task::dependenciesUpdate()
 {
   /** Loop over each out-going edge. */
   while ( out.size() )
   {
     Task *child = out.front();
     /** There should be at least "one" remaining dependency to satisfy. */
-    assert( child->n_dependencies_remaining > 0 && child->GetStatus() == NOTREADY );
-    /** Acquire execlusive right to modify the task. */
-    //assert( child->task_lock );
-    child->Acquire();
+    if ( child->n_dependencies_remaining_ <= 0 || child->GetStatus() != NOTREADY )
     {
-      child->n_dependencies_remaining --;
+      return HMLP_ERROR_INTERNAL_ERROR;
+    }
+    /** Acquire execlusive right to modify the task. */
+    RETURN_IF_ERROR( child->Acquire() );
+    {
+      child->n_dependencies_remaining_ --;
       /** If there is no dependency left, enqueue the task. */
-      if ( !child->n_dependencies_remaining )
+      if ( !child->n_dependencies_remaining_ )
       {
         /** Nested tasks may not carry the worker pointer. */
         if ( worker ) child->Enqueue( worker->tid );
         else          child->Enqueue();
       }
     }
-    child->Release();
+    RETURN_IF_ERROR( child->Release() );
     /** Remove this out-going edge. */
     out.pop_front();
   }
   /** Move forward to the last status "DONE". */
   SetStatus( DONE );
-}; /** end Task::DependenciesUpdate() */
+
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
+}; /* end Task::dependenciesUpdate() */
 
 
-void Task::Acquire() 
+hmlpError_t Task::Acquire() 
 { 
-  if ( !task_lock ) 
+  if ( !task_lock )
   {
-    cout << name << " not submitted" << endl;
-    assert( task_lock );
+    return HMLP_ERROR_NOT_INITIALIZED;
   }
-  task_lock->Acquire(); 
+  return task_lock->Acquire(); 
 };
 
-void Task::Release() 
+hmlpError_t Task::Release() 
 { 
-  if ( !task_lock ) 
+  if ( !task_lock )
   {
-    cout << name << " not submitted" << endl;
-    assert( task_lock );
+    return HMLP_ERROR_NOT_INITIALIZED;
   }
-  task_lock->Release(); 
+  return task_lock->Release(); 
 };
 
 
@@ -338,7 +328,7 @@ void Task::DependencyAnalysis() {};
 /** @brief Try to dispatch the task if there is no dependency left. */
 bool Task::TryEnqueue()
 {
-  if ( GetStatus() == NOTREADY && !n_dependencies_remaining ) 
+  if ( GetStatus() == NOTREADY && !n_dependencies_remaining_ ) 
   {
     Enqueue();
     return true;
@@ -433,31 +423,39 @@ bool Task::IsNested() { return is_created_in_epoch_session; };
 ReadWrite::ReadWrite() {};
 
 /** Clean both read and write sets. */
-void ReadWrite::DependencyCleanUp()
+hmlpError_t ReadWrite::DependencyCleanUp()
 {
   read.clear();
   write.clear();
+  return HMLP_ERROR_SUCCESS;
 }; /** end DependencyCleanUp() */
 
 /** @brief This is the key function that encode the dependency. **/ 
-void ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
+hmlpError_t ReadWrite::DependencyAnalysis( ReadWriteType type, Task *task )
 {
   if ( type == R || type == RW )
   {
     /** Update the read set. */
     read.push_back( task );
     /** Read-After-Write (RAW) data dependencies. */
-    for ( auto it : write ) Scheduler::DependencyAdd( it, task );
+    for ( auto it : write ) 
+    {
+      RETURN_IF_ERROR( Scheduler::DependencyAdd( it, task ) );
+    }
   }
   if ( type == W || type == RW )
   {
     /** Write-After-Read (WAR) anti-dependencies. */
-    for ( auto it : read ) Scheduler::DependencyAdd( it, task );
+    for ( auto it : read ) 
+    {
+      RETURN_IF_ERROR( Scheduler::DependencyAdd( it, task ) );
+    }
     /** Clean up both read and write sets. */
-    DependencyCleanUp();
+    RETURN_IF_ERROR( DependencyCleanUp() );
     /** Update the write set. */
     write.push_back( task );
   }
+  return HMLP_ERROR_SUCCESS;
 }; /** end ReadWrite::DependencyAnalysis() */
 
 
@@ -518,12 +516,19 @@ void MatrixReadWrite::DependencyCleanUp()
 Scheduler::Scheduler( mpi::Comm user_comm ) 
   : mpi::MPIObject( user_comm ), timeline_tag( 500 )
 {
+  try
+  {
 #ifdef DEBUG_SCHEDULER
-  printf( "Scheduler()\n" );
+    printf( "Scheduler()\n" );
 #endif
-  listener_tasklist.resize( this->GetCommSize() );
-  /** Set now as the begining of the time table. */
-  timeline_beg = omp_get_wtime();
+    listener_tasklist.resize( this->GetCommSize() );
+    /** Set now as the begining of the time table. */
+    timeline_beg = omp_get_wtime();
+  }
+  catch ( const exception & e )
+  {
+    cout << e.what() << endl;
+  }
 };
 
 
@@ -537,7 +542,7 @@ Scheduler::~Scheduler()
 
 
 /** @brief  */
-void Scheduler::Init( int user_n_worker )
+hmlpError_t Scheduler::Init( int user_n_worker )
 {
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler::Init()\n" );
@@ -576,7 +581,9 @@ void Scheduler::Init( int user_n_worker )
     EntryPoint( (void*)&(rt.workers[ i ]) );
   } /** end pragma omp parallel for */
 #endif
-}; /** end Scheduler::Init() */
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
+}; /* end Scheduler::Init() */
 
 
 /** @brief  */
@@ -591,12 +598,20 @@ void Scheduler::MessageDependencyAnalysis(
 }; /** end Scheduler::MessageDependencyAnalysis() */
 
 
-/** @brief This function is called by RunTime::Submit() to record a new task. */
-void Scheduler::NewTask( Task *task )
+/** 
+ *  \brief This function is called by RunTime::Submit() to record 
+ *         a new task in the following runtime epoch.
+ *  \param [in] the task pointer to record
+ *  \return the error code
+ */
+hmlpError_t Scheduler::NewTask( Task *task )
 {
-  if ( !task ) return;
+  if ( !task ) 
+  {
+    return HMLP_ERROR_INVALID_VALUE;
+  }
   /** Acquire the exclusive right to access the tasklist. */
-  tasklist_lock.Acquire();
+  RETURN_IF_ERROR( tasklist_lock.Acquire() );
   {
     if ( rt.isInEpochSession() ) 
     {
@@ -609,8 +624,10 @@ void Scheduler::NewTask( Task *task )
       tasklist.push_back( task );
     }
   }
-  tasklist_lock.Release();
-}; /** end Scheduler::NewTask()  */
+  RETURN_IF_ERROR( tasklist_lock.Release() );
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
+}; /* end Scheduler::NewTask()  */
 
 
 /** @brief  */
@@ -650,7 +667,7 @@ void Scheduler::NewListenerTask( ListenerTask *task )
 
 
 /** @brief  */
-void Scheduler::Finalize()
+hmlpError_t Scheduler::Finalize()
 {
 #ifdef DEBUG_SCHEDULER
   printf( "Scheduler::Finalize()\n" );
@@ -665,35 +682,20 @@ void Scheduler::Finalize()
 
   /** Print out statistics of this epoch */
   if ( REPORT_RUNTIME_STATUS ) Summary();
-
   /** Reset remaining time. */
   for ( int i = 0; i < n_worker; i ++ ) time_remaining[ i ] = 0.0;
   /** Free all normal tasks and reset tasklist. */
-  try
-  {
-    for ( auto task : tasklist ) delete task; 
-    tasklist.clear();
-  }
-  catch ( exception & e ) { cout << e.what() << endl; };
+  for ( auto task : tasklist ) delete task; 
+  tasklist.clear();
   /** Free all nested tasks and reset nested_tasklist. */
-  try
-  {
-    for ( auto task : nested_tasklist ) delete task; 
-    nested_tasklist.clear();
-  }
-  catch ( exception & e ) { cout << e.what() << endl; };
-  //printf( "Begin Scheduler::Finalize() [cleanup listener_tasklist]\n" );
-  /** Reset listener_tasklist  */
-  try
-  {
-    for ( auto & plist : listener_tasklist ) plist.clear();
-  }
-  catch ( exception & e ) { cout << e.what() << endl; };
-  //printf( "End   Scheduler::Finalize() [cleanup listener_tasklist]\n" );
-  
-  /** Clean up all message dependencies. */
+  for ( auto task : nested_tasklist ) delete task; 
+  nested_tasklist.clear();
+  /* Reset listener_tasklist  */
+  for ( auto & plist : listener_tasklist ) plist.clear();
+  /* Clean up all message dependencies. */
   msg_dependencies.clear();
-
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
 }; /** end Scheduler::Finalize() */
 
 
@@ -713,24 +715,35 @@ void Scheduler::ReportRemainingTime()
 
 
 /** @brief Add an direct edge (dependency) from source to target. */ 
-void Scheduler::DependencyAdd( Task *source, Task *target )
+hmlpError_t Scheduler::DependencyAdd( Task *source, Task *target )
 {
+  if ( !source || !target )
+  {
+    return HMLP_ERROR_INVALID_VALUE;
+  }
   /** Avoid self-loop. */
-  if ( source == target ) return;
+  if ( source == target ) 
+  {
+    return HMLP_ERROR_SUCCESS;
+  }
   /** Update the source out-going edges. */
-  source->Acquire();
-  {
-    source->out.push_back( target );
-  }
-  source->Release();
+  RETURN_IF_ERROR( source->addDependencyTo( target ) );
+  //source->Acquire();
+  //{
+  //  source->out.push_back( target );
+  //}
+  //source->Release();
   /** Update the target incoming edges. */
-  target->Acquire();
-  {
-    target->in.push_back( source );
-    /** Only increase the dependency count for incompleted tasks. */
-    if ( source->GetStatus() != DONE ) target->n_dependencies_remaining ++;
-  }
-  target->Release();
+  RETURN_IF_ERROR( target->addDependencyFrom( source ) );
+  //target->Acquire();
+  //{
+  //  target->in.push_back( source );
+  //  /** Only increase the dependency count for incompleted tasks. */
+  //  if ( source->GetStatus() != DONE ) target->n_dependencies_remaining_ ++;
+  //}
+  //target->Release();
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
 }; /** end Scheduler::DependencyAdd() */
 
 
@@ -898,7 +911,7 @@ bool Scheduler::ConsumeTasks( Worker *me, vector<Task*> &batch )
   /** For each task, update dependencies and my remining time. */
   for ( auto task : batch )
   {
-    task->DependenciesUpdate();
+    task->dependenciesUpdate();
     /** Update my remaining time and n_task_completed. */
     if ( !task->IsNested() )
     {
@@ -956,7 +969,7 @@ bool Scheduler::ConsumeTasks( Worker *me, Task *batch, bool is_nested )
     Task *task = batch;
     while ( task )
     {
-      task->DependenciesUpdate();
+      task->dependenciesUpdate();
       if ( !is_nested )
       {
         ready_queue_lock[ me->tid ].Acquire();
@@ -1381,17 +1394,17 @@ hmlpError_t RunTime::run()
     fprintf( stderr, "Error: the runtime system was not initialized!\n" );
     return HMLP_ERROR_NOT_INITIALIZED;
   }
-  /** Begin this epoch session. */
+  /* Begin this epoch session. */
   is_in_epoch_session_ = true;
-  /** Schedule jobs to n workers. */
-  scheduler->Init( getNumberOfWorkers() );
-  /** Clean up. */
-  scheduler->Finalize();
-  /** Finish this epoch session. */
+  /* Schedule jobs to n workers. */
+  RETURN_IF_ERROR( scheduler->Init( getNumberOfWorkers() ) );
+  /* Clean up. */
+  RETURN_IF_ERROR( scheduler->Finalize() );
+  /* Finish this epoch session. */
   is_in_epoch_session_ = false;
-  /** Return without error. */
+  /* Return without error. */
   return HMLP_ERROR_SUCCESS;
-}; /** end RunTime::Run() */
+}; /* end RunTime::run() */
 
 /**
  *  \breif Stop and clean up the runtime syste.
@@ -1399,12 +1412,14 @@ hmlpError_t RunTime::run()
  */ 
 hmlpError_t RunTime::finalize()
 {
+  /* Prepare  */
+  hmlpError_t scheduler_error = HMLP_ERROR_SUCCESS;
   #pragma omp critical (init)
   {
     if ( isInit() )
     {
       /** Finalize the scheduler and delete it. */
-      scheduler->Finalize();
+      scheduler_error = scheduler->Finalize();
       delete scheduler;
       /** Set the initialized flag to false. */
       is_init_ = false;
@@ -1412,6 +1427,9 @@ hmlpError_t RunTime::finalize()
       if ( is_mpi_init_by_hmlp_ ) mpi::Finalize();
     }
   }
+  /** Report the scheduler error now. */
+  RETURN_IF_ERROR( scheduler_error ); 
+  /* Return with no error. */
   return HMLP_ERROR_SUCCESS;
 }; /** end RunTime::finalize() */
 
@@ -1451,8 +1469,12 @@ void RunTime::ExecuteNestedTasksWhileWaiting( Task *waiting_task )
  */ 
 hmlpError_t RunTime::setNumberOfWorkers( int num_of_workers ) noexcept
 {
-  if ( num_of_workers < 1 ) return HMLP_ERROR_INVALID_VALUE;
+  if ( num_of_workers < 1 ) 
+  {
+    return HMLP_ERROR_INVALID_VALUE;
+  }
   num_of_workers_ = std::min( num_of_workers, num_of_max_workers_ );
+  /* Return with no error. */
   return HMLP_ERROR_SUCCESS; 
 };
 
