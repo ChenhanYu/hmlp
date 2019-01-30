@@ -242,8 +242,10 @@ class Setup : public mpitree::Setup<SPLITTER, T>,
     /** use ULV or Sherman-Morrison-Woodbury */
     bool do_ulv_factorization = true;
 
+    unordered_set<size_t> compression_failure_frontier_;
 
   private:
+
 
 }; /** end class Setup */
 
@@ -1009,7 +1011,12 @@ class S2STask2 : public Task
     void Execute( Worker* user_worker )
     {
       auto *node = arg;
-      if ( !node->parent || !node->data.is_compressed ) return;
+      if ( !node->parent || !node->data.is_compressed ) 
+      {
+        #pragma omp atomic update
+        *num_arrived_subtasks += 1;
+        return;
+      }
       size_t nrhs = node->setup->w->col();
       auto &K = *node->setup->K;
       auto &I = node->data.skels;
@@ -1616,27 +1623,32 @@ void FindNearInteractions( TREE &tree )
 
 
 template<typename NODE>
-void FindFarNodes( MortonHelper::Recursor r, NODE *target )
+hmlpError_t FindFarNodes( const MortonHelper::Recursor r, NODE *target ) 
 {
+  /* target must be a leaf node. */
+  if ( !target->isleaf ) return HMLP_ERROR_INVALID_VALUE;
   /** Return while reaching the leaf level (recursion base case). */ 
-  if ( r.second > target->l ) return;
+  if ( r.second > target->l ) return HMLP_ERROR_SUCCESS;
   /** Compute the MortonID of the visiting node. */
   size_t node_morton = MortonHelper::MortonID( r );
 
-  //bool prunable = true;
   auto & NearMortonIDs = target->NNNearNodeMortonIDs;
+  auto & compression_failure_frontier = target->setup->compression_failure_frontier_;
 
   /** Recur to children if the current node contains near interactions. */
-  if ( MortonHelper::ContainAny( node_morton, NearMortonIDs ) )
+  if ( MortonHelper::ContainAny( node_morton, NearMortonIDs ) ||
+       MortonHelper::ContainAny( node_morton, compression_failure_frontier ) )
   {
-    FindFarNodes( MortonHelper::RecurLeft( r ), target );
-    FindFarNodes( MortonHelper::RecurRight( r ), target );
+    RETURN_IF_ERROR( FindFarNodes( MortonHelper::RecurLeft( r ), target ) );
+    RETURN_IF_ERROR( FindFarNodes( MortonHelper::RecurRight( r ), target ) );
   }
   else
   {
     if ( node_morton >= target->morton )
       target->NNFarNodeMortonIDs.insert( node_morton );
   }
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
 }; /** end FindFarNodes() */
 
 
@@ -2718,7 +2730,7 @@ template<bool SYMMETRIC, typename NODE, typename T>
 void MergeFarNodes( NODE *node )
 {
   /** if I don't have any skeleton, then I'm nobody's far field */
-  //if ( !node->data.is_compressed ) return;
+  if ( !node->data.is_compressed ) return;
 
   /**
    *  Examine "Near" interaction list
@@ -3376,147 +3388,147 @@ class DistSkeletonKIJTask : public Task
 
 
 
-/**
- *  @brief Skeletonization with interpolative decomposition.
- */ 
-template<typename NODE, typename T>
-void DistSkeletonize( NODE *node )
-{
-  /** early return if we do not need to skeletonize */
-  if ( !node->parent ) return;
-
-  /** gather shared data and create reference */
-  auto &K   = *(node->setup->K);
-  auto &NN  = *(node->setup->NN);
-  auto maxs = node->setup->MaximumRank();
-  auto stol = node->setup->Tolerance();
-  bool secure_accuracy = node->setup->SecureAccuracy();
-  bool use_adaptive_ranks = node->setup->UseAdaptiveRanks();
-
-  /** gather per node data and create reference */
-  auto &data  = node->data;
-  auto &skels = data.skels;
-  auto &proj  = data.proj;
-  auto &jpvt  = data.jpvt;
-  auto &KIJ   = data.KIJ;
-  auto &candidate_cols = data.candidate_cols;
-
-  /** interpolative decomposition */
-  size_t N = K.col();
-  size_t m = KIJ.row();
-  size_t n = KIJ.col();
-  size_t q = node->n;
-
-  if ( secure_accuracy )
-  {
-    /** TODO: need to check of both children's is_compressed to preceed */
-  }
-
-
-  /** Bill's l2 norm scaling factor */
-  T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
-  /** account for uniform sampling */
-  scaled_stol *= std::sqrt( (T)q / N );
-
-  if ( m == 0 ) 
-  {
-    printf( "m %lu n %lu q %lu node level %lu\n", m, n, q, node->l );
-    return;
-  }
-
-
-  lowrank::id
-  (
-    use_adaptive_ranks, secure_accuracy,
-    KIJ.row(), KIJ.col(), maxs, scaled_stol, 
-    KIJ, skels, proj, jpvt
-  );
-
-  /** Free KIJ for spaces */
-  KIJ.resize( 0, 0 );
-  KIJ.shrink_to_fit();
-
-  /** depending on the flag, decide is_compressed or not */
-  if ( secure_accuracy )
-  {
-    /** TODO: this needs to be bcast to other nodes */
-    data.is_compressed = (skels.size() != 0);
-  }
-  else
-  {
-    assert( skels.size() );
-    assert( proj.size() );
-    assert( jpvt.size() );
-    data.is_compressed = true;
-  }
-  
-  /** Relabel skeletions with the real gids */
-  for ( size_t i = 0; i < skels.size(); i ++ )
-  {
-    skels[ i ] = candidate_cols[ skels[ i ] ];
-  }
-
-
-}; /** end DistSkeletonize() */
-
-
-
-
-template<typename NODE, typename T>
-class SkeletonizeTask : public hmlp::Task
-{
-  public:
-
-    NODE *arg;
-
-    void Set( NODE *user_arg )
-    {
-      arg = user_arg;
-      name = string( "SK" );
-      label = to_string( arg->treelist_id );
-      /** We don't know the exact cost here */
-      cost = 5.0;
-      /** "High" priority */
-      priority = true;
-    };
-
-    void GetEventRecord()
-    {
-      double flops = 0.0, mops = 0.0;
-
-      auto &K = *arg->setup->K;
-      size_t n = arg->data.proj.col();
-      size_t m = 2 * n;
-      size_t k = arg->data.proj.row();
-
-      /** GEQP3 */
-      flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
-      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
-
-      /* TRSM */
-      flops += k * ( k - 1 ) * ( n + 1 );
-      mops  += 2.0 * ( k * k + k * n );
-
-      event.Set( label + name, flops, mops );
-      arg->data.skeletonize = event;
-    };
-
-    void DependencyAnalysis()
-    {
-      arg->DependencyAnalysis( RW, this );
-      this->TryEnqueue();
-    };
-
-    void Execute( Worker* user_worker )
-    {
-      //printf( "%d Par-Skel beg\n", global_rank );
-
-      DistSkeletonize<NODE, T>( arg );
-
-      //printf( "%d Par-Skel end\n", global_rank );
-    };
-
-}; /** end class SkeletonTask */
+///**
+// *  @brief Skeletonization with interpolative decomposition.
+// */ 
+//template<typename NODE, typename T>
+//void DistSkeletonize( NODE *node )
+//{
+//  /** early return if we do not need to skeletonize */
+//  if ( !node->parent ) return;
+//
+//  /** gather shared data and create reference */
+//  auto &K   = *(node->setup->K);
+//  auto &NN  = *(node->setup->NN);
+//  auto maxs = node->setup->MaximumRank();
+//  auto stol = node->setup->Tolerance();
+//  bool secure_accuracy = node->setup->SecureAccuracy();
+//  bool use_adaptive_ranks = node->setup->UseAdaptiveRanks();
+//
+//  /** gather per node data and create reference */
+//  auto &data  = node->data;
+//  auto &skels = data.skels;
+//  auto &proj  = data.proj;
+//  auto &jpvt  = data.jpvt;
+//  auto &KIJ   = data.KIJ;
+//  auto &candidate_cols = data.candidate_cols;
+//
+//  /** interpolative decomposition */
+//  size_t N = K.col();
+//  size_t m = KIJ.row();
+//  size_t n = KIJ.col();
+//  size_t q = node->n;
+//
+//  if ( secure_accuracy )
+//  {
+//    /** TODO: need to check of both children's is_compressed to preceed */
+//  }
+//
+//
+//  /** Bill's l2 norm scaling factor */
+//  T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
+//  /** account for uniform sampling */
+//  scaled_stol *= std::sqrt( (T)q / N );
+//
+//  if ( m == 0 ) 
+//  {
+//    printf( "m %lu n %lu q %lu node level %lu\n", m, n, q, node->l );
+//    return;
+//  }
+//
+//
+//  lowrank::id
+//  (
+//    use_adaptive_ranks, secure_accuracy,
+//    KIJ.row(), KIJ.col(), maxs, scaled_stol, 
+//    KIJ, skels, proj, jpvt
+//  );
+//
+//  /** Free KIJ for spaces */
+//  KIJ.resize( 0, 0 );
+//  KIJ.shrink_to_fit();
+//
+//  /** depending on the flag, decide is_compressed or not */
+//  if ( secure_accuracy )
+//  {
+//    /** TODO: this needs to be bcast to other nodes */
+//    data.is_compressed = (skels.size() != 0);
+//  }
+//  else
+//  {
+//    assert( skels.size() );
+//    assert( proj.size() );
+//    assert( jpvt.size() );
+//    data.is_compressed = true;
+//  }
+//  
+//  /** Relabel skeletions with the real gids */
+//  for ( size_t i = 0; i < skels.size(); i ++ )
+//  {
+//    skels[ i ] = candidate_cols[ skels[ i ] ];
+//  }
+//
+//
+//}; /** end DistSkeletonize() */
+//
+//
+//
+//
+//template<typename NODE, typename T>
+//class SkeletonizeTask : public hmlp::Task
+//{
+//  public:
+//
+//    NODE *arg;
+//
+//    void Set( NODE *user_arg )
+//    {
+//      arg = user_arg;
+//      name = string( "SK" );
+//      label = to_string( arg->treelist_id );
+//      /** We don't know the exact cost here */
+//      cost = 5.0;
+//      /** "High" priority */
+//      priority = true;
+//    };
+//
+//    void GetEventRecord()
+//    {
+//      double flops = 0.0, mops = 0.0;
+//
+//      auto &K = *arg->setup->K;
+//      size_t n = arg->data.proj.col();
+//      size_t m = 2 * n;
+//      size_t k = arg->data.proj.row();
+//
+//      /** GEQP3 */
+//      flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
+//      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
+//
+//      /* TRSM */
+//      flops += k * ( k - 1 ) * ( n + 1 );
+//      mops  += 2.0 * ( k * k + k * n );
+//
+//      event.Set( label + name, flops, mops );
+//      arg->data.skeletonize = event;
+//    };
+//
+//    void DependencyAnalysis()
+//    {
+//      arg->DependencyAnalysis( RW, this );
+//      this->TryEnqueue();
+//    };
+//
+//    void Execute( Worker* user_worker )
+//    {
+//      //printf( "%d Par-Skel beg\n", global_rank );
+//
+//      DistSkeletonize<NODE, T>( arg );
+//
+//      //printf( "%d Par-Skel end\n", global_rank );
+//    };
+//
+//}; /** end class SkeletonTask */
 
 
 
@@ -3575,20 +3587,63 @@ class DistSkeletonizeTask : public hmlp::Task
 
     void Execute( Worker* user_worker )
     {
+      /** Early return if we do not need to skeletonize. */
+      if ( !arg->parent ) return;
+      /* Check if we need to secure the accuracy? */
+      bool secure_accuracy = arg->setup->SecureAccuracy();
+      /* Gather per node data and create reference. */
+      auto &data  = arg->data;
+      /* Clear skels and proj. */
+      data.skels.clear();
+      data.proj.clear();
+      /* Acquire the node communicator. */
       mpi::Comm comm = arg->GetComm();
 
-      double beg = omp_get_wtime();
+      /* If one of my children is not compreesed, so am I. */
+      if ( secure_accuracy && !arg->isleaf ) 
+      {
+        int is_lchild_compressed;
+        int is_rchild_compressed;
+        if ( arg->GetCommSize() == 1 )
+        {
+          is_lchild_compressed = arg->lchild->data.is_compressed;
+          is_rchild_compressed = arg->rchild->data.is_compressed;
+        }
+        else
+        {
+          is_lchild_compressed = arg->child->data.is_compressed;
+          is_rchild_compressed = arg->child->data.is_compressed;
+          mpi::Bcast( &is_lchild_compressed, 1,                      0, comm );
+          mpi::Bcast( &is_rchild_compressed, 1, arg->GetCommSize() / 2, comm );
+        }
+        /* If both children were not compressed, then this node is above the frontier. */
+        if ( !is_lchild_compressed && !is_rchild_compressed )
+        {
+          data.is_compressed = false;
+          return;
+        }
+        /* If only one of the children compressed, then this node is in the frontier. */
+        if ( !is_lchild_compressed || !is_rchild_compressed )
+        {
+          data.is_compressed = false;
+          data.setCompressionFailureFrontier();
+          return;
+        }
+      }
+      /* Skeletonization using interpolative decomposition. */
       if ( arg->GetCommRank() == 0 )
       {
-        DistSkeletonize<NODE, T>( arg );
+        gofmm::Skeletonize( arg );
       }
-      double skel_t = omp_get_wtime() - beg;
-
 			/** Bcast is_compressed to every MPI processes in the same comm */
 			int is_compressed = arg->data.is_compressed;
 			mpi::Bcast( &is_compressed, 1, 0, comm );
 			arg->data.is_compressed = is_compressed;
-
+      /* This node does not compressed. It must be in the frontier. */
+      if ( !is_compressed )
+      {
+        data.setCompressionFailureFrontier();
+      }
       /** Bcast skels and proj to every MPI processes in the same comm */
       auto &skels = arg->data.skels;
       size_t nskels = skels.size();
@@ -3644,6 +3699,58 @@ class InterpolateTask : public Task
 
 
 
+template<typename TREE>
+hmlpError_t compressionFailureFrontier( TREE & tree )
+{
+  auto & frontier = tree.setup.compression_failure_frontier_;
+  /* Loop over local tree nodes. */
+  for ( auto node : tree.treelist )
+  {
+    if ( node->isleaf ) continue;
+    if ( node->data.isCompressionFailureFrontier() )
+    {
+      frontier.insert( node->morton );
+    }
+  }
+  /* Loop over all distributed tree nodes. */
+  for ( auto node : tree.mpitreelists )
+  {
+    if ( node->isleaf ) continue;
+    if ( node->data.isCompressionFailureFrontier() )
+    {
+      frontier.insert( node->morton );
+    }
+  }
+  
+  int comm_size = tree.GetCommSize();
+  vector<int> recv_size( comm_size, 0 );
+  vector<int> recv_disp( comm_size, 0 );
+  vector<size_t> send_mortons( frontier.begin(), frontier.end() );
+  vector<size_t> recv_mortons;
+
+  /* Exchange send_pairs.size(). */
+  int send_size = send_mortons.size();
+  mpi::Allgather( &send_size, 1, recv_size.data(), 1, tree.GetComm() );
+
+  /* Compute displacement for Allgatherv. */
+  int total_recv_size = recv_size[ 0 ];
+  for ( size_t p = 1; p < comm_size; p ++ )
+  {
+    /* Increase the displacement. */
+    recv_disp[ p ] = recv_disp[ p - 1 ] + recv_size[ p - 1 ];
+    /* Increase the total received size. */
+    total_recv_size += recv_size[ p ];
+  }
+  /* Resize recv_mortons. */
+  recv_mortons.resize( total_recv_size );
+  /* Exchange all mortons. */
+  mpi::Allgatherv( send_mortons.data(), send_size, 
+      recv_mortons.data(), recv_size.data(), recv_disp.data(), tree.GetComm() );
+  /** Fill in all MortonIDs. */
+  for ( auto it : recv_mortons ) frontier.insert( it );
+  /** Return with no error. */
+  return HMLP_ERROR_SUCCESS;
+};
 
 
 
@@ -3995,6 +4102,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     exchange_neighbor_time = omp_get_wtime() - beg;
 
 
+
     beg = omp_get_wtime();
     /** Construct near interaction lists. */
     FindNearInteractions( tree );
@@ -4005,6 +4113,38 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     /** Exchange {leafs} and {paramsleafs)}.  */
     ExchangeLET( tree, string( "leafgids" ) );
     symmetrize_time = omp_get_wtime() - beg;
+
+
+    mpi::PrintProgress( "[BEG] Skeletonization ...", tree.GetComm() ); 
+    /** Skeletonization */
+	  beg = omp_get_wtime();
+    tree.DependencyCleanUp();
+    /** Gather sample rows and skeleton columns, then ID */
+    gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> seqGETMTXtask;
+    mpigofmm::DistSkeletonKIJTask<NNPRUNE, MPINODE, T> mpiGETMTXtask;
+    //mpigofmm::SkeletonizeTask<NODE, T> seqSKELtask;
+    gofmm::SkeletonizeTask<NODE, T> seqSKELtask;
+    mpigofmm::DistSkeletonizeTask<MPINODE, T> mpiSKELtask;
+    tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+    //tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+    /** Compute the coefficient matrix of ID */
+    gofmm::InterpolateTask<NODE> seqPROJtask;
+    mpigofmm::InterpolateTask<MPINODE> mpiPROJtask;
+    tree.LocaTraverseUnOrdered( seqPROJtask );
+    //tree.DistTraverseUnOrdered( mpiPROJtask );
+
+    tree.ExecuteAllTasks();
+    skel_time = omp_get_wtime() - beg;
+
+	  beg = omp_get_wtime();
+    tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+    tree.DistTraverseUnOrdered( mpiPROJtask );
+    tree.ExecuteAllTasks();
+    mpi_skel_time = omp_get_wtime() - beg;
+    mpi::PrintProgress( "[END] Skeletonization ...", tree.GetComm() ); 
+
+    /* Compute the compression failure frontier. */
+    HANDLE_ERROR( mpigofmm::compressionFailureFrontier( tree ) );
 
 
     /** Find and merge far interactions. */
@@ -4026,36 +4166,37 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     BuildInteractionListPerRank( tree, false );
     symmetrize_time += omp_get_wtime() - beg;
 
-    mpi::PrintProgress( "[BEG] Skeletonization ...", tree.GetComm() ); 
-    /** Skeletonization */
-	  beg = omp_get_wtime();
-    tree.DependencyCleanUp();
-    /** Gather sample rows and skeleton columns, then ID */
-    gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> seqGETMTXtask;
-    mpigofmm::DistSkeletonKIJTask<NNPRUNE, MPINODE, T> mpiGETMTXtask;
-    mpigofmm::SkeletonizeTask<NODE, T> seqSKELtask;
-    mpigofmm::DistSkeletonizeTask<MPINODE, T> mpiSKELtask;
-    tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
-    //tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-    /** Compute the coefficient matrix of ID */
-    gofmm::InterpolateTask<NODE> seqPROJtask;
-    mpigofmm::InterpolateTask<MPINODE> mpiPROJtask;
-    tree.LocaTraverseUnOrdered( seqPROJtask );
-    //tree.DistTraverseUnOrdered( mpiPROJtask );
-
-    /** Cache near KIJ interactions */
-    mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
-    //tree.LocaTraverseLeafs( seqNEARKIJtask );
-
-    tree.ExecuteAllTasks();
-    skel_time = omp_get_wtime() - beg;
-
-	  beg = omp_get_wtime();
-    tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
-    tree.DistTraverseUnOrdered( mpiPROJtask );
-    tree.ExecuteAllTasks();
-    mpi_skel_time = omp_get_wtime() - beg;
-    mpi::PrintProgress( "[END] Skeletonization ...", tree.GetComm() ); 
+//    mpi::PrintProgress( "[BEG] Skeletonization ...", tree.GetComm() ); 
+//    /** Skeletonization */
+//	  beg = omp_get_wtime();
+//    tree.DependencyCleanUp();
+//    /** Gather sample rows and skeleton columns, then ID */
+//    gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> seqGETMTXtask;
+//    mpigofmm::DistSkeletonKIJTask<NNPRUNE, MPINODE, T> mpiGETMTXtask;
+//    //mpigofmm::SkeletonizeTask<NODE, T> seqSKELtask;
+//    gofmm::SkeletonizeTask<NODE, T> seqSKELtask;
+//    mpigofmm::DistSkeletonizeTask<MPINODE, T> mpiSKELtask;
+//    tree.LocaTraverseUp( seqGETMTXtask, seqSKELtask );
+//    //tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+//    /** Compute the coefficient matrix of ID */
+//    gofmm::InterpolateTask<NODE> seqPROJtask;
+//    mpigofmm::InterpolateTask<MPINODE> mpiPROJtask;
+//    tree.LocaTraverseUnOrdered( seqPROJtask );
+//    //tree.DistTraverseUnOrdered( mpiPROJtask );
+//
+//    /** Cache near KIJ interactions */
+//    mpigofmm::CacheNearNodesTask<NNPRUNE, NODE> seqNEARKIJtask;
+//    //tree.LocaTraverseLeafs( seqNEARKIJtask );
+//
+//    tree.ExecuteAllTasks();
+//    skel_time = omp_get_wtime() - beg;
+//
+//	  beg = omp_get_wtime();
+//    tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
+//    tree.DistTraverseUnOrdered( mpiPROJtask );
+//    tree.ExecuteAllTasks();
+//    mpi_skel_time = omp_get_wtime() - beg;
+//    mpi::PrintProgress( "[END] Skeletonization ...", tree.GetComm() ); 
 
 
 
@@ -4256,10 +4397,13 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
     printf( "========================================================\n");
   }
 
-  /** Factorization */
-  T lambda = 10.0;
-  mpigofmm::DistFactorize( tree, lambda ); 
-  mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
+  if ( !tree.setup.SecureAccuracy() )
+  {
+    /** Factorization */
+    T lambda = 10.0;
+    mpigofmm::DistFactorize( tree, lambda ); 
+    mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
+  }
 }; /** end SelfTesting() */
 
 

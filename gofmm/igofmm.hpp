@@ -1083,7 +1083,7 @@ class Factor
     Data<T> B;
     View<T> Bv, Bp, Bsibling, Bf, Bc;
 
-  private: /** this class will be public inherit by gofmm::Data<T> */
+  protected: /** this class will be public inherit by gofmm::Data<T> */
 
     bool issymmetric = true;
 
@@ -1688,7 +1688,7 @@ hmlpError_t Factorize( NODE *node )
     {
       if ( !node->data.isroot )
       {
-        printf( "here level %lu\n", node->l );
+        //printf( "here level %lu\n", node->l );
         data.Telescope( false, data.U, proj, Ul, Ur );
         data.Orthogonalization();
       }

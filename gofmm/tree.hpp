@@ -867,7 +867,21 @@ class Node : public ReadWrite
 
     bool isleaf;
 
+    bool isCompressionFailureFrontier() const noexcept 
+    { 
+      return is_compression_failure_frontier_;
+    };
+
+    hmlpError_t setCompressionFailureFrontier() noexcept
+    {
+      is_compression_failure_frontier_ = true;
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    };
+
   private:
+
+    bool is_compression_failure_frontier_ = false;
 
 }; /** end class Node */
 

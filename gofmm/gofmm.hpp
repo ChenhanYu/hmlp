@@ -189,7 +189,7 @@ class CommandLineHelper
     /** (Default) user-defined approximation toleratnce and budget. */
     double stol = 1E-3;
     double budget = 0.0;
-    bool secure_accuracy = false;
+    bool secure_accuracy = true;
     /** (Default) geometric-oblivious scheme. */
     DistanceMetric metric = ANGLE_DISTANCE;
 
@@ -385,6 +385,7 @@ class Setup : public tree::Setup<SPLITTER, T>,
 
 
 
+
 }; /** end class Setup */
 
 
@@ -451,6 +452,24 @@ class NodeData : public Factor<T>
     /** knn accuracy */
     //double knn_acc = 0.0;
     //size_t num_acc = 0;
+
+
+    hmlpError_t setCompressionFailureFrontier()
+    {
+      is_compression_failure_frontier_ = true;
+      return HMLP_ERROR_SUCCESS;
+    }
+
+    bool isCompressionFailureFrontier() const noexcept 
+    {
+      return is_compression_failure_frontier_;
+    };
+
+  protected:
+
+    bool is_compression_failure_frontier_ = false;
+
+  private:
 
 }; /** end class Data */
 
@@ -1287,6 +1306,11 @@ void Skeletonize( NODE *node )
   {
     skels[ i ] = candidate_cols[ skels[ i ] ];
   }
+  /* Depending on the flag, decide is_compressed or not. */
+  data.is_compressed = ( secure_accuracy ) ? data.skels.size() : true;
+  /* Sanity check. */
+  if ( data.is_compressed ) 
+    assert( data.skels.size() && data.proj.size() && data.jpvt.size() );
 }; /* end Skeletonize() */
 
 
@@ -1352,19 +1376,29 @@ class SkeletonizeTask : public Task
       /* If one of my children is not compreesed, so am I. */
       if ( secure_accuracy && !arg->isleaf ) 
       {
-        if ( !arg->lchild->data.is_compressed || !arg->rchild->data.is_compressed )
+        /* If both children were not compressed, then this node is above the frontier. */
+        if ( !arg->lchild->data.is_compressed &&  
+             !arg->rchild->data.is_compressed )
         {
           data.is_compressed = false;
+          return;
+        }
+        /* If only one of the children compressed, then this node is in the frontier. */
+        if ( !arg->lchild->data.is_compressed || 
+             !arg->rchild->data.is_compressed )
+        {
+          data.is_compressed = false;
+          data.setCompressionFailureFrontier();
           return;
         }
       }
       /* Skeletonization using interpolative decomposition. */
       Skeletonize( arg );
-      /* Depending on the flag, decide is_compressed or not. */
-      data.is_compressed = ( secure_accuracy ) ? data.skels.size() : true;
-      /* Sanity check. */
-      if ( data.is_compressed ) assert( data.skels.size() && data.proj.size() && data.jpvt.size() );
-
+      /* This node does not compressed. It must be in the frontier. */
+      if ( !arg->data.is_compressed )
+      {
+        data.setCompressionFailureFrontier();
+      }
     };
 
 }; /** end class SkeletonizeTask */
@@ -2522,10 +2556,10 @@ class CacheNearNodesTask : public Task
  *         Otherwise, recurse to two children.
  */ 
 template<typename NODE>
-void FindFarNodes( NODE *node, NODE *target )
+hmlpError_t FindFarNodes( NODE *node, NODE *target )
 {
-  /** all assertions, ``target'' must be a leaf node */
-  assert( target->isleaf );
+  /* target must be a leaf node. */
+  if ( !target->isleaf ) return HMLP_ERROR_INVALID_VALUE;
 
   /** get a list of near nodes from target */
   set<NODE*> *NearNodes;
@@ -2548,8 +2582,8 @@ void FindFarNodes( NODE *node, NODE *target )
     if ( !node->isleaf )
     {
       /** Recurs to two children */
-      FindFarNodes( lchild, target );
-      FindFarNodes( rchild, target );
+      RETURN_IF_ERROR( FindFarNodes( lchild, target ) );
+      RETURN_IF_ERROR( FindFarNodes( rchild, target ) );
     }
   }
   else
@@ -2573,8 +2607,8 @@ void FindFarNodes( NODE *node, NODE *target )
     if ( !node->isleaf )
     {
       /** Recurs to two children */
-      FindFarNodes( lchild, target );
-      FindFarNodes( rchild, target );
+      RETURN_IF_ERROR( FindFarNodes( lchild, target ) );
+      RETURN_IF_ERROR( FindFarNodes( rchild, target ) );
     }
   }
   else
@@ -2591,6 +2625,9 @@ void FindFarNodes( NODE *node, NODE *target )
       target->NNFarNodes.insert( node );
     }
   }
+
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
 
 }; /** end FindFarNodes() */
 
