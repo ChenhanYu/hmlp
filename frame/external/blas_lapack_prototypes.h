@@ -6,6 +6,9 @@ double ddot_( int* n, const double* dx, int* incx, const double* dy, int* incy )
 float  sdot_( int* n, const  float* dx, int* incx, const  float* dy, int* incy );
 double dnrm2_( int *n, double *x, int *incx );
 float  snrm2_( int *n,  float *x, int *incx );
+void saxpy_( const int* n, const float* alpha, const float* x, const int* incx, float* y, const int *incy );
+void daxpy_( const int* n, const double* alpha, const double* x, const int* incx, double* y, const int *incy );
+
 
 /** BLAS level-2 */
 

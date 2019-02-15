@@ -765,7 +765,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** Global synchronization. */
       this->Barrier();
 
-			/** Allocate local tree nodes. */
+      /** Allocate local tree nodes. */
       auto *local_tree_root = mpitreelists.back();
       //tree::Tree<SETUP, NODEDATA>::allocateNodes( local_tree_root );
       HANDLE_ERROR( this->allocateNodes( local_tree_root ) );

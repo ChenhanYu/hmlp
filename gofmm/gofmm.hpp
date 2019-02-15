@@ -177,6 +177,10 @@ class CommandLineHelper
         /** (Optional) provide Gaussian kernel bandwidth */
         if ( argc > 13 ) sscanf( argv[ 13 ], "%lf", &h );
       }
+      else if ( !spdmatrix_type.compare( "jacobian" ) )
+      {
+        user_matrix_filename = argv[ 10 ];
+      }
       else
       {
         printf( "%s is not supported\n", argv[ 9 ] );
@@ -189,7 +193,7 @@ class CommandLineHelper
     /** (Default) user-defined approximation toleratnce and budget. */
     double stol = 1E-3;
     double budget = 0.0;
-    bool secure_accuracy = true;
+    bool secure_accuracy = false;
     /** (Default) geometric-oblivious scheme. */
     DistanceMetric metric = ANGLE_DISTANCE;
 
@@ -3785,6 +3789,8 @@ hmlpError_t LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
 {
   using T = typename SPDMATRIX::T;
 
+  cout << K.row() << "," << K.col() << "," << cmd.n << "\n";
+
   const int N_CHILDREN = 2;
   /** Use geometric-oblivious splitters. */
   using SPLITTER     = gofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
@@ -3797,7 +3803,7 @@ hmlpError_t LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
   RKDTSPLITTER rkdtsplitter( K );
   rkdtsplitter.Kptr = &K;
   rkdtsplitter.metric = cmd.metric;
-	/** Create configuration for all user-define arguments. */
+  /** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( cmd.metric, 
       cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget, cmd.secure_accuracy );
   /** (Optional) provide neighbors, leave uninitialized otherwise. */
@@ -3805,7 +3811,7 @@ hmlpError_t LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
   /** Compress K. */
   //auto *tree_ptr = gofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
   auto *tree_ptr = gofmm::Compress( K, NN, splitter, rkdtsplitter, config );
-	auto &tree = *tree_ptr;
+  auto &tree = *tree_ptr;
   /** Examine accuracies. */
   auto error = gofmm::SelfTesting( tree, 100, cmd.nrhs );
 
