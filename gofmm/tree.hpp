@@ -1004,34 +1004,38 @@ class Tree
     size_t getDepth() const noexcept { return loc_depth_; };
 
     /** Currently only used in DrawInteraction() */ 
-    void Offset( NODE *node, size_t offset )
+    hmlpError_t RecursiveOffset( NODE *node, size_t offset )
     {
       if ( node )
       {
         node->offset = offset;
         if ( node->lchild )
         {
-          Offset( node->lchild, offset + 0 );
-          Offset( node->rchild, offset + node->lchild->gids.size() );
+          RETURN_IF_ERROR( RecursiveOffset( node->lchild, offset + 0 ) );
+          RETURN_IF_ERROR( RecursiveOffset( node->rchild, offset + node->lchild->gids.size() ) );
         }
       }
-    }; /** end Offset() */
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }; /** end RecursiveOffset() */
 
 
-    void RecursiveMorton( NODE *node, MortonHelper::Recursor r ) 
+    hmlpError_t RecursiveMorton( NODE *node, MortonHelper::Recursor r ) 
     {
       /** Return dirctly while no children exist. */
-      if ( !node ) return;
+      if ( !node ) return HMLP_ERROR_SUCCESS;
       /** Set my MortonID. */
       node->morton = MortonHelper::MortonID( r );
       /** Recur to children. */
-      RecursiveMorton( node->lchild, MortonHelper::RecurLeft( r ) );
-      RecursiveMorton( node->rchild, MortonHelper::RecurRight( r ) );
+      RETURN_IF_ERROR( RecursiveMorton( node->lchild, MortonHelper::RecurLeft( r ) ) );
+      RETURN_IF_ERROR( RecursiveMorton( node->rchild, MortonHelper::RecurRight( r ) ) );
       /** Fill the  */
       if ( !node->lchild )
       {
         for ( auto it : node->gids ) setup.morton[ it ] = node->morton;
       }
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
     };
 
 
@@ -1058,18 +1062,17 @@ class Tree
       /** Recursive spliting (topdown). */
       beg = omp_get_wtime();
       SplitTask<NODE> splittask;
-      TraverseDown( splittask );
-      ExecuteAllTasks();
+      RETURN_IF_ERROR( TraverseDown( splittask ) );
+      RETURN_IF_ERROR( ExecuteAllTasks() );
       split_time = omp_get_wtime() - beg;
 
 
       /** Compute node and point MortonID. */ 
       setup.morton.resize( n );
-      /** Compute MortonID recursively. */
-      RecursiveMorton( treelist[ 0 ], MortonHelper::Root() );
-
-
-      Offset( treelist[ 0 ], 0 );
+      /* Compute MortonID (for nodes and indices) recursively. */
+      RETURN_IF_ERROR( RecursiveMorton( treelist[ 0 ], MortonHelper::Root() ) );
+      /* Compute the offset (related to the left most) for drawing interaction. */
+      RETURN_IF_ERROR( RecursiveOffset( treelist[ 0 ], 0 ) );
 
       /** Construct morton2node map for the local tree. */
       morton2node.clear();
@@ -1080,8 +1083,8 @@ class Tree
 
       /** Adgust gids to the appropriate order.  */
       IndexPermuteTask<NODE> indexpermutetask;
-      TraverseUp( indexpermutetask );
-      ExecuteAllTasks();
+      RETURN_IF_ERROR( TraverseUp( indexpermutetask ) );
+      RETURN_IF_ERROR( ExecuteAllTasks() );
 
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
@@ -1146,9 +1149,9 @@ class Tree
       for ( int t = 0; t < n_tree; t ++ )      
       {
         /** Randomize metric tree and exhausted search for each leaf node. */
-        TreePartition();
-        TraverseLeafs( dummy );
-        ExecuteAllTasks();
+        RETURN_IF_ERROR( TreePartition() );
+        RETURN_IF_ERROR( TraverseLeafs( dummy ) );
+        RETURN_IF_ERROR( ExecuteAllTasks() );
       } 
 
       /** Sort neighbor pairs in ascending order. */
@@ -1225,7 +1228,7 @@ class Tree
 
 
     template<typename TASK, typename... Args>
-    void TraverseLeafs( TASK &dummy, Args&... args )
+    hmlpError_t TraverseLeafs( TASK &dummy, Args&... args )
     {
       /** Contain at lesat one tree node. */
       assert( this->treelist.size() );
@@ -1252,6 +1255,8 @@ class Tree
           RecuTaskExecute( node, dummy, args... );
         }
       }
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
     }; /** end TraverseLeafs() */
 
 
@@ -1259,7 +1264,7 @@ class Tree
 
 
     template<typename TASK, typename... Args>
-    void TraverseUp( TASK &dummy, Args&... args )
+    hmlpError_t TraverseUp( TASK &dummy, Args&... args )
     {
       /** contain at lesat one tree node */
       assert( this->treelist.size() );
@@ -1302,6 +1307,8 @@ class Tree
           }
         }
       }
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
     }; /** end TraverseUp() */
 
 
@@ -1310,9 +1317,9 @@ class Tree
 
 
     template<typename TASK, typename... Args>
-    void TraverseDown( TASK &dummy, Args&... args )
+    hmlpError_t TraverseDown( TASK &dummy, Args&... args )
     {
-      /** contain at lesat one tree node */
+      /** Contain at lesat one tree node */
       assert( this->treelist.size() );
 
       /** 
@@ -1350,6 +1357,8 @@ class Tree
           }
         }
       }
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
     }; /** end TraverseDown() */
 
 
@@ -1359,13 +1368,13 @@ class Tree
      *         downward traversal.
      */ 
     template<typename TASK, typename... Args>
-    void TraverseUnOrdered( TASK &dummy, Args&... args )
+    hmlpError_t TraverseUnOrdered( TASK &dummy, Args&... args )
     {
-      TraverseDown( dummy, args... );
+      return TraverseDown( dummy, args... );
     }; /** end TraverseUnOrdered() */
 
 
-    void DependencyCleanUp()
+    hmlpError_t DependencyCleanUp()
     {
       //for ( size_t i = 0; i < treelist.size(); i ++ )
       //{
@@ -1378,13 +1387,19 @@ class Tree
         auto *node = it.second;
         if ( node ) node->DependencyCleanUp();
       }
-    }; /** end DependencyCleanUp() */
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }; /* end DependencyCleanUp() */
 
-    void ExecuteAllTasks()
+    hmlpError_t ExecuteAllTasks()
     {
-      hmlp_run();
-      DependencyCleanUp();
-    }; /** end ExecuteAllTasks() */
+      /* Invoke the runtime scheduler. */
+      RETURN_IF_ERROR( hmlp_run() );
+      /* Clean up all the in and out set of each read/write object. */
+      RETURN_IF_ERROR( DependencyCleanUp() );
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }; /* end ExecuteAllTasks() */
 
 
     bool DoOutOfOrder() { return out_of_order_traversal; };
@@ -1434,7 +1449,7 @@ class Tree
     hmlpError_t allocateNodes( NODE *root )
     {
       /* Compute the global tree depth using std::log2(). */
-			glb_depth_ = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
+      glb_depth_ = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
       /* If the global depth exceeds the limit, then set it to the maximum depth. */
       if ( glb_depth_ > setup.getMaximumDepth() ) glb_depth_ = setup.getMaximumDepth();
       /** Compute the local tree depth. */
