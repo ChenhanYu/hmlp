@@ -30,6 +30,8 @@
 #include <containers/MLPGaussNewton.hpp>
 /** Use OOC covariance matrices. */
 #include <containers/OOCCovMatrix.hpp>
+/** Use Gauss Hessian matrices provided by Chao. */
+#include <containers/GNHessian.hpp>
 /** Use STL and HMLP namespaces. */
 using namespace std;
 using namespace hmlp;
@@ -123,6 +125,15 @@ int main( int argc, char *argv[] )
       OOCCovMatrix<T> K( cmd.n, cmd.d, cmd.nb, cmd.user_points_filename );
       gofmm::LaunchHelper( K, cmd );
     }
+
+    if ( !cmd.spdmatrix_type.compare( "jacobian" ) ) 
+    {
+      using T = float;
+      GNHessian<T> K;
+      K.read_jacobian( cmd.user_matrix_filename );
+      gofmm::LaunchHelper( K, cmd );
+    }
+
 
     /** HMLP API call to terminate the runtime */
     HANDLE_ERROR( hmlp_finalize() );

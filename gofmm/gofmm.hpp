@@ -177,6 +177,10 @@ class CommandLineHelper
         /** (Optional) provide Gaussian kernel bandwidth */
         if ( argc > 13 ) sscanf( argv[ 13 ], "%lf", &h );
       }
+      else if ( !spdmatrix_type.compare( "jacobian" ) )
+      {
+        user_matrix_filename = argv[ 10 ];
+      }
       else
       {
         printf( "%s is not supported\n", argv[ 9 ] );
@@ -189,7 +193,7 @@ class CommandLineHelper
     /** (Default) user-defined approximation toleratnce and budget. */
     double stol = 1E-3;
     double budget = 0.0;
-    bool secure_accuracy = true;
+    bool secure_accuracy = false;
     /** (Default) geometric-oblivious scheme. */
     DistanceMetric metric = ANGLE_DISTANCE;
 
@@ -212,19 +216,19 @@ class CommandLineHelper
 template<typename T>
 class Configuration
 {
-	public:
+  public:
 
     typedef size_t sizeType;
     typedef size_t idType;
 
     Configuration() {};
 
-		Configuration( DistanceMetric metric_type,
-		  size_t problem_size, size_t leaf_node_size, 
-      size_t neighbor_size, size_t maximum_rank, 
-			T tolerance, T budget, bool secure_accuracy = true ) 
-		{
-		  try
+    Configuration( DistanceMetric metric_type,
+        size_t problem_size, size_t leaf_node_size, 
+        size_t neighbor_size, size_t maximum_rank, 
+        T tolerance, T budget, bool secure_accuracy = true ) 
+    {
+      try
       {
         HANDLE_ERROR( Set( metric_type, problem_size, leaf_node_size, 
           neighbor_size, maximum_rank, tolerance, budget, secure_accuracy ) );
@@ -234,25 +238,25 @@ class Configuration
         cout << e.what() << endl;
         exit( -1 );
       }
-		};
+    };
 
-		hmlpError_t Set( DistanceMetric metric_type,
-		  size_t problem_size, size_t leaf_node_size, 
-      size_t neighbor_size, size_t maximum_rank, 
-			T tolerance, T budget, bool secure_accuracy ) 
-		{
-			this->metric_type = metric_type;
-			this->problem_size = problem_size;
-			//this->leaf_node_size_ = leaf_node_size;
-			RETURN_IF_ERROR( setLeafNodeSize( leaf_node_size ) );
-			this->neighbor_size = neighbor_size;
-			this->maximum_rank = maximum_rank;
-			this->tolerance = tolerance;
-			this->budget = budget;
-			this->secure_accuracy = secure_accuracy;
+    hmlpError_t Set( DistanceMetric metric_type,
+        size_t problem_size, size_t leaf_node_size, 
+        size_t neighbor_size, size_t maximum_rank, 
+        T tolerance, T budget, bool secure_accuracy ) 
+    {
+      this->metric_type = metric_type;
+      this->problem_size = problem_size;
+      //this->leaf_node_size_ = leaf_node_size;
+      RETURN_IF_ERROR( setLeafNodeSize( leaf_node_size ) );
+      this->neighbor_size = neighbor_size;
+      this->maximum_rank = maximum_rank;
+      this->tolerance = tolerance;
+      this->budget = budget;
+      this->secure_accuracy = secure_accuracy;
       /* Return with no error. */
-			return HMLP_ERROR_SUCCESS;
-		};
+      return HMLP_ERROR_SUCCESS;
+    };
 
     hmlpError_t CopyFrom( Configuration<T> &config ) 
     { 
@@ -260,12 +264,12 @@ class Configuration
       return HMLP_ERROR_SUCCESS;
     };
 
-		DistanceMetric MetricType() const noexcept 
-		{ 
-		  return metric_type; 
-		};
+    DistanceMetric MetricType() const noexcept 
+    { 
+      return metric_type; 
+    };
 
-		size_t ProblemSize() const noexcept { return problem_size; };
+    size_t ProblemSize() const noexcept { return problem_size; };
 
     size_t getMaximumDepth() const noexcept { return maximum_depth_; };
 
@@ -283,18 +287,18 @@ class Configuration
       return HMLP_ERROR_SUCCESS;
     };
 
-		size_t getLeafNodeSize() const noexcept 
-		{ 
-		  return leaf_node_size_; 
-		};
+    size_t getLeafNodeSize() const noexcept 
+    { 
+      return leaf_node_size_; 
+    };
 
-		size_t NeighborSize() const noexcept { return neighbor_size; };
+    size_t NeighborSize() const noexcept { return neighbor_size; };
 
-		size_t MaximumRank() const noexcept { return maximum_rank; };
+    size_t MaximumRank() const noexcept { return maximum_rank; };
 
-		T Tolerance() const noexcept { return tolerance; };
+    T Tolerance() const noexcept { return tolerance; };
 
-		T Budget() const noexcept { return budget; };
+    T Budget() const noexcept { return budget; };
 
     bool IsSymmetric() const noexcept { return is_symmetric; };
 
@@ -302,37 +306,37 @@ class Configuration
 
     bool SecureAccuracy() const noexcept { return secure_accuracy; };
 
-	private:
+  private:
 
-		/** (Default) metric type. */
-		DistanceMetric metric_type = ANGLE_DISTANCE;
+    /** (Default) metric type. */
+    DistanceMetric metric_type = ANGLE_DISTANCE;
 
-		/** (Default) problem size. */
-		size_t problem_size = 0;
+    /** (Default) problem size. */
+    size_t problem_size = 0;
 
     /** (Default) maximum tree depth. By defaultm we use 4 bits = 0-15 levels. */
     size_t maximum_depth_ = 15;
 
-		/** (Default) maximum leaf node size. */
-		sizeType leaf_node_size_ = 64;
+    /** (Default) maximum leaf node size. */
+    sizeType leaf_node_size_ = 64;
 
-		/** (Default) number of neighbors. */
-		size_t neighbor_size = 32;
+    /** (Default) number of neighbors. */
+    size_t neighbor_size = 32;
 
-		/** (Default) maximum off-diagonal ranks. */
-		size_t maximum_rank = 64;
+    /** (Default) maximum off-diagonal ranks. */
+    size_t maximum_rank = 64;
 
-		/** (Default) user error tolerance. */
-		T tolerance = 1E-3;
+    /** (Default) user error tolerance. */
+    T tolerance = 1E-3;
 
-		/** (Default) user computation budget. */
-		T budget = 0.03;
+    /** (Default) user computation budget. */
+    T budget = 0.03;
 
     /** (Default, Advanced) whether the matrix is symmetric. */
     bool is_symmetric = true;
 
-		/** (Default, Advanced) whether or not using adaptive ranks. */
-		bool use_adaptive_ranks = true;
+    /** (Default, Advanced) whether or not using adaptive ranks. */
+    bool use_adaptive_ranks = true;
 
     /** (Default, Advanced) whether or not securing the accuracy. */
     bool secure_accuracy = true;
@@ -646,18 +650,41 @@ class Summary
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct centersplit
 {
-  /** Closure */
-  SPDMATRIX *Kptr = NULL;
+  /** Closure. TODO: this should have be const. */
+  SPDMATRIX *Kptr = nullptr;
   /** (Default) use angle distance from the Gram vector space. */
   DistanceMetric metric = ANGLE_DISTANCE;
   /** Number samples to approximate centroid. */
   size_t n_centroid_samples = 5;
- 
+  /** Whether the splitter has been initialized? */
+  int is_initialized = 0;
+  /** The empty constructor. */ 
   centersplit() {};
+  /** The default constructor. */ 
+  centersplit( SPDMATRIX& K, DistanceMetric metric = ANGLE_DISTANCE )
+  {
+    try
+    {
+      HANDLE_ERROR( set( K, metric ) ); 
+    }
+    catch ( const exception & e )
+    {
+      cout << e.what() << endl;
+      exit( -1 );
+    }
+  };
 
-  centersplit( SPDMATRIX& K ) { this->Kptr = &K; };
+  hmlpError_t set( SPDMATRIX& K, DistanceMetric metric )
+  {
+    this->Kptr = &K;
+    this->metric = metric;
+    /* Set the flag to true. */
+    this->is_initialized = true;
+    /* Return with no error. */
+    return HMLP_ERROR_SUCCESS;
+  };
 
-	/** Overload the operator (). */
+  /** Overload the operator (). */
   vector<vector<size_t>> operator() ( vector<size_t>& gids ) const 
   {
     /** all assertions */
@@ -724,17 +751,39 @@ struct centersplit
 template<typename SPDMATRIX, int N_SPLIT, typename T> 
 struct randomsplit
 {
-  /** closure */
-  SPDMATRIX *Kptr = NULL;
-
-	/** (default) using angle distance from the Gram vector space */
+  /** Closure. TODO: this should have be const. */
+  SPDMATRIX *Kptr = nullptr;
+  /** (Default) use angle distance from the Gram vector space. */
   DistanceMetric metric = ANGLE_DISTANCE;
-
+  /** Whether the splitter has been initialized? */
+  int is_initialized = 0;
+  /** The empty constructor. */ 
   randomsplit() {};
+  /** The default constructor. */ 
+  randomsplit( SPDMATRIX& K, DistanceMetric metric = ANGLE_DISTANCE )
+  {
+    try
+    {
+      HANDLE_ERROR( set( K, metric ) ); 
+    }
+    catch ( const exception & e )
+    {
+      cout << e.what() << endl;
+      exit( -1 );
+    }
+  };
 
-  randomsplit( SPDMATRIX& K ) { this->Kptr = &K; };
+  hmlpError_t set( SPDMATRIX& K, DistanceMetric metric )
+  {
+    this->Kptr = &K;
+    this->metric = metric;
+    /* Set the flag to true. */
+    this->is_initialized = true;
+    /* Return with no error. */
+    return HMLP_ERROR_SUCCESS;
+  };
 
-	/** overload with the operator */
+  /** overload with the operator */
   inline vector<vector<size_t> > operator() ( vector<size_t>& gids ) const 
   {
     assert( Kptr && ( N_SPLIT == 2 ) );
@@ -791,7 +840,7 @@ hmlpError_t FindNeighbors( NODE *node, DistanceMetric metric )
   /** k-nearest neighbor search kernel. */
   RETURN_IF_ERROR( K.NeighborSearch( metric, kappa, I, I, candidates, init ) );
   /** Merge and update neighbors. */
-	#pragma omp parallel
+  #pragma omp parallel
   {
     vector<pair<T, size_t> > aux( 2 * kappa );
     #pragma omp for
@@ -815,8 +864,8 @@ class NeighborsTask : public Task
 
     NODE *arg = NULL;
    
-	  /** (Default) using angle distance from the Gram vector space. */
-	  DistanceMetric metric = ANGLE_DISTANCE;
+    /** (Default) using angle distance from the Gram vector space. */
+    DistanceMetric metric = ANGLE_DISTANCE;
 
     void Set( NODE *user_arg )
     {
@@ -839,7 +888,6 @@ class NeighborsTask : public Task
       mops += flops;
       event.Set( name + label, flops, mops );
       //--------------------------------------
-			
       // TODO: Need an accurate cost model.
       cost = mops / 1E+9;
     };
@@ -1009,7 +1057,7 @@ void Interpolate( NODE *node )
   {
     for ( int i = 0; i < s; i ++ )
     {
-  	  proj[ jpvt[ j ] * s + i ] = tmp[ j * s + i ];
+      proj[ jpvt[ j ] * s + i ] = tmp[ j * s + i ];
     }
   }
  
@@ -3280,7 +3328,7 @@ Data<pair<T, size_t>> FindNeighbors( SPDMATRIX &K, SPLITTER splitter,
     /** Get all user-defined parameters. */
     DistanceMetric metric = config.MetricType();
     size_t n = config.ProblemSize();
-	  size_t k = config.NeighborSize(); 
+    size_t k = config.NeighborSize(); 
     /** Iterative all nearnest-neighbor (ANN). */
     pair<T, size_t> init( numeric_limits<T>::max(), n );
     gofmm::NeighborsTask<NODE, T> NEIGHBORStask;
@@ -3355,7 +3403,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
       printf( "TreePartitioning ...\n" ); fflush( stdout );
     }
     beg = omp_get_wtime();
-    tree.TreePartition();
+    HANDLE_ERROR( tree.TreePartition() );
     tree_time = omp_get_wtime() - beg;
 
 
@@ -3466,7 +3514,8 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   }
   catch ( const exception & e )
   {
-    cout << e.what() << endl;
+    fprintf( stderr, "[EXCEPTION]: encounter exception in gofmm::Compress(). " );
+    fprintf( stderr, "%s", e.what() );
     exit( -1 );
   }
 }; /** end Compress() */
@@ -3597,13 +3646,13 @@ tree::Tree<
     s = 512;
   }
 
-	/** creatgin configuration for all user-define arguments */
-	Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
+  /** creatgin configuration for all user-define arguments */
+  Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
 
-	/** call the complete interface and return tree_ptr */
+  /** call the complete interface and return tree_ptr */
   return Compress<SPLITTER, RKDTSPLITTER>
-         ( K, NN, //ANGLE_DISTANCE, 
-					 splitter, rkdtsplitter, config );
+    ( K, NN, //ANGLE_DISTANCE, 
+      splitter, rkdtsplitter, config );
 
 }; /** end Compress() */
 
@@ -3764,48 +3813,51 @@ hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
       nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
   printf( "========================================================\n");
 
+  /* HSS ULV factorization currently does not support level-restriction.  */ 
   if ( !tree.setup.SecureAccuracy() )
   {
-    /** Factorization */
+    /* Regularization parameter. */
     T lambda = 5.0;
+    /** HSS ULV factorization. */
     RETURN_IF_ERROR( gofmm::Factorize( tree, lambda ) );
-    /** Compute error. */
+    /** Compute the error. */
     gofmm::ComputeError( tree, lambda, w, u );
   }
-
+  /* Return with no error. */
   return HMLP_ERROR_SUCCESS;
 }; /** end SelfTesting() */
 
 
 /** 
- *  \brief Instantiate the splitters here. 
+ *  \brief The LaunchHelper creates splitters and configuration from the
+ *         command line inputs.
+ *  \param [in] K the matrix that inheritates VirtualMatrix.
+ *  \param [in] cmd the command line inputs.
+ *  \return the error code.
  */ 
 template<typename SPDMATRIX>
 hmlpError_t LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
 {
+  /* Short hand for the datatype. */
   using T = typename SPDMATRIX::T;
-
+  /* Use a binary tree (TODO: probably should not allow any other stuff). */
   const int N_CHILDREN = 2;
-  /** Use geometric-oblivious splitters. */
+  /** Use the geometric-oblivious splitter from the metric ball tree. */
   using SPLITTER     = gofmm::centersplit<SPDMATRIX, N_CHILDREN, T>;
+  /** Use the geometric-oblivious splitter from the randomized tree. */
   using RKDTSPLITTER = gofmm::randomsplit<SPDMATRIX, N_CHILDREN, T>;
-  /** GOFMM tree splitter. */
-  SPLITTER splitter( K );
-  splitter.Kptr = &K;
-  splitter.metric = cmd.metric;
-  /** Randomized tree splitter. */
-  RKDTSPLITTER rkdtsplitter( K );
-  rkdtsplitter.Kptr = &K;
-  rkdtsplitter.metric = cmd.metric;
-	/** Create configuration for all user-define arguments. */
+  /** GOFMM metric ball tree splitter (for the matrix partition). */
+  SPLITTER splitter( K, cmd.metric );
+  /** Randomized matric tree splitter (for nearest neighbor). */
+  RKDTSPLITTER rkdtsplitter( K, cmd.metric );
+  /** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( cmd.metric, 
       cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget, cmd.secure_accuracy );
   /** (Optional) provide neighbors, leave uninitialized otherwise. */
   Data<pair<T, size_t>> NN;
   /** Compress K. */
-  //auto *tree_ptr = gofmm::Compress( X, K, NN, splitter, rkdtsplitter, config );
   auto *tree_ptr = gofmm::Compress( K, NN, splitter, rkdtsplitter, config );
-	auto &tree = *tree_ptr;
+  auto &tree = *tree_ptr;
   /** Examine accuracies. */
   auto error = gofmm::SelfTesting( tree, 100, cmd.nrhs );
 
@@ -3815,7 +3867,7 @@ hmlpError_t LaunchHelper( SPDMATRIX &K, CommandLineHelper &cmd )
 //  tree.Summary( summary );
 //  summary.Print();
 
-	/** delete tree_ptr */
+  /** delete tree_ptr */
   delete tree_ptr;
 
   /* Return with no error. */

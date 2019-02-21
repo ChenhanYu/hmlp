@@ -113,9 +113,25 @@ float  xnrm2( int n,  float *x, int incx )
 
 
 
+void xaxpy( const int n, const float* alpha, const float* x, const int incx, float* y, const int incy )
+{
+#ifdef USE_BLAS
+  saxpy_( &n, alpha, x, &incx, y, &incy );
+#else
+  printf( "xaxpy must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+};
 
-
-
+void xaxpy( const int n, const double* alpha, const double* x, const int incx, double* y, const int incy )
+{
+#ifdef USE_BLAS
+  daxpy_( &n, alpha, x, &incx, y, &incy );
+#else
+  printf( "xaxpy must enables USE_BLAS.\n" );
+  exit( 1 );
+#endif
+};
 
 
 /** 

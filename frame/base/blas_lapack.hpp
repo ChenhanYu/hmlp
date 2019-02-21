@@ -35,6 +35,17 @@
 namespace hmlp
 {
 
+/*
+ *  Level-1
+ */ 
+void xaxpy( const int n, const  float* alpha, const  float* x, const int incx,  float* y, const int incy );
+void xaxpy( const int n, const double* alpha, const double* x, const int incx, double* y, const int incy );
+
+
+
+/*
+ *  Level-3
+ */ 
 void xgemm
 (
   const char *transA, const char *transB,

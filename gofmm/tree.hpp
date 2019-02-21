@@ -913,13 +913,13 @@ class Setup
 
     /**
      *  @brief Check if this node contain any query using morton.
-		 *         Notice that queries[] contains gids; thus, morton[]
-		 *         needs to be accessed using gids.
+     *         Notice that queries[] contains gids; thus, morton[]
+     *         needs to be accessed using gids.
      *
      */ 
-		vector<size_t> ContainAny( vector<size_t> &queries, size_t target )
+    vector<size_t> ContainAny( vector<size_t> &queries, size_t target )
     {
-			vector<size_t> validation( queries.size(), 0 );
+      vector<size_t> validation( queries.size(), 0 );
 
       if ( !morton.size() )
       {
@@ -929,18 +929,18 @@ class Setup
 
       for ( size_t i = 0; i < queries.size(); i ++ )
       {
-				/** notice that setup->morton only contains local morton ids */
+        /** notice that setup->morton only contains local morton ids */
         //auto it = this->setup->morton.find( queries[ i ] );
 
-				//if ( it != this->setup->morton.end() )
-				//{
+        //if ( it != this->setup->morton.end() )
+        //{
         //  if ( tree::IsMyParent( *it, this->morton ) ) validation[ i ] = 1;
-				//}
+        //}
 
 
-       //if ( tree::IsMyParent( morton[ queries[ i ] ], target ) ) 
-       if ( MortonHelper::IsMyParent( morton[ queries[ i ] ], target ) ) 
-				 validation[ i ] = 1;
+        //if ( tree::IsMyParent( morton[ queries[ i ] ], target ) ) 
+        if ( MortonHelper::IsMyParent( morton[ queries[ i ] ], target ) ) 
+          validation[ i ] = 1;
 
       }
       return validation;
@@ -1036,7 +1036,7 @@ class Tree
 
 
     /** @brief Shared-memory tree partition. */ 
-    void TreePartition()
+    hmlpError_t TreePartition()
     {
       double beg, alloc_time, split_time, morton_time, permute_time;
 
@@ -1083,7 +1083,9 @@ class Tree
       TraverseUp( indexpermutetask );
       ExecuteAllTasks();
 
-    }; /** end TreePartition() */
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }; /* end TreePartition() */
 
 
 
@@ -1433,10 +1435,10 @@ class Tree
     {
       /* Compute the global tree depth using std::log2(). */
 			glb_depth_ = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
-			/* If the global depth exceeds the limit, then set it to the maximum depth. */
-			if ( glb_depth_ > setup.getMaximumDepth() ) glb_depth_ = setup.getMaximumDepth();
-			/** Compute the local tree depth. */
-			loc_depth_ = glb_depth_ - root->l;
+      /* If the global depth exceeds the limit, then set it to the maximum depth. */
+      if ( glb_depth_ > setup.getMaximumDepth() ) glb_depth_ = setup.getMaximumDepth();
+      /** Compute the local tree depth. */
+      loc_depth_ = glb_depth_ - root->l;
 
 
       /* Clean up and reserve space for local tree nodes. */
@@ -1462,15 +1464,15 @@ class Tree
             node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node, &morton2node, &lock );
             treequeue.push_back( node->kids[ i ] );
           }
-					node->lchild = node->kids[ 0 ];
-					node->rchild = node->kids[ 1 ];
+          node->lchild = node->kids[ 0 ];
+          node->rchild = node->kids[ 1 ];
           if ( node->lchild ) node->lchild->sibling = node->rchild;
           if ( node->rchild ) node->rchild->sibling = node->lchild;
         }
         else
         {
-					/** Leaf nodes are annotated with this flag */
-					node->isleaf = true;
+          /** Leaf nodes are annotated with this flag */
+          node->isleaf = true;
           treequeue.push_back( NULL );
         }
         treelist.push_back( node );
