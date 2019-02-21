@@ -60,58 +60,80 @@ bool has_uneven_split = false;
 namespace hmlp
 {
 
+typedef uint64_t mortonType;
+typedef uint64_t indexType;
+typedef uint32_t depthType;
+
+
 class MortonHelper
 {
   public:
 
-    typedef pair<size_t, size_t> Recursor;
+    ///** Use uint64_t for Morton Id. */
+    //using mortonType = uint64_t;
+    ///** Use uint32_t for the depth. */
+    //using depthType = uint32_t;
 
-    static Recursor Root() 
+    /** The first value is the MortonId without the depth. */
+    typedef pair<mortonType, depthType> Recursor;
+
+    /** The root node's Morton ID is 0. */
+    static Recursor Root() noexcept
     { 
       return Recursor( 0, 0 ); 
     };
 
-    static Recursor RecurLeft( Recursor r ) 
+    /** \brief Move the recursor forward to the left. */
+    static Recursor RecurLeft( Recursor r ) noexcept 
     { 
       return Recursor( ( r.first << 1 ) + 0, r.second + 1 ); 
     };
 
-    static Recursor RecurRight( Recursor r ) 
+    /** \brief Move the recursor forward to the right. */
+    static Recursor RecurRight( Recursor r ) noexcept
     { 
       return Recursor( ( r.first << 1 ) + 1, r.second + 1 ); 
     };
 
-    static size_t MortonID( Recursor r )
+    /** Compute the MortonId from the recursor. */
+    static mortonType MortonID( Recursor r ) noexcept
     {
-      /** Compute the correct shift. */
-      size_t shift = Shift( r.second );
-      /** Append the depth of the tree. */
+      /* Compute the correct shift. */
+      auto shift = getShiftFromDepth( r.second );
+      /* Append the depth of the tree. */
       return ( r.first << shift ) + r.second;
     };
 
-    static size_t SiblingMortonID( Recursor r )
+    /** Compute the sibling MortonId from the recursor. */
+    static mortonType SiblingMortonID( Recursor r )
     {
-      /** Compute the correct shift. */
-      size_t shift = Shift( r.second );
-      /** Append the depth of the tree. */
+      /* Compute the correct shift. */
+      auto shift = getShiftFromDepth( r.second );
+      /* Append the depth of the tree. */
       if ( r.first % 2 )
         return ( ( r.first - 1 ) << shift ) + r.second;
       else
         return ( ( r.first + 1 ) << shift ) + r.second;
     };
 
-    /** @brief return the MPI rank that owns it. */
-    static int Morton2Rank( size_t it, int size )
+    /** 
+     *  \brief return the MPI rank that owns it. 
+     *  \param [in] it the MortonId it the target node
+     *  \param [in] comm_size the global communicator size
+     *  \return the mpi rank that owns it
+     */
+    static int Morton2Rank( mortonType it, int comm_size )
     {
-      size_t itdepth = Depth( it );
-      size_t mpidepth = 0;
-      while ( size >>= 1 ) mpidepth ++;
-      if ( itdepth > mpidepth ) itdepth = mpidepth;
-      size_t itshift = Shift( itdepth );
-      return ( it >> itshift ) << ( mpidepth - itdepth );
-    }; /** end Morton2rank() */
+      auto it_depth = getDepthFromMorton( it );
+      depthType mpi_depth = 0;
+      while ( comm_size >>= 1 ) mpi_depth ++;
+      if ( it_depth > mpi_depth ) it_depth = mpi_depth;
+      auto it_shift = getShiftFromDepth( it_depth );
+      return ( it >> it_shift ) << ( mpi_depth - it_depth );
+    }; /* end Morton2rank() */
 
-    static void Morton2Offsets( Recursor r, size_t depth, vector<size_t> &offsets )
+    //static void Morton2Offsets( Recursor r, depthType depth, vector<size_t> &offsets )
+    static void Morton2Offsets( Recursor r, depthType depth, vector<indexType> &offsets )
     {
       if ( r.second == depth ) 
       {
@@ -125,12 +147,14 @@ class MortonHelper
     }; /** end Morton2Offsets() */
 
 
-    static vector<size_t> Morton2Offsets( size_t me, size_t depth )
+    //static vector<size_t> Morton2Offsets( mortonType me, mortonType depth )
+    static vector<indexType> Morton2Offsets( mortonType me, mortonType depth )
     {
-      vector<size_t> offsets;
-      size_t mydepth = Depth( me );
+      //vector<size_t> offsets;
+      vector<indexType> offsets;
+      auto mydepth = getDepthFromMorton( me );
       assert( mydepth <= depth );
-      Recursor r( me >> Shift( mydepth ), mydepth );
+      Recursor r( me >> getShiftFromDepth( mydepth ), mydepth );
       Morton2Offsets( r, depth, offsets );
       return offsets;
     }; /** end Morton2Offsets() */
@@ -147,25 +171,25 @@ class MortonHelper
      *         me = 00000 001 (level 1)
      *         it = 00000 011 (level 3) is not my parent
      */ 
-    static bool IsMyParent( size_t me, size_t it )
+    static bool IsMyParent( mortonType me, mortonType it )
     {
-      size_t itlevel = Depth( it );
-      size_t mylevel = Depth( me );
-      size_t itshift = Shift( itlevel );
+      auto itlevel = getDepthFromMorton( it );
+      auto mylevel = getDepthFromMorton( me );
+      auto itshift = getShiftFromDepth( itlevel );
       bool is_my_parent = !( ( me ^ it ) >> itshift ) && ( itlevel <= mylevel );
-    #ifdef DEBUG_TREE
+#ifdef DEBUG_TREE
       hmlp_print_binary( me );
       hmlp_print_binary( it );
       hmlp_print_binary( ( me ^ it ) >> itshift );
       printf( "ismyparent %d itlevel %lu mylevel %lu shift %lu fixed shift %d\n",
-          is_my_parent, itlevel, mylevel, itshift, 1 << LEVELOFFSET );
-    #endif
+          is_my_parent, itlevel, mylevel, itshift, 1 << level_offset_ );
+#endif
       return is_my_parent;
     }; /** end IsMyParent() */
 
 
     template<typename TQUERY>
-    static bool ContainAny( size_t target, TQUERY &querys )
+    static bool ContainAny( mortonType target, TQUERY &querys )
     {
       for ( auto & q : querys ) 
         if ( IsMyParent( q, target ) ) return true;
@@ -175,43 +199,46 @@ class MortonHelper
 
   private:
 
-    static size_t Depth( size_t it ) 
+    static depthType getDepthFromMorton( mortonType it ) 
     {
-      size_t filter = ( 1 << LEVELOFFSET ) - 1;
-      return it & filter;
-    }; /** end Depth() */
+      mortonType filter = ( 1 << level_offset_ ) - 1;
+      /* Convert mortonType to depthType. */
+      return (depthType)(it & filter);
+    }; /* end getDepth() */
 
-    static size_t Shift( size_t depth )
+    static depthType getShiftFromDepth( depthType depth )
     {
-      return ( 1 << LEVELOFFSET ) - depth + LEVELOFFSET;
-    }; /** end Shift() */
+      return ( 1 << level_offset_ ) - depth + level_offset_;
+    }; /* end getShiftFromDepth() */
 
-    const static int LEVELOFFSET = 4;
+    /** Reserve 5-bit for the depth. */
+    const static int level_offset_ = 5;
 
 }; /** end class MortonHelper */
   
 
-template<typename T>
-bool less_first( const pair<T, size_t> &a, const pair<T, size_t> &b )
+template<typename TKEY, typename TVALUE>
+bool less_key( const pair<TKEY, TVALUE> &a, const pair<TKEY, TVALUE> &b )
 {
   return ( a.first < b.first );
 };
-template<typename T>
-bool less_second( const pair<T, size_t> &a, const pair<T, size_t> &b )
+
+template<typename TKEY, typename TVALUE>
+bool less_value( const pair<TKEY, TVALUE> &a, const pair<TKEY, TVALUE> &b )
 {
   return ( a.second < b.second );
 };
-template<typename T>
-bool equal_second( const pair<T, size_t> &a, const pair<T, size_t> &b )
+
+template<typename TKEY, typename TVALUE>
+bool equal_value( const pair<TKEY, TVALUE> &a, const pair<TKEY, TVALUE> &b )
 {
   return ( a.second == b.second );
 };
   
   
 
-template<typename T>
-void MergeNeighbors( size_t k, pair<T, size_t> *A, 
-    pair<T, size_t> *B, vector<pair<T, size_t>> &aux )
+template<typename T, typename TINDEX>
+void MergeNeighbors( size_t k, pair<T, TINDEX> *A, pair<T, TINDEX> *B, vector<pair<T, TINDEX>> &aux )
 {
   /* Enlarge temporary buffer if it is too small. */
   aux.resize( 2 * k );
@@ -222,23 +249,22 @@ void MergeNeighbors( size_t k, pair<T, size_t> *A,
     aux[ k + i ] = B[ i ];
   }
   /* First sort according to the index. */
-  sort( aux.begin(), aux.end(), less_second<T> );
-  auto last = unique( aux.begin(), aux.end(), equal_second<T> );
-  sort( aux.begin(), last, less_first<T> );
+  sort( aux.begin(), aux.end(), less_value<T, TINDEX> );
+  auto last = unique( aux.begin(), aux.end(), equal_value<T, TINDEX> );
+  sort( aux.begin(), last, less_key<T, TINDEX> );
 
   for ( size_t i = 0; i < k; i++ ) A[ i ] = aux[ i ];
-}; /** end MergeNeighbors() */
+}; /* end MergeNeighbors() */
 
 
-template<typename T>
-hmlpError_t MergeNeighbors( size_t k, size_t n,
-  vector<pair<T, size_t>> &A, vector<pair<T, size_t>> &B )
+template<typename T, typename TINDEX>
+hmlpError_t MergeNeighbors( size_t k, size_t n, vector<pair<T, TINDEX>> &A, vector<pair<T, TINDEX>> &B )
 {
   if ( A.size() < n * k || B.size() < n * k )
   {
     return HMLP_ERROR_INVALID_VALUE;
   }
-	#pragma omp parallel
+  #pragma omp parallel
   {
     vector<pair<T, size_t> > aux( 2 * k );
     #pragma omp for
@@ -248,7 +274,7 @@ hmlpError_t MergeNeighbors( size_t k, size_t n,
     }
   }
   return HMLP_ERROR_SUCCESS;
-}; /** end MergeNeighbors() */
+}; /* end MergeNeighbors() */
 
 
 
@@ -331,7 +357,7 @@ class SplitTask : public Task
       cost = 1.0;
     };
 
-		void DependencyAnalysis() { arg->DependOnParent( this ); };
+    void DependencyAnalysis() { arg->DependOnParent( this ); };
 
     void Execute( Worker* user_worker ) { arg->Split(); };
 
@@ -1430,10 +1456,10 @@ class Tree
 
   protected:
 
-    /* Depth of the local tree. */
-    size_t loc_depth_ = 0;
-    /* Depth of the global tree. */
-    size_t glb_depth_ = 0;
+    /** Depth of the local tree. */
+    depthType loc_depth_ = 0;
+    /** Depth of the global tree. */
+    depthType glb_depth_ = 0;
 
     vector<size_t> global_indices;
 
@@ -1505,8 +1531,8 @@ class Tree
 
 
 
-}; /** end class Tree */
-}; /** end namespace tree */
-}; /** end namespace hmlp */
+}; /* end class Tree */
+}; /* end namespace tree */
+}; /* end namespace hmlp */
 
-#endif /** define TREE_HPP */
+#endif /* define TREE_HPP */
