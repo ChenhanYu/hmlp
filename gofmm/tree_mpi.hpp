@@ -229,22 +229,22 @@ class DistSplitTask : public Task
     {
       arg->DependencyAnalysis( R, this );
 
-      if ( !arg->isleaf )
+      if ( !arg->isLeaf() )
       {
         if ( arg->GetCommSize() > 1 )
         {
-					assert( arg->child );
+          assert( arg->child );
           arg->child->DependencyAnalysis( RW, this );
         }
         else
         {
-					assert( arg->lchild && arg->rchild );
+          assert( arg->lchild && arg->rchild );
           arg->lchild->DependencyAnalysis( RW, this );
           arg->rchild->DependencyAnalysis( RW, this );
         }
       }
       this->TryEnqueue();
-		};
+    };
 
     void Execute( Worker* user_worker ) { arg->Split(); };
 
@@ -341,20 +341,10 @@ class DistIndexPermuteTask : public Task
     };
 
     void DependencyAnalysis() { arg->DependOnChildren( this ); };
-    //{
-    //  arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-    //  if ( !arg->isleaf && !arg->child )
-    //  {
-    //    arg->lchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-    //    arg->rchild->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-    //  }
-    //  this->TryEnqueue();
-    //};
-
 
     void Execute( Worker* user_worker )
     {
-      if ( !arg->isleaf && !arg->child )
+      if ( !arg->isLeaf() && !arg->child )
       {
         auto &gids = arg->gids; 
         auto &lgids = arg->lchild->gids;
@@ -1008,7 +998,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       {
         this->morton2node[ node->morton ] = node;
         auto *sibling = node->sibling;
-        if ( node->l ) this->morton2node[ sibling->morton ] = sibling;
+        if ( node->getLocalDepth() ) this->morton2node[ sibling->morton ] = sibling;
       }
 
       this->Barrier();
@@ -1089,7 +1079,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     Data<int> CheckAllInteractions()
     {
       /** Get the total depth of the tree. */
-      int total_depth = this->treelist.back()->l;
+      int total_depth = this->treelist.back()->getLocalDepth();
       /** Number of total leaf nodes. */
       int num_leafs = 1 << total_depth;
       /** Create a 2^l-by-2^l table to check all interactions. */
@@ -1116,7 +1106,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
         for ( int p = 0; p < this->GetCommSize(); p ++ )
         {
-          if ( node->isleaf )
+          if ( node->isLeaf() )
           {
             for ( auto & it : node->DistNear[ p ] )
             {
@@ -1160,7 +1150,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         //}
         for ( int p = 0; p < this->GetCommSize(); p ++ )
         {
-          if ( node->isleaf )
+          if ( node->isLeaf() )
           {
           for ( auto & it : node->DistNear[ p ] )
           {

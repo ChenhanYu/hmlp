@@ -76,7 +76,7 @@ class DistSetupFactorTask : public Task
       mpi::Bcast( &sr, 1, size / 2, comm );
 
       data.SetupFactor( issymmetric, do_ulv_factorization,
-        node->isleaf, !node->l, n, nl, nr, s, sl, sr );
+        node->isLeaf(), !node->getLocalDepth(), n, nl, nr, s, sl, sr );
 
       //printf( "n %lu nl %lu nr %lu s %lu sl %lu sr %lu\n",
       //    n, nl, nr, s, sl, sr ); fflush( stdout );
@@ -143,7 +143,7 @@ class DistFactorizeTask : public Task
         /** Get the skeleton row and column basis. */
         data.Crl = K( bmap, amap );
 
-        if ( node->l )
+        if ( node->getLocalDepth() )
         {
           data.Telescope( false, data.U, data.proj, Ul, Ur );
           data.Orthogonalization();

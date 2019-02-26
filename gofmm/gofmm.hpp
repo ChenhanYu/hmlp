@@ -523,7 +523,7 @@ class TreeViewTask : public Task
       }
 
       /** partition u and w using the hierarchical tree view */
-      if ( !node->isleaf )
+      if ( !node->isLeaf() )
       {
         auto &UL = node->lchild->data.u_view;
         auto &UR = node->rchild->data.u_view;
@@ -588,16 +588,16 @@ class Summary
 
     void operator() ( NODE *node )
     {
-      if ( rank.size() <= node->l )
+      if ( rank.size() <= node->getLocalDepth() )
       {
         rank.push_back( hmlp::Statistic() );
         skeletonize.push_back( hmlp::Statistic() );
         updateweight.push_back( hmlp::Statistic() );
       }
 
-      rank[ node->l ].Update( (double)node->data.skels.size() );
-      skeletonize[ node->l ].Update( node->data.skeletonize.GetDuration() );
-      updateweight[ node->l ].Update( node->data.updateweight.GetDuration() );
+      rank[ node->getLocalDepth() ].Update( (double)node->data.skels.size() );
+      skeletonize[ node->getLocalDepth() ].Update( node->data.skeletonize.GetDuration() );
+      updateweight[ node->getLocalDepth() ].Update( node->data.updateweight.GetDuration() );
 
 #ifdef DUMP_ANALYSIS_DATA
       if ( node->parent )
@@ -607,14 +607,14 @@ class Summary
         printf( "#%lu (s%lu), #%lu (s%lu), %lu, %lu\n", 
             node->treelist_id, node->data.skels.size(), 
             parent->treelist_id, parent->data.skels.size(),
-            node->data.skels.size(), node->l );
+            node->data.skels.size(), node->getLocalDepth() );
       }
       else
       {
         printf( "@TREE\n" );
         printf( "#%lu (s%lu), , %lu, %lu\n", 
             node->treelist_id, node->data.skels.size(), 
-            node->data.skels.size(), node->l );
+            node->data.skels.size(), node->getLocalDepth() );
       }
 #endif
     };
@@ -1119,7 +1119,7 @@ void RowSamples( NODE *node, size_t nsamples )
     auto &snids = data.snids;
     size_t knum = NN.row();
 
-    if ( node->isleaf )
+    if ( node->isLeaf() )
     {
       snids.clear();
 
@@ -1246,7 +1246,7 @@ void SkeletonKIJ( NODE *node )
   auto *lchild = node->lchild;
   auto *rchild = node->rchild;
 
-  if ( node->isleaf )
+  if ( node->isLeaf() )
   {
     /** Use all columns. */
     candidate_cols = node->gids;
@@ -1422,7 +1422,7 @@ class SkeletonizeTask : public Task
       data.skels.clear();
       data.proj.clear();
       /* If one of my children is not compreesed, so am I. */
-      if ( secure_accuracy && !arg->isleaf ) 
+      if ( secure_accuracy && !arg->isLeaf() ) 
       {
         /* If both children were not compressed, then this node is above the frontier. */
         if ( !arg->lchild->data.is_compressed &&  
@@ -1512,7 +1512,7 @@ void UpdateWeights( NODE *node )
 
   //printf( "%lu UpdateWeight w_skel.num() %lu\n", node->treelist_id, w_skel.num() );
 
-  if ( node->isleaf )
+  if ( node->isLeaf() )
   {
     if ( w_leaf.size() )
     {
@@ -1622,7 +1622,7 @@ class UpdateWeightsTask : public Task
       auto &gids = arg->gids;
       auto &skels = arg->data.skels;
       auto &w = *arg->setup->w;
-      if ( arg->isleaf )
+      if ( arg->isLeaf() )
       {
         auto m = skels.size();
         auto n = w.col();
@@ -1655,7 +1655,7 @@ class UpdateWeightsTask : public Task
       __builtin_prefetch( proj.data() );
       auto &w_skel = arg->data.w_skel;
       __builtin_prefetch( w_skel.data() );
-      if ( arg->isleaf )
+      if ( arg->isLeaf() )
       {
         auto &w_leaf = arg->data.w_leaf;
         __builtin_prefetch( w_leaf.data() );
@@ -1674,7 +1674,7 @@ class UpdateWeightsTask : public Task
       {
         proj.CacheD( device );
         proj.PrefetchH2D( device, 1 );
-        if ( arg->isleaf )
+        if ( arg->isLeaf() )
         {
           auto &w_leaf = arg->data.w_leaf;
           w_leaf.CacheD( device );
@@ -1795,8 +1795,8 @@ void SkeletonsToSkeletons( NODE *node )
     }
     else
     {
-      printf( "Far Kab not cached treelist_id %lu, l %lu\n\n",
-					node->treelist_id, node->l ); fflush( stdout );
+      printf( "Far Kab not cached treelist_id %lu, l %u\n\n",
+          node->treelist_id, node->getLocalDepth() ); fflush( stdout );
 
       /** get submatrix Kad from K */
       auto Kab = K( amap, bmap );
@@ -1906,7 +1906,7 @@ void SkeletonsToNodes( NODE *node )
 
 
 
-  if ( node->isleaf )
+  if ( node->isLeaf() )
   {
     /** Get U view of this node if initialized */
     View<T> U = data.u_view;
@@ -2022,7 +2022,7 @@ class SkeletonsToNodesTask : public Task
       auto &skels = data.skels;
       auto &w = *arg->setup->w;
 
-      if ( arg->isleaf )
+      if ( arg->isLeaf() )
       {
         size_t m = proj.col();
         size_t n = w.col();
@@ -2060,7 +2060,7 @@ class SkeletonsToNodesTask : public Task
       __builtin_prefetch( proj.data() );
       auto &u_skel = arg->data.u_skel;
       __builtin_prefetch( u_skel.data() );
-      if ( arg->isleaf )
+      if ( arg->isLeaf() )
       {
         //__builtin_prefetch( arg->data.u_leaf[ 0 ].data() );
         //__builtin_prefetch( arg->data.u_leaf[ 1 ].data() );
@@ -2084,7 +2084,7 @@ class SkeletonsToNodesTask : public Task
         proj.PrefetchH2D( device, stream_id );
         u_skel.CacheD( device );
         u_skel.PrefetchH2D( device, stream_id );
-        if ( arg->isleaf )
+        if ( arg->isLeaf() )
         {
         }
         else
@@ -2121,7 +2121,7 @@ class SkeletonsToNodesTask : public Task
 template<int SUBTASKID, bool NNPRUNE, typename NODE, typename T>
 void LeavesToLeaves( NODE *node, size_t itbeg, size_t itend )
 {
-  assert( node->isleaf );
+  assert( node->isLeaf() );
 
   double beg, u_leaf_time, before_writeback_time, after_writeback_time;
 
@@ -2263,7 +2263,7 @@ class LeavesToLeavesTask : public Task
       auto &K = *arg->setup->K;
       auto &NearKab = data.NearKab;
 
-      assert( arg->isleaf );
+      assert( arg->isLeaf() );
 
       size_t m = gids.size();
       size_t n = w.col();
@@ -2315,7 +2315,7 @@ class LeavesToLeavesTask : public Task
 
     void DependencyAnalysis()
     {
-      assert( arg->isleaf );
+      assert( arg->isLeaf() );
       /** depends on nothing */
       this->TryEnqueue();
 
@@ -2355,7 +2355,7 @@ template<typename NODE>
 multimap<size_t, size_t> NearNodeBallots( NODE *node )
 {
   /** Must be a leaf node. */
-  assert( node->isleaf );
+  assert( node->isLeaf() );
 
   auto &setup = *(node->setup);
   auto &NN = *(setup.NN);
@@ -2423,12 +2423,12 @@ void NearSamples( NODE *node )
   auto &setup = *(node->setup);
   auto &NN = *(setup.NN);
 
-  if ( node->isleaf )
+  if ( node->isLeaf() )
   {
     auto &gids = node->gids;
     //double budget = setup.budget;
     double budget = setup.Budget();
-    size_t n_nodes = ( 1 << node->l );
+    size_t n_nodes = ( 1 << node->getLocalDepth() );
 
     /** Add myself to the near interaction list.  */
     node->NearNodes.insert( node );
@@ -2607,7 +2607,7 @@ template<typename NODE>
 hmlpError_t FindFarNodes( NODE *node, NODE *target )
 {
   /* target must be a leaf node. */
-  if ( !target->isleaf ) return HMLP_ERROR_INVALID_VALUE;
+  if ( !target->isLeaf() ) return HMLP_ERROR_INVALID_VALUE;
 
   /** get a list of near nodes from target */
   set<NODE*> *NearNodes;
@@ -2627,7 +2627,7 @@ hmlpError_t FindFarNodes( NODE *node, NODE *target )
   /** If this node contains any Near( target ) or isn't skeletonized */
   if ( !data.is_compressed || node->ContainAny( *NearNodes ) )
   {
-    if ( !node->isleaf )
+    if ( !node->isLeaf() )
     {
       /** Recurs to two children */
       RETURN_IF_ERROR( FindFarNodes( lchild, target ) );
@@ -2652,7 +2652,7 @@ hmlpError_t FindFarNodes( NODE *node, NODE *target )
   /** If this node contains any Near( target ) or isn't skeletonized */
   if ( !data.is_compressed || node->ContainAny( *NearNodes ) )
   {
-    if ( !node->isleaf )
+    if ( !node->isLeaf() )
     {
       /** Recurs to two children */
       RETURN_IF_ERROR( FindFarNodes( lchild, target ) );
@@ -2705,7 +2705,7 @@ void MergeFarNodes( TREE &tree )
       /** if I don't have any skeleton, then I'm nobody's far field */
       if ( !node->data.is_compressed ) continue;
 
-      if ( node->isleaf )
+      if ( node->isLeaf() )
       {
         FindFarNodes( tree.treelist[ 0 ] /** root */, node );
       }
@@ -2808,7 +2808,7 @@ void MergeFarNodes( TREE &tree )
       }
       if ( pFarNodes.size() )
       {
-        printf( "l %2lu FarNodes(%lu) ", node->l, node->treelist_id );
+        printf( "l %2lu FarNodes(%lu) ", node->getLocalDepth(), node->treelist_id );
         PrintSet( pFarNodes );
       }
     }
@@ -2832,7 +2832,7 @@ void CacheFarNodes( TREE &tree )
   for ( size_t i = 0; i < tree.treelist.size(); i ++ )
   {
     auto *node = tree.treelist[ i ];
-    if ( node->isleaf )
+    if ( node->isLeaf() )
     {
       node->data.w_leaf.reserve( node->gids.size(), MAX_NRHS );
       node->data.u_leaf[ 0 ].reserve( MAX_NRHS, node->gids.size() );
@@ -2897,7 +2897,7 @@ double DrawInteraction( TREE &tree )
         auto &pFarNodes = node->NNFarNodes;
         for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
         {
-          double gb = (double)std::min( node->l, (*it)->l ) / tree.getDepth();
+          double gb = (double)std::min( node->getLocalDepth(), (*it)->getLocalDepth() ) / tree.getDepth();
           //printf( "node->l %lu (*it)->l %lu depth %lu\n", node->l, (*it)->l, tree.depth );
           fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[1.0,%lf,%lf]);\n",
               node->offset,      (*it)->offset,
@@ -2958,7 +2958,7 @@ hmlpError_t Evaluate( NODE *node, const size_t gid, Data<T> & potentials, const 
   {
     auto   I = vector<size_t>( 1, gid );
     auto & J = node->gids;
-    if ( node->isleaf )
+    if ( node->isLeaf() )
     {
       /** I.size()-by-J.size(). */
       auto Kab = K( I, J ); 

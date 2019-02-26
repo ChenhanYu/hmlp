@@ -76,7 +76,7 @@ class Factor
     void SetupFactor
     (
       bool issymmetric, bool do_ulv_factorization,
-      bool isleaf, bool isroot,
+      bool is_leaf, bool isroot,
       /** n == nl + nr (left + right) */
       size_t n, size_t nl, size_t nr,
       /** s <= sl + sr */
@@ -85,7 +85,7 @@ class Factor
     {
       this->issymmetric = issymmetric;
       this->do_ulv_factorization = do_ulv_factorization;
-      this->isleaf = isleaf;
+      this->is_leaf_ = is_leaf;
       this->isroot = isroot;
       this->n = n; this->nl = nl; this->nr = nr;
       this->s = s; this->sl = sl; this->sr = sr;
@@ -94,7 +94,7 @@ class Factor
     void SetupFactor
     (
       bool issymmetric, bool do_ulv_factorization,
-      bool isleaf, bool isroot,
+      bool is_leaf, bool isroot,
       size_t n, size_t nl, size_t nr,
       size_t s, size_t sl, size_t sr,
       /** n-by-?; its rank depends on mu sibling */
@@ -104,7 +104,7 @@ class Factor
     )
     {
       SetupFactor( issymmetric, do_ulv_factorization, 
-          isleaf, isroot, n, nl, nr, s, sl, sr );
+          is_leaf, isroot, n, nl, nr, s, sl, sr );
     };
 
     bool DoULVFactorization()
@@ -144,7 +144,7 @@ class Factor
 
     void Factorize( Data<T> &Kaa ) 
     {
-      assert( isleaf );
+      assert( isLeaf() );
       assert( Kaa.row() == n ); assert( Kaa.col() == n );
 
       /** Initialize with Kaa. */
@@ -240,7 +240,7 @@ class Factor
       Data<T> &Vr
     )
     {
-      assert( !isleaf );
+      assert( !isLeaf() );
       //assert( Ul.row() == nl ); assert( Ul.col() == sl );
       //assert( Ur.row() == nr ); assert( Ur.col() == sr );
       //assert( Vl.row() == nl ); assert( Vl.col() == sl );
@@ -455,7 +455,7 @@ class Factor
     /** */
     void Multiply( View<T> &bl, View<T> &br )
     {
-      assert( !isleaf && bl.col() == br.col() );
+      assert( !isLeaf() && bl.col() == br.col() );
     
       size_t nrhs = bl.col();
 
@@ -517,7 +517,7 @@ class Factor
     void Solve( View<T> &rhs ) 
     {
       /** assure this is a leaf node */
-      assert( isleaf );
+      assert( isLeaf() );
       assert( !do_ulv_factorization );
       assert( rhs.data() && Z.data() );
       assert( ipiv.data() );
@@ -640,7 +640,7 @@ class Factor
       Data<T> &Palr 
     )
     {
-      assert( isleaf ); 
+      assert( isLeaf() ); 
       /** Initialize Pa */
       Pa.resize( n, s, 0.0 );
 
@@ -696,7 +696,7 @@ class Factor
       Data<T> &Pr
     ) 
     {
-      assert( !isleaf );
+      assert( !isLeaf() );
       assert( n == nl + nr );
       assert( Pl.col() == sl );
       assert( Pr.col() == sr );
@@ -985,7 +985,7 @@ class Factor
     void ULVForward()
     {
       /** For internal nodes, B has been initialized by children. */
-      if ( isleaf ) B = bview.toData();
+      if ( isLeaf() ) B = bview.toData();
       /** B = Q' * B */
       ChangeBasis( LEFT, B );
       /** P * Bf */
@@ -1021,17 +1021,21 @@ class Factor
         xgemm( "No Transpose", "No Transpose", A.row(), A.col(), Bc.row(),
             1.0, Q1.data(), Q1.ld(), Bc.data(), Bc.ld(), 1.0, A.data(), A.row() );
         /** Copy A back to B. */
-        if ( isleaf ) bview.CopyValuesFrom( A );
+        if ( isLeaf() ) bview.CopyValuesFrom( A );
         else Bv.CopyValuesFrom( A );
       }
     }; /** end ULVBackward() */
 
 
+    bool isLeaf() const noexcept
+    {
+      return is_leaf_;
+    }
 
 
 
 
-    bool isleaf = false;
+    bool is_leaf_ = false;
 
     bool isroot = false;
 
@@ -1115,7 +1119,7 @@ void SetupFactor( NODE *node )
   sl = 0;
   sr = 0;
 
-  if ( !node->isleaf )
+  if ( !node->isLeaf() )
   {
     nl = node->lchild->n;
     nr = node->rchild->n;
@@ -1125,7 +1129,7 @@ void SetupFactor( NODE *node )
 
 
   node->data.SetupFactor( issymmetric, do_ulv_factorization,
-    node->isleaf, !node->l, n, nl, nr, s, sl, sr );
+    node->isLeaf(), !node->getLocalDepth(), n, nl, nr, s, sl, sr );
 
 #ifdef DEBUG_IGOFMM
   printf( "end SetupFactor %lu\n", node->treelist_id ); fflush( stdout );
@@ -1182,7 +1186,7 @@ void SolverTreeView( NODE *node )
   auto &input  = *(setup->input);
   auto &output = *(setup->output);
   /** Allocate working buffer for ULV solve. */
-  if ( node->isleaf ) data.B.resize( data.n, input.col() );
+  if ( node->isLeaf() ) data.B.resize( data.n, input.col() );
   else data.B.resize( data.sl + data.sr, input.col() );
 
   /** Partition B = [ Bf; Bc ] with matrix view. */
@@ -1194,7 +1198,7 @@ void SolverTreeView( NODE *node )
   if ( !node->parent ) data.bview.Set( output );
 
   /** Hierarchical tree view. */
-  if ( !node->isleaf )
+  if ( !node->isLeaf() )
   {
     auto &ldata = node->lchild->data;
     auto &rdata = node->rchild->data;
@@ -1323,7 +1327,7 @@ void Apply( NODE *node )
   auto &setup = node->setup;
   auto &K = *setup->K;
 
-  if ( node->isleaf )
+  if ( node->isLeaf() )
   {
     auto lambda = setup->lambda;
     auto &amap = node->gids;
@@ -1367,7 +1371,7 @@ class ULVForwardSolveTask : public Task
     //{      
     //  arg->DependencyAnalysis( RW, this );
     //  /** depend on two children */
-    //  if ( !arg->isleaf )
+    //  if ( !arg->isLeaf() )
     //  {
     //    arg->lchild->DependencyAnalysis( R, this );
     //    arg->rchild->DependencyAnalysis( R, this );
@@ -1452,7 +1456,7 @@ void Solve( NODE *node )
   //printf( "%lu beg Solve\n", node->treelist_id ); fflush( stdout );
 
   /** TODO: need to decide to use LU or not */
-  if ( node->isleaf )
+  if ( node->isLeaf() )
   {
     auto &b = data.bview;
     data.Solve( b );
@@ -1500,7 +1504,7 @@ class SolveTask : public Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
-      if ( !arg->isleaf )
+      if ( !arg->isLeaf() )
       {
         arg->lchild->DependencyAnalysis( R, this );
         arg->rchild->DependencyAnalysis( R, this );
@@ -1592,7 +1596,7 @@ void LowRankError( NODE *node )
   auto &setup = node->setup;
   auto &K = *setup->K;
 
-  if ( !node->isleaf )
+  if ( !node->isLeaf() )
   {
     auto Krl = K( node->rchild->gids, node->lchild->gids );
 
@@ -1638,7 +1642,7 @@ hmlpError_t Factorize( NODE *node )
 
   auto do_ulv_factorization = setup->do_ulv_factorization;
 
-  if ( node->isleaf )
+  if ( node->isLeaf() )
   {
     auto lambda = setup->lambda;
     auto &amap = node->gids;

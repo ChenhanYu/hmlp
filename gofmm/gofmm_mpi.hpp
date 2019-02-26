@@ -292,7 +292,7 @@ class DistTreeViewTask : public Task
       W.Set( w );
 
       /** Create sub matrix views for local nodes. */
-      if ( !node->isleaf && !node->child )
+      if ( !node->isLeaf() && !node->child )
       {
         assert( node->lchild && node->rchild );
         auto &UL = node->lchild->data.u_view;
@@ -805,7 +805,7 @@ class DistUpdateWeightsTask : public Task
 
 			if ( !arg->child )
 			{
-        if ( arg->isleaf )
+        if ( arg->isLeaf() )
         {
           auto m = skels.size();
           auto n = w.col();
@@ -1248,7 +1248,7 @@ class DistSkeletonsToNodesTask : public Task
     {
       arg = user_arg;
       name = string( "PS2N" );
-      label = to_string( arg->l );
+      label = to_string( arg->getLocalDepth() );
 
       double flops = 0.0, mops = 0.0;
       auto &gids = arg->gids;
@@ -1257,7 +1257,7 @@ class DistSkeletonsToNodesTask : public Task
 
 			if ( !arg->child )
 			{
-        if ( arg->isleaf )
+        if ( arg->isLeaf() )
         {
           auto m = skels.size();
           auto n = w.col();
@@ -1580,7 +1580,7 @@ void FindNearInteractions( TREE &tree )
   {
     auto *node = *(level_beg + node_ind);
     auto &data = node->data;
-    size_t n_nodes = ( 1 << node->l );
+    size_t n_nodes = ( 1 << node->getLocalDepth() );
 
     /** Add myself to the near interaction list.  */
     node->NNNearNodes.insert( node );
@@ -1626,9 +1626,9 @@ template<typename NODE>
 hmlpError_t FindFarNodes( const MortonHelper::Recursor r, NODE *target ) 
 {
   /* target must be a leaf node. */
-  if ( !target->isleaf ) return HMLP_ERROR_INVALID_VALUE;
+  if ( !target->isLeaf() ) return HMLP_ERROR_INVALID_VALUE;
   /** Return while reaching the leaf level (recursion base case). */ 
-  if ( r.second > target->l ) return HMLP_ERROR_SUCCESS;
+  if ( r.second > target->getLocalDepth() ) return HMLP_ERROR_SUCCESS;
   /** Compute the MortonID of the visiting node. */
   size_t node_morton = MortonHelper::MortonID( r );
 
@@ -2048,7 +2048,7 @@ pair<double, double> NonCompressedRatio( TREE &tree )
   /** Traverse all nodes in the local tree. */
   for ( auto &tar : tree.treelist )
   {
-    if ( tar->isleaf )
+    if ( tar->isLeaf() )
     {
       for ( auto nearID : tar->NNNearNodeMortonIDs )
       {
@@ -2735,7 +2735,7 @@ void MergeFarNodes( NODE *node )
   /**
    *  Examine "Near" interaction list
    */ 
-  //if ( node->isleaf )
+  //if ( node->isLeaf() )
   //{
   //   auto & NearMortonIDs = node->NNNearNodeMortonIDs;
   //   #pragma omp critical
@@ -2768,7 +2768,7 @@ void MergeFarNodes( NODE *node )
   node->FarNodes.insert( node->sibling );
 
   /** Construct NN far interaction lists */
-  if ( node->isleaf )
+  if ( node->isLeaf() )
   {
     FindFarNodes( MortonHelper::Root(), node );
   }
@@ -2827,7 +2827,7 @@ class MergeFarNodesTask : public Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
-      if ( !arg->isleaf )
+      if ( !arg->isLeaf() )
       {
         arg->lchild->DependencyAnalysis( RW, this );
         arg->rchild->DependencyAnalysis( RW, this );
@@ -2953,7 +2953,7 @@ class DistMergeFarNodesTask : public Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
-      if ( !arg->isleaf )
+      if ( !arg->isLeaf() )
       {
         if ( arg->GetCommSize() > 1 )
         {
@@ -3600,7 +3600,7 @@ class DistSkeletonizeTask : public hmlp::Task
       mpi::Comm comm = arg->GetComm();
 
       /* If one of my children is not compreesed, so am I. */
-      if ( secure_accuracy && !arg->isleaf ) 
+      if ( secure_accuracy && !arg->isLeaf() ) 
       {
         int is_lchild_compressed;
         int is_rchild_compressed;
@@ -3706,7 +3706,7 @@ hmlpError_t compressionFailureFrontier( TREE & tree )
   /* Loop over local tree nodes. */
   for ( auto node : tree.treelist )
   {
-    if ( node->isleaf ) continue;
+    if ( node->isLeaf() ) continue;
     if ( node->data.isCompressionFailureFrontier() )
     {
       frontier.insert( node->morton );
@@ -3715,7 +3715,7 @@ hmlpError_t compressionFailureFrontier( TREE & tree )
   /* Loop over all distributed tree nodes. */
   for ( auto node : tree.mpitreelists )
   {
-    if ( node->isleaf ) continue;
+    if ( node->isLeaf() ) continue;
     if ( node->data.isCompressionFailureFrontier() )
     {
       frontier.insert( node->morton );

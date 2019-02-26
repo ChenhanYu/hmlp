@@ -61,6 +61,7 @@ namespace hmlp
 {
 
 typedef uint64_t mortonType;
+typedef uint64_t sizeType;
 typedef uint64_t indexType;
 typedef uint32_t depthType;
 
@@ -311,7 +312,7 @@ class IndexPermuteTask : public Task
     void DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
-      if ( !arg->isleaf )
+      if ( !arg->isLeaf() )
       {
         arg->lchild->DependencyAnalysis( R, this );
         arg->rchild->DependencyAnalysis( R, this );
@@ -326,7 +327,7 @@ class IndexPermuteTask : public Task
       auto *lchild = arg->lchild;
       auto *rchild = arg->rchild;
       
-      if ( !arg->isleaf )
+      if ( !arg->isLeaf() )
       {
         auto &lgids = lchild->gids;
         auto &rgids = rchild->gids;
@@ -624,7 +625,6 @@ class SplitTask : public Task
 /**
  *  @brief 
  */ 
-//template<typename SETUP, int N_CHILDREN, typename NODEDATA>
 template<typename SETUP, typename NODEDATA>
 class Node : public ReadWrite
 {
@@ -644,10 +644,7 @@ class Node : public ReadWrite
       this->morton = 0;
       this->treelist_id = 0;
       this->gids.resize( n );
-      this->isleaf = false;
       this->parent = parent;
-      this->lchild = NULL;
-      this->rchild = NULL;
       this->morton2node = morton2node;
       this->treelock = treelock;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
@@ -662,10 +659,7 @@ class Node : public ReadWrite
       this->morton = 0;
       this->treelist_id = 0;
       this->gids = gids;
-      this->isleaf = false;
       this->parent = parent;
-      this->lchild = NULL;
-      this->rchild = NULL;
       this->morton2node = morton2node;
       this->treelock = treelock;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
@@ -693,7 +687,7 @@ class Node : public ReadWrite
       try
       {
         /** Early return if this is a leaf node. */
-        if ( isleaf ) return;
+        if ( isLeaf() ) return;
 
         double beg = omp_get_wtime();
         auto split = setup->splitter( gids );
@@ -741,8 +735,8 @@ class Node : public ReadWrite
 
     /**
      *  @brief Check if this node contain any query using morton.
-		 *         Notice that queries[] contains gids; thus, morton[]
-		 *         needs to be accessed using gids.
+     *         Notice that queries[] contains gids; thus, morton[]
+     *         needs to be accessed using gids.
      *
      */ 
     bool ContainAny( const vector<size_t> & queries )
@@ -791,7 +785,7 @@ class Node : public ReadWrite
 
     void Print()
     {
-      printf( "l %lu offset %lu n %lu\n", this->l, this->offset, this->n );
+      printf( "l %lu offset %lu n %lu\n", this->getLocalDepth(), this->offset, this->n );
       hmlp_print_binary( this->morton );
     };
 
@@ -830,10 +824,10 @@ class Node : public ReadWrite
     NODEDATA data;
 
     /** Number of points in this node. */
-    size_t n;
+    sizeType n = 0;
 
     /** Level in the tree */
-    size_t l;
+    //depthType l = 0;
 
     /** Morton ID and offset. */
     size_t morton = 0;
@@ -866,13 +860,6 @@ class Node : public ReadWrite
     set<Node*>  ProposedNNNearNodes;
     set<size_t> NNNearNodeMortonIDs;
 
-    /** Node interaction lists recorded in MortonID. */
-    //set<size_t> HSSNear;
-    //set<size_t> HSSFar;
-    //set<size_t> FMMNear;
-    //set<size_t> FMMFar;
-
-
     /** DistFar[ p ] contains a pair of gid and cached KIJ received from p. */
     vector<map<size_t, Data<T>>> DistFar;
     vector<map<size_t, Data<T>>> DistNear;
@@ -891,7 +878,25 @@ class Node : public ReadWrite
     Node *parent  = NULL;
     unordered_map<size_t, Node*> *morton2node = NULL;
 
-    bool isleaf;
+
+
+    depthType getLocalDepth() const noexcept
+    {
+      return l;
+    };
+
+    //bool isLeaf();
+    bool isLeaf() const noexcept
+    {
+      return is_leaf_;
+    }
+
+    hmlpError_t setLeaf() noexcept
+    {
+      is_leaf_ = true;
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    };
 
     bool isCompressionFailureFrontier() const noexcept 
     { 
@@ -906,6 +911,11 @@ class Node : public ReadWrite
     };
 
   private:
+
+    /** Level in the tree */
+    depthType l = 0;
+
+    bool is_leaf_ = false;
 
     bool is_compression_failure_frontier_ = false;
 
@@ -1210,7 +1220,7 @@ class Tree
     Data<int> CheckAllInteractions()
     {
       /** Get the total depth of the tree. */
-      int total_depth = treelist.back()->l;
+      int total_depth = treelist.back()->getLocalDepth();
       /** Number of total leaf nodes. */
       int num_leafs = 1 << total_depth;
       /** Create a 2^l-by-2^l table to check all interactions. */
@@ -1303,7 +1313,7 @@ class Tree
        *
        */
 
-      int local_begin_level = ( treelist[ 0 ]->l ) ? 1 : 0;
+      int local_begin_level = ( treelist[ 0 ]->getLocalDepth() ) ? 1 : 0;
 
       /** traverse level-by-level in sequential */
       for ( int l = this->getDepth(); l >= local_begin_level; l -- )
@@ -1355,7 +1365,7 @@ class Tree
        *  IMPORTANT: here l must be int, size_t will wrap over 
        *
        */
-      int local_begin_level = ( treelist[ 0 ]->l ) ? 1 : 0;
+      int local_begin_level = ( treelist[ 0 ]->getLocalDepth() ) ? 1 : 0;
 
       for ( int l = local_begin_level; l <= this->getDepth(); l ++ )
       {
@@ -1479,7 +1489,7 @@ class Tree
       /* If the global depth exceeds the limit, then set it to the maximum depth. */
       if ( glb_depth_ > setup.getMaximumDepth() ) glb_depth_ = setup.getMaximumDepth();
       /** Compute the local tree depth. */
-      loc_depth_ = glb_depth_ - root->l;
+      loc_depth_ = glb_depth_ - root->getLocalDepth();
 
 
       /* Clean up and reserve space for local tree nodes. */
@@ -1498,11 +1508,11 @@ class Tree
         /** Assign local treenode_id. */
         node->treelist_id = treelist.size();
         /** Account for the depth of the distributed tree. */
-        if ( node->l < glb_depth_ )
+        if ( node->getLocalDepth() < glb_depth_ )
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            node->kids[ i ] = new NODE( &setup, 0, node->l + 1, node, &morton2node, &lock );
+            node->kids[ i ] = new NODE( &setup, 0, node->getLocalDepth() + 1, node, &morton2node, &lock );
             treequeue.push_back( node->kids[ i ] );
           }
           node->lchild = node->kids[ 0 ];
@@ -1513,7 +1523,7 @@ class Tree
         else
         {
           /** Leaf nodes are annotated with this flag */
-          node->isleaf = true;
+          RETURN_IF_ERROR( node->setLeaf() );
           treequeue.push_back( NULL );
         }
         treelist.push_back( node );
