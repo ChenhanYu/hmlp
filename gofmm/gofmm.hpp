@@ -1142,7 +1142,7 @@ void RowSamples( NODE *node, size_t nsamples )
         /** Accept the sample if it does not belong to any near node */
         bool is_near;
         if ( NNPRUNE ) is_near = node->NNNearNodeMortonIDs.count( it_morton );
-        else           is_near = (it_morton == node->morton );
+        else           is_near = (it_morton == node->getMortonID() );
 
         if ( !is_near )
         {
@@ -1202,7 +1202,7 @@ void RowSamples( NODE *node, size_t nsamples )
         size_t sample_gid = important_sample.second;
         size_t sample_morton = setup.morton[ sample_gid ];
 
-        if ( !MortonHelper::IsMyParent( sample_morton, node->morton ) )
+        if ( !MortonHelper::IsMyParent( sample_morton, node->getMortonID() ) )
         {
           amap.push_back( sample_gid );
         }
@@ -1213,7 +1213,7 @@ void RowSamples( NODE *node, size_t nsamples )
       for ( size_t sample = 0; sample < K.col(); sample ++ )
       {
         size_t sample_morton = setup.morton[ sample ];
-        if ( !MortonHelper::IsMyParent( sample_morton, node->morton ) )
+        if ( !MortonHelper::IsMyParent( sample_morton, node->getMortonID() ) )
         {
           amap.push_back( sample );
         }
@@ -1517,7 +1517,7 @@ void UpdateWeights( NODE *node )
     if ( w_leaf.size() )
     {
       //printf( "%8lu w_leaf allocated [%lu %lu]\n", 
-      //    node->morton, w_leaf.row(), w_leaf.col() ); fflush( stdout );
+      //    node->getMortonID(), w_leaf.row(), w_leaf.col() ); fflush( stdout );
       
       /** w_leaf is allocated */
       xgemm
@@ -1534,7 +1534,7 @@ void UpdateWeights( NODE *node )
       /** w_leaf is not allocated, use w_view instead */
       View<T> W = data.w_view;
       //printf( "%8lu n2s W[%lu %lu ld %lu]\n", 
-      //    node->morton, W.row(), W.col(), W.ld() ); fflush( stdout );
+      //    node->getMortonID(), W.row(), W.col(), W.ld() ); fflush( stdout );
       //for ( int i = 0; i < 10; i ++ )
       //  printf( "%lu W.data() + %d = %E\n", node->gids[ i ], i, *(W.data() + i) );
       xgemm
@@ -1563,7 +1563,7 @@ void UpdateWeights( NODE *node )
     //if ( 1 )
     if ( node->treelist_id > 6 )
     {
-      //printf( "%8lu n2s\n", node->morton ); fflush( stdout );
+      //printf( "%8lu n2s\n", node->getMortonID() ); fflush( stdout );
       xgemm
       (
         "N", "N",
@@ -1767,7 +1767,7 @@ void SkeletonsToSkeletons( NODE *node )
         assert( u_skel.row() * offset <= FarKab.size() );
 
         //printf( "%8lu s2s %8lu w_skel[%lu %lu]\n", 
-        //    node->morton, (*it)->morton, w_skel.row(), w_skel.col() );
+        //    node->getMortonID(), (*it)->morton, w_skel.row(), w_skel.col() );
         //fflush( stdout );
         xgemm
         (
@@ -1914,7 +1914,7 @@ void SkeletonsToNodes( NODE *node )
     if ( U.col() == nrhs )
     {
       //printf( "%8lu s2n U[%lu %lu %lu]\n", 
-      //    node->morton, U.row(), U.col(), U.ld() ); fflush( stdout );
+      //    node->getMortonID(), U.row(), U.col(), U.ld() ); fflush( stdout );
       xgemm
       (
         "Transpose", "Non-transpose",
@@ -1927,7 +1927,7 @@ void SkeletonsToNodes( NODE *node )
     else
     {
       //printf( "%8lu use u_leaf u_view [%lu %lu ld %lu]\n", 
-      //    node->morton, U.row(), U.col(), U.ld()  ); fflush( stdout );
+      //    node->getMortonID(), U.row(), U.col(), U.ld()  ); fflush( stdout );
 
       auto &u_leaf = node->data.u_leaf[ 0 ];
 
@@ -1962,7 +1962,7 @@ void SkeletonsToNodes( NODE *node )
     //if ( 1 )
     if ( node->treelist_id > 6 )
     {
-      //printf( "%8lu s2n\n", node->morton ); fflush( stdout );
+      //printf( "%8lu s2n\n", node->getMortonID() ); fflush( stdout );
       xgemm
       (
         "Transpose", "No transpose",
@@ -2433,7 +2433,7 @@ void NearSamples( NODE *node )
     /** Add myself to the near interaction list.  */
     node->NearNodes.insert( node );
     node->NNNearNodes.insert( node );
-    node->NNNearNodeMortonIDs.insert( node->morton );
+    node->NNNearNodeMortonIDs.insert( node->getMortonID() );
 
     /** Compute ballots for all near interactions */
     multimap<size_t, size_t> sorted_ballot = NearNodeBallots( node );
@@ -2661,7 +2661,7 @@ hmlpError_t FindFarNodes( NODE *node, NODE *target )
   }
   else
   {
-    if ( node->setup->IsSymmetric() && ( node->morton < target->morton ) )
+    if ( node->setup->IsSymmetric() && ( node->getMortonID() < target->getMortonID() ) )
     {
       /** since target->morton is larger than the visiting node,
        * the interaction between the target and this node has

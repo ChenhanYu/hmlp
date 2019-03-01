@@ -1030,7 +1030,7 @@ class S2STask2 : public Task
         auto &w = src->data.w_skel;
         bool is_cached = true;
 
-        auto &KIJ = node->DistFar[ p ][ src->morton ];
+        auto &KIJ = node->DistFar[ p ][ src->getMortonID() ];
         if ( KIJ.row() != I.size() || KIJ.col() != J.size() ) 
         {
           //printf( "KIJ %lu %lu I %lu J %lu\n", KIJ.row(), KIJ.col(), I.size(), J.size() );
@@ -1390,7 +1390,7 @@ class L2LTask2 : public Task
         
         bool is_cached = true;
         auto &J = src->gids;
-        auto &KIJ = node->DistNear[ p ][ src->morton ];
+        auto &KIJ = node->DistNear[ p ][ src->getMortonID() ];
         if ( KIJ.row() != I.size() || KIJ.col() != J.size() ) 
         {
           KIJ = K( I, J );
@@ -1584,7 +1584,7 @@ void FindNearInteractions( TREE &tree )
 
     /** Add myself to the near interaction list.  */
     node->NNNearNodes.insert( node );
-    node->NNNearNodeMortonIDs.insert( node->morton );
+    node->NNNearNodeMortonIDs.insert( node->getMortonID() );
 
     /** Compute ballots for all near interactions */
     multimap<size_t, size_t> sorted_ballot = gofmm::NearNodeBallots( node );
@@ -1644,7 +1644,7 @@ hmlpError_t FindFarNodes( const MortonHelper::Recursor r, NODE *target )
   }
   else
   {
-    if ( node_morton >= target->morton )
+    if ( node_morton >= target->getMortonID() )
       target->NNFarNodeMortonIDs.insert( node_morton );
   }
   /* Return with no error. */
@@ -1694,7 +1694,7 @@ void SymmetrizeNearInteractions( TREE & tree )
       {
         int dest = tree.Morton2Rank( it );
         if ( dest >= comm_size ) printf( "%8lu dest %d\n", it, dest );
-        list[ dest ].push_back( make_pair( it, node->morton ) );
+        list[ dest ].push_back( make_pair( it, node->getMortonID() ) );
       }
     } /** end pramga omp for */
 
@@ -1778,7 +1778,7 @@ void SymmetrizeFarInteractions( TREE & tree )
         }
         int dest = tree.Morton2Rank( *it );
         if ( dest >= tree.GetCommSize() ) printf( "%8lu dest %d\n", *it, dest );
-        list[ dest ].push_back( make_pair( *it, node->morton ) );
+        list[ dest ].push_back( make_pair( *it, node->getMortonID() ) );
       }
     }
 
@@ -1817,7 +1817,7 @@ void SymmetrizeFarInteractions( TREE & tree )
         }
         int dest = tree.Morton2Rank( *it );
         if ( dest >= tree.GetCommSize() ) printf( "%8lu dest %d\n", *it, dest ); fflush( stdout );
-        list[ dest ].push_back( make_pair( *it, node->morton ) );
+        list[ dest ].push_back( make_pair( *it, node->getMortonID() ) );
       }
     }
 
@@ -1856,7 +1856,7 @@ void SymmetrizeFarInteractions( TREE & tree )
           node->NNFarNodeMortonIDs.insert( query.second );
         }
         node->data.lock.Release();
-        assert( tree.Morton2Rank( node->morton ) == tree.GetCommRank() );
+        assert( tree.Morton2Rank( node->getMortonID() ) == tree.GetCommRank() );
       } /** end pragma omp critical */
     } /** end pargma omp parallel for */
   }
@@ -1915,7 +1915,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
         {
           int dest = tree.Morton2Rank( it );
           if ( dest >= comm_size ) printf( "%8lu dest %d\n", it, dest );
-          if ( dest != comm_rank ) list[ dest ].insert( node->morton );
+          if ( dest != comm_rank ) list[ dest ].insert( node->getMortonID() );
           node->DistNear[ dest ][ it ] = Data<T>();
         }
       } /** end pramga omp for */
@@ -1968,7 +1968,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
           if ( dest >= comm_size ) printf( "%8lu dest %d\n", *it, dest );
           if ( dest != comm_rank ) 
           {
-            list[ dest ].insert( node->morton );
+            list[ dest ].insert( node->getMortonID() );
             //node->data.FarDependents.insert( dest );
           }
           node->DistFar[ dest ][ *it ] = Data<T>();
@@ -1982,7 +1982,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
         auto *node = tree.mpitreelists[ i ];
         node->DistFar.resize( comm_size );
         /** Add to the list iff this MPI rank owns the distributed node */
-        if ( tree.Morton2Rank( node->morton ) == comm_rank )
+        if ( tree.Morton2Rank( node->getMortonID() ) == comm_rank )
         {
           for ( auto it  = node->NNFarNodeMortonIDs.begin();
                      it != node->NNFarNodeMortonIDs.end(); it ++ )
@@ -1991,7 +1991,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
             if ( dest >= comm_size ) printf( "%8lu dest %d\n", *it, dest );
             if ( dest != comm_rank ) 
             {
-              list[ dest ].insert( node->morton );
+              list[ dest ].insert( node->getMortonID() );
               //node->data.FarDependents.insert( dest );
             }
             node->DistFar[ dest ][ *it ]  = Data<T>();
@@ -2764,7 +2764,7 @@ void MergeFarNodes( NODE *node )
   /** Add my sibling (in the same level) to far interaction lists */
   assert( !node->FarNodeMortonIDs.size() );
   assert( !node->FarNodes.size() );
-  node->FarNodeMortonIDs.insert( node->sibling->morton );
+  node->FarNodeMortonIDs.insert( node->sibling->getMortonID() );
   node->FarNodes.insert( node->sibling );
 
   /** Construct NN far interaction lists */
@@ -3147,7 +3147,7 @@ void DistRowSamples( NODE *node, size_t nsamples )
 
 		/** validation */
 		vector<size_t> vconsensus( nsamples, 0 );
-	  vector<size_t> validation = node->setup->ContainAny( candidates, node->morton );
+	  vector<size_t> validation = node->setup->ContainAny( candidates, node->getMortonID() );
 
 		/** reduce validation */
 		mpi::Reduce( validation.data(), vconsensus.data(), nsamples, MPI_SUM, 0, comm );
@@ -3709,7 +3709,7 @@ hmlpError_t compressionFailureFrontier( TREE & tree )
     if ( node->isLeaf() ) continue;
     if ( node->data.isCompressionFailureFrontier() )
     {
-      frontier.insert( node->morton );
+      frontier.insert( node->getMortonID() );
     }
   }
   /* Loop over all distributed tree nodes. */
@@ -3718,7 +3718,7 @@ hmlpError_t compressionFailureFrontier( TREE & tree )
     if ( node->isLeaf() ) continue;
     if ( node->data.isCompressionFailureFrontier() )
     {
-      frontier.insert( node->morton );
+      frontier.insert( node->getMortonID() );
     }
   }
   

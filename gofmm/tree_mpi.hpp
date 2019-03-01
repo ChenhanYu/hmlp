@@ -991,14 +991,14 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       this->morton2node.clear();
 
       /** Construct morton2node map for the local tree. */
-      for ( auto node : this->treelist ) this->morton2node[ node->morton ] = node;
+      for ( auto node : this->treelist ) this->morton2node[ node->getMortonID() ] = node;
 
       /**Construc morton2node map for the distributed tree. */ 
       for ( auto node : this->mpitreelists ) 
       {
-        this->morton2node[ node->morton ] = node;
+        this->morton2node[ node->getMortonID() ] = node;
         auto *sibling = node->sibling;
-        if ( node->getLocalDepth() ) this->morton2node[ sibling->morton ] = sibling;
+        if ( node->getLocalDepth() ) this->morton2node[ sibling->getMortonID() ] = sibling;
       }
 
       this->Barrier();
@@ -1016,11 +1016,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       int node_rank = node->GetCommRank(); 
 
       /** Set the node MortonID. */
-      node->morton = MortonHelper::MortonID( r );
+      node->setMortonID( MortonHelper::MortonID( r ) );
       /** Set my sibling's MortonID. */
       if ( node->sibling )
-        node->sibling->morton = MortonHelper::SiblingMortonID( r );
-
+      {
+        node->sibling->setMortonID( MortonHelper::SiblingMortonID( r ) );
+      }
       if ( node_size < 2 )
       {
         /** Compute MortonID recursively for the local tree. */
@@ -1110,7 +1111,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
           {
             for ( auto & it : node->DistNear[ p ] )
             {
-              auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+              auto I = MortonHelper::Morton2Offsets( node->getMorton(), total_depth );
               auto J = MortonHelper::Morton2Offsets(   it.first, total_depth );
               for ( auto i : I ) for ( auto j : J ) 
               {
@@ -1121,7 +1122,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
           }
           for ( auto & it : node->DistFar[ p ] )
           {
-            auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+            auto I = MortonHelper::Morton2Offsets( node->getMortonID(), total_depth );
             auto J = MortonHelper::Morton2Offsets(   it.first, total_depth );
             for ( auto i : I ) for ( auto j : J ) 
             {
@@ -1154,7 +1155,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
           {
           for ( auto & it : node->DistNear[ p ] )
           {
-            auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+            auto I = MortonHelper::Morton2Offsets( node->getMortonID(), total_depth );
             auto J = MortonHelper::Morton2Offsets(   it.first, total_depth );
             for ( auto i : I ) for ( auto j : J ) 
             {
@@ -1165,7 +1166,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
           }
           for ( auto & it : node->DistFar[ p ] )
           {
-            auto I = MortonHelper::Morton2Offsets( node->morton, total_depth );
+            auto I = MortonHelper::Morton2Offsets( node->getMortonID(), total_depth );
             auto J = MortonHelper::Morton2Offsets(   it.first, total_depth );
             for ( auto i : I ) for ( auto j : J ) 
             {

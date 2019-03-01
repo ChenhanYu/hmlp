@@ -70,11 +70,6 @@ class MortonHelper
 {
   public:
 
-    ///** Use uint64_t for Morton Id. */
-    //using mortonType = uint64_t;
-    ///** Use uint32_t for the depth. */
-    //using depthType = uint32_t;
-
     /** The first value is the MortonId without the depth. */
     typedef pair<mortonType, depthType> Recursor;
 
@@ -655,12 +650,11 @@ class Node : public ReadWrite
     static const int N_CHILDREN = 2;
 
     Node( SETUP* setup, sizeType n, depthType l, 
-        Node *parent, unordered_map<size_t, Node*> *morton2node, Lock *treelock )
+        Node *parent, unordered_map<mortonType, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
       this->n = n;
       this->l = l;
-      this->morton = 0;
       this->treelist_id = 0;
       this->gids.resize( n );
       this->parent = parent;
@@ -670,12 +664,11 @@ class Node : public ReadWrite
     };
 
     Node( SETUP *setup, sizeType n, depthType l, vector<size_t> gids,
-      Node *parent, unordered_map<size_t, Node*> *morton2node, Lock *treelock )
+      Node *parent, unordered_map<mortonType, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
       this->n = n;
       this->l = l;
-      this->morton = 0;
       this->treelist_id = 0;
       this->gids = gids;
       this->parent = parent;
@@ -689,7 +682,10 @@ class Node : public ReadWrite
      *  Constructor of local essential tree (LET) node:
      *  This constructor will only be used in the distributed environment.
      */ 
-    Node( size_t morton ) { this->morton = morton; };
+    Node( mortonType morton ) 
+    { 
+      this->morton_ = morton; 
+    };
 
     /** (Default) destructor */
     ~Node() {};
@@ -770,7 +766,7 @@ class Node : public ReadWrite
       }
       for ( size_t i = 0; i < queries.size(); i ++ )
       {
-        if ( MortonHelper::IsMyParent( setup->morton[ queries[ i ] ], morton ) ) 
+        if ( MortonHelper::IsMyParent( setup->morton[ queries[ i ] ], getMortonID() ) ) 
         {
 #ifdef DEBUG_TREE
           printf( "\n" );
@@ -795,7 +791,7 @@ class Node : public ReadWrite
       }
       for ( auto it = querys.begin(); it != querys.end(); it ++ )
       {
-        if ( MortonHelper::IsMyParent( (*it)->morton, morton ) ) 
+        if ( MortonHelper::IsMyParent( (*it)->getMortonID(), getMortonID() ) ) 
         {
           return true;
         }
@@ -851,8 +847,20 @@ class Node : public ReadWrite
     /** Level in the tree */
     //depthType l = 0;
 
+    
+    hmlpError_t setMortonID( mortonType morton )
+    {
+      morton_ = morton;
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }
+
+
     /** Morton ID and offset. */
-    size_t morton = 0;
+    mortonType getMortonID() const noexcept
+    {
+      return morton_;
+    }
     size_t offset = 0;
 
     /** ID in top-down topology order. */
@@ -863,24 +871,24 @@ class Node : public ReadWrite
     /** These two prunning lists are used when no NN pruning. */
     set<size_t> FarIDs;
     set<Node*>  FarNodes;
-    set<size_t> FarNodeMortonIDs;
+    set<mortonType> FarNodeMortonIDs;
 
     /** Only leaf nodes will have this list. */
     set<size_t> NearIDs;
     set<Node*>  NearNodes;
-    set<size_t> NearNodeMortonIDs;
+    set<mortonType> NearNodeMortonIDs;
 
     /** These two prunning lists are used when in NN pruning. */
     set<size_t> NNFarIDs;
     set<Node*>  NNFarNodes;
     set<Node*>  ProposedNNFarNodes;
-    set<size_t> NNFarNodeMortonIDs;
+    set<mortonType> NNFarNodeMortonIDs;
 
     /** Only leaf nodes will have this list. */
     set<size_t> NNNearIDs;
     set<Node*>  NNNearNodes;
     set<Node*>  ProposedNNNearNodes;
-    set<size_t> NNNearNodeMortonIDs;
+    set<mortonType> NNNearNodeMortonIDs;
 
     /** DistFar[ p ] contains a pair of gid and cached KIJ received from p. */
     vector<map<size_t, Data<T>>> DistFar;
@@ -898,7 +906,7 @@ class Node : public ReadWrite
     Node *rchild  = NULL;
     Node *sibling = NULL;
     Node *parent  = NULL;
-    unordered_map<size_t, Node*> *morton2node = NULL;
+    unordered_map<mortonType, Node*> *morton2node = NULL;
 
 
 
@@ -932,10 +940,13 @@ class Node : public ReadWrite
       return HMLP_ERROR_SUCCESS;
     };
 
-  private:
+  protected:
 
     /** Level in the tree */
     depthType l = 0;
+
+    /** Node MortonID. */
+    mortonType morton_ = 0;
 
     bool is_leaf_ = false;
 
@@ -964,7 +975,7 @@ class Setup
     Data<pair<T, size_t>> *NN = NULL;
 
     /** MortonIDs of all indices. */
-    vector<size_t> morton;
+    vector<mortonType> morton;
 
     /** Tree splitter */
     SPLITTER splitter;
@@ -1041,7 +1052,7 @@ class Tree
      *  Map MortonID to tree nodes. When distributed tree inherits Tree,
      *  morton2node will also contain distributed and LET node.
      */
-    unordered_map<size_t, NODE*> morton2node;
+    unordered_map<mortonType, NODE*> morton2node;
 
     /** (Default) Tree constructor. */
     Tree() {};
@@ -1083,14 +1094,17 @@ class Tree
       /** Return dirctly while no children exist. */
       if ( !node ) return HMLP_ERROR_SUCCESS;
       /** Set my MortonID. */
-      node->morton = MortonHelper::MortonID( r );
+      RETURN_IF_ERROR( node->setMortonID( MortonHelper::MortonID( r ) ) );
       /** Recur to children. */
       RETURN_IF_ERROR( RecursiveMorton( node->lchild, MortonHelper::RecurLeft( r ) ) );
       RETURN_IF_ERROR( RecursiveMorton( node->rchild, MortonHelper::RecurRight( r ) ) );
       /** Fill the  */
       if ( !node->lchild )
       {
-        for ( auto it : node->gids ) setup.morton[ it ] = node->morton;
+        for ( auto it : node->gids ) 
+        {
+          setup.morton[ it ] = node->getMortonID();
+        }
       }
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
@@ -1136,7 +1150,7 @@ class Tree
       morton2node.clear();
       for ( size_t i = 0; i < treelist.size(); i ++ )
       {
-        morton2node[ treelist[ i ]->morton ] = treelist[ i ];
+        morton2node[ treelist[ i ]->getMortonID() ] = treelist[ i ];
       }
 
       /** Adgust gids to the appropriate order.  */
