@@ -96,7 +96,7 @@ class MortonHelper
       return Recursor( ( r.first << 1 ) + 1, r.second + 1 ); 
     };
 
-    /** Compute the MortonId from the recursor. */
+    /** \brief Compute the MortonId from the recursor. */
     static mortonType MortonID( Recursor r ) noexcept
     {
       /* Compute the correct shift. */
@@ -105,7 +105,7 @@ class MortonHelper
       return ( r.first << shift ) + r.second;
     };
 
-    /** Compute the sibling MortonId from the recursor. */
+    /** \brief Compute the sibling MortonId from the recursor. */
     static mortonType SiblingMortonID( Recursor r )
     {
       /* Compute the correct shift. */
@@ -189,13 +189,21 @@ class MortonHelper
     }; /** end IsMyParent() */
 
 
+    /**
+     *  \brief Whether the querys contain taraget?
+     *  \param [in] target
+     *  \param [in] querys
+     *  \return true if at lease one query contains the target.
+     */ 
     template<typename TQUERY>
     static bool ContainAny( mortonType target, TQUERY &querys )
     {
-      for ( auto & q : querys ) 
+      for ( auto & q : querys )
+      {
         if ( IsMyParent( q, target ) ) return true;
+      }
       return false;
-    }; /** end ContainAny() */
+    }; /* end ContainAny() */
 
 
   private:
@@ -215,7 +223,7 @@ class MortonHelper
     /** Reserve 5-bit for the depth. */
     const static int level_offset_ = 5;
 
-}; /** end class MortonHelper */
+}; /* end class MortonHelper */
   
 
 template<typename TKEY, typename TVALUE>
@@ -238,42 +246,53 @@ bool equal_value( const pair<TKEY, TVALUE> &a, const pair<TKEY, TVALUE> &b )
   
   
 
+/**
+ *  \brief
+ */ 
 template<typename T, typename TINDEX>
-void MergeNeighbors( size_t k, pair<T, TINDEX> *A, pair<T, TINDEX> *B, vector<pair<T, TINDEX>> &aux )
+void MergeNeighbors( sizeType num_neighbors, std::pair<T, TINDEX> *A, std::pair<T, TINDEX> *B, 
+    std::vector<std::pair<T, TINDEX>> &aux )
 {
   /* Enlarge temporary buffer if it is too small. */
-  aux.resize( 2 * k );
+  aux.resize( 2 * num_neighbors );
   /* Merge two lists into one. */
-  for ( size_t i = 0; i < k; i++ ) 
+  for ( sizeType i = 0; i < num_neighbors; i++ ) 
   {
-    aux[     i ] = A[ i ];
-    aux[ k + i ] = B[ i ];
+    aux[                 i ] = A[ i ];
+    aux[ num_neighbors + i ] = B[ i ];
   }
   /* First sort according to the index. */
-  sort( aux.begin(), aux.end(), less_value<T, TINDEX> );
-  auto last = unique( aux.begin(), aux.end(), equal_value<T, TINDEX> );
-  sort( aux.begin(), last, less_key<T, TINDEX> );
-
-  for ( size_t i = 0; i < k; i++ ) A[ i ] = aux[ i ];
+  std::sort( aux.begin(), aux.end(), less_value<T, TINDEX> );
+  auto last = std::unique( aux.begin(), aux.end(), equal_value<T, TINDEX> );
+  std::sort( aux.begin(), last, less_key<T, TINDEX> );
+  /* Copy the results back from aux. */
+  for ( sizeType i = 0; i < num_neighbors; i++ ) 
+  {
+    A[ i ] = aux[ i ];
+  }
 }; /* end MergeNeighbors() */
 
 
 template<typename T, typename TINDEX>
-hmlpError_t MergeNeighbors( size_t k, size_t n, vector<pair<T, TINDEX>> &A, vector<pair<T, TINDEX>> &B )
+hmlpError_t MergeNeighbors( sizeType k, sizeType n, 
+    std::vector<std::pair<T, TINDEX>> &A, std::vector<std::pair<T, TINDEX>> &B )
 {
+  /* Check whether A and B have enough elements. */
   if ( A.size() < n * k || B.size() < n * k )
   {
     return HMLP_ERROR_INVALID_VALUE;
   }
   #pragma omp parallel
   {
-    vector<pair<T, size_t> > aux( 2 * k );
+    /* Allocate 2k auxilary workspace per thread. */
+    std::vector<std::pair<T, TINDEX> > aux( 2 * k );
     #pragma omp for
     for( size_t i = 0; i < n; i++ ) 
     {
       MergeNeighbors( k, &(A[ i * k ]), &(B[ i * k ]), aux );
     }
   }
+  /* Return with no error. */
   return HMLP_ERROR_SUCCESS;
 }; /* end MergeNeighbors() */
 
@@ -299,7 +318,7 @@ class IndexPermuteTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = nullptr;
 
     void Set( NODE *user_arg )
     {
@@ -348,7 +367,7 @@ class SplitTask : public Task
 {
   public:
 
-    NODE *arg = NULL;
+    NODE *arg = nullptr;
 
     void Set( NODE *user_arg )
     {
@@ -635,7 +654,7 @@ class Node : public ReadWrite
     /** Use binary trees. */
     static const int N_CHILDREN = 2;
 
-    Node( SETUP* setup, size_t n, size_t l, 
+    Node( SETUP* setup, sizeType n, depthType l, 
         Node *parent, unordered_map<size_t, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
@@ -650,7 +669,7 @@ class Node : public ReadWrite
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
-    Node( SETUP *setup, int n, int l, vector<size_t> gids,
+    Node( SETUP *setup, sizeType n, depthType l, vector<size_t> gids,
       Node *parent, unordered_map<size_t, Node*> *morton2node, Lock *treelock )
     {
       this->setup = setup;
@@ -675,7 +694,7 @@ class Node : public ReadWrite
     /** (Default) destructor */
     ~Node() {};
 
-    void Resize( int n )
+    void Resize( sizeType n )
     {
       this->n = n;
       gids.resize( n );
@@ -687,7 +706,10 @@ class Node : public ReadWrite
       try
       {
         /** Early return if this is a leaf node. */
-        if ( isLeaf() ) return;
+        if ( isLeaf() ) 
+        {
+          return;
+        }
 
         double beg = omp_get_wtime();
         auto split = setup->splitter( gids );
@@ -739,7 +761,7 @@ class Node : public ReadWrite
      *         needs to be accessed using gids.
      *
      */ 
-    bool ContainAny( const vector<size_t> & queries )
+    bool ContainAny( const std::vector<size_t> & queries )
     {
       if ( !setup->morton.size() )
       {
@@ -1162,8 +1184,8 @@ class Tree
      *  \return error code
      */ 
     template<typename KNNTASK>
-    hmlpError_t AllNearestNeighbor( size_t n_tree, size_t kappa, 
-      size_t max_depth, Data<neigType>& neighbors, const neigType initNN, KNNTASK &dummy )
+    hmlpError_t AllNearestNeighbor( sizeType n_tree, sizeType kappa, 
+      depthType max_depth, Data<neigType>& neighbors, const neigType initNN, KNNTASK &dummy )
     {
       /* Check if arguments are valid. */
       if ( n_tree < 0 || kappa < 0 || max_depth < 1 )
@@ -1182,7 +1204,7 @@ class Tree
       setup.NN = &neighbors;
 
       /** This loop has to be sequential to avoid race condiditon on NN. */
-      for ( int t = 0; t < n_tree; t ++ )      
+      for ( sizeType t = 0; t < n_tree; t ++ )      
       {
         /** Randomize metric tree and exhausted search for each leaf node. */
         RETURN_IF_ERROR( TreePartition() );
