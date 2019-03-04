@@ -1248,7 +1248,7 @@ class DistSkeletonsToNodesTask : public Task
     {
       arg = user_arg;
       name = string( "PS2N" );
-      label = to_string( arg->getLocalDepth() );
+      label = to_string( arg->getGlobalDepth() );
 
       double flops = 0.0, mops = 0.0;
       auto &gids = arg->gids;
@@ -1563,7 +1563,7 @@ void FindNearInteractions( TREE &tree )
   auto &setup = tree.setup;
   auto &NN = *setup.NN;
   double budget = setup.Budget();
-  size_t n_leafs = ( 1 << tree.getDepth() );
+  size_t n_leafs = ( 1 << tree.getLocalHeight() );
   /** 
    *  The type here is tree::Node but not mpitree::Node.
    *  NearNodes and NNNearNodes also take tree::Node.
@@ -1572,15 +1572,14 @@ void FindNearInteractions( TREE &tree )
    *  However, FarNodes and NNFarNodes may contain distributed
    *  tree nodes. In this case, we have to do type casting.
    */
-  auto level_beg = tree.treelist.begin() + n_leafs - 1;
 
   /** Traverse all leaf nodes. **/
   #pragma omp parallel for
   for ( size_t node_ind = 0; node_ind < n_leafs; node_ind ++ )
   {
-    auto *node = *(level_beg + node_ind);
+    auto *node = tree.getLocalNodeAt( tree.getLocalHeight(), node_ind );
     auto &data = node->data;
-    size_t n_nodes = ( 1 << node->getLocalDepth() );
+    size_t n_nodes = ( 1 << node->getGlobalDepth() );
 
     /** Add myself to the near interaction list.  */
     node->NNNearNodes.insert( node );
@@ -1628,7 +1627,7 @@ hmlpError_t FindFarNodes( const MortonHelper::Recursor r, NODE *target )
   /* target must be a leaf node. */
   if ( !target->isLeaf() ) return HMLP_ERROR_INVALID_VALUE;
   /** Return while reaching the leaf level (recursion base case). */ 
-  if ( r.second > target->getLocalDepth() ) return HMLP_ERROR_SUCCESS;
+  if ( r.second > target->getGlobalDepth() ) return HMLP_ERROR_SUCCESS;
   /** Compute the MortonID of the visiting node. */
   size_t node_morton = MortonHelper::MortonID( r );
 
@@ -1677,8 +1676,8 @@ void SymmetrizeNearInteractions( TREE & tree )
    *  Loop over all near node MortonIDs, create
    *
    */ 
-  int n_nodes = 1 << tree.getDepth();
-  auto level_beg = tree.treelist.begin() + n_nodes - 1;
+  int n_nodes = 1 << tree.getLocalHeight();
+  //auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
   #pragma omp parallel
   {
@@ -1688,7 +1687,7 @@ void SymmetrizeNearInteractions( TREE & tree )
     #pragma omp for
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
-      auto *node = *(level_beg + node_ind);
+      auto *node = tree.getLocalNodeAt( tree.getLocalHeight(), node_ind );
       //auto & NearMortonIDs = node->NNNearNodeMortonIDs;
       for ( auto it : node->NNNearNodeMortonIDs )
       {
@@ -1761,9 +1760,9 @@ void SymmetrizeFarInteractions( TREE & tree )
     vector<vector<pair<size_t, size_t>>> list( tree.GetCommSize() );
 
     #pragma omp for
-    for ( size_t i = 1; i < tree.treelist.size(); i ++ )
+    for ( size_t i = 1; i < tree.getLocalNodeSize(); i ++ )
     {
-      auto *node = tree.treelist[ i ];
+      auto *node = tree.getLocalNodeAt( i );
       for ( auto it  = node->NNFarNodeMortonIDs.begin();
                  it != node->NNFarNodeMortonIDs.end(); it ++ )
       {
@@ -1897,8 +1896,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
   if ( is_near )
   {
     /** Traverse leaf nodes (near interation lists) */ 
-    int n_nodes = 1 << tree.getDepth();
-    auto level_beg = tree.treelist.begin() + n_nodes - 1;
+    int n_nodes = 1 << tree.getLocalHeight();
 
     #pragma omp parallel
     {
@@ -1908,7 +1906,7 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
       #pragma omp for
       for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
       {
-        auto *node = *(level_beg + node_ind);
+        auto *node = tree.getLocalNodeAt( tree.getLocalHeight(), node_ind );
         auto & NearMortonIDs = node->NNNearNodeMortonIDs;
         node->DistNear.resize( comm_size );
         for ( auto it : NearMortonIDs )
@@ -1957,9 +1955,9 @@ void BuildInteractionListPerRank( TREE &tree, bool is_near )
 
       /** Local traversal */
       #pragma omp for
-      for ( size_t i = 1; i < tree.treelist.size(); i ++ )
+      for ( size_t i = 1; i < tree.getLocalNodeSize(); i ++ )
       {
-        auto *node = tree.treelist[ i ];
+        auto *node = tree.getLocalNodeAt( i );
         node->DistFar.resize( comm_size );
         for ( auto it  = node->NNFarNodeMortonIDs.begin();
                    it != node->NNFarNodeMortonIDs.end(); it ++ )
@@ -2046,8 +2044,9 @@ pair<double, double> NonCompressedRatio( TREE &tree )
 
 
   /** Traverse all nodes in the local tree. */
-  for ( auto &tar : tree.treelist )
+  for ( sizeType i = 0; i < tree.getLocalNodeSize(); i ++ )
   {
+    auto* tar = tree.getLocalNodeAt( i );
     if ( tar->isLeaf() )
     {
       for ( auto nearID : tar->NNNearNodeMortonIDs )
@@ -2700,7 +2699,10 @@ void ExchangeNeighbors( TREE &tree )
   }
 
   /** Remove owned gids. */
-  for ( auto it : tree.treelist[ 0 ]->gids ) requested_gids.erase( it );
+  for ( auto it : tree.getOwnedIndices() ) 
+  {
+    requested_gids.erase( it );
+  }
 
   /** Assume gid is owned by (gid % size) */
   for ( auto it :requested_gids )
@@ -3704,8 +3706,9 @@ hmlpError_t compressionFailureFrontier( TREE & tree )
 {
   auto & frontier = tree.setup.compression_failure_frontier_;
   /* Loop over local tree nodes. */
-  for ( auto node : tree.treelist )
+  for ( sizeType i = 0; i < tree.getLocalNodeSize(); i ++ )
   {
+    auto* node = tree.getLocalNodeAt( i );
     if ( node->isLeaf() ) continue;
     if ( node->data.isCompressionFailureFrontier() )
     {
@@ -3807,7 +3810,7 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
     size_t nrhs = weights.col();
 
     /** Potentials must be in [RIDS,STAR] distribution */
-    auto &gids_owned = tree.treelist[ 0 ]->gids;
+    auto &gids_owned = tree.getOwnedIndices();
     DistData<RIDS, STAR, T> potentials( n, nrhs, gids_owned, tree.GetComm() );
     potentials.setvalue( 0.0 );
 
@@ -3963,7 +3966,7 @@ DistData<RBLK, STAR, T> Evaluate( TREE &tree, DistData<RBLK, STAR, T> &w_rblk )
   size_t n    = w_rblk.row();
   size_t nrhs = w_rblk.col();
   /** Redistribute weights from RBLK to RIDS. */
-  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, tree.GetComm() );
+  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.getOwnedIndices(), tree.GetComm() );
   w_rids = w_rblk;
   /** Evaluation with RIDS distribution. */
   auto u_rids = Evaluate<NNPRUNE>( tree, w_rids );
@@ -4094,7 +4097,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 
 
     /** Redistribute neighbors i.e. NN[ *, CIDS ] = NN[ *, CBLK ]; */
-    DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.treelist[ 0 ]->gids, tree.GetComm() );
+    DistData<STAR, CIDS, pair<T, size_t>> NN( k, n, tree.getOwnedIndices(), tree.GetComm() );
     NN = NN_cblk;
     tree.setup.NN = &NN;
     beg = omp_get_wtime();
@@ -4280,7 +4283,7 @@ pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials )
   auto &w = *tree.setup.w;
 
   auto  I = vector<size_t>( 1, gid );
-  auto &J = tree.treelist[ 0 ]->gids;
+  auto &J = tree.getOwnedIndices();
 
   /** Bcast gid and its parameter to all MPI processes. */
   K.BcastIndices( I, gid % comm_size, tree.GetComm() );
@@ -4343,7 +4346,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   //auto A = tree.CheckAllInteractions();
 
   /** Input and output in RIDS and RBLK. */
-  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.treelist[ 0 ]->gids, tree.GetComm() );
+  DistData<RIDS, STAR, T> w_rids( n, nrhs, tree.getOwnedIndices(), tree.GetComm() );
   DistData<RBLK, STAR, T> u_rblk( n, nrhs, tree.GetComm() );
   /** Initialize with random N( 0, 1 ). */
   w_rids.randn();

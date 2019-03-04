@@ -685,9 +685,14 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       if ( this->treelist.size() )
       {
         for ( size_t i = 0; i < this->treelist.size(); i ++ )
-          if ( this->treelist[ i ] ) delete this->treelist[ i ];
+        {
+          if ( this->treelist_[ i ] ) 
+          {
+            delete this->treelist_[ i ];
+          }
+        }
       }
-      this->treelist.clear();
+      this->treelist_.clear();
 
       /** Free all distributed tree nodes */
       if ( mpitreelists.size() )
@@ -846,7 +851,8 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         ExecuteAllTasks();
         
         /** Query neighbors computed in CIDS distribution.  */
-        DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, this->treelist[ 0 ]->gids, initNN, this->GetComm() );
+        DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
+            this->getLocalRoot()->gids, initNN, this->GetComm() );
         /** Pass in neighbor pointer. */
         this->setup.NN = &Q_cids;
         LocaTraverseLeafs( dummy );
@@ -991,14 +997,17 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       this->morton2node.clear();
 
       /** Construct morton2node map for the local tree. */
-      for ( auto node : this->treelist ) this->morton2node[ node->getMortonID() ] = node;
+      for ( auto node : this->treelist_ )
+      {
+        this->morton2node[ node->getMortonID() ] = node;
+      }
 
       /**Construc morton2node map for the distributed tree. */ 
       for ( auto node : this->mpitreelists ) 
       {
         this->morton2node[ node->getMortonID() ] = node;
         auto *sibling = node->sibling;
-        if ( node->getLocalDepth() ) this->morton2node[ sibling->getMortonID() ] = sibling;
+        if ( node->getGlobalDepth() ) this->morton2node[ sibling->getMortonID() ] = sibling;
       }
 
       this->Barrier();
@@ -1027,7 +1036,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         /** Compute MortonID recursively for the local tree. */
         tree::Tree<SETUP, NODEDATA>::RecursiveMorton( node, r );
         /** Prepare to exchange all <gid,MortonID> pairs. */
-        auto &gids = this->treelist[ 0 ]->gids;
+        auto &gids = this->getLocalRoot()->gids;
         vector<int> recv_size( comm_size, 0 );
         vector<int> recv_disp( comm_size, 0 );
         vector<pair<size_t, size_t>> send_pairs;
@@ -1080,16 +1089,16 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     Data<int> CheckAllInteractions()
     {
       /** Get the total depth of the tree. */
-      int total_depth = this->treelist.back()->getLocalDepth();
+      int total_depth = this->treelist_.back()->getGlobalDepth();
       /** Number of total leaf nodes. */
       int num_leafs = 1 << total_depth;
       /** Create a 2^l-by-2^l table to check all interactions. */
       Data<int> A( num_leafs, num_leafs, 0 );
       Data<int> B( num_leafs, num_leafs, 0 );
       /** Now traverse all tree nodes (excluding the root). */
-      for ( int t = 1; t < this->treelist.size(); t ++ )
+      for ( int t = 1; t < this->getLocalNodeSize(); t ++ )
       {
-        auto *node = this->treelist[ t ];
+        auto *node = this->getLocalNodeAt( t );
         ///** Loop over all near interactions. */
         //for ( auto it : node->NNNearNodeMortonIDs )
         //{
@@ -1222,9 +1231,6 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     template<typename TASK, typename... Args>
     void LocaTraverseUp( TASK &dummy, Args&... args )
     {
-      /** contain at lesat one tree node */
-      assert( this->treelist.size() );
-
       /** 
        *  traverse the local tree without the root
        *
@@ -1232,22 +1238,17 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
        *  IMPORTANT: here l must be int, size_t will wrap over 
        *
        */
-
-			//printf( "depth %lu\n", this->depth ); fflush( stdout );
-
-      for ( int l = this->getDepth(); l >= 1; l -- )
+      for ( int l = this->getLocalHeight(); l >= 1; l -- )
       {
         size_t n_nodes = 1 << l;
-        auto level_beg = this->treelist.begin() + n_nodes - 1;
-
         /** loop over each node at level-l */
         for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
-          auto *node = *(level_beg + node_ind);
+          auto *node = this->getLocalNodeAt( l, node_ind );
           RecuTaskSubmit( node, dummy, args... );
         }
       }
-    }; /** end LocaTraverseUp() */
+    }; /* end LocaTraverseUp() */
 
 
     template<typename TASK, typename... Args>
@@ -1267,9 +1268,6 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     template<typename TASK, typename... Args>
     void LocaTraverseDown( TASK &dummy, Args&... args )
     {
-      /** contain at lesat one tree node */
-      assert( this->treelist.size() );
-
       /** 
        *  traverse the local tree without the root
        *
@@ -1277,14 +1275,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
        *  IMPORTANT: here l must be int, size_t will wrap over 
        *
        */
-      for ( int l = 1; l <= this->getDepth(); l ++ )
+      for ( int l = 1; l <= this->getLocalHeight(); l ++ )
       {
         size_t n_nodes = 1 << l;
-        auto level_beg = this->treelist.begin() + n_nodes - 1;
-
         for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
-          auto *node = *(level_beg + node_ind);
+          auto *node = this->getLocalNodeAt( l, node_ind );
           RecuTaskSubmit( node, dummy, args... );
         }
       }
@@ -1297,10 +1293,10 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       auto *node = mpitreelists.front();
       while ( node )
       {
-				//printf( "now at level %lu\n", node->l ); fflush( stdout );
+        //printf( "now at level %lu\n", node->l ); fflush( stdout );
         if ( this->DoOutOfOrder() ) RecuTaskSubmit(  node, dummy, args... );
         else                        RecuTaskExecute( node, dummy, args... );
-				//printf( "RecuTaskSubmit at level %lu\n", node->l ); fflush( stdout );
+        //printf( "RecuTaskSubmit at level %lu\n", node->l ); fflush( stdout );
 
         /** 
          *  move to its child 
@@ -1314,15 +1310,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     template<typename TASK, typename... Args>
     void LocaTraverseLeafs( TASK &dummy, Args&... args )
     {
-      /** contain at lesat one tree node */
-      assert( this->treelist.size() );
-
-      int n_nodes = 1 << this->getDepth();
-      auto level_beg = this->treelist.begin() + n_nodes - 1;
+      int n_nodes = 1 << this->getLocalHeight();
+      //auto level_beg = this->treelist.begin() + n_nodes - 1;
 
       for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
       {
-        auto *node = *(level_beg + node_ind);
+        auto *node = this->getLocalNodeAt( this->getLocalHeight(), node_ind );
         RecuTaskSubmit( node, dummy, args... );
       }
     }; /** end LocaTraverseLeaf() */

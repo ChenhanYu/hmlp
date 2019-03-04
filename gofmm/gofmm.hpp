@@ -588,16 +588,16 @@ class Summary
 
     void operator() ( NODE *node )
     {
-      if ( rank.size() <= node->getLocalDepth() )
+      if ( rank.size() <= node->getGlobalDepth() )
       {
         rank.push_back( hmlp::Statistic() );
         skeletonize.push_back( hmlp::Statistic() );
         updateweight.push_back( hmlp::Statistic() );
       }
 
-      rank[ node->getLocalDepth() ].Update( (double)node->data.skels.size() );
-      skeletonize[ node->getLocalDepth() ].Update( node->data.skeletonize.GetDuration() );
-      updateweight[ node->getLocalDepth() ].Update( node->data.updateweight.GetDuration() );
+      rank[ node->getGlobalDepth() ].Update( (double)node->data.skels.size() );
+      skeletonize[ node->getGlobalDepth() ].Update( node->data.skeletonize.GetDuration() );
+      updateweight[ node->getGlobalDepth() ].Update( node->data.updateweight.GetDuration() );
 
 #ifdef DUMP_ANALYSIS_DATA
       if ( node->parent )
@@ -607,14 +607,14 @@ class Summary
         printf( "#%lu (s%lu), #%lu (s%lu), %lu, %lu\n", 
             node->treelist_id, node->data.skels.size(), 
             parent->treelist_id, parent->data.skels.size(),
-            node->data.skels.size(), node->getLocalDepth() );
+            node->data.skels.size(), node->getGlobalDepth() );
       }
       else
       {
         printf( "@TREE\n" );
         printf( "#%lu (s%lu), , %lu, %lu\n", 
             node->treelist_id, node->data.skels.size(), 
-            node->data.skels.size(), node->getLocalDepth() );
+            node->data.skels.size(), node->getGlobalDepth() );
       }
 #endif
     };
@@ -1796,7 +1796,7 @@ void SkeletonsToSkeletons( NODE *node )
     else
     {
       printf( "Far Kab not cached treelist_id %lu, l %u\n\n",
-          node->treelist_id, node->getLocalDepth() ); fflush( stdout );
+          node->treelist_id, node->getGlobalDepth() ); fflush( stdout );
 
       /** get submatrix Kad from K */
       auto Kab = K( amap, bmap );
@@ -2428,7 +2428,7 @@ void NearSamples( NODE *node )
     auto &gids = node->gids;
     //double budget = setup.budget;
     double budget = setup.Budget();
-    size_t n_nodes = ( 1 << node->getLocalDepth() );
+    size_t n_nodes = ( 1 << node->getGlobalDepth() );
 
     /** Add myself to the near interaction list.  */
     node->NearNodes.insert( node );
@@ -2490,12 +2490,12 @@ class NearSamplesTask : public Task
 template<typename TREE>
 void SymmetrizeNearInteractions( TREE & tree )
 {
-  int n_nodes = 1 << tree.getDepth();
-  auto level_beg = tree.treelist.begin() + n_nodes - 1;
+  int n_nodes = 1 << tree.getLocalHeight();
+  //auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
-    auto *node = *(level_beg + node_ind);
+    auto *node = tree.getLocalNodeAt( tree.getLocalHeight(), node_ind );
     auto & NearMortonIDs = node->NNNearNodeMortonIDs;
     for ( auto & it : NearMortonIDs )
     {
@@ -2693,21 +2693,21 @@ hmlpError_t FindFarNodes( NODE *node, NODE *target )
 template<typename TREE>
 void MergeFarNodes( TREE &tree )
 {
-  for ( int l = tree.getDepth(); l >= 0; l -- )
+  for ( int l = tree.getLocalHeight(); l >= 0; l -- )
   {
     size_t n_nodes = ( 1 << l );
-    auto level_beg = tree.treelist.begin() + n_nodes - 1;
+    //auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
-      auto *node = *(level_beg + node_ind);
+      auto *node = tree.getLocalNodeAt( l, node_ind );
 
       /** if I don't have any skeleton, then I'm nobody's far field */
       if ( !node->data.is_compressed ) continue;
 
       if ( node->isLeaf() )
       {
-        FindFarNodes( tree.treelist[ 0 ] /** root */, node );
+        FindFarNodes( tree.getLocalRoot(), node );
       }
       else
       {
@@ -2764,14 +2764,14 @@ void MergeFarNodes( TREE &tree )
   if ( tree.setup.IsSymmetric() )
   {
     /** symmetrinize FarNodes to FarNodes interaction */
-    for ( int l = tree.getDepth(); l >= 0; l -- )
+    for ( int l = tree.getLocalHeight(); l >= 0; l -- )
     {
-      std::size_t n_nodes = 1 << l;
-      auto level_beg = tree.treelist.begin() + n_nodes - 1;
+      sizeType n_nodes = 1 << l;
+      //auto level_beg = tree.treelist.begin() + n_nodes - 1;
 
       for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
       {
-        auto *node = *(level_beg + node_ind);
+        auto *node = tree.getLocalNodeAt( l, node_ind );
         auto &pFarNodes = node->NNFarNodes;
         for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
         {
@@ -2782,7 +2782,7 @@ void MergeFarNodes( TREE &tree )
   }
   
 #ifdef DEBUG_SPDASKIT
-  for ( int l = tree.getDepth(); l >= 0; l -- )
+  for ( int l = tree.getLocalHeight(); l >= 0; l -- )
   {
     std::size_t n_nodes = 1 << l;
     auto level_beg = tree.treelist.begin() + n_nodes - 1;
@@ -2808,7 +2808,7 @@ void MergeFarNodes( TREE &tree )
       }
       if ( pFarNodes.size() )
       {
-        printf( "l %2lu FarNodes(%lu) ", node->getLocalDepth(), node->treelist_id );
+        printf( "l %2lu FarNodes(%lu) ", node->getGlobalDepth(), node->treelist_id );
         PrintSet( pFarNodes );
       }
     }
@@ -2829,9 +2829,9 @@ void CacheFarNodes( TREE &tree )
 {
   /** reserve space for w_leaf and u_leaf */
   #pragma omp parallel for schedule( dynamic )
-  for ( size_t i = 0; i < tree.treelist.size(); i ++ )
+  for ( size_t i = 0; i < tree.getLocalNodeSize(); i ++ )
   {
-    auto *node = tree.treelist[ i ];
+    auto *node = tree.getLocalNodeAt( i );
     if ( node->isLeaf() )
     {
       node->data.w_leaf.reserve( node->gids.size(), MAX_NRHS );
@@ -2844,9 +2844,9 @@ void CacheFarNodes( TREE &tree )
   {
     /** cache FarKab */
     #pragma omp parallel for schedule( dynamic )
-    for ( size_t i = 0; i < tree.treelist.size(); i ++ )
+    for ( size_t i = 0; i < tree.getLocalNodeSize(); i ++ )
     {
-      auto *node = tree.treelist[ i ];
+      auto *node = tree.getLocalNodeAt( i );
       auto *FarNodes = &node->FarNodes;
       if ( NNPRUNE ) FarNodes = &node->NNFarNodes;
       auto &K = *node->setup->K;
@@ -2882,43 +2882,35 @@ double DrawInteraction( TREE &tree )
   fprintf( pFile, "axis square;" );
   fprintf( pFile, "axis ij;" );
 
-  for ( int l = tree.getDepth(); l >= 0; l -- )
+
+  for ( size_t i = 0; i < tree.getLocalNodeSize(); i ++ )
   {
-    std::size_t n_nodes = 1 << l;
-    auto level_beg = tree.treelist.begin() + n_nodes - 1;
-
-    for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
+    auto *node = tree.getLocalNodeAt( i );
+    if ( NNPRUNE )
     {
-      auto *node = *(level_beg + node_ind);
-
-      if ( NNPRUNE )
+      auto &pNearNodes = node->NNNearNodes;
+      auto &pFarNodes = node->NNFarNodes;
+      for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
       {
-        auto &pNearNodes = node->NNNearNodes;
-        auto &pFarNodes = node->NNFarNodes;
-        for ( auto it = pFarNodes.begin(); it != pFarNodes.end(); it ++ )
-        {
-          double gb = (double)std::min( node->getLocalDepth(), (*it)->getLocalDepth() ) / tree.getDepth();
-          //printf( "node->l %lu (*it)->l %lu depth %lu\n", node->l, (*it)->l, tree.depth );
-          fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[1.0,%lf,%lf]);\n",
-              node->offset,      (*it)->offset,
-              node->gids.size(), (*it)->gids.size(),
-              gb, gb );
-        }
-        for ( auto it = pNearNodes.begin(); it != pNearNodes.end(); it ++ )
-        {
-          fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[0.2,0.4,1.0]);\n",
-              node->offset,      (*it)->offset,
-              node->gids.size(), (*it)->gids.size() );
-
-          /** accumulate exact evaluation */
-          exact_ratio += node->gids.size() * (*it)->gids.size();
-        }  
+        double gb = (double)std::min( node->getGlobalDepth(), (*it)->getGlobalDepth() ) / tree.getLocalHeight();
+        //printf( "node->l %lu (*it)->l %lu depth %lu\n", node->l, (*it)->l, tree.depth );
+        fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[1.0,%lf,%lf]);\n",
+            node->offset,      (*it)->offset,
+            node->gids.size(), (*it)->gids.size(),
+            gb, gb );
       }
-      else
+      for ( auto it = pNearNodes.begin(); it != pNearNodes.end(); it ++ )
       {
-      }
+        fprintf( pFile, "rectangle('position',[%lu %lu %lu %lu],'facecolor',[0.2,0.4,1.0]);\n",
+            node->offset,      (*it)->offset,
+            node->gids.size(), (*it)->gids.size() );
+        /* accumulate exact evaluation */
+        exact_ratio += node->gids.size() * (*it)->gids.size();
+      }  
     }
   }
+
+  /* To release holding the current image handle in matlab. */
   fprintf( pFile, "hold off;" );
   fclose( pFile );
 
@@ -3023,11 +3015,11 @@ hmlpError_t Evaluate( TREE &tree, const size_t gid, Data<T> & potentials, const 
       {
         neighbors.push_back( all_neighbors( i, gid ).second );
       }
-      return Evaluate( tree.treelist[ 0 ], gid, potentials, neighbors );
+      return Evaluate( tree.getLocalRoot(), gid, potentials, neighbors );
     }
     case EVALUATE_OPTION_SELF_PRUNING:
     {
-      return Evaluate( tree.treelist[ 0 ], gid, potentials, neighbors );
+      return Evaluate( tree.getLocalRoot(), gid, potentials, neighbors );
     }
     case EVALUATE_OPTION_EXACT:
     {
@@ -3083,12 +3075,13 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
     printf( "Forward permute ...\n" ); fflush( stdout );
   }
   beg = omp_get_wtime();
-  int n_nodes = ( 1 << tree.getDepth() );
-  auto level_beg = tree.treelist.begin() + n_nodes - 1;
+  int n_nodes = ( 1 << tree.getLocalHeight() );
+  //auto level_beg = tree.treelist.begin() + n_nodes - 1;
   #pragma omp parallel for
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
-    auto *node = *(level_beg + node_ind);
+    //auto *node = *(level_beg + node_ind);
+    auto *node = tree.getLocalNodeAt( tree.getLocalHeight(), node_ind );
 
 
     auto &gids = node->gids;
@@ -3222,7 +3215,7 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
     #pragma omp parallel for
     for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
     {
-      auto *node = *(level_beg + node_ind);
+      auto *node = tree.getLocalNodeAt( tree.getLocalHeight(), node_ind );
       auto &u_leaf = node->data.u_leaf[ 0 ];
       /** reduce all u_leaf[0:4] */
       for ( size_t p = 1; p < 20; p ++ )
@@ -3257,7 +3250,7 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
   #pragma omp parallel for
   for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
   {
-    auto *node = *(level_beg + node_ind);
+    auto *node = tree.getLocalNodeAt( tree.getLocalHeight(), node_ind );
     auto &amap = node->gids;
     auto &u_leaf = node->data.u_leaf[ 0 ];
 

@@ -103,7 +103,7 @@ int main( int argc, char *argv[] )
     /** Use copy constuctor for std::vector. */
     DistData<RBLK, STAR, T> w1_rblk( n, nrhs, w1_local, CommGOFMM );
     /** Redistribute from RBLK to RIDS distribution. */
-    DistData<RIDS, STAR, T> w1( n, nrhs, tree1.treelist[ 0 ]->gids, CommGOFMM );
+    DistData<RIDS, STAR, T> w1( n, nrhs, tree1.getOwnedIndices(), CommGOFMM );
     w1 = w1_rblk;
     //DistData<RIDS, STAR, T> w1( n, nrhs, tree1.treelist[ 0 ]->gids, CommGOFMM ); w1.randn();
     auto u1 = mpigofmm::Evaluate( tree1, w1 );
@@ -134,7 +134,7 @@ int main( int argc, char *argv[] )
     auto* tree_ptr2 = mpigofmm::Compress( K2, neighbors2, splitter2, rkdtsplitter2, config2, CommGOFMM );
     auto& tree2 = *tree_ptr2;
     /** [Step#6] Compute an approximate MATVEC. */
-    DistData<RIDS, STAR, T> w2( n, nrhs, tree1.treelist[ 0 ]->gids, CommGOFMM ); w2.randn();
+    DistData<RIDS, STAR, T> w2( n, nrhs, tree1.getOwnedIndices(), CommGOFMM ); w2.randn();
     auto u2 = mpigofmm::Evaluate( tree2, w2 );
     /** [Step#7] Factorization (HSS using ULV). */
     mpigofmm::DistFactorize( tree2, lambda ); 

@@ -208,7 +208,7 @@ class MortonHelper
       mortonType filter = ( 1 << level_offset_ ) - 1;
       /* Convert mortonType to depthType. */
       return (depthType)(it & filter);
-    }; /* end getDepth() */
+    }; /* end getDepthFromMorton() */
 
     static depthType getShiftFromDepth( depthType depth )
     {
@@ -803,7 +803,7 @@ class Node : public ReadWrite
 
     void Print()
     {
-      printf( "l %lu offset %lu n %lu\n", this->getLocalDepth(), this->offset, this->n );
+      printf( "l %lu offset %lu n %lu\n", this->getGlobalDepth(), this->offset, this->n );
       hmlp_print_binary( this->morton );
     };
 
@@ -910,7 +910,7 @@ class Node : public ReadWrite
 
 
 
-    depthType getLocalDepth() const noexcept
+    depthType getGlobalDepth() const noexcept
     {
       return l;
     };
@@ -1045,9 +1045,6 @@ class Tree
     /** Mutex for exclusive right to modify treelist and morton2node. */ 
     Lock lock;
 
-    /** Local tree nodes in the top-down order. */ 
-    vector<NODE*> treelist;
-
     /** 
      *  Map MortonID to tree nodes. When distributed tree inherits Tree,
      *  morton2node will also contain distributed and LET node.
@@ -1062,15 +1059,98 @@ class Tree
     {
       //printf( "~Tree() shared treelist.size() %lu treequeue.size() %lu\n",
       //    treelist.size(), treequeue.size() );
-      for ( int i = 0; i < treelist.size(); i ++ )
+      for ( int i = 0; i < treelist_.size(); i ++ )
       {
-        if ( treelist[ i ] ) delete treelist[ i ];
+        if ( treelist_[ i ] ) delete treelist_[ i ];
       }
       morton2node.clear();
       //printf( "end ~Tree() shared\n" );
     };
 
-    size_t getDepth() const noexcept { return loc_depth_; };
+    /**
+     *  \return the local tree height
+     */ 
+    depthType getLocalHeight() const noexcept 
+    { 
+      return loc_height_; 
+    };
+
+    /**
+     *  \return the global tree height
+     */ 
+    depthType getGlobalHeight() const noexcept 
+    { 
+      return glb_height_; 
+    };
+
+
+    sizeType getLocalNodeSize() const noexcept
+    {
+      return treelist_.size();
+    }
+
+    NODE* getLocalNodeAt( sizeType i )
+    {
+      if ( i >= getLocalNodeSize() )
+      {
+        throw std::out_of_range( "accessing invalid local tree node" );
+      }
+      return treelist_[ i ];
+    }
+
+    NODE* getLocalRoot() 
+    {
+      if ( getLocalNodeSize() == 0 ) 
+      {
+        throw std::out_of_range( "accessing the local root while there is no tree node" );
+      }
+      return treelist_.front();
+    }
+
+    NODE* getLocalNodeAt( depthType depth, sizeType i )
+    {
+      /* Compute number of nodes at this depth. */
+      int n_nodes = 1 << depth;
+      if ( depth > getLocalHeight() )
+      {
+        throw std::out_of_range( "accessing invalid local tree depth" );
+      }
+      if ( i >= n_nodes )
+      {
+        throw std::out_of_range( "accessing invalid local tree node" );
+      }
+      /* Compute the iterator.*/
+      return *(treelist_.begin() + n_nodes - 1 + i);
+    }
+
+
+    //NODE* getFirstNodeAtLocalDepth( depthType depth ) noexcept
+    //{
+    //  if ( depth > getLocalHeight() )
+    //  {
+    //    throw std::out_of_range( "accessing invalid local tree depth" );
+    //  }
+    //  int n_nodes = 1 << depth;
+    //  //auto level_beg = this->treelist_.begin() + n_nodes - 1;
+
+    //  //return getLocalRoot() + ( n_nodes - 1 );
+    //  return *(treelist_.begin() + n_nodes - 1);
+    //};
+
+    //NODE *getFirstLeafNode() noexcept
+    //{
+    //  return getFirstNodeAtLocalDepth( getLocalHeight() );
+    //};
+
+    std::vector<indexType> & getOwnedIndices()
+    {
+      if ( getLocalNodeSize() == 0 )
+      {
+        return no_index_exist_;
+      }
+      return treelist_[ 0 ]->gids;
+    };
+
 
     /** Currently only used in DrawInteraction() */ 
     hmlpError_t RecursiveOffset( NODE *node, size_t offset )
@@ -1142,15 +1222,15 @@ class Tree
       /** Compute node and point MortonID. */ 
       setup.morton.resize( n );
       /* Compute MortonID (for nodes and indices) recursively. */
-      RETURN_IF_ERROR( RecursiveMorton( treelist[ 0 ], MortonHelper::Root() ) );
+      RETURN_IF_ERROR( RecursiveMorton( getLocalRoot(), MortonHelper::Root() ) );
       /* Compute the offset (related to the left most) for drawing interaction. */
-      RETURN_IF_ERROR( RecursiveOffset( treelist[ 0 ], 0 ) );
+      RETURN_IF_ERROR( RecursiveOffset( getLocalRoot(), 0 ) );
 
       /** Construct morton2node map for the local tree. */
       morton2node.clear();
-      for ( size_t i = 0; i < treelist.size(); i ++ )
+      for ( size_t i = 0; i < treelist_.size(); i ++ )
       {
-        morton2node[ treelist[ i ]->getMortonID() ] = treelist[ i ];
+        morton2node[ treelist_[ i ]->getMortonID() ] = treelist_[ i ];
       }
 
       /** Adgust gids to the appropriate order.  */
@@ -1166,8 +1246,8 @@ class Tree
 
     vector<size_t> GetPermutation()
     {
-      int n_nodes = 1 << this->getDepth();
-      auto level_beg = this->treelist.begin() + n_nodes - 1;
+      int n_nodes = 1 << this->getLocalHeight();
+      auto level_beg = this->treelist_.begin() + n_nodes - 1;
 
       vector<size_t> perm;
 
@@ -1222,7 +1302,9 @@ class Tree
       {
         /** Randomize metric tree and exhausted search for each leaf node. */
         RETURN_IF_ERROR( TreePartition() );
+        printf( "TreePartition\n" ); fflush( stdout );
         RETURN_IF_ERROR( TraverseLeafs( dummy ) );
+        printf( "TraverseLeaf\n" ); fflush( stdout );
         RETURN_IF_ERROR( ExecuteAllTasks() );
       } 
 
@@ -1256,15 +1338,15 @@ class Tree
     Data<int> CheckAllInteractions()
     {
       /** Get the total depth of the tree. */
-      int total_depth = treelist.back()->getLocalDepth();
+      int total_depth = treelist_.back()->getGlobalDepth();
       /** Number of total leaf nodes. */
       int num_leafs = 1 << total_depth;
       /** Create a 2^l-by-2^l table to check all interactions. */
       Data<int> A( num_leafs, num_leafs, 0 );
       /** Now traverse all tree nodes (excluding the root). */
-      for ( int t = 1; t < treelist.size(); t ++ )
+      for ( int t = 1; t < treelist_.size(); t ++ )
       {
-        auto *node = treelist[ t ];
+        auto *node = treelist_[ t ];
         /** Loop over all near interactions. */
         for ( auto *it : node->NNNearNodes )
         {
@@ -1302,11 +1384,15 @@ class Tree
     template<typename TASK, typename... Args>
     hmlpError_t TraverseLeafs( TASK &dummy, Args&... args )
     {
-      /** Contain at lesat one tree node. */
-      assert( this->treelist.size() );
+      /* Return with no error. */
+      if ( getLocalNodeSize() == 0 )
+      {
+        return HMLP_ERROR_SUCCESS;
+      }
 
-      int n_nodes = 1 << this->getDepth();
-      auto level_beg = this->treelist.begin() + n_nodes - 1;
+      int n_nodes = 1 << this->getLocalHeight();
+      auto level_beg = this->treelist_.begin() + n_nodes - 1;
+
 
       if ( out_of_order_traversal )
       {
@@ -1323,7 +1409,9 @@ class Tree
         #pragma omp parallel for if ( n_nodes > nthd_glb / 2 ) schedule( dynamic )
         for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
+          //auto *node = *(level_beg + node_ind);
           auto *node = *(level_beg + node_ind);
+          //auto *node = getFirstLeafNode() + node_ind;
           RecuTaskExecute( node, dummy, args... );
         }
       }
@@ -1338,8 +1426,11 @@ class Tree
     template<typename TASK, typename... Args>
     hmlpError_t TraverseUp( TASK &dummy, Args&... args )
     {
-      /** contain at lesat one tree node */
-      assert( this->treelist.size() );
+      /* Return with no error. */
+      if ( getLocalNodeSize() == 0 )
+      {
+        return HMLP_ERROR_SUCCESS;
+      }
 
       /** 
        *  traverse the local tree without the root
@@ -1349,13 +1440,13 @@ class Tree
        *
        */
 
-      int local_begin_level = ( treelist[ 0 ]->getLocalDepth() ) ? 1 : 0;
+      int local_begin_level = ( treelist_[ 0 ]->getGlobalDepth() ) ? 1 : 0;
 
       /** traverse level-by-level in sequential */
-      for ( int l = this->getDepth(); l >= local_begin_level; l -- )
+      for ( int l = this->getLocalHeight(); l >= local_begin_level; l -- )
       {
         size_t n_nodes = 1 << l;
-        auto level_beg = this->treelist.begin() + n_nodes - 1;
+        auto level_beg = this->treelist_.begin() + n_nodes - 1;
 
 
         if ( out_of_order_traversal )
@@ -1391,8 +1482,11 @@ class Tree
     template<typename TASK, typename... Args>
     hmlpError_t TraverseDown( TASK &dummy, Args&... args )
     {
-      /** Contain at lesat one tree node */
-      assert( this->treelist.size() );
+      /* Return with no error. */
+      if ( getLocalNodeSize() == 0 )
+      {
+        return HMLP_ERROR_SUCCESS;
+      }
 
       /** 
        *  traverse the local tree without the root
@@ -1401,12 +1495,12 @@ class Tree
        *  IMPORTANT: here l must be int, size_t will wrap over 
        *
        */
-      int local_begin_level = ( treelist[ 0 ]->getLocalDepth() ) ? 1 : 0;
+      int local_begin_level = ( treelist_[ 0 ]->getGlobalDepth() ) ? 1 : 0;
 
-      for ( int l = local_begin_level; l <= this->getDepth(); l ++ )
+      for ( int l = local_begin_level; l <= this->getLocalHeight(); l ++ )
       {
         size_t n_nodes = 1 << l;
-        auto level_beg = this->treelist.begin() + n_nodes - 1;
+        auto level_beg = this->treelist_.begin() + n_nodes - 1;
 
         if ( out_of_order_traversal )
         {
@@ -1448,11 +1542,10 @@ class Tree
 
     hmlpError_t DependencyCleanUp()
     {
-      //for ( size_t i = 0; i < treelist.size(); i ++ )
-      //{
-      //  treelist[ i ]->DependencyCleanUp();
-      //}
-      for ( auto node : treelist ) node->DependencyCleanUp();
+      for ( auto node : treelist_ ) 
+      {
+        node->DependencyCleanUp();
+      }
 
       for ( auto it : morton2node )
       {
@@ -1483,10 +1576,10 @@ class Tree
     {
       assert( N_CHILDREN == 2 );
 
-      for ( std::size_t l = 0; l <= getDepth(); l ++ )
+      for ( std::size_t l = 0; l <= getLocalHeight(); l ++ )
       {
         size_t n_nodes = 1 << l;
-        auto level_beg = treelist.begin() + n_nodes - 1;
+        auto level_beg = treelist_.begin() + n_nodes - 1;
         for ( size_t node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
           auto *node = *(level_beg + node_ind);
@@ -1503,11 +1596,18 @@ class Tree
   protected:
 
     /** Depth of the local tree. */
-    depthType loc_depth_ = 0;
+    depthType loc_height_ = 0;
     /** Depth of the global tree. */
-    depthType glb_depth_ = 0;
+    depthType glb_height_ = 0;
 
+    /** Local tree nodes in the top-down order. */ 
+    std::vector<NODE*> treelist_;
+
+
+    /** TODO: what is this? */
     vector<size_t> global_indices;
+    /** */
+    vector<indexType> no_index_exist_;
 
 
     /**
@@ -1521,18 +1621,18 @@ class Tree
     hmlpError_t allocateNodes( NODE *root )
     {
       /* Compute the global tree depth using std::log2(). */
-      glb_depth_ = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
+      glb_height_ = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
       /* If the global depth exceeds the limit, then set it to the maximum depth. */
-      if ( glb_depth_ > setup.getMaximumDepth() ) glb_depth_ = setup.getMaximumDepth();
+      if ( glb_height_ > setup.getMaximumDepth() ) glb_height_ = setup.getMaximumDepth();
       /** Compute the local tree depth. */
-      loc_depth_ = glb_depth_ - root->getLocalDepth();
+      loc_height_ = glb_height_ - root->getGlobalDepth();
 
 
       /* Clean up and reserve space for local tree nodes. */
-      for ( auto node_ptr : treelist ) delete node_ptr;
-      treelist.clear();
+      for ( auto node_ptr : treelist_ ) delete node_ptr;
+      treelist_.clear();
       morton2node.clear();
-      treelist.reserve( 1 << ( getDepth() + 1 ) );
+      treelist_.reserve( 1 << ( getLocalHeight() + 1 ) );
       deque<NODE*> treequeue;
       /** Push root into the treelist. */
       treequeue.push_back( root );
@@ -1542,13 +1642,13 @@ class Tree
       while ( auto *node = treequeue.front() )
       {
         /** Assign local treenode_id. */
-        node->treelist_id = treelist.size();
+        node->treelist_id = getLocalNodeSize();
         /** Account for the depth of the distributed tree. */
-        if ( node->getLocalDepth() < glb_depth_ )
+        if ( node->getGlobalDepth() < glb_height_ )
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            node->kids[ i ] = new NODE( &setup, 0, node->getLocalDepth() + 1, node, &morton2node, &lock );
+            node->kids[ i ] = new NODE( &setup, 0, node->getGlobalDepth() + 1, node, &morton2node, &lock );
             treequeue.push_back( node->kids[ i ] );
           }
           node->lchild = node->kids[ 0 ];
@@ -1562,7 +1662,7 @@ class Tree
           RETURN_IF_ERROR( node->setLeaf() );
           treequeue.push_back( NULL );
         }
-        treelist.push_back( node );
+        treelist_.push_back( node );
         treequeue.pop_front();
       }
 

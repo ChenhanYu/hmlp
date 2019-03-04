@@ -1129,7 +1129,7 @@ void SetupFactor( NODE *node )
 
 
   node->data.SetupFactor( issymmetric, do_ulv_factorization,
-    node->isLeaf(), !node->getLocalDepth(), n, nl, nr, s, sl, sr );
+    node->isLeaf(), !node->getGlobalDepth(), n, nl, nr, s, sl, sr );
 
 #ifdef DEBUG_IGOFMM
   printf( "end SetupFactor %lu\n", node->treelist_id ); fflush( stdout );
