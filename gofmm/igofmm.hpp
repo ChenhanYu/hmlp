@@ -1549,29 +1549,29 @@ hmlpError_t Solve( TREE &tree, Data<T> &input )
   if ( tree.setup.do_ulv_factorization )
   {
     /** clean up all dependencies on tree nodes */
-    tree.DependencyCleanUp();
-    tree.TraverseDown( treeviewtask );
-    tree.TraverseLeafs( forwardpermutetask );
-    tree.TraverseUp( ulvforwardsolvetask );
-    tree.TraverseDown( ulvbackwardsolvetask );
+    RETURN_IF_ERROR( tree.dependencyClean() );
+    tree.traverseDown( treeviewtask );
+    tree.traverseLeafs( forwardpermutetask );
+    tree.traverseUp( ulvforwardsolvetask );
+    tree.traverseDown( ulvbackwardsolvetask );
     if ( USE_RUNTIME ) hmlp_run();
 
     /** clean up all dependencies on tree nodes */
-    tree.DependencyCleanUp();
-    tree.TraverseLeafs( inversepermutetask );
+    RETURN_IF_ERROR( tree.dependencyClean() );
+    tree.traverseLeafs( inversepermutetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
   else
   {
     /** clean up all dependencies on tree nodes */
-    tree.DependencyCleanUp();
-    tree.TraverseDown( treeviewtask );
-    tree.TraverseLeafs( forwardpermutetask );
-    tree.TraverseUp( solvetask1 );
+    RETURN_IF_ERROR( tree.dependencyClean() );
+    tree.traverseDown( treeviewtask );
+    tree.traverseLeafs( forwardpermutetask );
+    tree.traverseUp( solvetask1 );
     if ( USE_RUNTIME ) hmlp_run();
     /** clean up all dependencies on tree nodes */
-    tree.DependencyCleanUp();
-    tree.TraverseLeafs( inversepermutetask );
+    RETURN_IF_ERROR( tree.dependencyClean() );
+    tree.traverseLeafs( inversepermutetask );
     if ( USE_RUNTIME ) hmlp_run();
   }
 
@@ -1859,7 +1859,7 @@ hmlpError_t Factorize( TREE &tree, T lambda )
   using NODE = typename TREE::NODE;
 
   /** Clean up all dependencies on tree nodes. */
-  tree.DependencyCleanUp();
+  RETURN_IF_ERROR( tree.dependencyClean() );
 
   /** Regularization parameter lambda. */
   tree.setup.lambda = lambda;
@@ -1869,12 +1869,12 @@ hmlpError_t Factorize( TREE &tree, T lambda )
 
   /** Setup  */
   SetupFactorTask<NODE, T> setupfactortask; 
-  tree.TraverseUp( setupfactortask );
+  tree.traverseUp( setupfactortask );
   tree.ExecuteAllTasks();
 
   /** Factorization */
   FactorizeTask<NODE, T> factorizetask; 
-  tree.TraverseUp( factorizetask );
+  tree.traverseUp( factorizetask );
   tree.ExecuteAllTasks();
 
   return HMLP_ERROR_SUCCESS;

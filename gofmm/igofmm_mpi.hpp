@@ -352,7 +352,7 @@ class DistULVBackwardSolveTask : public Task
 
 /** @biref Top-level factorization routine. */ 
 template<typename T, typename TREE>
-void DistFactorize( TREE &tree, T lambda )
+hmlpError_t DistFactorize( TREE &tree, T lambda )
 {
   using NODE    = typename TREE::NODE;
   using MPINODE = typename TREE::MPINODE;
@@ -367,7 +367,7 @@ void DistFactorize( TREE &tree, T lambda )
   DistSetupFactorTask<MPINODE, T> parSETUPFACTORtask;
 
   mpi::PrintProgress( "[BEG] DistFactorize setup ...\n", tree.GetComm() ); 
-  tree.DependencyCleanUp();
+  RETURN_IF_ERROR( tree.dependencyClean() );
   tree.LocaTraverseUp( seqSETUPFACTORtask );
   tree.DistTraverseUp( parSETUPFACTORtask );
   tree.ExecuteAllTasks();
@@ -381,7 +381,9 @@ void DistFactorize( TREE &tree, T lambda )
   tree.ExecuteAllTasks();
   mpi::PrintProgress( "[END] DistFactorize ...\n", tree.GetComm() ); 
 
-}; /** end DistFactorize() */
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
+}; /* end DistFactorize() */
 
 
 template<typename T, typename TREE>

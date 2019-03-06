@@ -32,11 +32,25 @@ const char* getErrorString( hmlpError_t error )
  */
 void handleError( hmlpError_t error, const char* file, int line )
 {
-  if ( error == HMLP_ERROR_SUCCESS ) return;
-  /** Otherwise, handle the error and provide information. */
-  printf( "Error: %s in %s at line %d\n", getErrorString( error ), file, line );
+  if ( error == HMLP_ERROR_SUCCESS ) 
+  {
+    return;
+  }
+  if ( error < HMLP_ERROR_MPI_ERROR )
+  {
+    /** Otherwise, handle the error and provide information. */
+    fprintf( stderr, "Error: HMLP_ERROR_MPI_ERROR %d in %s at line %d\n",
+        error, file, line );
+  }
+  else
+  {
+    /** Otherwise, handle the error and provide information. */
+    fprintf( stderr, "Error: %s in %s at line %d\n",
+        getErrorString( error ), file, line );
+  }
   throw std::invalid_argument( "Program encounters hmlp error." );
 };
+
 
 hmlpError_t returnIfError( hmlpError_t error, const char* file, int line )
 {
@@ -58,6 +72,5 @@ hmlpError_t returnIfError( hmlpError_t error, const char* file, int line )
   }
   return error;
 };
-
 
 }; /* end namespace hmlp */

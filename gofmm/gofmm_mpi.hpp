@@ -3805,7 +3805,7 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
     double forward_permute_time, backward_permute_time;
 
     /** Clean up all r/w dependencies left on tree nodes. */
-    tree.DependencyCleanUp();
+    HANDLE_ERROR( tree.dependencyClean() );
 
     /** n-by-nrhs, initialize potentials. */
     size_t n    = weights.row();
@@ -3891,7 +3891,7 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
     
     /** Stage 1: TreeView and upward telescoping */
     beg = omp_get_wtime();
-    tree.DependencyCleanUp();
+    HANDLE_ERROR( tree.dependencyClean() );
     tree.DistTraverseDown( mpiVIEWtask );
     tree.LocaTraverseDown( seqVIEWtask );
     tree.ExecuteAllTasks();
@@ -4122,8 +4122,8 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 
     mpi::PrintProgress( "[BEG] Skeletonization ...", tree.GetComm() ); 
     /** Skeletonization */
-	  beg = omp_get_wtime();
-    tree.DependencyCleanUp();
+    beg = omp_get_wtime();
+    HANDLE_ERROR( tree.dependencyClean() );
     /** Gather sample rows and skeleton columns, then ID */
     gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> seqGETMTXtask;
     mpigofmm::DistSkeletonKIJTask<NNPRUNE, MPINODE, T> mpiGETMTXtask;
@@ -4141,7 +4141,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     tree.ExecuteAllTasks();
     skel_time = omp_get_wtime() - beg;
 
-	  beg = omp_get_wtime();
+    beg = omp_get_wtime();
     tree.DistTraverseUp( mpiGETMTXtask, mpiSKELtask );
     tree.DistTraverseUnOrdered( mpiPROJtask );
     tree.ExecuteAllTasks();
@@ -4155,7 +4155,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     /** Find and merge far interactions. */
     mpi::PrintProgress( "[BEG] MergeFarNodes ...", tree.GetComm() ); 
     beg = omp_get_wtime();
-    tree.DependencyCleanUp();
+    HANDLE_ERROR( tree.dependencyClean() );
     MergeFarNodesTask<true, NODE, T> seqMERGEtask;
     DistMergeFarNodesTask<true, MPINODE, T> mpiMERGEtask;
     tree.LocaTraverseUp( seqMERGEtask );
@@ -4256,8 +4256,8 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
       printf( "========================================================\n\n");
     }
 
-    /** Cleanup all w/r dependencies on tree nodes */
-    tree_ptr->DependencyCleanUp();
+    /* Cleanup all w/r dependencies on tree nodes */
+    HANDLE_ERROR( tree_ptr->dependencyClean() );
     /** Global barrier to make sure all processes have completed */
     mpi::Barrier( tree.GetComm() );
 

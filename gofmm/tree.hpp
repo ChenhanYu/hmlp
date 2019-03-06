@@ -1067,7 +1067,7 @@ class Tree
     };
 
     /**
-     *  \return the local tree height
+     *  \returns the local tree height
      */ 
     depthType getLocalHeight() const noexcept 
     { 
@@ -1075,7 +1075,7 @@ class Tree
     };
 
     /**
-     *  \return the global tree height
+     *  \returns the global tree height
      */ 
     depthType getGlobalHeight() const noexcept 
     { 
@@ -1121,25 +1121,6 @@ class Tree
       /* Compute the iterator.*/
       return *(treelist_.begin() + n_nodes - 1 + i);
     }
-
-
-    //NODE* getFirstNodeAtLocalDepth( depthType depth ) noexcept
-    //{
-    //  if ( depth > getLocalHeight() )
-    //  {
-    //    throw std::out_of_range( "accessing invalid local tree depth" );
-    //  }
-    //  int n_nodes = 1 << depth;
-    //  //auto level_beg = this->treelist_.begin() + n_nodes - 1;
-
-    //  //return getLocalRoot() + ( n_nodes - 1 );
-    //  return *(treelist_.begin() + n_nodes - 1);
-    //};
-
-    //NODE *getFirstLeafNode() noexcept
-    //{
-    //  return getFirstNodeAtLocalDepth( getLocalHeight() );
-    //};
 
     std::vector<indexType> & getOwnedIndices()
     {
@@ -1194,7 +1175,7 @@ class Tree
      *  \brief Parition and create a complete binary tree in shared memory tree. 
      *  \return the error code
      */
-    hmlpError_t TreePartition()
+    hmlpError_t partition()
     {
       double beg, alloc_time, split_time, morton_time, permute_time;
 
@@ -1222,7 +1203,7 @@ class Tree
       /** Recursive spliting (topdown). */
       beg = omp_get_wtime();
       SplitTask<NODE> splittask;
-      RETURN_IF_ERROR( TraverseDown( splittask ) );
+      RETURN_IF_ERROR( traverseDown( splittask ) );
       RETURN_IF_ERROR( ExecuteAllTasks() );
       split_time = omp_get_wtime() - beg;
 
@@ -1243,12 +1224,12 @@ class Tree
 
       /** Adgust gids to the appropriate order.  */
       IndexPermuteTask<NODE> indexpermutetask;
-      RETURN_IF_ERROR( TraverseUp( indexpermutetask ) );
+      RETURN_IF_ERROR( traverseUp( indexpermutetask ) );
       RETURN_IF_ERROR( ExecuteAllTasks() );
 
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
-    }; /* end TreePartition() */
+    }; /* end partition() */
 
 
 
@@ -1309,10 +1290,8 @@ class Tree
       for ( sizeType t = 0; t < n_tree; t ++ )      
       {
         /** Randomize metric tree and exhausted search for each leaf node. */
-        RETURN_IF_ERROR( TreePartition() );
-        printf( "TreePartition\n" ); fflush( stdout );
-        RETURN_IF_ERROR( TraverseLeafs( dummy ) );
-        printf( "TraverseLeaf\n" ); fflush( stdout );
+        RETURN_IF_ERROR( partition() );
+        RETURN_IF_ERROR( traverseLeafs( dummy ) );
         RETURN_IF_ERROR( ExecuteAllTasks() );
       } 
 
@@ -1390,7 +1369,7 @@ class Tree
 
 
     template<typename TASK, typename... Args>
-    hmlpError_t TraverseLeafs( TASK &dummy, Args&... args )
+    hmlpError_t traverseLeafs( TASK &dummy, Args&... args )
     {
       /* Return with no error. */
       if ( getLocalNodeSize() == 0 )
@@ -1423,14 +1402,14 @@ class Tree
       }
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
-    }; /** end TraverseLeafs() */
+    }; /** end traverseLeafs() */
 
 
 
 
 
     template<typename TASK, typename... Args>
-    hmlpError_t TraverseUp( TASK &dummy, Args&... args )
+    hmlpError_t traverseUp( TASK &dummy, Args&... args )
     {
       /* Return with no error. */
       if ( getLocalNodeSize() == 0 )
@@ -1478,7 +1457,7 @@ class Tree
       }
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
-    }; /** end TraverseUp() */
+    }; /** end traverseUp() */
 
 
 
@@ -1486,7 +1465,7 @@ class Tree
 
 
     template<typename TASK, typename... Args>
-    hmlpError_t TraverseDown( TASK &dummy, Args&... args )
+    hmlpError_t traverseDown( TASK &dummy, Args&... args )
     {
       /* Return with no error. */
       if ( getLocalNodeSize() == 0 )
@@ -1531,7 +1510,7 @@ class Tree
       }
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
-    }; /** end TraverseDown() */
+    }; /** end traverseDown() */
 
 
 
@@ -1540,10 +1519,10 @@ class Tree
      *         downward traversal.
      */ 
     template<typename TASK, typename... Args>
-    hmlpError_t TraverseUnOrdered( TASK &dummy, Args&... args )
+    hmlpError_t traverseUnOrdered( TASK &dummy, Args&... args )
     {
-      return TraverseDown( dummy, args... );
-    }; /** end TraverseUnOrdered() */
+      return traverseDown( dummy, args... );
+    }; /** end traverseUnOrdered() */
 
 
     /**
@@ -1551,7 +1530,7 @@ class Tree
      *         and local essential tree (LET) nodes.
      *  \returns the error code.
      */ 
-    hmlpError_t DependencyCleanUp()
+    hmlpError_t dependencyClean()
     {
       /* Remove dependencies of each owned nodes. */
       for ( auto node : treelist_ ) 
@@ -1566,7 +1545,7 @@ class Tree
       }
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
-    }; /* end DependencyCleanUp() */
+    }; /* end dependencyClean() */
 
     /**
      *  \brief Enter a runtime epoch to consume all tasks starting from all
@@ -1578,7 +1557,7 @@ class Tree
       /* Invoke the runtime scheduler. */
       RETURN_IF_ERROR( hmlp_run() );
       /* Clean up all the in and out set of each read/write object. */
-      RETURN_IF_ERROR( DependencyCleanUp() );
+      RETURN_IF_ERROR( dependencyClean() );
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
     }; /* end ExecuteAllTasks() */
@@ -1657,7 +1636,7 @@ class Tree
     };
     /**
      *  \brief Allocate the local tree using the local root with n points and depth l.
-     *  \details This routine will be called in two situations: 1) called by Tree::TreePartition(), 
+     *  \details This routine will be called in two situations: 1) called by Tree::partition(), 
      *  or 2) called by MPITree::TreePartition().
      *  \param [in,out] root: the root of the local tree
      *  \returns the error code

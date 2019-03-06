@@ -886,8 +886,11 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     
 
 
-    /** @brief partition n points using a distributed binary tree. */ 
-    void TreePartition() 
+    /** 
+     *  \brief partition n points using a distributed binary tree. 
+     *  \returns the error code
+     */ 
+    hmlpError_t TreePartition() 
     {
       mpi::PrintProgress( "[BEG] TreePartitioning ...", this->GetComm() );
 
@@ -904,12 +907,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       }
       /* Local problem size (assuming Round-Robin). */
       num_points_owned = this->global_index_distribution_.size();
-      /* Allocate distributed tree nodes in advance. */
-      allocateNodes_( this->global_index_distribution_ );
+      /* Allocate distributed and local tree nodes in advance. */
+      RETURN_IF_ERROR( allocateNodes_( this->global_index_distribution_ ) );
 
 
 
-      DependencyCleanUp();
+      RETURN_IF_ERROR( dependencyClean() );
 
 
 
@@ -954,8 +957,10 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         if ( node->getGlobalDepth() ) this->morton2node[ sibling->getMortonID() ] = sibling;
       }
 
-      this->Barrier();
+      RETURN_IF_ERROR( this->Barrier() );
       mpi::PrintProgress( "[END] TreePartitioning ...", this->GetComm() ); 
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
     }; /** end TreePartition() */
 
 
@@ -1295,7 +1300,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 
 
-    void DependencyCleanUp()
+    hmlpError_t dependencyClean()
     {
       for ( auto node : mpitreelists ) node->DependencyCleanUp();
       //for ( size_t i = 0; i < mpitreelists.size(); i ++ )
@@ -1303,7 +1308,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       //  mpitreelists[ i ]->DependencyCleanUp();
       //}
 
-      tree::Tree<SETUP, NODEDATA>::DependencyCleanUp();
+      RETURN_IF_ERROR( LOCALTREE::dependencyClean() );
 
 
 
@@ -1313,9 +1318,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       for ( auto p : NearRecvFrom ) p.DependencyCleanUp();
       for ( auto p :  FarRecvFrom ) p.DependencyCleanUp();
 
-      /** TODO also clean up the LET node */
-
-    }; /** end DependencyCleanUp() */
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }; /* end dependencyClean() */
 
 
     /** @brief */
@@ -1323,7 +1328,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     {
       hmlp_run();
       this->Barrier();
-      DependencyCleanUp();
+      dependencyClean();
     }; /** end ExecuteAllTasks() */
 
     /** @brief */

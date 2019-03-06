@@ -3057,7 +3057,7 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
   double forward_permute_time, backward_permute_time;
 
   /** clean up all r/w dependencies left on tree nodes */
-  tree.DependencyCleanUp();
+  HANDLE_ERROR( tree.dependencyClean() );
 
   /** n-by-nrhs initialize potentials */
   size_t n    = weights.row();
@@ -3139,10 +3139,10 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
 //    if ( USE_OMP_TASK )
 //    {
 //      assert( !USE_RUNTIME );
-//      tree.template TraverseLeafs<false, false>( leaftoleaftask1 );
-//      tree.template TraverseLeafs<false, false>( leaftoleaftask2 );
-//      tree.template TraverseLeafs<false, false>( leaftoleaftask3 );
-//      tree.template TraverseLeafs<false, false>( leaftoleaftask4 );
+//      tree.template traverseLeafs<false, false>( leaftoleaftask1 );
+//      tree.template traverseLeafs<false, false>( leaftoleaftask2 );
+//      tree.template traverseLeafs<false, false>( leaftoleaftask3 );
+//      tree.template traverseLeafs<false, false>( leaftoleaftask4 );
 //      tree.template UpDown<true, true, true>( nodetoskeltask, skeltoskeltask, skeltonodetask );
 //    }
 //    else
@@ -3150,19 +3150,19 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
 //      assert( !USE_OMP_TASK );
 //
 //#ifdef HMLP_USE_CUDA
-//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleafver2task );
+//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleafver2task );
 //#else
-//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
-//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
-//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
-//      tree.template TraverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
+//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
+//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
+//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
+//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
 //#endif
 //
 //      /** check scheduler */
 //      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
-//      tree.template TraverseUp       <AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
-//      tree.template TraverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
-//      tree.template TraverseDown     <AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
+//      tree.template traverseUp       <AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
+//      tree.template traverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
+//      tree.template traverseDown     <AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
 //      /** check scheduler */
 //      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
 //
@@ -3184,16 +3184,16 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
 
     /** CPU-GPU hybrid uses a different kind of L2L task */
 #ifdef HMLP_USE_CUDA
-    tree.TraverseLeafs( leaftoleafver2task );
+    tree.traverseLeafs( leaftoleafver2task );
 #else
-    tree.TraverseLeafs( leaftoleaftask1 );
-    tree.TraverseLeafs( leaftoleaftask2 );
-    tree.TraverseLeafs( leaftoleaftask3 );
-    tree.TraverseLeafs( leaftoleaftask4 );
+    tree.traverseLeafs( leaftoleaftask1 );
+    tree.traverseLeafs( leaftoleaftask2 );
+    tree.traverseLeafs( leaftoleaftask3 );
+    tree.traverseLeafs( leaftoleaftask4 );
 #endif
-    tree.TraverseUp( nodetoskeltask );
-    tree.TraverseUnOrdered( skeltoskeltask );
-    tree.TraverseDown( skeltonodetask );
+    tree.traverseUp( nodetoskeltask );
+    tree.traverseUnOrdered( skeltoskeltask );
+    tree.traverseDown( skeltonodetask );
     tree.ExecuteAllTasks();
     //if ( USE_RUNTIME ) hmlp_run();
 
@@ -3297,7 +3297,7 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
 
 
   /** clean up all r/w dependencies left on tree nodes */
-  tree.DependencyCleanUp();
+  HANDLE_ERROR( tree.dependencyClean() );
 
   /** return nrhs-by-N outputs */
   return potentials;
@@ -3393,10 +3393,10 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 
     if ( REPORT_COMPRESS_STATUS )
     {
-      printf( "TreePartitioning ...\n" ); fflush( stdout );
+      printf( "partitioning ...\n" ); fflush( stdout );
     }
     beg = omp_get_wtime();
-    HANDLE_ERROR( tree.TreePartition() );
+    HANDLE_ERROR( tree.partition() );
     tree_time = omp_get_wtime() - beg;
 
 
@@ -3422,9 +3422,9 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 
     /** Build near interaction lists. */ 
     NearSamplesTask<NODE, T> NEARSAMPLEStask;
-    tree.DependencyCleanUp();
+    HANDLE_ERROR( tree.dependencyClean() );
     printf( "Dependency clean up\n" ); fflush( stdout );
-    tree.TraverseLeafs( NEARSAMPLEStask );
+    tree.traverseLeafs( NEARSAMPLEStask );
     tree.ExecuteAllTasks();
     //hmlp_run();
     printf( "Finish NearSamplesTask\n" ); fflush( stdout );
@@ -3442,13 +3442,13 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     gofmm::SkeletonKIJTask<NNPRUNE, NODE, T> GETMTXtask;
     gofmm::SkeletonizeTask<NODE, T> SKELtask;
     gofmm::InterpolateTask<NODE> PROJtask;
-    tree.DependencyCleanUp();
-    tree.TraverseUp( GETMTXtask, SKELtask );
-    tree.TraverseUnOrdered( PROJtask );
+    HANDLE_ERROR( tree.dependencyClean() );
+    tree.traverseUp( GETMTXtask, SKELtask );
+    tree.traverseUnOrdered( PROJtask );
     if ( CACHE )
     {
       gofmm::CacheNearNodesTask<NNPRUNE, NODE> KIJtask;
-      tree.template TraverseLeafs( KIJtask );
+      tree.template traverseLeafs( KIJtask );
     }
     other_time += omp_get_wtime() - beg;
     hmlp_run();
@@ -3490,7 +3490,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
       printf( "GOFMM compression phase\n" );
       printf( "========================================================\n");
       printf( "NeighborSearch ------------------------ %5.2lfs (%5.1lf%%)\n", ann_time, ann_time * time_ratio );
-      printf( "TreePartitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
+      printf( "partitioning ---------------------- %5.2lfs (%5.1lf%%)\n", tree_time, tree_time * time_ratio );
       printf( "Skeletonization ----------------------- %5.2lfs (%5.1lf%%)\n", skel_time, skel_time * time_ratio );
       printf( "MergeFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", mergefarnodes_time, mergefarnodes_time * time_ratio );
       printf( "CacheFarNodes ------------------------- %5.2lfs (%5.1lf%%)\n", cachefarnodes_time, cachefarnodes_time * time_ratio );
@@ -3501,7 +3501,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     }
 
     /** Clean up all r/w dependencies left on tree nodes. */
-    tree_ptr->DependencyCleanUp();
+    HANDLE_ERROR( tree_ptr->dependencyClean() );
     /** Return the hierarhical compreesion of K as a binary tree. */
     return tree_ptr;
   }
