@@ -607,6 +607,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
     typedef typename SETUP::T T;
 
+    typedef tree::Tree<SETUP, NODEDATA> LOCALTREE;
+
+
     /** 
      *  Inherit parameters n, m, and depth; local treelists and morton2node map.
      *
@@ -705,68 +708,6 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     }; /** end CleanUp() */
 
 
-    /** @breif Allocate all distributed tree nodse. */
-    void AllocateNodes( vector<size_t> &gids )
-    {
-      /** Decide the depth of the distributed tree according to mpi size. */
-      //auto mycomm  = comm;
-      auto mycomm  = this->GetComm();
-      //int mysize  = size;
-      int mysize  = this->GetCommSize();
-      //int myrank  = rank;
-      int myrank  = this->GetCommRank();
-      int mycolor = 0;
-      size_t mylevel = 0;
-
-      /** Allocate root( setup, n = 0, l = 0, parent = NULL ). */
-      auto *root = new MPINODE( &(this->setup), 
-          this->n, mylevel, gids, NULL, 
-          &(this->morton2node), &(this->lock), mycomm );
-
-      /** Push root to the mpi treelist. */
-      mpitreelists.push_back( root );
-
-      /** Recursively spliiting the communicator. */
-      while ( mysize > 1 )
-      {
-        mpi::Comm childcomm;
-
-        /** Increase level. */
-        mylevel += 1;
-        /** Left color = 0, right color = 1. */
-        mycolor = ( myrank < mysize / 2 ) ? 0 : 1;
-        /** Split and assign the subcommunicators for children. */
-        ierr = mpi::Comm_split( mycomm, mycolor, myrank, &(childcomm) );
-        /** Update mycomm, mysize, and myrank to proceed to the next iteration. */
-        mycomm = childcomm;
-        mpi::Comm_size( mycomm, &mysize );
-        mpi::Comm_rank( mycomm, &myrank );
-
-        /** Create the child node. */
-        auto *parent = mpitreelists.back();
-        auto *child  = new MPINODE( &(this->setup), 
-            (size_t)0, mylevel, parent, 
-            &(this->morton2node), &(this->lock), mycomm );
-
-        /** Create the sibling in type NODE but not MPINODE. */
-        child->sibling = new NODE( (size_t)0 ); // Node morton is computed later.
-        /** Setup parent's children */
-        //parent->SetupChild( child );
-        parent->kids[ 0 ] = child;
-        parent->child = child;
-        /** Push to the mpi treelist */
-        mpitreelists.push_back( child );
-      }
-      /** Global synchronization. */
-      this->Barrier();
-
-      /** Allocate local tree nodes. */
-      auto *local_tree_root = mpitreelists.back();
-      //tree::Tree<SETUP, NODEDATA>::allocateNodes( local_tree_root );
-      HANDLE_ERROR( this->allocateNodes( local_tree_root ) );
-
-    }; /* end AllocateNodes() */
-
 
 
 
@@ -800,8 +741,8 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     {
       mpi::PrintProgress( "[BEG] NeighborSearch ...", this->GetComm() );
 
-      /** Get the problem size from setup->K->row(). */
-      this->n = n;
+      /** Set the problem size from setup->K->row(). */
+      this->glb_num_of_indices_ = n;
       /** k-by-N, column major. */
       DistData<STAR, CBLK, pair<T, size_t>> NN( k, n, initNN, this->GetComm() );
       /** Use leaf size = 4 * k.  */
@@ -838,7 +779,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         gids[ i ] = i * this->GetCommSize() + this->GetCommRank();
 
       /** Allocate distributed tree nodes in advance. */
-      AllocateNodes( gids );
+      HANDLE_ERROR( allocateNodes_( gids ) );
 
 
       /** Metric tree partitioning. */
@@ -851,7 +792,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         ExecuteAllTasks();
         
         /** Query neighbors computed in CIDS distribution.  */
-        DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->n, 
+        DistData<STAR, CIDS, pair<T, size_t>> Q_cids( k, this->getGlobalProblemSize(), 
             this->getLocalRoot()->gids, initNN, this->GetComm() );
         /** Pass in neighbor pointer. */
         this->setup.NN = &Q_cids;
@@ -859,7 +800,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         ExecuteAllTasks();
 
         /** Queries computed in CBLK distribution */
-        DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->n, this->GetComm() );
+        DistData<STAR, CBLK, pair<T, size_t>> Q_cblk( k, this->getGlobalProblemSize(), this->GetComm() );
         /** Redistribute from CIDS to CBLK */
         Q_cblk = Q_cids;
         /** Merge Q_cblk into NN (sort and remove duplication) */
@@ -950,18 +891,21 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     {
       mpi::PrintProgress( "[BEG] TreePartitioning ...", this->GetComm() );
 
-      /** Set up total problem size n and leaf node size m. */
-      this->n = this->setup.ProblemSize();
-      //this->m = this->setup.getLeafNodeSize();
+      /* Set up total problem size n and leaf node size m. */
+      this->glb_num_of_indices_ = this->setup.ProblemSize();
 
-      /** Initial gids distribution (asssuming Round-Robin). */
-      //for ( size_t i = rank; i < this->n; i += size ) 
-      for ( size_t i = this->GetCommRank(); i < this->n; i += this->GetCommSize() ) 
-        this->global_indices.push_back( i );
-      /** Local problem size (assuming Round-Robin). */
-      num_points_owned = this->global_indices.size();
-      /** Allocate distributed tree nodes in advance. */
-      AllocateNodes( this->global_indices );
+
+      /* Clean up global_index_distribution_. */
+      this->global_index_distribution_.clear();
+      /* Initial gids distribution (asssuming Round-Robin). */
+      for ( size_t i = this->GetCommRank(); i < this->getGlobalProblemSize(); i += this->GetCommSize() )
+      {
+        this->global_index_distribution_.push_back( i );
+      }
+      /* Local problem size (assuming Round-Robin). */
+      num_points_owned = this->global_index_distribution_.size();
+      /* Allocate distributed tree nodes in advance. */
+      allocateNodes_( this->global_index_distribution_ );
 
 
 
@@ -988,7 +932,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 
       /** Allocate space for point MortonID. */
-      (this->setup).morton.resize( this->n );
+      (this->setup).morton.resize( this->getGlobalProblemSize() );
 
       /** Compute Morton ID for both distributed and local trees. */
       RecursiveMorton( mpitreelists[ 0 ], MortonHelper::Root() );
@@ -1016,7 +960,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 
     /** Assign MortonID to each node recursively. */
-    void RecursiveMorton( MPINODE *node, MortonHelper::Recursor r ) 
+    hmlpError_t RecursiveMorton( MPINODE *node, MortonHelper::Recursor r ) 
     {
       /** MPI Support. */ 
       int comm_size = this->GetCommSize();
@@ -1040,7 +984,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         vector<int> recv_size( comm_size, 0 );
         vector<int> recv_disp( comm_size, 0 );
         vector<pair<size_t, size_t>> send_pairs;
-        vector<pair<size_t, size_t>> recv_pairs( this->n );
+        vector<pair<size_t, size_t>> recv_pairs( this->getGlobalProblemSize() );
 
         /** Gather pairs I own. */ 
         for ( auto it : gids ) 
@@ -1063,7 +1007,10 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         {
           total_gids += recv_size[ p ];
         }
-        assert( total_gids == this->n );
+        if ( total_gids != this->getGlobalProblemSize() )
+        {
+          return HMLP_ERROR_INTERNAL_ERROR;
+        }
         /** Exchange all pairs. */
         mpi::Allgatherv( send_pairs.data(), send_size, 
             recv_pairs.data(), recv_size.data(), recv_disp.data(), this->GetComm() );
@@ -1081,7 +1028,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
           RecursiveMorton( node->child, MortonHelper::RecurRight( r ) );
         }
       }
-    }; /** end RecursiveMorton() */
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    }; /* end RecursiveMorton() */
 
 
 
@@ -1427,9 +1376,73 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
     /** n = sum( num_points_owned ) from all MPI processes. */
     size_t num_points_owned = 0;
 
+  protected:
+
+    /** 
+     *  \breif Allocate all distributed and local tree nodes.
+     *  \returns the error code
+     *  \retval HMLP_ERROR_SUCCESS if no error is reported
+     *  \retval
+     */
+    hmlpError_t allocateNodes_( vector<size_t> &gids )
+    {
+      /* Decide the depth of the distributed tree according to mpi size. */
+      auto my_comm = this->GetComm();
+      auto my_size = this->GetCommSize();
+      auto my_rank = this->GetCommRank();
+      int my_color = 0;
+      depthType my_depth = 0;
+      /** Allocate root( setup, n = 0, l = 0, parent = NULL ). */
+      auto *root = new MPINODE( &(this->setup), 
+          this->getGlobalProblemSize(), my_depth, gids, NULL, 
+          &(this->morton2node), &(this->lock), my_comm );
+      /* Fail to allocate memory. Return with error. */
+      if ( root == nullptr )
+      {
+        return HMLP_ERROR_ALLOC_FAILED;
+      }
+      /** Push root to the mpi treelist. */
+      mpitreelists.push_back( root );
+      /** Recursively spliiting the communicator. */
+      while ( my_size > 1 )
+      {
+        mpi::Comm child_comm;
+        /* Increase level. */
+        my_depth += 1;
+        /* Left color = 0, right color = 1. */
+        my_color = ( my_rank < my_size / 2 ) ? 0 : 1;
+        /** Split and assign the subcommunicators for children. */
+        RETURN_IF_ERROR( mpi::Comm_split( my_comm, my_color, my_rank, &(child_comm) ) );
+        /** Update mycomm, mysize, and myrank to proceed to the next iteration. */
+        my_comm = child_comm;
+        RETURN_IF_ERROR( mpi::Comm_size( my_comm, &my_size ) );
+        RETURN_IF_ERROR( mpi::Comm_rank( my_comm, &my_rank ) );
+        /** Create the child node. */
+        auto *parent = mpitreelists.back();
+        auto *child  = new MPINODE( &(this->setup), 
+            (size_t)0, my_depth, parent, 
+            &(this->morton2node), &(this->lock), my_comm );
+        /* Fail to allocate memory. Return with error. */
+        if ( child == nullptr )
+        {
+          return HMLP_ERROR_ALLOC_FAILED;
+        }
+        /** Create the sibling in type NODE but not MPINODE. */
+        child->sibling = new NODE( (size_t)0 ); // Node morton is computed later.
+        /** Setup parent's children */
+        //parent->SetupChild( child );
+        parent->kids[ 0 ] = child;
+        parent->child = child;
+        /** Push to the mpi treelist */
+        mpitreelists.push_back( child );
+      }
+      /* TODO: is this necessary? Global synchronization. */
+      RETURN_IF_ERROR( this->Barrier() );
+      /* Allocate local tree nodes. */
+      return LOCALTREE::allocateNodes_( mpitreelists.back() );
+    }; /* end allocateNodes_() */
+
 }; /** end class Tree */
-
-
 }; /** end namespace mpitree */
 }; /** end namespace hmlp */
 

@@ -2055,7 +2055,7 @@ pair<double, double> NonCompressedRatio( TREE &tree )
         assert( src );
         double m = tar->gids.size(); 
         double n = src->gids.size();
-        double N = tree.n;
+        double N = tree.getGlobalProblemSize();
         ratio_n += ( m / N ) * ( n / N );
       }
     }
@@ -2066,7 +2066,7 @@ pair<double, double> NonCompressedRatio( TREE &tree )
       assert( src );
       double m = tar->data.skels.size(); 
       double n = src->data.skels.size(); 
-      double N = tree.n;
+      double N = tree.getGlobalProblemSize();
       ratio_f += ( m / N ) * ( n / N );
     }
   }
@@ -2081,7 +2081,7 @@ pair<double, double> NonCompressedRatio( TREE &tree )
       assert( src );
       double m = tar->data.skels.size(); 
       double n = src->data.skels.size(); 
-      double N = tree.n;
+      double N = tree.getGlobalProblemSize();
       ratio_f += ( m / N ) * ( n / N );
     }
   }
@@ -2694,8 +2694,10 @@ void ExchangeNeighbors( TREE &tree )
   /** Remove duplication. */
   for ( auto & it : NN )
   {
-    if ( it.second >= 0 && it.second < tree.n )
+    if ( it.second >= 0 && it.second < tree.getGlobalProblemSize() )
+    {
       requested_gids.insert( it.second );
+    }
   }
 
   /** Remove owned gids. */
@@ -4336,7 +4338,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   int rank; mpi::Comm_rank( tree.GetComm(), &rank );
   int size; mpi::Comm_size( tree.GetComm(), &size );
   /** Size of right hand sides. */
-  size_t n = tree.n;
+  size_t n = tree.getGlobalProblemSize();
   /** Shrink ntest if ntest > n. */
   if ( ntest > n ) ntest = n;
   /** all_rhs = [ 0, 1, ..., nrhs - 1 ]. */

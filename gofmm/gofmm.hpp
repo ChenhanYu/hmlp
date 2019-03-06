@@ -2914,7 +2914,7 @@ double DrawInteraction( TREE &tree )
   fprintf( pFile, "hold off;" );
   fclose( pFile );
 
-  return exact_ratio / ( tree.n * tree.n );
+  return exact_ratio / ( tree.getGlobalProblemSize() * tree.getGlobalProblemSize() );
 }; /** end DrawInteration() */
 
 /**
@@ -3752,7 +3752,7 @@ hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   /** Derive type T from TREE. */
   using T = typename TREE::T;
   /** Size of right hand sides. */
-  size_t n = tree.n;
+  size_t n = tree.getGlobalProblemSize();
   /** Shrink ntest if ntest > n. */
   if ( ntest > n ) ntest = n;
   /** all_rhs = [ 0, 1, ..., nrhs - 1 ]. */

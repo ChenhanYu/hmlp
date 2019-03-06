@@ -1035,12 +1035,11 @@ class Tree
     /* Data shared by all tree nodes. */
     SETUP setup;
 
-    /** number of points */
-    size_t n = 0;
-
-    /** depth of local tree */
-    //size_t depth = 0;
-
+    /** \return number of total indices */
+    sizeType getGlobalProblemSize() const noexcept
+    {
+      return glb_num_of_indices_;
+    }
 
     /** Mutex for exclusive right to modify treelist and morton2node. */ 
     Lock lock;
@@ -1191,24 +1190,33 @@ class Tree
     };
 
 
-    /** @brief Shared-memory tree partition. */ 
+    /** 
+     *  \brief Parition and create a complete binary tree in shared memory tree. 
+     *  \return the error code
+     */
     hmlpError_t TreePartition()
     {
       double beg, alloc_time, split_time, morton_time, permute_time;
 
-      this->n = setup.ProblemSize();
-      //this->m = setup.LeafNodeSize();
+      /* Clean up and reserve space for local tree nodes. */
+      RETURN_IF_ERROR( clean_() );
+      /* Set the global problem size from the setup. */
+      this->glb_num_of_indices_ = setup.ProblemSize();
+      /* Reset and initialize global indices with lexicographical order. */
+      global_index_distribution_.resize( getGlobalProblemSize() );
+      /* Round-Robin over MPI ranks (in shared memory == lexicographical order). */
+      for ( sizeType i = 0; i < getGlobalProblemSize(); i ++ ) 
+      {
+        global_index_distribution_[ i ] = i;
+      }
 
-      /** Reset and initialize global indices with lexicographical order. */
-      global_indices.clear();
-      for ( size_t i = 0; i < n; i ++ ) global_indices.push_back( i );
-
-      /** Reset the warning flag and clean up the treelist */
+      /* Reset the warning flag and clean up the treelist */
       has_uneven_split = false;
 
       /** Allocate all tree nodes in advance. */
       beg = omp_get_wtime();
-      HANDLE_ERROR( allocateNodes( new NODE( &setup, n, 0, global_indices, NULL, &morton2node, &lock ) ) );
+      HANDLE_ERROR( allocateNodes_( new NODE( &setup, getGlobalProblemSize(), 
+              0, global_index_distribution_, NULL, &morton2node, &lock ) ) );
       alloc_time = omp_get_wtime() - beg;
 
       /** Recursive spliting (topdown). */
@@ -1220,7 +1228,7 @@ class Tree
 
 
       /** Compute node and point MortonID. */ 
-      setup.morton.resize( n );
+      setup.morton.resize( getGlobalProblemSize() );
       /* Compute MortonID (for nodes and indices) recursively. */
       RETURN_IF_ERROR( RecursiveMorton( getLocalRoot(), MortonHelper::Root() ) );
       /* Compute the offset (related to the left most) for drawing interaction. */
@@ -1268,14 +1276,14 @@ class Tree
     /**
      *  \brief Compute approximated kappa-nearest neighbors using 
      *         randomized spatial trees.
-     *  \param [in] KNNTASK the type of the knn kernel
-     *  \param [in] n_tree the number of maximum iterations
-     *  \param [in] kappa the number of neighbors to compute
-     *  \param [in] max_depth the maximum depth 
-     *  \param [inout] neighbors all neighbors in Data<neigType>
-     *  \param [in] initNN the initial value
-     *  \param [in] dummy
-     *  \return error code
+     *  \param [in] KNNTASK: the type of the knn kernel
+     *  \param [in] n_tree: the number of maximum iterations
+     *  \param [in] kappa: the number of neighbors to compute
+     *  \param [in] max_depth: the maximum depth 
+     *  \param [inout] neighbors: all neighbors in Data<neigType>
+     *  \param [in] initNN: the initial value
+     *  \param [in] dummy:
+     *  \returns the error code
      */ 
     template<typename KNNTASK>
     hmlpError_t AllNearestNeighbor( sizeType n_tree, sizeType kappa, 
@@ -1371,7 +1379,7 @@ class Tree
 
 
       return A;
-    }; /** end CheckAllInteractions() */
+    }; /* end CheckAllInteractions() */
 
 
 
@@ -1405,13 +1413,11 @@ class Tree
       else
       {
         int nthd_glb = omp_get_max_threads();
-        /** do not parallelize if there is less nodes than threads */
+        /* Do not parallelize if there is less nodes than threads */
         #pragma omp parallel for if ( n_nodes > nthd_glb / 2 ) schedule( dynamic )
         for ( int node_ind = 0; node_ind < n_nodes; node_ind ++ )
         {
-          //auto *node = *(level_beg + node_ind);
           auto *node = *(level_beg + node_ind);
-          //auto *node = getFirstLeafNode() + node_ind;
           RecuTaskExecute( node, dummy, args... );
         }
       }
@@ -1540,13 +1546,19 @@ class Tree
     }; /** end TraverseUnOrdered() */
 
 
+    /**
+     *  \brief Remove all dependencies that were previously post to the owned tree nodes
+     *         and local essential tree (LET) nodes.
+     *  \returns the error code.
+     */ 
     hmlpError_t DependencyCleanUp()
     {
+      /* Remove dependencies of each owned nodes. */
       for ( auto node : treelist_ ) 
       {
         node->DependencyCleanUp();
       }
-
+      /* Remove dependencies of each LET nodes. */
       for ( auto it : morton2node )
       {
         auto *node = it.second;
@@ -1556,6 +1568,11 @@ class Tree
       return HMLP_ERROR_SUCCESS;
     }; /* end DependencyCleanUp() */
 
+    /**
+     *  \brief Enter a runtime epoch to consume all tasks starting from all
+     *         sources (tasks without incoming dependencies),
+     *  \return the error code.
+     */ 
     hmlpError_t ExecuteAllTasks()
     {
       /* Invoke the runtime scheduler. */
@@ -1599,45 +1616,74 @@ class Tree
     depthType loc_height_ = 0;
     /** Depth of the global tree. */
     depthType glb_height_ = 0;
-
+    /** Number of indices owned locally. */
+    sizeType loc_num_of_indices_ = 0;
+    /** Total number of indices. */
+    sizeType glb_num_of_indices_ = 0;
     /** Local tree nodes in the top-down order. */ 
     std::vector<NODE*> treelist_;
-
-
-    /** TODO: what is this? */
-    vector<size_t> global_indices;
-    /** */
-    vector<indexType> no_index_exist_;
-
-
+    /** The index distribution (default: round-robing over MPI ranks). */
+    std::vector<indexType> global_index_distribution_;
+    /** This is the empty list. */
+    std::vector<indexType> no_index_exist_;
     /**
-     *  @brief Allocate the local tree using the local root
-     *         with n points and depth l.
-     *
-     *         This routine will be called in two situations:
-     *         1) called by Tree::TreePartition(), or
-     *         2) called by MPITree::TreePartition().
+     *  \brief Clean up the tree.
+     *  \returns the error code
+     *  \retval HMLP_ERROR_SUCCESS if no error is reported
+     *  \retval
      */ 
-    hmlpError_t allocateNodes( NODE *root )
+    hmlpError_t clean_()
     {
+      /* Delete all local and LET tree nodes. */
+      for ( auto morton_and_node_ptr : morton2node ) 
+      {
+        if ( morton_and_node_ptr.second != nullptr )
+        {
+          delete morton_and_node_ptr.second;
+        }
+      }
+      /* Clear morton2node_, treelist_, and global_index_distribution_. */
+      morton2node.clear();
+      treelist_.clear();
+      global_index_distribution_.clear();
+      /* Reset loc_height_ and glb_height_. */
+      loc_height_ = 0;
+      glb_height_ = 0;
+      /* Reset loc_num_of_indices_ and glb_num_of_indices. */
+      loc_num_of_indices_ = 0;
+      glb_num_of_indices_ = 0;
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
+    };
+    /**
+     *  \brief Allocate the local tree using the local root with n points and depth l.
+     *  \details This routine will be called in two situations: 1) called by Tree::TreePartition(), 
+     *  or 2) called by MPITree::TreePartition().
+     *  \param [in,out] root: the root of the local tree
+     *  \returns the error code
+     *  \retval HMLP_ERROR_SUCCESS if no error is reported
+     *  \retval
+     */ 
+    hmlpError_t allocateNodes_( NODE *root )
+    {
+      /* The root node cannot be nulltr. */
+      if ( root == nullptr )
+      {
+        return HMLP_ERROR_INVALID_VALUE;
+      }
       /* Compute the global tree depth using std::log2(). */
-      glb_height_ = std::ceil( std::log2( (double)n / setup.getLeafNodeSize() ) );
+      glb_height_ = std::ceil( std::log2( (double)getGlobalProblemSize() / setup.getLeafNodeSize() ) );
       /* If the global depth exceeds the limit, then set it to the maximum depth. */
-      if ( glb_height_ > setup.getMaximumDepth() ) glb_height_ = setup.getMaximumDepth();
+      if ( glb_height_ > setup.getMaximumDepth() ) 
+      {
+        glb_height_ = setup.getMaximumDepth();
+      }
       /** Compute the local tree depth. */
       loc_height_ = glb_height_ - root->getGlobalDepth();
-
-
-      /* Clean up and reserve space for local tree nodes. */
-      for ( auto node_ptr : treelist_ ) delete node_ptr;
-      treelist_.clear();
-      morton2node.clear();
-      treelist_.reserve( 1 << ( getLocalHeight() + 1 ) );
+      /* Use a queue to perform BFS. */
       deque<NODE*> treequeue;
-      /** Push root into the treelist. */
+      /* Push root into the treelist. */
       treequeue.push_back( root );
-
-
       /** Allocate children with BFS (queue solution). */
       while ( auto *node = treequeue.front() )
       {
@@ -1649,34 +1695,42 @@ class Tree
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
             node->kids[ i ] = new NODE( &setup, 0, node->getGlobalDepth() + 1, node, &morton2node, &lock );
+            /* Fail to allocate memory. Return with error. */
+            if ( node->kids[ i ] == nullptr )
+            {
+              return HMLP_ERROR_ALLOC_FAILED;
+            }
+            /* Push children to the queue. */
             treequeue.push_back( node->kids[ i ] );
           }
+          /* Set lchild and rchild to facilitate binary tree operations. */
           node->lchild = node->kids[ 0 ];
           node->rchild = node->kids[ 1 ];
-          if ( node->lchild ) node->lchild->sibling = node->rchild;
-          if ( node->rchild ) node->rchild->sibling = node->lchild;
+          /* Set siblings to facilitate binary tree operations. */
+          if ( node->lchild != nullptr ) 
+          {
+            node->lchild->sibling = node->rchild;
+          }
+          if ( node->rchild != nullptr ) 
+          {
+            node->rchild->sibling = node->lchild;
+          }
         }
         else
         {
-          /** Leaf nodes are annotated with this flag */
+          /* Leaf nodes are annotated with this flag. */
           RETURN_IF_ERROR( node->setLeaf() );
-          treequeue.push_back( NULL );
+          /* Push nullptr to the queue, which will result in termination of the while loop. */
+          treequeue.push_back( nullptr );
         }
+        /* Insert the node to the treelist. */
         treelist_.push_back( node );
+        /* Pop the node from the queue. */
         treequeue.pop_front();
       }
-
       /* Return with no error. */
       return HMLP_ERROR_SUCCESS;
-    }; /* end allocateNodes() */
-
-
-
-
-
-
-
-
+    }; /* end allocateNodes_() */
 }; /* end class Tree */
 }; /* end namespace tree */
 }; /* end namespace hmlp */

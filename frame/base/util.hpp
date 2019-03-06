@@ -40,7 +40,7 @@
 
 
 #define HANDLE_ERROR( err ) (hmlp::handleError( err, __FILE__, __LINE__ ))
-#define RETURN_IF_ERROR( err ) { auto hmlp_err = hmlp::returnIfError( err, __FILE__, __LINE__ );\
+#define RETURN_IF_ERROR( err ) { auto hmlp_err = hmlp::returnIfError( (hmlpError_t)err, __FILE__, __LINE__ );\
                                   if ( hmlp_err != HMLP_ERROR_SUCCESS ) return hmlp_err; }
 
 /* Use STL namespace. */
