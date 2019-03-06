@@ -191,7 +191,7 @@ class MortonHelper
      *  \return true if at lease one query contains the target.
      */ 
     template<typename TQUERY>
-    static bool ContainAny( mortonType target, TQUERY &querys )
+    static bool containAny( mortonType target, const TQUERY& querys )
     {
       for ( auto & q : querys )
       {
@@ -757,32 +757,31 @@ class Node : public ReadWrite
      *         needs to be accessed using gids.
      *
      */ 
-    bool ContainAny( const std::vector<size_t> & queries )
+    bool containAnyGlobalIndex( const std::vector<indexType> & queries )
     {
       if ( !setup->morton.size() )
       {
-        printf( "Morton id was not initialized.\n" );
-        exit( 1 );
+        throw std::out_of_range( "MortonID was not initialized" );
       }
-      for ( size_t i = 0; i < queries.size(); i ++ )
+      for ( auto gid : queries )
       {
-        if ( MortonHelper::IsMyParent( setup->morton[ queries[ i ] ], getMortonID() ) ) 
+        if ( MortonHelper::IsMyParent( setup->morton[ gid ], getMortonID() ) ) 
         {
 #ifdef DEBUG_TREE
           printf( "\n" );
-          hmlp_print_binary( setup->morton[ queries[ i ] ] );
-          hmlp_print_binary( morton );
+          hmlp_print_binary( setup->morton[ queries[ gid ] ] );
+          hmlp_print_binary( morton_ );
           printf( "\n" );
 #endif
           return true;
         }
       }
+      /* Other return false as not containing any index in queries. */
       return false;
+    }; /* end containAnyGlobalIndex() */
 
-    }; /** end ContainAny() */
 
-
-    bool ContainAny( set<Node*> &querys )
+    bool containAnyNodePointer( set<Node*> &querys )
     {
       if ( !setup->morton.size() )
       {
@@ -798,7 +797,7 @@ class Node : public ReadWrite
       }
       return false;
 
-    }; /** end ContainAny() */
+    }; /** end ContainAnyNodePointer() */
 
 
     void Print()
@@ -980,43 +979,7 @@ class Setup
     /** Tree splitter */
     SPLITTER splitter;
 
-    /**
-     *  @brief Check if this node contain any query using morton.
-     *         Notice that queries[] contains gids; thus, morton[]
-     *         needs to be accessed using gids.
-     *
-     */ 
-    vector<size_t> ContainAny( vector<size_t> &queries, size_t target )
-    {
-      vector<size_t> validation( queries.size(), 0 );
-
-      if ( !morton.size() )
-      {
-        printf( "Morton id was not initialized.\n" );
-        exit( 1 );
-      }
-
-      for ( size_t i = 0; i < queries.size(); i ++ )
-      {
-        /** notice that setup->morton only contains local morton ids */
-        //auto it = this->setup->morton.find( queries[ i ] );
-
-        //if ( it != this->setup->morton.end() )
-        //{
-        //  if ( tree::IsMyParent( *it, this->morton ) ) validation[ i ] = 1;
-        //}
-
-
-        //if ( tree::IsMyParent( morton[ queries[ i ] ], target ) ) 
-        if ( MortonHelper::IsMyParent( morton[ queries[ i ] ], target ) ) 
-          validation[ i ] = 1;
-
-      }
-      return validation;
-
-    }; /** end ContainAny() */
-
-}; /** end class Setup */
+}; /* end class Setup */
 
 
 /** */

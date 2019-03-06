@@ -1635,8 +1635,8 @@ hmlpError_t FindFarNodes( const MortonHelper::Recursor r, NODE *target )
   auto & compression_failure_frontier = target->setup->compression_failure_frontier_;
 
   /** Recur to children if the current node contains near interactions. */
-  if ( MortonHelper::ContainAny( node_morton, NearMortonIDs ) ||
-       MortonHelper::ContainAny( node_morton, compression_failure_frontier ) )
+  if ( MortonHelper::containAny( node_morton, NearMortonIDs ) ||
+       MortonHelper::containAny( node_morton, compression_failure_frontier ) )
   {
     RETURN_IF_ERROR( FindFarNodes( MortonHelper::RecurLeft( r ), target ) );
     RETURN_IF_ERROR( FindFarNodes( MortonHelper::RecurRight( r ), target ) );
@@ -3107,10 +3107,10 @@ void DistRowSamples( NODE *node, size_t nsamples )
   vector<size_t> &I = node->data.candidate_rows;
 
   /** Clean up candidates from previous iteration */
-	I.clear();
+  I.clear();
 
   /** Fill-on snids first */
-	if ( rank == 0 ) 
+  if ( rank == 0 ) 
   {
     /** reserve space */
     I.reserve( nsamples );
@@ -3119,7 +3119,7 @@ void DistRowSamples( NODE *node, size_t nsamples )
     multimap<T, size_t> ordered_snids = gofmm::flip_map( snids );
 
     for ( auto it  = ordered_snids.begin(); 
-               it != ordered_snids.end(); it++ )
+        it != ordered_snids.end(); it++ )
     {
       /** (*it) has type pair<T, size_t> */
       I.push_back( (*it).second );
@@ -3127,60 +3127,60 @@ void DistRowSamples( NODE *node, size_t nsamples )
     }
   }
 
-	/** buffer space */
-	vector<size_t> candidates( nsamples );
+  /** buffer space */
+  vector<size_t> candidates( nsamples );
 
-	size_t n_required = nsamples - I.size();
+  size_t n_required = nsamples - I.size();
 
-	/** bcast the termination criteria */
-	mpi::Bcast( &n_required, 1, 0, comm );
+  /** bcast the termination criteria */
+  mpi::Bcast( &n_required, 1, 0, comm );
 
-	while ( n_required )
-	{
-		if ( rank == 0 )
-		{
-  	  for ( size_t i = 0; i < nsamples; i ++ )
+  while ( n_required )
+  {
+    if ( rank == 0 )
+    {
+      for ( size_t i = 0; i < nsamples; i ++ )
       {
         auto important_sample = K.ImportantSample( 0 );
         candidates[ i ] =  important_sample.second;
       }
-		}
+    }
 
-		/** Bcast candidates */
-		mpi::Bcast( candidates.data(), candidates.size(), 0, comm );
+    /** Bcast candidates */
+    mpi::Bcast( candidates.data(), candidates.size(), 0, comm );
 
-		/** validation */
-		vector<size_t> vconsensus( nsamples, 0 );
-	  vector<size_t> validation = node->setup->ContainAny( candidates, node->getMortonID() );
+    /** validation */
+    vector<size_t> vconsensus( nsamples, 0 );
+    vector<size_t> validation = node->setup->ContainAny( candidates, node->getMortonID() );
 
-		/** reduce validation */
-		mpi::Reduce( validation.data(), vconsensus.data(), nsamples, MPI_SUM, 0, comm );
+    /** reduce validation */
+    mpi::Reduce( validation.data(), vconsensus.data(), nsamples, MPI_SUM, 0, comm );
 
-	  if ( rank == 0 )
-		{
-  	  for ( size_t i = 0; i < nsamples; i ++ ) 
-			{
-				/** exit is there is enough samples */
-				if ( I.size() >= nsamples )
-				{
-					I.resize( nsamples );
-					break;
-				}
-				/** Push the candidate to I after validation */
-				if ( !vconsensus[ i ] )
-				{
-					if ( find( I.begin(), I.end(), candidates[ i ] ) == I.end() )
-						I.push_back( candidates[ i ] );
-				}
-			};
+    if ( rank == 0 )
+    {
+      for ( size_t i = 0; i < nsamples; i ++ ) 
+      {
+        /** exit is there is enough samples */
+        if ( I.size() >= nsamples )
+        {
+          I.resize( nsamples );
+          break;
+        }
+        /** Push the candidate to I after validation */
+        if ( !vconsensus[ i ] )
+        {
+          if ( find( I.begin(), I.end(), candidates[ i ] ) == I.end() )
+            I.push_back( candidates[ i ] );
+        }
+      };
 
-			/** Update n_required */
-	    n_required = nsamples - I.size();
-		}
+      /** Update n_required */
+      n_required = nsamples - I.size();
+    }
 
-	  /** Bcast the termination criteria */
-	  mpi::Bcast( &n_required, 1, 0, comm );
-	}
+    /** Bcast the termination criteria */
+    mpi::Bcast( &n_required, 1, 0, comm );
+  }
 
 }; /** end DistRowSamples() */
 
@@ -4078,12 +4078,12 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 
     /** Initialize metric ball tree using approximate center split. */
     auto *tree_ptr = new TREE( CommGOFMM );
-	  auto &tree = *tree_ptr;
+    auto &tree = *tree_ptr;
 
-	  /** Global configuration for the metric tree. */
+    /** Global configuration for the metric tree. */
     tree.setup.FromConfiguration( config, K, splitter, &NN_cblk );
 
-	  /** Metric ball tree partitioning. */
+    /** Metric ball tree partitioning. */
     beg = omp_get_wtime();
     tree.TreePartition();
     tree_time = omp_get_wtime() - beg;

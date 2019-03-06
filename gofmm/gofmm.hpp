@@ -2625,7 +2625,7 @@ hmlpError_t FindFarNodes( NODE *node, NODE *target )
   NearNodes = &target->NearNodes;
 
   /** If this node contains any Near( target ) or isn't skeletonized */
-  if ( !data.is_compressed || node->ContainAny( *NearNodes ) )
+  if ( !data.is_compressed || node->containAnyNodePointer( *NearNodes ) )
   {
     if ( !node->isLeaf() )
     {
@@ -2650,7 +2650,7 @@ hmlpError_t FindFarNodes( NODE *node, NODE *target )
   NearNodes = &target->NNNearNodes;
 
   /** If this node contains any Near( target ) or isn't skeletonized */
-  if ( !data.is_compressed || node->ContainAny( *NearNodes ) )
+  if ( !data.is_compressed || node->containAnyNodePointer( *NearNodes ) )
   {
     if ( !node->isLeaf() )
     {
@@ -2946,7 +2946,7 @@ hmlpError_t Evaluate( NODE *node, const size_t gid, Data<T> & potentials, const 
 
   assert( potentials.size() == nrhs );
 
-  if ( !data.is_compressed || node->ContainAny( neighbors ) )
+  if ( !data.is_compressed || node->containAnyGlobalIndex( neighbors ) )
   {
     auto   I = vector<size_t>( 1, gid );
     auto & J = node->gids;
@@ -3558,31 +3558,31 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
  */ 
 template<typename T, typename SPDMATRIX>
 tree::Tree<
-  gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
+gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
   gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, T stol, T budget, size_t m, size_t k, size_t s )
 {
   using SPLITTER     = centersplit<SPDMATRIX, 2, T>;
   using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T>;
   Data<pair<T, size_t>> NN;
-	/** GOFMM tree splitter */
+  /** GOFMM tree splitter */
   SPLITTER splitter( K );
   splitter.Kptr = &K;
-	splitter.metric = ANGLE_DISTANCE;
-	/** randomized tree splitter */
+  splitter.metric = ANGLE_DISTANCE;
+  /** randomized tree splitter */
   RKDTSPLITTER rkdtsplitter( K );
   rkdtsplitter.Kptr = &K;
-	rkdtsplitter.metric = ANGLE_DISTANCE;
+  rkdtsplitter.metric = ANGLE_DISTANCE;
   size_t n = K.row();
 
-	/** creatgin configuration for all user-define arguments */
-	Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
+  /** creatgin configuration for all user-define arguments */
+  Configuration<T> config( ANGLE_DISTANCE, n, m, k, s, stol, budget );
 
-	/** call the complete interface and return tree_ptr */
+  /** call the complete interface and return tree_ptr */
   return Compress<SPLITTER, RKDTSPLITTER>
-         ( K, NN, //ANGLE_DISTANCE, 
-					 splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
-					 config );
+    ( K, NN, //ANGLE_DISTANCE, 
+      splitter, rkdtsplitter, //n, m, k, s, stol, budget, 
+      config );
 }; /** end Compress */
 
 
@@ -3604,11 +3604,11 @@ tree::Tree<
   using SPLITTER     = centersplit<SPDMATRIX, 2, T>;
   using RKDTSPLITTER = randomsplit<SPDMATRIX, 2, T>;
   Data<pair<T, std::size_t>> NN;
-	/** GOFMM tree splitter */
+  /** GOFMM tree splitter */
   SPLITTER splitter( K );
   splitter.Kptr = &K;
   splitter.metric = ANGLE_DISTANCE;
-	/** randomized tree splitter */
+  /** randomized tree splitter */
   RKDTSPLITTER rkdtsplitter( K );
   rkdtsplitter.Kptr = &K;
   rkdtsplitter.metric = ANGLE_DISTANCE;
@@ -3654,11 +3654,11 @@ tree::Tree<
  */ 
 template<typename T>
 tree::Tree<
-  gofmm::Setup<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
+gofmm::Setup<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
   gofmm::NodeData<T>>
 *Compress( SPDMatrix<T> &K, T stol, T budget )
 {
-	return Compress<T, SPDMatrix<T>>( K, stol, budget );
+  return Compress<T, SPDMatrix<T>>( K, stol, budget );
 }; /** end Compress() */
 
 
@@ -3667,7 +3667,7 @@ tree::Tree<
 
 
 
-template<typename NODE, typename T>
+  template<typename NODE, typename T>
 void ComputeError( NODE *node, Data<T> potentials )
 {
   auto &K = *node->setup->K;
@@ -3681,7 +3681,7 @@ void ComputeError( NODE *node, Data<T> potentials )
   auto Kab = K( amap, bmap );
 
   auto nrm2 = hmlp_norm( potentials.row(), potentials.col(), 
-                         potentials.data(), potentials.row() ); 
+      potentials.data(), potentials.row() ); 
 
   xgemm
   (
@@ -3774,8 +3774,8 @@ hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   printf( "========================================================\n");
   for ( size_t i = 0; i < ntest; i ++ )
   {
-    //size_t tar = i * n / ntest;
-    size_t tar = i * 1000;
+    size_t tar = i * n / ntest;
+    //size_t tar = i * 1000;
     Data<T> potentials;
     /** ASKIT treecode with NN pruning. */
     RETURN_IF_ERROR( Evaluate( tree, tar, potentials, EVALUATE_OPTION_NEIGHBOR_PRUNING ) );

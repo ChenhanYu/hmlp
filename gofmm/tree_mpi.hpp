@@ -272,13 +272,13 @@ class Setup
 
     /**
      *  @brief Check if this node contain any query using morton.
-		 *         Notice that queries[] contains gids; thus, morton[]
-		 *         needs to be accessed using gids.
+     *         Notice that queries[] contains gids; thus, morton[]
+     *         needs to be accessed using gids.
      *
      */ 
-		vector<size_t> ContainAny( vector<size_t> &queries, size_t target )
+    vector<size_t> ContainAny( vector<size_t> &queries, size_t target )
     {
-			vector<size_t> validation( queries.size(), 0 );
+      vector<size_t> validation( queries.size(), 0 );
 
       if ( !morton.size() )
       {
@@ -288,17 +288,17 @@ class Setup
 
       for ( size_t i = 0; i < queries.size(); i ++ )
       {
-				/** notice that setup->morton only contains local morton ids */
+        /** notice that setup->morton only contains local morton ids */
         //auto it = this->setup->morton.find( queries[ i ] );
 
-				//if ( it != this->setup->morton.end() )
-				//{
+        //if ( it != this->setup->morton.end() )
+        //{
         //  if ( tree::IsMyParent( *it, this->morton ) ) validation[ i ] = 1;
-				//}
+        //}
 
 
-       if ( MortonHelper::IsMyParent( morton[ queries[ i ] ], target ) ) 
-				 validation[ i ] = 1;
+        if ( MortonHelper::IsMyParent( morton[ queries[ i ] ], target ) ) 
+          validation[ i ] = 1;
 
       }
       return validation;
