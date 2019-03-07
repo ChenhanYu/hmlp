@@ -203,10 +203,10 @@ namespace mpigofmm
 
 /**
  *  @brief These are data that shared by the whole local tree.
- *         Distributed setup inherits mpitree::Setup.
+ *         Distributed setup inherits mpitree::Argument.
  */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
-class Setup : public mpitree::Setup<SPLITTER, T>,
+class Argument : public mpitree::ArgumentBase<SPLITTER, T>,
               public gofmm::Configuration<T>
 {
   public:
@@ -247,7 +247,7 @@ class Setup : public mpitree::Setup<SPLITTER, T>,
   private:
 
 
-}; /** end class Setup */
+}; /** end class Argument */
 
 
 
@@ -3151,7 +3151,8 @@ void DistRowSamples( NODE *node, size_t nsamples )
 
     /** validation */
     vector<size_t> vconsensus( nsamples, 0 );
-    vector<size_t> validation = node->setup->ContainAny( candidates, node->getMortonID() );
+    //vector<size_t> validation = node->setup->ContainAny( candidates, node->getMortonID() );
+    vector<size_t> validation = node->info_->ContainAny( candidates, node->getMortonID() );
 
     /** reduce validation */
     mpi::Reduce( validation.data(), vconsensus.data(), nsamples, MPI_SUM, 0, comm );
@@ -3994,7 +3995,7 @@ DistData<STAR, CBLK, pair<T, size_t>> FindNeighbors
 {
   /** Instantiation for the randomized metric tree. */
   using DATA  = gofmm::NodeData<T>;
-  using SETUP = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
+  using SETUP = mpigofmm::Argument<SPDMATRIX, SPLITTER, T>;
   using TREE  = mpitree::Tree<SETUP, DATA>;
   /** Derive type NODE from TREE. */
   using NODE  = typename TREE::NODE;
@@ -4022,7 +4023,7 @@ DistData<STAR, CBLK, pair<T, size_t>> FindNeighbors
  *  @brief template of the compress routine
  */ 
 template<typename SPLITTER, typename RKDTSPLITTER, typename T, typename SPDMATRIX>
-mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
+mpitree::Tree<mpigofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 *Compress
 ( 
   SPDMATRIX &K, 
@@ -4052,7 +4053,7 @@ mpitree::Tree<mpigofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     const bool CACHE     = true;
 
     /** Instantiation for the GOFMM metric tree. */
-    using SETUP   = mpigofmm::Setup<SPDMATRIX, SPLITTER, T>;
+    using SETUP   = mpigofmm::Argument<SPDMATRIX, SPLITTER, T>;
     using DATA    = gofmm::NodeData<T>;
     using TREE    = mpitree::Tree<SETUP, DATA>;
     /** Derive type NODE and MPINODE from TREE. */

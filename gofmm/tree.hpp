@@ -636,47 +636,74 @@ class SplitTask : public Task
 //};
 
 
+//template<typename NODE>
+class Info
+{
+  public:
+
+    Info( std::vector<mortonType>& gid_to_morton )
+      : gid_to_morton_( gid_to_morton )
+    {
+    }
+
+    mortonType globalIndexToMortonID( indexType gid ) const
+    {
+      return gid_to_morton_[ gid ];
+    };
+
+    /**
+     *  @brief Check if this node contain any query using morton.
+     *         Notice that queries[] contains gids; thus, morton[]
+     *         needs to be accessed using gids.
+     *
+     */ 
+    vector<size_t> ContainAny( vector<indexType> &queries, mortonType target )
+    {
+      vector<size_t> validation( queries.size(), 0 );
+
+      if ( !gid_to_morton_.size() )
+      {
+        printf( "Morton id was not initialized.\n" );
+        exit( 1 );
+      }
+
+      for ( size_t i = 0; i < queries.size(); i ++ )
+      {
+        if ( MortonHelper::IsMyParent( gid_to_morton_[ queries[ i ] ], target ) )
+        {
+          validation[ i ] = 1;
+        }
+      }
+      return validation;
+
+    }; /** end ContainAny() */
+
+
+
+
+
+
+
+
+  protected:
+
+      std::vector<mortonType>& gid_to_morton_;
+
+}; /* end class Info */
+
+
 /**
  *  @brief 
  */ 
-template<typename SETUP, typename NODEDATA>
+template<typename ARGUMENT, typename NODEDATA>
 class Node : public ReadWrite
 {
   public:
 
-    /** Deduce data type from SETUP. */
-    typedef typename SETUP::T T;
+    /** Deduce data type from ARGUMENT. */
+    typedef typename ARGUMENT::T T;
     /** Use binary trees. */
     static const int N_CHILDREN = 2;
-
-    Node( SETUP* setup, sizeType n, depthType l, 
-        Node *parent, unordered_map<mortonType, Node*> *morton2node, Lock *treelock )
-    {
-      this->setup = setup;
-      this->n = n;
-      this->l = l;
-      this->treelist_id = 0;
-      this->gids.resize( n );
-      this->parent = parent;
-      this->morton2node = morton2node;
-      this->treelock = treelock;
-      for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
-    };
-
-    Node( SETUP *setup, sizeType n, depthType l, vector<size_t> gids,
-      Node *parent, unordered_map<mortonType, Node*> *morton2node, Lock *treelock )
-    {
-      this->setup = setup;
-      this->n = n;
-      this->l = l;
-      this->treelist_id = 0;
-      this->gids = gids;
-      this->parent = parent;
-      this->morton2node = morton2node;
-      this->treelock = treelock;
-      for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
-    };
-  
 
     /**
      *  Constructor of local essential tree (LET) node:
@@ -687,8 +714,43 @@ class Node : public ReadWrite
       this->morton_ = morton; 
     };
 
+    Node( ARGUMENT* setup, sizeType n, depthType l, 
+        Node *parent, unordered_map<mortonType, Node*> *morton2node, Info* info )
+      : info_( info )
+    {
+      this->setup = setup;
+      this->n = n;
+      this->l = l;
+      this->treelist_id = 0;
+      this->gids.resize( n );
+      this->parent = parent;
+      this->morton2node = morton2node;
+      //this->treelock = treelock;
+      for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
+    };
+
+    Node( ARGUMENT *setup, sizeType n, depthType l, vector<size_t> gids,
+      Node *parent, unordered_map<mortonType, Node*> *morton2node, Info* info )
+      : info_( info )
+    {
+      this->setup = setup;
+      this->n = n;
+      this->l = l;
+      this->treelist_id = 0;
+      this->gids = gids;
+      this->parent = parent;
+      this->morton2node = morton2node;
+      //this->treelock = treelock;
+      for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
+    };
+  
     /** (Default) destructor */
     ~Node() {};
+
+
+    Info* info_ = nullptr;
+
+
 
     void Resize( sizeType n )
     {
@@ -759,17 +821,19 @@ class Node : public ReadWrite
      */ 
     bool containAnyGlobalIndex( const std::vector<indexType> & queries )
     {
-      if ( !setup->morton.size() )
-      {
-        throw std::out_of_range( "MortonID was not initialized" );
-      }
+      //if ( !setup->morton.size() )
+      //{
+      //  throw std::out_of_range( "MortonID was not initialized" );
+      //}
       for ( auto gid : queries )
       {
-        if ( MortonHelper::IsMyParent( setup->morton[ gid ], getMortonID() ) ) 
+        //if ( MortonHelper::IsMyParent( setup->morton[ gid ], getMortonID() ) ) 
+        if ( MortonHelper::IsMyParent( info_->globalIndexToMortonID( gid ), getMortonID() ) ) 
         {
 #ifdef DEBUG_TREE
           printf( "\n" );
-          hmlp_print_binary( setup->morton[ queries[ gid ] ] );
+          //hmlp_print_binary( setup->morton[ queries[ gid ] ] );
+          hmlp_print_binary( info_->globalIndexToMortonID( queries[ gid ] ) );
           hmlp_print_binary( morton_ );
           printf( "\n" );
 #endif
@@ -783,11 +847,11 @@ class Node : public ReadWrite
 
     bool containAnyNodePointer( set<Node*> &querys )
     {
-      if ( !setup->morton.size() )
-      {
-        printf( "Morton id was not initialized.\n" );
-        exit( 1 );
-      }
+      //if ( !setup->morton.size() )
+      //{
+      //  printf( "Morton id was not initialized.\n" );
+      //  exit( 1 );
+      //}
       for ( auto it = querys.begin(); it != querys.end(); it ++ )
       {
         if ( MortonHelper::IsMyParent( (*it)->getMortonID(), getMortonID() ) ) 
@@ -835,7 +899,7 @@ class Node : public ReadWrite
 
 
     /** This is the call back pointer to the shared setup. */
-    SETUP *setup = NULL;
+    ARGUMENT *setup = NULL;
 
     /** Per node private data */
     NODEDATA data;
@@ -897,7 +961,7 @@ class Node : public ReadWrite
 
 
     /** Lock for exclusively modifying or accessing the tree.  */ 
-    Lock *treelock = NULL;
+    //Lock *treelock = NULL;
 
     /** All points to other tree nodes.  */ 
     Node *kids[ N_CHILDREN ];
@@ -960,43 +1024,43 @@ class Node : public ReadWrite
  *
  */ 
 template<typename SPLITTER, typename DATATYPE>
-class Setup
+class ArgumentBase
 {
   public:
 
     typedef DATATYPE T;
 
-    Setup() {};
+    ArgumentBase() {};
 
-    ~Setup() {};
+    ~ArgumentBase() {};
 
     /** neighbors<distance, gid> (accessed with gids) */
     Data<pair<T, size_t>> *NN = NULL;
 
     /** MortonIDs of all indices. */
-    vector<mortonType> morton;
+    //vector<mortonType> morton;
 
     /** Tree splitter */
     SPLITTER splitter;
 
-}; /* end class Setup */
+}; /* end class ArgumentBase */
 
 
 /** */
-template<class SETUP, class NODEDATA>
+template<class ARGUMENT, class NODEDATA>
 class Tree
 {
   public:
 
-    typedef typename SETUP::T T;
+    typedef typename ARGUMENT::T T;
     typedef typename std::pair<T, size_t> neigType;
     /** Define our tree node type as NODE. */
-    typedef Node<SETUP, NODEDATA> NODE;
+    typedef Node<ARGUMENT, NODEDATA> NODE;
 
     static const int N_CHILDREN = 2;
 
     /* Data shared by all tree nodes. */
-    SETUP setup;
+    ARGUMENT setup;
 
     /** \return number of total indices */
     sizeType getGlobalProblemSize() const noexcept
@@ -1014,7 +1078,9 @@ class Tree
     unordered_map<mortonType, NODE*> morton2node;
 
     /** (Default) Tree constructor. */
-    Tree() {};
+    Tree() 
+      : info_( gid_to_morton_ )
+    {};
 
     /** (Default) Tree destructor. */
     ~Tree()
@@ -1126,7 +1192,7 @@ class Tree
       {
         for ( auto it : node->gids ) 
         {
-          setup.morton[ it ] = node->getMortonID();
+          gid_to_morton_[ it ] = node->getMortonID();
         }
       }
       /* Return with no error. */
@@ -1160,7 +1226,7 @@ class Tree
       /** Allocate all tree nodes in advance. */
       beg = omp_get_wtime();
       HANDLE_ERROR( allocateNodes_( new NODE( &setup, getGlobalProblemSize(), 
-              0, global_index_distribution_, NULL, &morton2node, &lock ) ) );
+              0, global_index_distribution_, NULL, &morton2node, &info_ ) ) );
       alloc_time = omp_get_wtime() - beg;
 
       /** Recursive spliting (topdown). */
@@ -1172,7 +1238,7 @@ class Tree
 
 
       /** Compute node and point MortonID. */ 
-      setup.morton.resize( getGlobalProblemSize() );
+      gid_to_morton_.resize( getGlobalProblemSize() );
       /* Compute MortonID (for nodes and indices) recursively. */
       RETURN_IF_ERROR( RecursiveMorton( getLocalRoot(), MortonHelper::Root() ) );
       /* Compute the offset (related to the left most) for drawing interaction. */
@@ -1568,6 +1634,10 @@ class Tree
     std::vector<indexType> global_index_distribution_;
     /** This is the empty list. */
     std::vector<indexType> no_index_exist_;
+    /** */
+    std::vector<mortonType> gid_to_morton_;
+    /** */
+    Info info_;
     /**
      *  \brief Clean up the tree.
      *  \returns the error code
@@ -1636,7 +1706,8 @@ class Tree
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            node->kids[ i ] = new NODE( &setup, 0, node->getGlobalDepth() + 1, node, &morton2node, &lock );
+            node->kids[ i ] = new NODE( &setup, 0, node->getGlobalDepth() + 1, 
+                node, &morton2node, &info_ );
             /* Fail to allocate memory. Return with error. */
             if ( node->kids[ i ] == nullptr )
             {

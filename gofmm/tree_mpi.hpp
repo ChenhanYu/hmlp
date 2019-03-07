@@ -257,71 +257,24 @@ class DistSplitTask : public Task
  *  @brief Data and setup that are shared with all nodes.
  */ 
 template<typename SPLITTER, typename DATATYPE>
-class Setup
+class ArgumentBase
 {
   public:
 
     typedef DATATYPE T;
 
-    Setup() {};
+    ArgumentBase() {};
 
-    ~Setup() {};
-
-
-
-
-    /**
-     *  @brief Check if this node contain any query using morton.
-     *         Notice that queries[] contains gids; thus, morton[]
-     *         needs to be accessed using gids.
-     *
-     */ 
-    vector<size_t> ContainAny( vector<size_t> &queries, size_t target )
-    {
-      vector<size_t> validation( queries.size(), 0 );
-
-      if ( !morton.size() )
-      {
-        printf( "Morton id was not initialized.\n" );
-        exit( 1 );
-      }
-
-      for ( size_t i = 0; i < queries.size(); i ++ )
-      {
-        /** notice that setup->morton only contains local morton ids */
-        //auto it = this->setup->morton.find( queries[ i ] );
-
-        //if ( it != this->setup->morton.end() )
-        //{
-        //  if ( tree::IsMyParent( *it, this->morton ) ) validation[ i ] = 1;
-        //}
-
-
-        if ( MortonHelper::IsMyParent( morton[ queries[ i ] ], target ) ) 
-          validation[ i ] = 1;
-
-      }
-      return validation;
-
-    }; /** end ContainAny() */
-
-
-
-
-    /** maximum leaf node size */
-    //size_t m;
+    ~ArgumentBase() {};
 
     /** neighbors<distance, gid> (accessed with gids) */
     DistData<STAR, CBLK, pair<T, size_t>> *NN_cblk = NULL;
     DistData<STAR, CIDS, pair<T, size_t>> *NN      = NULL;
 
-    /** morton ids */
-    vector<size_t> morton;
-
     /** tree splitter */
     SPLITTER splitter;
 
-}; /** end class Setup */
+}; /** end class ArgumentBase */
 
 
 
@@ -392,9 +345,9 @@ class Node : public tree::Node<SETUP, NODEDATA>
     Node( SETUP *setup, size_t n, size_t l, 
         Node *parent,
         unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton2node,
-        Lock *treelock, mpi::Comm comm ) 
+        tree::Info* info, mpi::Comm comm ) 
       : tree::Node<SETUP, NODEDATA>( setup, n, l, 
-          parent, morton2node, treelock ) 
+          parent, morton2node, info ) 
     {
       /** Local communicator */
       this->comm = comm;
@@ -407,9 +360,9 @@ class Node : public tree::Node<SETUP, NODEDATA>
     Node( SETUP *setup, size_t n, size_t l, vector<size_t> &gids, 
         Node *parent, 
         unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton2node,
-        Lock *treelock, mpi::Comm comm ) 
+        tree::Info* info, mpi::Comm comm ) 
       : Node<SETUP, NODEDATA>( setup, n, l, parent, 
-          morton2node, treelock, comm ) 
+          morton2node, info, comm ) 
     {
       /** Notice that "gids.size() < n". */
       this->gids = gids;
@@ -935,7 +888,8 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 
       /** Allocate space for point MortonID. */
-      (this->setup).morton.resize( this->getGlobalProblemSize() );
+      //(this->setup).morton.resize( this->getGlobalProblemSize() );
+      this->gid_to_morton_.resize( this->getGlobalProblemSize() );
 
       /** Compute Morton ID for both distributed and local trees. */
       RecursiveMorton( mpitreelists[ 0 ], MortonHelper::Root() );
@@ -954,7 +908,10 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       {
         this->morton2node[ node->getMortonID() ] = node;
         auto *sibling = node->sibling;
-        if ( node->getGlobalDepth() ) this->morton2node[ sibling->getMortonID() ] = sibling;
+        if ( node->getGlobalDepth() ) 
+        {
+          this->morton2node[ sibling->getMortonID() ] = sibling;
+        }
       }
 
       RETURN_IF_ERROR( this->Barrier() );
@@ -995,7 +952,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         for ( auto it : gids ) 
         {
           send_pairs.push_back( 
-              pair<size_t, size_t>( it, this->setup.morton[ it ]) );
+              pair<size_t, size_t>( it, this->gid_to_morton_[ it ]) );
         }
 
         /** Exchange send_pairs.size(). */
@@ -1020,7 +977,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         mpi::Allgatherv( send_pairs.data(), send_size, 
             recv_pairs.data(), recv_size.data(), recv_disp.data(), this->GetComm() );
         /** Fill in all MortonIDs. */
-        for ( auto it : recv_pairs ) this->setup.morton[ it.first ] = it.second;
+        for ( auto it : recv_pairs ) this->gid_to_morton_[ it.first ] = it.second;
       }
       else
       {
@@ -1175,7 +1132,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
     int Index2Rank( size_t gid )
     {
-       return Morton2Rank( this->setup.morton[ gid ] );
+       return Morton2Rank( this->gid_to_morton_[ gid ] );
     }; /** end Morton2Rank() */
 
 
@@ -1400,7 +1357,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** Allocate root( setup, n = 0, l = 0, parent = NULL ). */
       auto *root = new MPINODE( &(this->setup), 
           this->getGlobalProblemSize(), my_depth, gids, NULL, 
-          &(this->morton2node), &(this->lock), my_comm );
+          &(this->morton2node), &(this->info_), my_comm );
       /* Fail to allocate memory. Return with error. */
       if ( root == nullptr )
       {
@@ -1426,7 +1383,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         auto *parent = mpitreelists.back();
         auto *child  = new MPINODE( &(this->setup), 
             (size_t)0, my_depth, parent, 
-            &(this->morton2node), &(this->lock), my_comm );
+            &(this->morton2node), &(this->info_), my_comm );
         /* Fail to allocate memory. Return with error. */
         if ( child == nullptr )
         {

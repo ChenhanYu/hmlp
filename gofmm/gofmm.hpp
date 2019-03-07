@@ -345,14 +345,16 @@ class Configuration
 
 
 
-/** @brief These are data that shared by the whole local tree. */ 
+/** 
+ *  \brief These are data that shared by the whole local tree. 
+ */ 
 template<typename SPDMATRIX, typename SPLITTER, typename T>
-class Setup : public tree::Setup<SPLITTER, T>,
+class Argument : public tree::ArgumentBase<SPLITTER, T>,
               public Configuration<T>
 {
   public:
 
-    Setup() {};
+    Argument() {};
 
     /** Shallow copy from the config. */
     hmlpError_t FromConfiguration( Configuration<T> &config,
@@ -387,10 +389,7 @@ class Setup : public tree::Setup<SPLITTER, T>,
   private:
 
 
-
-
-
-}; /** end class Setup */
+}; /** end class Argument */
 
 
 /** @brief This class contains all GOFMM related data carried by a tree node. */ 
@@ -1135,7 +1134,8 @@ void RowSamples( NODE *node, size_t nsamples )
       for ( auto it : tmp )
       {
         size_t it_gid = it.second;
-        size_t it_morton = setup.morton[ it_gid ];
+        //size_t it_morton = setup.morton[ it_gid ];
+        auto it_morton = node->info_->globalIndexToMortonID( it_gid );
 
         if ( snids.size() >= nsamples ) break;
 
@@ -1200,7 +1200,8 @@ void RowSamples( NODE *node, size_t nsamples )
         //size_t sample = rand() % K.col();
         auto important_sample = K.ImportantSample( 0 );
         size_t sample_gid = important_sample.second;
-        size_t sample_morton = setup.morton[ sample_gid ];
+        //size_t sample_morton = setup.morton[ sample_gid ];
+        auto sample_morton = node->info_->globalIndexToMortonID( sample_gid );
 
         if ( !MortonHelper::IsMyParent( sample_morton, node->getMortonID() ) )
         {
@@ -1212,7 +1213,8 @@ void RowSamples( NODE *node, size_t nsamples )
     {
       for ( size_t sample = 0; sample < K.col(); sample ++ )
       {
-        size_t sample_morton = setup.morton[ sample ];
+        //size_t sample_morton = setup.morton[ sample ];
+        auto sample_morton = node->info_->globalIndexToMortonID( sample );
         if ( !MortonHelper::IsMyParent( sample_morton, node->getMortonID() ) )
         {
           amap.push_back( sample );
@@ -2377,7 +2379,8 @@ multimap<size_t, size_t> NearNodeBallots( NODE *node )
       /** If this gid is valid, then compute its morton */
       if ( neighbor_gid >= 0 && neighbor_gid < NN.col() )
       {
-        size_t neighbor_morton = setup.morton[ neighbor_gid ];
+        //size_t neighbor_morton = setup.morton[ neighbor_gid ];
+        auto neighbor_morton = node->info_->globalIndexToMortonID( neighbor_gid );
         size_t weighted_ballot = 1.0 / ( value + 1E-3 );
         //printf( "gid %lu i %lu neighbor_gid %lu morton %lu\n", gids[ j ], i, 
         //    neighbor_gid, neighbor_morton );
@@ -3314,7 +3317,7 @@ Data<pair<T, size_t>> FindNeighbors( SPDMATRIX &K, SPLITTER splitter,
   {
     /** Instantiation for the randomisze tree. */
     using DATA  = gofmm::NodeData<T>;
-    using SETUP = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+    using SETUP = gofmm::Argument<SPDMATRIX, SPLITTER, T>;
     using TREE  = tree::Tree<SETUP, DATA>;
     /** Derive type NODE from TREE. */
     using NODE  = typename TREE::NODE;
@@ -3343,7 +3346,7 @@ Data<pair<T, size_t>> FindNeighbors( SPDMATRIX &K, SPLITTER splitter,
  *  @brielf template of the compress routine
  */ 
 template<typename SPLITTER, typename RKDTSPLITTER, typename T, typename SPDMATRIX>
-tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
+tree::Tree< gofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, Data<pair<T, size_t>> &NN, 
     SPLITTER splitter, RKDTSPLITTER rkdtsplitter, Configuration<T> &config )
 {
@@ -3363,7 +3366,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     const bool CACHE     = true;
 
     /** instantiation for the Spd-Askit tree */
-    using SETUP = gofmm::Setup<SPDMATRIX, SPLITTER, T>;
+    using SETUP = gofmm::Argument<SPDMATRIX, SPLITTER, T>;
     using DATA  = gofmm::NodeData<T>;
     using TREE  = tree::Tree<SETUP, DATA>;
     /** Derive type NODE from TREE. */
@@ -3558,7 +3561,7 @@ tree::Tree< gofmm::Setup<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
  */ 
 template<typename T, typename SPDMATRIX>
 tree::Tree<
-gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
+gofmm::Argument<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
   gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, T stol, T budget, size_t m, size_t k, size_t s )
 {
@@ -3597,7 +3600,7 @@ gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>,
  */ 
 template<typename T, typename SPDMATRIX>
 tree::Tree<
-  gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
+  gofmm::Argument<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
   gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, T stol, T budget )
 {
@@ -3654,7 +3657,7 @@ tree::Tree<
  */ 
 template<typename T>
 tree::Tree<
-gofmm::Setup<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
+gofmm::Argument<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>, 
   gofmm::NodeData<T>>
 *Compress( SPDMatrix<T> &K, T stol, T budget )
 {
@@ -3909,7 +3912,7 @@ class SimpleGOFMM
 
     /** GOFMM tree */
     tree::Tree<
-      gofmm::Setup<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
+      gofmm::Argument<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
       gofmm::NodeData<T>> *tree_ptr = NULL; 
 
 }; /** end class SimpleGOFMM */
@@ -3933,10 +3936,10 @@ class SimpleGOFMM
 typedef SPDMatrix<double> dSPDMatrix_t;
 typedef SPDMatrix<float > sSPDMatrix_t;
 
-typedef hmlp::gofmm::Setup<SPDMatrix<double>, 
+typedef hmlp::gofmm::Argument<SPDMatrix<double>, 
     centersplit<SPDMatrix<double>, 2, double>, double> dSetup_t;
 
-typedef hmlp::gofmm::Setup<SPDMatrix<float>, 
+typedef hmlp::gofmm::Argument<SPDMatrix<float>, 
     centersplit<SPDMatrix<float >, 2,  float>,  float> sSetup_t;
 
 typedef tree::Tree<dSetup_t, gofmm::NodeData<double>> dTree_t;
