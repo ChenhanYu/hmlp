@@ -336,6 +336,8 @@ class Node : public tree::Node<SETUP, NODEDATA>
     /** Deduce data type from SETUP. */
     typedef typename SETUP::T T;
 
+    typedef tree::Node<SETUP, NODEDATA> NODE;
+
     static const int N_CHILDREN = 2;
 
     /** Inherit all parameters from tree::Node */
@@ -344,10 +346,10 @@ class Node : public tree::Node<SETUP, NODEDATA>
     /** (Default) constructor for inner nodes (gids and n unassigned) */
     Node( SETUP *setup, size_t n, size_t l, 
         Node *parent,
-        unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton2node,
-        tree::Info* info, mpi::Comm comm ) 
+        unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton_to_node_,
+        tree::Info<NODE>* info, mpi::Comm comm ) 
       : tree::Node<SETUP, NODEDATA>( setup, n, l, 
-          parent, morton2node, info ) 
+          parent, morton_to_node_, info ) 
     {
       /** Local communicator */
       this->comm = comm;
@@ -359,10 +361,10 @@ class Node : public tree::Node<SETUP, NODEDATA>
     /** (Default) constructor for root. */
     Node( SETUP *setup, size_t n, size_t l, vector<size_t> &gids, 
         Node *parent, 
-        unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton2node,
-        tree::Info* info, mpi::Comm comm ) 
+        unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton_to_node_,
+        tree::Info<NODE>* info, mpi::Comm comm ) 
       : Node<SETUP, NODEDATA>( setup, n, l, parent, 
-          morton2node, info, comm ) 
+          morton_to_node_, info, comm ) 
     {
       /** Notice that "gids.size() < n". */
       this->gids = gids;
@@ -564,11 +566,11 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 
     /** 
-     *  Inherit parameters n, m, and depth; local treelists and morton2node map.
+     *  Inherit parameters n, m, and depth; local treelists and morton_to_node_ map.
      *
-     *  Explanation for the morton2node map in the distributed tree:
+     *  Explanation for the morton_to_node_ map in the distributed tree:
      *
-     *  morton2node has type map<size_t, tree::Node>, but it actually contains
+     *  morton_to_node_ has type map<size_t, tree::Node>, but it actually contains
      *  "three" different kinds of tree nodes.
      *
      *  1. Local tree nodes (exactly in type tree::Node)
@@ -581,7 +583,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
     /** 
      *  Define local tree node type as NODE. Notice that all pointers in the
-     *  interaction lists and morton2node map will be in this type.
+     *  interaction lists and morton_to_node_ map will be in this type.
      */
     typedef tree::Node<SETUP, NODEDATA> NODE;
 
@@ -895,22 +897,22 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       RecursiveMorton( mpitreelists[ 0 ], MortonHelper::Root() );
 
       /** Clean up the map. */
-      this->morton2node.clear();
+      this->morton_to_node_.clear();
 
-      /** Construct morton2node map for the local tree. */
+      /** Construct morton_to_node_ map for the local tree. */
       for ( auto node : this->treelist_ )
       {
-        this->morton2node[ node->getMortonID() ] = node;
+        this->morton_to_node_[ node->getMortonID() ] = node;
       }
 
-      /**Construc morton2node map for the distributed tree. */ 
+      /**Construc morton_to_node_ map for the distributed tree. */ 
       for ( auto node : this->mpitreelists ) 
       {
-        this->morton2node[ node->getMortonID() ] = node;
+        this->morton_to_node_[ node->getMortonID() ] = node;
         auto *sibling = node->sibling;
         if ( node->getGlobalDepth() ) 
         {
-          this->morton2node[ sibling->getMortonID() ] = sibling;
+          this->morton_to_node_[ sibling->getMortonID() ] = sibling;
         }
       }
 
@@ -920,6 +922,17 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       return HMLP_ERROR_SUCCESS;
     }; /** end TreePartition() */
 
+
+    NODE* createLocalEssentialNodeWithMortonID( mortonType morton )
+    {
+      /* The target LET node does not exist. */
+      if ( !this->morton_to_node_.count( morton ) )
+      {
+        /** Create a LET node. */
+        this->morton_to_node_[ morton ] = new NODE( morton );
+      }
+      return this->morton_to_node_[ morton ];
+    };
 
     /** Assign MortonID to each node recursively. */
     hmlpError_t RecursiveMorton( MPINODE *node, MortonHelper::Recursor r ) 
@@ -1294,7 +1307,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** Describe the dependencies of rank p. */
       for ( auto it : NearSentToRank[ p ] )
       {
-        auto *node = this->morton2node[ it ];
+        auto *node = this->morton_to_node_[ it ];
         node->DependencyAnalysis( R, task );
       }
       /** Try to enqueue if there is no dependency. */
@@ -1307,7 +1320,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** Describe the dependencies of rank p. */
       for ( auto it : FarSentToRank[ p ] )
       {
-        auto *node = this->morton2node[ it ];
+        auto *node = this->morton_to_node_[ it ];
         node->DependencyAnalysis( R, task );
       }
       /** Try to enqueue if there is no dependency. */
@@ -1357,7 +1370,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       /** Allocate root( setup, n = 0, l = 0, parent = NULL ). */
       auto *root = new MPINODE( &(this->setup), 
           this->getGlobalProblemSize(), my_depth, gids, NULL, 
-          &(this->morton2node), &(this->info_), my_comm );
+          &(this->morton_to_node_), &(this->info), my_comm );
       /* Fail to allocate memory. Return with error. */
       if ( root == nullptr )
       {
@@ -1383,7 +1396,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         auto *parent = mpitreelists.back();
         auto *child  = new MPINODE( &(this->setup), 
             (size_t)0, my_depth, parent, 
-            &(this->morton2node), &(this->info_), my_comm );
+            &(this->morton_to_node_), &(this->info), my_comm );
         /* Fail to allocate memory. Return with error. */
         if ( child == nullptr )
         {

@@ -1135,7 +1135,7 @@ void RowSamples( NODE *node, size_t nsamples )
       {
         size_t it_gid = it.second;
         //size_t it_morton = setup.morton[ it_gid ];
-        auto it_morton = node->info_->globalIndexToMortonID( it_gid );
+        auto it_morton = node->info->globalIndexToMortonID( it_gid );
 
         if ( snids.size() >= nsamples ) break;
 
@@ -1201,7 +1201,7 @@ void RowSamples( NODE *node, size_t nsamples )
         auto important_sample = K.ImportantSample( 0 );
         size_t sample_gid = important_sample.second;
         //size_t sample_morton = setup.morton[ sample_gid ];
-        auto sample_morton = node->info_->globalIndexToMortonID( sample_gid );
+        auto sample_morton = node->info->globalIndexToMortonID( sample_gid );
 
         if ( !MortonHelper::IsMyParent( sample_morton, node->getMortonID() ) )
         {
@@ -1214,7 +1214,7 @@ void RowSamples( NODE *node, size_t nsamples )
       for ( size_t sample = 0; sample < K.col(); sample ++ )
       {
         //size_t sample_morton = setup.morton[ sample ];
-        auto sample_morton = node->info_->globalIndexToMortonID( sample );
+        auto sample_morton = node->info->globalIndexToMortonID( sample );
         if ( !MortonHelper::IsMyParent( sample_morton, node->getMortonID() ) )
         {
           amap.push_back( sample );
@@ -2380,7 +2380,7 @@ multimap<size_t, size_t> NearNodeBallots( NODE *node )
       if ( neighbor_gid >= 0 && neighbor_gid < NN.col() )
       {
         //size_t neighbor_morton = setup.morton[ neighbor_gid ];
-        auto neighbor_morton = node->info_->globalIndexToMortonID( neighbor_gid );
+        auto neighbor_morton = node->info->globalIndexToMortonID( neighbor_gid );
         size_t weighted_ballot = 1.0 / ( value + 1E-3 );
         //printf( "gid %lu i %lu neighbor_gid %lu morton %lu\n", gids[ j ], i, 
         //    neighbor_gid, neighbor_morton );
@@ -2447,7 +2447,7 @@ void NearSamples( NODE *node )
       /** Exit if we have enough. */ 
       if ( node->NNNearNodes.size() >= n_nodes * budget ) break;
       /** Insert */
-      auto *target = (*node->morton2node)[ (*it).second ];
+      auto *target = node->info->mortonToNodePointer( (*it).second );
       node->NNNearNodeMortonIDs.insert( (*it).second );
       node->NNNearNodes.insert( target );
     }
@@ -2502,7 +2502,7 @@ void SymmetrizeNearInteractions( TREE & tree )
     auto & NearMortonIDs = node->NNNearNodeMortonIDs;
     for ( auto & it : NearMortonIDs )
     {
-      auto *target = tree.morton2node[ it ];
+      auto *target = tree.info.mortonToNodePointer( it );
       target->NNNearNodes.insert( node );
       target->NNNearNodeMortonIDs.insert( it );
     }

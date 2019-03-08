@@ -636,13 +636,14 @@ class SplitTask : public Task
 //};
 
 
-//template<typename NODE>
+template<typename NODE>
 class Info
 {
   public:
 
-    Info( std::vector<mortonType>& gid_to_morton )
-      : gid_to_morton_( gid_to_morton )
+    Info( std::vector<mortonType>& gid_to_morton, 
+        std::unordered_map<mortonType, NODE*>& morton_to_node )
+      : gid_to_morton_( gid_to_morton ), morton_to_node_( morton_to_node )
     {
     }
 
@@ -650,6 +651,15 @@ class Info
     {
       return gid_to_morton_[ gid ];
     };
+
+    NODE* mortonToNodePointer( mortonType morton )
+    {
+      if ( morton_to_node_.count( morton ) == 0 )
+      {
+        return nullptr;
+      }
+      return morton_to_node_[ morton ];
+    }
 
     /**
      *  @brief Check if this node contain any query using morton.
@@ -689,6 +699,8 @@ class Info
 
       std::vector<mortonType>& gid_to_morton_;
 
+      std::unordered_map<mortonType, NODE*>& morton_to_node_;
+
 }; /* end class Info */
 
 
@@ -715,8 +727,8 @@ class Node : public ReadWrite
     };
 
     Node( ARGUMENT* setup, sizeType n, depthType l, 
-        Node *parent, unordered_map<mortonType, Node*> *morton2node, Info* info )
-      : info_( info )
+        Node *parent, unordered_map<mortonType, Node*> *morton_to_node_, Info<Node>* info )
+      : info( info )
     {
       this->setup = setup;
       this->n = n;
@@ -724,14 +736,13 @@ class Node : public ReadWrite
       this->treelist_id = 0;
       this->gids.resize( n );
       this->parent = parent;
-      this->morton2node = morton2node;
-      //this->treelock = treelock;
+      this->morton_to_node_ = morton_to_node_;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
     Node( ARGUMENT *setup, sizeType n, depthType l, vector<size_t> gids,
-      Node *parent, unordered_map<mortonType, Node*> *morton2node, Info* info )
-      : info_( info )
+      Node *parent, unordered_map<mortonType, Node*> *morton_to_node_, Info<Node>* info )
+      : info( info )
     {
       this->setup = setup;
       this->n = n;
@@ -739,8 +750,7 @@ class Node : public ReadWrite
       this->treelist_id = 0;
       this->gids = gids;
       this->parent = parent;
-      this->morton2node = morton2node;
-      //this->treelock = treelock;
+      this->morton_to_node_ = morton_to_node_;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
   
@@ -748,7 +758,7 @@ class Node : public ReadWrite
     ~Node() {};
 
 
-    Info* info_ = nullptr;
+    Info<Node>* info = nullptr;
 
 
 
@@ -828,12 +838,12 @@ class Node : public ReadWrite
       for ( auto gid : queries )
       {
         //if ( MortonHelper::IsMyParent( setup->morton[ gid ], getMortonID() ) ) 
-        if ( MortonHelper::IsMyParent( info_->globalIndexToMortonID( gid ), getMortonID() ) ) 
+        if ( MortonHelper::IsMyParent( info->globalIndexToMortonID( gid ), getMortonID() ) ) 
         {
 #ifdef DEBUG_TREE
           printf( "\n" );
           //hmlp_print_binary( setup->morton[ queries[ gid ] ] );
-          hmlp_print_binary( info_->globalIndexToMortonID( queries[ gid ] ) );
+          hmlp_print_binary( info->globalIndexToMortonID( queries[ gid ] ) );
           hmlp_print_binary( morton_ );
           printf( "\n" );
 #endif
@@ -960,16 +970,13 @@ class Node : public ReadWrite
 
 
 
-    /** Lock for exclusively modifying or accessing the tree.  */ 
-    //Lock *treelock = NULL;
-
     /** All points to other tree nodes.  */ 
     Node *kids[ N_CHILDREN ];
     Node *lchild  = NULL; 
     Node *rchild  = NULL;
     Node *sibling = NULL;
     Node *parent  = NULL;
-    unordered_map<mortonType, Node*> *morton2node = NULL;
+    unordered_map<mortonType, Node*> *morton_to_node_ = NULL;
 
 
 
@@ -1061,6 +1068,8 @@ class Tree
 
     /* Data shared by all tree nodes. */
     ARGUMENT setup;
+    /** */
+    Info<NODE> info;
 
     /** \return number of total indices */
     sizeType getGlobalProblemSize() const noexcept
@@ -1068,18 +1077,15 @@ class Tree
       return glb_num_of_indices_;
     }
 
-    /** Mutex for exclusive right to modify treelist and morton2node. */ 
-    Lock lock;
-
     /** 
      *  Map MortonID to tree nodes. When distributed tree inherits Tree,
-     *  morton2node will also contain distributed and LET node.
+     *  morton_to_node_ will also contain distributed and LET node.
      */
-    unordered_map<mortonType, NODE*> morton2node;
+    unordered_map<mortonType, NODE*> morton_to_node_;
 
     /** (Default) Tree constructor. */
     Tree() 
-      : info_( gid_to_morton_ )
+      : info( gid_to_morton_, morton_to_node_ )
     {};
 
     /** (Default) Tree destructor. */
@@ -1091,7 +1097,7 @@ class Tree
       {
         if ( treelist_[ i ] ) delete treelist_[ i ];
       }
-      morton2node.clear();
+      morton_to_node_.clear();
       //printf( "end ~Tree() shared\n" );
     };
 
@@ -1226,7 +1232,7 @@ class Tree
       /** Allocate all tree nodes in advance. */
       beg = omp_get_wtime();
       HANDLE_ERROR( allocateNodes_( new NODE( &setup, getGlobalProblemSize(), 
-              0, global_index_distribution_, NULL, &morton2node, &info_ ) ) );
+              0, global_index_distribution_, NULL, &morton_to_node_, &info ) ) );
       alloc_time = omp_get_wtime() - beg;
 
       /** Recursive spliting (topdown). */
@@ -1244,11 +1250,11 @@ class Tree
       /* Compute the offset (related to the left most) for drawing interaction. */
       RETURN_IF_ERROR( RecursiveOffset( getLocalRoot(), 0 ) );
 
-      /** Construct morton2node map for the local tree. */
-      morton2node.clear();
+      /** Construct morton_to_node_ map for the local tree. */
+      morton_to_node_.clear();
       for ( size_t i = 0; i < treelist_.size(); i ++ )
       {
-        morton2node[ treelist_[ i ]->getMortonID() ] = treelist_[ i ];
+        morton_to_node_[ treelist_[ i ]->getMortonID() ] = treelist_[ i ];
       }
 
       /** Adgust gids to the appropriate order.  */
@@ -1567,7 +1573,7 @@ class Tree
         node->DependencyCleanUp();
       }
       /* Remove dependencies of each LET nodes. */
-      for ( auto it : morton2node )
+      for ( auto it : morton_to_node_ )
       {
         auto *node = it.second;
         if ( node ) node->DependencyCleanUp();
@@ -1636,8 +1642,8 @@ class Tree
     std::vector<indexType> no_index_exist_;
     /** */
     std::vector<mortonType> gid_to_morton_;
-    /** */
-    Info info_;
+    /** Mutex for exclusive right to modify treelist and morton_to_node_. */ 
+    Lock lock_;
     /**
      *  \brief Clean up the tree.
      *  \returns the error code
@@ -1647,15 +1653,15 @@ class Tree
     hmlpError_t clean_()
     {
       /* Delete all local and LET tree nodes. */
-      for ( auto morton_and_node_ptr : morton2node ) 
+      for ( auto morton_and_node_ptr : morton_to_node_ ) 
       {
         if ( morton_and_node_ptr.second != nullptr )
         {
           delete morton_and_node_ptr.second;
         }
       }
-      /* Clear morton2node_, treelist_, and global_index_distribution_. */
-      morton2node.clear();
+      /* Clear morton_to_node__, treelist_, and global_index_distribution_. */
+      morton_to_node_.clear();
       treelist_.clear();
       global_index_distribution_.clear();
       /* Reset loc_height_ and glb_height_. */
@@ -1707,7 +1713,7 @@ class Tree
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
             node->kids[ i ] = new NODE( &setup, 0, node->getGlobalDepth() + 1, 
-                node, &morton2node, &info_ );
+                node, &morton_to_node_, &info );
             /* Fail to allocate memory. Return with error. */
             if ( node->kids[ i ] == nullptr )
             {

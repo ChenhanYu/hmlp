@@ -1105,7 +1105,7 @@ class S2SReduceTask2 : public Task
         vector<LETNODE*> Sources;
         for ( auto &it : arg->DistFar[ p ] )
         {
-          Sources.push_back( (*arg->morton2node)[ it.first ] );
+          Sources.push_back( (arg->info->mortonToNodePointer( it.first )) );
           if ( Sources.size() == batch_size )
           {
             subtasks.push_back( new S2STask2<NODE, LETNODE, T>() );
@@ -1478,7 +1478,7 @@ class L2LReduceTask2 : public Task
         vector<NODE*> Sources;
         for ( auto &it : arg->DistNear[ p ] )
         {
-          Sources.push_back( (*arg->morton2node)[ it.first ] );
+          Sources.push_back( (arg->info->mortonToNodePointer( it.first )) );
           if ( Sources.size() == batch_size )
           {
             subtasks.push_back( new L2LTask2<NODE, T>() );
@@ -1603,13 +1603,7 @@ void FindNearInteractions( TREE &tree )
        */ 
       #pragma omp critical
       {
-        if ( !(*node->morton2node).count( (*it).second ) )
-        {
-          /** Create a LET node. */
-          (*node->morton2node)[ (*it).second ] = new NODE( (*it).second );
-        }
-        /** Insert */
-        auto *target = (*node->morton2node)[ (*it).second ];
+        auto *target = tree.createLocalEssentialNodeWithMortonID( (*it).second );
         node->NNNearNodeMortonIDs.insert( (*it).second );
         node->NNNearNodes.insert( target );
       } /** end pragma omp critical */
@@ -1720,14 +1714,12 @@ void SymmetrizeNearInteractions( TREE & tree )
       /** Check if query node is allocated? */ 
       #pragma omp critical
       {
-        auto* node = tree.morton2node[ query.first ];
-        if ( !tree.morton2node.count( query.second ) )
-        {
-          tree.morton2node[ query.second ] = new NODE( query.second );
-        }
+        auto* node = tree.info.mortonToNodePointer( query.first );
+        auto *target = tree.createLocalEssentialNodeWithMortonID( query.second );
+
         node->data.lock.Acquire();
         {
-          node->NNNearNodes.insert( tree.morton2node[ query.second ] );
+          node->NNNearNodes.insert( target );
           node->NNNearNodeMortonIDs.insert( query.second );
         }
         node->data.lock.Release();
@@ -1769,11 +1761,8 @@ void SymmetrizeFarInteractions( TREE & tree )
         /** Allocate if not exist */
         #pragma omp critical
         {
-          if ( !tree.morton2node.count( *it ) )
-          {
-            tree.morton2node[ *it ] = new NODE( *it );
-          }
-          node->NNFarNodes.insert( tree.morton2node[ *it ] );
+          auto *target = tree.createLocalEssentialNodeWithMortonID( *it );
+          node->NNFarNodes.insert( target );
         }
         int dest = tree.Morton2Rank( *it );
         if ( dest >= tree.GetCommSize() ) printf( "%8lu dest %d\n", *it, dest );
@@ -1808,11 +1797,8 @@ void SymmetrizeFarInteractions( TREE & tree )
         /** Allocate if not exist */
         #pragma omp critical
         {
-          if ( !tree.morton2node.count( *it ) )
-          {
-            tree.morton2node[ *it ] = new NODE( *it );
-          }
-          node->NNFarNodes.insert( tree.morton2node[ *it ] );
+          auto *target = tree.createLocalEssentialNodeWithMortonID( *it );
+          node->NNFarNodes.insert( target );
         }
         int dest = tree.Morton2Rank( *it );
         if ( dest >= tree.GetCommSize() ) printf( "%8lu dest %d\n", *it, dest ); fflush( stdout );
@@ -1842,16 +1828,12 @@ void SymmetrizeFarInteractions( TREE & tree )
       /** Check if query node is allocated?  */
       #pragma omp critical
       {
-        if ( !tree.morton2node.count( query.second ) )
-        {
-          tree.morton2node[ query.second ] = new NODE( query.second );
-          //printf( "rank %d, %8lu level %lu creates far LET %8lu (symmetrize)\n", 
-          //    comm_rank, node->morton, node->l, query.second );
-        }
-        auto* node = tree.morton2node[ query.first ];
+        auto* node = tree.info.mortonToNodePointer( query.first );
+        auto *target = tree.createLocalEssentialNodeWithMortonID( query.second );
         node->data.lock.Acquire();
         {
-          node->NNFarNodes.insert( tree.morton2node[ query.second ] );
+          //node->NNFarNodes.insert( tree.info.mortonToNodePointer( query.second ) );
+          node->NNFarNodes.insert( target );
           node->NNFarNodeMortonIDs.insert( query.second );
         }
         node->data.lock.Release();
@@ -2051,7 +2033,7 @@ pair<double, double> NonCompressedRatio( TREE &tree )
     {
       for ( auto nearID : tar->NNNearNodeMortonIDs )
       {
-        auto *src = tree.morton2node[ nearID ];
+        auto *src = tree.info.mortonToNodePointer( nearID );
         assert( src );
         double m = tar->gids.size(); 
         double n = src->gids.size();
@@ -2062,7 +2044,7 @@ pair<double, double> NonCompressedRatio( TREE &tree )
 
     for ( auto farID : tar->NNFarNodeMortonIDs )
     {
-      auto *src = tree.morton2node[ farID ];
+      auto *src = tree.info.mortonToNodePointer( farID );
       assert( src );
       double m = tar->data.skels.size(); 
       double n = src->data.skels.size(); 
@@ -2077,7 +2059,7 @@ pair<double, double> NonCompressedRatio( TREE &tree )
     if ( !tar->child || tar->GetCommRank() ) continue;
     for ( auto farID : tar->NNFarNodeMortonIDs )
     {
-      auto *src = tree.morton2node[ farID ];
+      auto *src = tree.info.mortonToNodePointer( farID );
       assert( src );
       double m = tar->data.skels.size(); 
       double n = src->data.skels.size(); 
@@ -2106,7 +2088,7 @@ void PackNear( TREE &tree, string option, int p,
 
   for ( auto it : tree.NearSentToRank[ p ] )
   {
-    auto *node = tree.morton2node[ it ];
+    auto* node = tree.info.mortonToNodePointer( it );
     auto &gids = node->gids;
     if ( !option.compare( string( "leafgids" ) ) )
     {
@@ -2128,7 +2110,7 @@ void PackNear( TREE &tree, string option, int p,
     #pragma omp parallel for
     for ( size_t i = 0; i < tree.NearSentToRank[ p ].size(); i ++ )
     {
-      auto *node = tree.morton2node[ tree.NearSentToRank[ p ][ i ] ];
+      auto* node = tree.info.mortonToNodePointer( tree.NearSentToRank[ p ][ i ] );
       auto &gids = node->gids;
       auto &w_view = node->data.w_view;
       auto  w_leaf = w_view.toData();
@@ -2151,7 +2133,7 @@ void UnpackLeaf( TREE &tree, string option, int p,
 
   for ( auto it : tree.NearRecvFromRank[ p ] )
   {
-    auto *node = tree.morton2node[ it.first ];
+    auto* node = tree.info.mortonToNodePointer( it.first );
     if ( !option.compare( string( "leafgids" ) ) )
     {
       auto &gids = node->gids;
@@ -2192,7 +2174,7 @@ void PackFar( TREE &tree, string option, int p,
 {
   for ( auto it : tree.FarSentToRank[ p ] )
   {
-    auto *node = tree.morton2node[ it ];
+    auto* node = tree.info.mortonToNodePointer( it );
     auto &skels = node->data.skels;
     if ( !option.compare( string( "skelgids" ) ) )
     {
@@ -2226,7 +2208,7 @@ void PackWeights( TREE &tree, int p,
 {
   for ( auto it : tree.NearSentToRank[ p ] )
   {
-    auto *node = tree.morton2node[ it ];
+    auto* node = tree.info.mortonToNodePointer( it );
     auto w_leaf = node->data.w_view.toData();
     sendbuffs.insert( sendbuffs.end(), w_leaf.begin(), w_leaf.end() );
     sendsizes.push_back( w_leaf.size() );
@@ -2245,7 +2227,7 @@ void UnpackWeights( TREE &tree, int p,
   for ( auto it : tree.NearRecvFromRank[ p ] )
   {
     /** Get LET node pointer. */
-    auto *node = tree.morton2node[ it.first ];
+    auto* node = tree.info.mortonToNodePointer( it.first );
     /** Number of right hand sides */
     size_t nrhs = tree.setup.w->col();
     auto &w_leaf = node->data.w_leaf;
@@ -2270,7 +2252,7 @@ void PackSkeletons( TREE &tree, int p,
   for ( auto it : tree.FarSentToRank[ p ] )
   {
     /** Get LET node pointer. */
-    auto *node = tree.morton2node[ it ];
+    auto* node = tree.info.mortonToNodePointer( it );
     auto &skels = node->data.skels;
     sendbuffs.insert( sendbuffs.end(), skels.begin(), skels.end() );
     sendsizes.push_back( skels.size() );
@@ -2289,7 +2271,7 @@ void UnpackSkeletons( TREE &tree, int p,
   for ( auto it : tree.FarRecvFromRank[ p ] )
   {
     /** Get LET node pointer. */
-    auto *node = tree.morton2node[ it.first ];
+    auto* node = tree.info.mortonToNodePointer( it.first );
     auto &skels = node->data.skels;
     size_t i = it.second;
     skels.clear();
@@ -2312,7 +2294,7 @@ void PackSkeletonWeights( TREE &tree, int p,
 {
   for ( auto it : tree.FarSentToRank[ p ] )
   {
-    auto *node = tree.morton2node[ it ];
+    auto* node = tree.info.mortonToNodePointer( it );
     auto &w_skel = node->data.w_skel;
     sendbuffs.insert( sendbuffs.end(), w_skel.begin(), w_skel.end() );
     sendsizes.push_back( w_skel.size() );
@@ -2331,7 +2313,7 @@ void UnpackSkeletonWeights( TREE &tree, int p,
   for ( auto it : tree.FarRecvFromRank[ p ] )
   {
     /** Get LET node pointer. */
-    auto *node = tree.morton2node[ it.first ];
+    auto *node = tree.info.mortonToNodePointer( it.first );
     /** Number of right hand sides */
     size_t nrhs = tree.setup.w->col();
     auto &w_skel = node->data.w_skel;
@@ -2363,7 +2345,7 @@ void UnpackFar( TREE &tree, string option, int p,
   for ( auto it : tree.FarRecvFromRank[ p ] )
   {
     /** Get LET node pointer */
-    auto *node = tree.morton2node[ it.first ];
+    auto* node = tree.info.mortonToNodePointer( it.first );
     if ( !option.compare( string( "skelgids" ) ) )
     {
       auto &skels = node->data.skels;
@@ -3020,7 +3002,7 @@ class CacheFarNodesTask : public Task
       {
         for ( auto &it : node->DistFar[ p ] )
         {
-          auto *src = (*node->morton2node)[ it.first ];
+          auto* src = node->info->mortonToNodePointer( it.first );
           auto &I = node->data.skels;
           auto &J = src->data.skels;
           it.second = K( I, J );
@@ -3070,7 +3052,7 @@ class CacheNearNodesTask : public Task
       {
         for ( auto &it : node->DistNear[ p ] )
         {
-          auto *src = (*node->morton2node)[ it.first ];
+          auto* src = tree.info.mortonToNodePointer( it.first );
           auto &I = node->gids;
           auto &J = src->gids;
           it.second = K( I, J );
@@ -3152,7 +3134,7 @@ void DistRowSamples( NODE *node, size_t nsamples )
     /** validation */
     vector<size_t> vconsensus( nsamples, 0 );
     //vector<size_t> validation = node->setup->ContainAny( candidates, node->getMortonID() );
-    vector<size_t> validation = node->info_->ContainAny( candidates, node->getMortonID() );
+    vector<size_t> validation = node->info->ContainAny( candidates, node->getMortonID() );
 
     /** reduce validation */
     mpi::Reduce( validation.data(), vconsensus.data(), nsamples, MPI_SUM, 0, comm );
