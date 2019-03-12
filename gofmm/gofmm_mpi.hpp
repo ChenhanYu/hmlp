@@ -4254,6 +4254,16 @@ mpitree::Tree<mpigofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 }; /** end Compress() */
 
 
+template<typename TREE, typename T>
+hmlpError_t errorAtGlobalIndex( TREE &tree, size_t gid, Data<T> potentials )
+{
+  int comm_rank, comm_size;
+  RETURN_IF_ERROR( mpi::Comm_rank( tree.GetComm(), &comm_rank ) );
+  RETURN_IF_ERROR( mpi::Comm_size( tree.GetComm(), &comm_size ) );
+
+  /* Return with no error. */
+  return HMLP_ERROR_SUCCESS;
+}
 
 template<typename TREE, typename T>
 pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials )
@@ -4273,7 +4283,7 @@ pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials )
   /** Bcast gid and its parameter to all MPI processes. */
   K.BcastIndices( I, gid % comm_size, tree.GetComm() );
 
-	Data<T> Kab = K( I, J );
+  Data<T> Kab = K( I, J );
 
   auto loc_exact = potentials;
   auto glb_exact = potentials;
@@ -4302,6 +4312,8 @@ pair<T, T> ComputeError( TREE &tree, size_t gid, Data<T> potentials )
 
   return ret;
 }; /** end ComputeError() */
+
+
 
 
 
@@ -4348,17 +4360,44 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
     printf( "Accuracy report\n" );
     printf( "========================================================\n");
   }
-  /** All statistics. */
+
+  /*
+   * logs[ 0 ]: elementwise ASKIT error (off-diagonal with sparse correction)
+   * logs[ 1 ]: elementwise   HSS error (off-diagonal low-rank)
+   * logs[ 2 ]: elementwise GOFMM error (off-diagonal with blocked sparse correction)
+   * logs[ 3 ]: sqaure summation error || u' - u ||_2^2
+   * logs[ 4 ]: sqaure 2-norm || u ||_2^2
+   */ 
+  Data<double> logs( ntest, 5, 0 );
+  std::vector<indexType> tested_global_indices( ntest );
+
+  /* Select gid to test with Round-Robin. */
+  for ( indexType i = 0; i < ntest; i ++ )
+  {
+    tested_global_indices[ i ] = ( i * n ) / ntest;
+  }
+
+
+//  /* 
+//   * statistics[ 0 ]: avg elementwise ASKIT error (off-diagonal with sparse correction)
+//   * statistics[ 1 ]: avg elementwise   HSS error (off-diagonal low-rank)
+//   * statistics[ 2 ]: avg elementwise GOFMM error (off-diagonal with blocked sparse correction)
+//   */
+//  std::vector<double> statistics( 5, 0 );
+
   T nnerr_avg = 0.0, nonnerr_avg = 0.0, fmmerr_avg = 0.0;
   T sse_2norm = 0.0, ssv_2norm = 0.0;
   /** Loop over all testing gids and right hand sides. */
-  for ( size_t i = 0; i < ntest; i ++ )
+  for ( size_t i = 0; i < tested_global_indices.size(); i ++ )
   {
-    size_t tar = i * n / ntest;
+    size_t tar = tested_global_indices[ i ];
     Data<T> potentials( (size_t)1, nrhs );
-    if ( rank == ( tar % size ) ) potentials = u_rblk( vector<size_t>( 1, tar ), all_rhs );
-    /** Bcast potentials to all MPI processes. */
-    mpi::Bcast( potentials.data(), nrhs, tar % size, tree.GetComm() );
+    if ( rank == ( tar % size ) ) 
+    {
+      potentials = u_rblk( vector<size_t>( 1, tar ), all_rhs );
+    }
+    /* Bcast potentials to all MPI processes. */
+    HANDLE_ERROR( mpi::Bcast( potentials.data(), nrhs, tar % size, tree.GetComm() ) );
     /** Compare potentials with exact MATVEC. */
     auto sse_ssv = mpigofmm::ComputeError( tree, tar, potentials );
     /** Compute element-wise 2-norm error. */

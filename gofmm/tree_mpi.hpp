@@ -344,12 +344,9 @@ class Node : public tree::Node<SETUP, NODEDATA>
 
 
     /** (Default) constructor for inner nodes (gids and n unassigned) */
-    Node( SETUP *setup, size_t n, size_t l, 
-        Node *parent,
-        unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton_to_node_,
+    Node( SETUP *setup, size_t n, size_t l, Node *parent,
         tree::Info<NODE>* info, mpi::Comm comm ) 
-      : tree::Node<SETUP, NODEDATA>( setup, n, l, 
-          parent, morton_to_node_, info ) 
+      : tree::Node<SETUP, NODEDATA>( setup, n, l, parent, info ) 
     {
       /** Local communicator */
       this->comm = comm;
@@ -359,12 +356,9 @@ class Node : public tree::Node<SETUP, NODEDATA>
     };
 
     /** (Default) constructor for root. */
-    Node( SETUP *setup, size_t n, size_t l, vector<size_t> &gids, 
-        Node *parent, 
-        unordered_map<size_t, tree::Node<SETUP, NODEDATA>*> *morton_to_node_,
+    Node( SETUP *setup, size_t n, size_t l, vector<size_t> &gids, Node *parent, 
         tree::Info<NODE>* info, mpi::Comm comm ) 
-      : Node<SETUP, NODEDATA>( setup, n, l, parent, 
-          morton_to_node_, info, comm ) 
+      : Node<SETUP, NODEDATA>( setup, n, l, parent, info, comm ) 
     {
       /** Notice that "gids.size() < n". */
       this->gids = gids;
@@ -1369,8 +1363,8 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
       depthType my_depth = 0;
       /** Allocate root( setup, n = 0, l = 0, parent = NULL ). */
       auto *root = new MPINODE( &(this->setup), 
-          this->getGlobalProblemSize(), my_depth, gids, NULL, 
-          &(this->morton_to_node_), &(this->info), my_comm );
+          this->getGlobalProblemSize(), my_depth, gids, nullptr, 
+          &(this->info), my_comm );
       /* Fail to allocate memory. Return with error. */
       if ( root == nullptr )
       {
@@ -1396,7 +1390,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         auto *parent = mpitreelists.back();
         auto *child  = new MPINODE( &(this->setup), 
             (size_t)0, my_depth, parent, 
-            &(this->morton_to_node_), &(this->info), my_comm );
+            &(this->info), my_comm );
         /* Fail to allocate memory. Return with error. */
         if ( child == nullptr )
         {

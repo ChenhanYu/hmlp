@@ -376,264 +376,7 @@ class SplitTask : public Task
 
     void Execute( Worker* user_worker ) { arg->Split(); };
 
-}; /** end class SplitTask */
-
-
-///**
-// *  @brief This is the default ball tree splitter. Given coordinates,
-// *         compute the direction from the two most far away points.
-// *         Project all points to this line and split into two groups
-// *         using a median select.
-// *
-// *  @para
-// *
-// *  @TODO  Need to explit the parallelism.
-// */ 
-//template<int N_SPLIT, typename T>
-//struct centersplit
-//{
-//  /** closure */
-//  Data<T> *Coordinate = NULL;
-//
-//  inline vector<vector<size_t> > operator()
-//  ( 
-//    vector<size_t>& gids
-//  ) const 
-//  {
-//    assert( N_SPLIT == 2 );
-//
-//    Data<T> &X = *Coordinate;
-//    size_t d = X.row();
-//    size_t n = gids.size();
-//
-//    T rcx0 = 0.0, rx01 = 0.0;
-//    size_t x0, x1;
-//    vector<vector<size_t> > split( N_SPLIT );
-//
-//
-//    vector<T> centroid = combinatorics::Mean( d, n, X, gids );
-//    vector<T> direction( d );
-//    vector<T> projection( n, 0.0 );
-//
-//    //printf( "After Mean\n" );
-//
-//    // Compute the farest x0 point from the centroid
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      T rcx = 0.0;
-//      for ( size_t p = 0; p < d; p ++ )
-//      {
-//        T tmp = X( p, gids[ i ] ) - centroid[ p ];
-//
-//
-//        rcx += tmp * tmp;
-//      }
-//      if ( rcx > rcx0 ) 
-//      {
-//        rcx0 = rcx;
-//        x0 = i;
-//      }
-//    }
-//
-//    //printf( "After Farest\n" );
-//    //for ( int p = 0; p < d; p ++ )
-//    //{
-//    //}
-//    //printf( "\n" );
-//
-//    // Compute the farest point x1 from x0
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      T rxx = 0.0;
-//      for ( size_t p = 0; p < d; p ++ )
-//      {
-//				T tmp = X( p, gids[ i ] ) - X( p, gids[ x0 ] );
-//        rxx += tmp * tmp;
-//      }
-//      if ( rxx > rx01 )
-//      {
-//        rx01 = rxx;
-//        x1 = i;
-//      }
-//    }
-//
-//
-//
-//    // Compute direction
-//    for ( size_t p = 0; p < d; p ++ )
-//    {
-//      direction[ p ] = X( p, gids[ x1 ] ) - X( p, gids[ x0 ] );
-//    }
-//
-//    //printf( "After Direction\n" );
-//    //for ( int p = 0; p < d; p ++ )
-//    //{
-//    //  printf( "%5.2lf ", direction[ p ] );
-//    //}
-//    //printf( "\n" );
-//    //exit( 1 );
-//
-//
-//
-//    // Compute projection
-//    projection.resize( n, 0.0 );
-//    for ( size_t i = 0; i < n; i ++ )
-//      for ( size_t p = 0; p < d; p ++ )
-//        projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
-//
-//    //printf( "After Projetion\n" );
-//    //for ( int p = 0; p < d; p ++ )
-//    //{
-//    //  printf( "%5.2lf ", projec[ p ] );
-//    //}
-//    //printf( "\n" );
-//
-//
-//
-//    /** Parallel median search */
-//    T median;
-//    
-//    if ( 1 )
-//    {
-//      median = combinatorics::Select( n, n / 2, projection );
-//    }
-//    else
-//    {
-//      auto proj_copy = projection;
-//      sort( proj_copy.begin(), proj_copy.end() );
-//      median = proj_copy[ n / 2 ];
-//    }
-//
-//
-//
-//    split[ 0 ].reserve( n / 2 + 1 );
-//    split[ 1 ].reserve( n / 2 + 1 );
-//
-//    /** TODO: Can be parallelized */
-//    vector<size_t> middle;
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
-//      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
-//      else                                 middle.push_back( i );
-//    }
-//
-//    for ( size_t i = 0; i < middle.size(); i ++ )
-//    {
-//      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
-//      else                                          split[ 1 ].push_back( middle[ i ] );
-//    }
-//
-//
-//    //printf( "split median %lf left %d right %d\n", 
-//    //    median,
-//    //    (int)split[ 0 ].size(), (int)split[ 1 ].size() );
-//
-//    //if ( split[ 0 ].size() > 0.6 * n ||
-//    //     split[ 1 ].size() > 0.6 * n )
-//    //{
-//    //  for ( int i = 0; i < n; i ++ )
-//    //  {
-//    //    printf( "%E ", projection[ i ] );
-//    //  } 
-//    //  printf( "\n" );
-//    //}
-//
-//
-//    return split; 
-//  };
-//};
-//
-//
-///**
-// *  @brief This is the splitter used in the randomized tree. Given
-// *         coordinates, project all points onto a random direction
-// *         and split into two groups using a median select.
-// *
-// *  @para
-// *
-// *  @TODO  Need to explit the parallelism.
-// */ 
-//template<int N_SPLIT, typename T>
-//struct randomsplit
-//{
-//  /** Closure */
-//  Data<T> *Coordinate = NULL;
-//
-//  inline vector<vector<size_t> > operator()
-//  ( 
-//    vector<size_t>& gids
-//  ) const 
-//  {
-//    assert( N_SPLIT == 2 );
-//
-//    Data<T> &X = *Coordinate;
-//    size_t d = X.row();
-//    size_t n = gids.size();
-//
-//    vector<vector<size_t> > split( N_SPLIT );
-//
-//    vector<T> direction( d );
-//    vector<T> projection( n, 0.0 );
-//
-//    // Compute random direction
-//    static default_random_engine generator;
-//    normal_distribution<T> distribution;
-//    for ( int p = 0; p < d; p ++ )
-//    {
-//      direction[ p ] = distribution( generator );
-//    }
-//
-//    // Compute projection
-//    projection.resize( n, 0.0 );
-//    for ( size_t i = 0; i < n; i ++ )
-//      for ( size_t p = 0; p < d; p ++ )
-//        projection[ i ] += X( p, gids[ i ] ) * direction[ p ];
-//
-//
-//    // Parallel median search
-//    // T median = Select( n, n / 2, projection );
-//    auto proj_copy = projection;
-//    sort( proj_copy.begin(), proj_copy.end() );
-//    T median = proj_copy[ n / 2 ];
-//
-//    split[ 0 ].reserve( n / 2 + 1 );
-//    split[ 1 ].reserve( n / 2 + 1 );
-//
-//    /** TODO: Can be parallelized */
-//    vector<size_t> middle;
-//    for ( size_t i = 0; i < n; i ++ )
-//    {
-//      if      ( projection[ i ] < median ) split[ 0 ].push_back( i );
-//      else if ( projection[ i ] > median ) split[ 1 ].push_back( i );
-//      else                                 middle.push_back( i );
-//    }
-//
-//    for ( size_t i = 0; i < middle.size(); i ++ )
-//    {
-//      if ( split[ 0 ].size() <= split[ 1 ].size() ) split[ 0 ].push_back( middle[ i ] );
-//      else                                          split[ 1 ].push_back( middle[ i ] );
-//    }
-//
-//
-//    //printf( "split median %lf left %d right %d\n", 
-//    //    median,
-//    //    (int)split[ 0 ].size(), (int)split[ 1 ].size() );
-//
-//    //if ( split[ 0 ].size() > 0.6 * n ||
-//    //     split[ 1 ].size() > 0.6 * n )
-//    //{
-//    //  for ( int i = 0; i < n; i ++ )
-//    //  {
-//    //    printf( "%E ", projection[ i ] );
-//    //  } 
-//    //  printf( "\n" );
-//    //}
-//
-//
-//    return split; 
-//  };
-//};
+}; /* end class SplitTask */
 
 
 template<typename NODE>
@@ -726,8 +469,7 @@ class Node : public ReadWrite
       this->morton_ = morton; 
     };
 
-    Node( ARGUMENT* setup, sizeType n, depthType l, 
-        Node *parent, unordered_map<mortonType, Node*> *morton_to_node_, Info<Node>* info )
+    Node( ARGUMENT* setup, sizeType n, depthType l, Node *parent, Info<Node>* info )
       : info( info )
     {
       this->setup = setup;
@@ -736,12 +478,10 @@ class Node : public ReadWrite
       this->treelist_id = 0;
       this->gids.resize( n );
       this->parent = parent;
-      this->morton_to_node_ = morton_to_node_;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
 
-    Node( ARGUMENT *setup, sizeType n, depthType l, vector<size_t> gids,
-      Node *parent, unordered_map<mortonType, Node*> *morton_to_node_, Info<Node>* info )
+    Node( ARGUMENT *setup, sizeType n, depthType l, vector<size_t> gids, Node *parent, Info<Node>* info )
       : info( info )
     {
       this->setup = setup;
@@ -750,7 +490,6 @@ class Node : public ReadWrite
       this->treelist_id = 0;
       this->gids = gids;
       this->parent = parent;
-      this->morton_to_node_ = morton_to_node_;
       for ( int i = 0; i < N_CHILDREN; i++ ) kids[ i ] = NULL;
     };
   
@@ -976,7 +715,6 @@ class Node : public ReadWrite
     Node *rchild  = NULL;
     Node *sibling = NULL;
     Node *parent  = NULL;
-    unordered_map<mortonType, Node*> *morton_to_node_ = NULL;
 
 
 
@@ -1026,9 +764,9 @@ class Node : public ReadWrite
 
 
 /**
- *  @brief Data and setup that are shared with all nodes.
- *
- *
+ *  \brief Data and setup that are shared with all nodes.
+ *  \param [in] SPLITTER: the type of the tree splitter
+ *  \param [in] DATATYPE: the datatype
  */ 
 template<typename SPLITTER, typename DATATYPE>
 class ArgumentBase
@@ -1043,10 +781,6 @@ class ArgumentBase
 
     /** neighbors<distance, gid> (accessed with gids) */
     Data<pair<T, size_t>> *NN = NULL;
-
-    /** MortonIDs of all indices. */
-    //vector<mortonType> morton;
-
     /** Tree splitter */
     SPLITTER splitter;
 
@@ -1060,37 +794,30 @@ class Tree
   public:
 
     typedef typename ARGUMENT::T T;
-    typedef typename std::pair<T, size_t> neigType;
+    typedef typename std::pair<T, indexType> neigType;
     /** Define our tree node type as NODE. */
     typedef Node<ARGUMENT, NODEDATA> NODE;
-
+    /** Number of children or each tree node is always 2. */
     static const int N_CHILDREN = 2;
 
-    /* Data shared by all tree nodes. */
+    /** Data shared by all tree nodes. */
     ARGUMENT setup;
-    /** */
+    /** Tree information: maps between global indices and MortonID */
     Info<NODE> info;
 
-    /** \return number of total indices */
-    sizeType getGlobalProblemSize() const noexcept
-    {
-      return glb_num_of_indices_;
-    }
-
     /** 
-     *  Map MortonID to tree nodes. When distributed tree inherits Tree,
-     *  morton_to_node_ will also contain distributed and LET node.
+     *  \brief Tree constructor 
      */
-    unordered_map<mortonType, NODE*> morton_to_node_;
-
-    /** (Default) Tree constructor. */
     Tree() 
       : info( gid_to_morton_, morton_to_node_ )
-    {};
-
-    /** (Default) Tree destructor. */
+    {
+    };
+    /** 
+     *  \breif Tree destructor 
+     */
     ~Tree()
     {
+      //HANDLE_ERROR( clean_() );
       //printf( "~Tree() shared treelist.size() %lu treequeue.size() %lu\n",
       //    treelist.size(), treequeue.size() );
       for ( int i = 0; i < treelist_.size(); i ++ )
@@ -1100,7 +827,13 @@ class Tree
       morton_to_node_.clear();
       //printf( "end ~Tree() shared\n" );
     };
-
+    /** 
+     *  \returns number of total indices 
+     */
+    sizeType getGlobalProblemSize() const noexcept
+    {
+      return glb_num_of_indices_;
+    };
     /**
      *  \returns the local tree height
      */ 
@@ -1108,7 +841,6 @@ class Tree
     { 
       return loc_height_; 
     };
-
     /**
      *  \returns the global tree height
      */ 
@@ -1116,13 +848,18 @@ class Tree
     { 
       return glb_height_; 
     };
-
-
+    /**
+     *  \returns the number of local tree nodes
+     */ 
     sizeType getLocalNodeSize() const noexcept
     {
       return treelist_.size();
-    }
+    };
 
+    /**
+     *  \param [in] i: the local index
+     *  \return the ith (top-down order) node pointer in the local tree
+     */ 
     NODE* getLocalNodeAt( sizeType i )
     {
       if ( i >= getLocalNodeSize() )
@@ -1132,6 +869,9 @@ class Tree
       return treelist_[ i ];
     }
 
+    /**
+     *  \returns the local root node pointer 
+     */ 
     NODE* getLocalRoot() 
     {
       if ( getLocalNodeSize() == 0 ) 
@@ -1141,11 +881,17 @@ class Tree
       return treelist_.front();
     }
 
-    NODE* getLocalNodeAt( depthType depth, sizeType i )
+    /**
+     *  \brief Get the ith local tree node pointer at certain depth
+     *  \param [in] loc_depth: the local depth
+     *  \param [in] i: the left-to-right index at loc_depth
+     *  \returns the local root node pointer 
+     */ 
+    NODE* getLocalNodeAt( depthType loc_depth, sizeType i )
     {
       /* Compute number of nodes at this depth. */
-      int n_nodes = 1 << depth;
-      if ( depth > getLocalHeight() )
+      int n_nodes = 1 << loc_depth;
+      if ( loc_depth > getLocalHeight() )
       {
         throw std::out_of_range( "accessing invalid local tree depth" );
       }
@@ -1232,7 +978,7 @@ class Tree
       /** Allocate all tree nodes in advance. */
       beg = omp_get_wtime();
       HANDLE_ERROR( allocateNodes_( new NODE( &setup, getGlobalProblemSize(), 
-              0, global_index_distribution_, NULL, &morton_to_node_, &info ) ) );
+              0, global_index_distribution_, nullptr, &info ) ) );
       alloc_time = omp_get_wtime() - beg;
 
       /** Recursive spliting (topdown). */
@@ -1642,6 +1388,8 @@ class Tree
     std::vector<indexType> no_index_exist_;
     /** */
     std::vector<mortonType> gid_to_morton_;
+    /** The map from MortonID to the tree node pointer.  */
+    unordered_map<mortonType, NODE*> morton_to_node_;
     /** Mutex for exclusive right to modify treelist and morton_to_node_. */ 
     Lock lock_;
     /**
@@ -1712,8 +1460,7 @@ class Tree
         {
           for ( int i = 0; i < N_CHILDREN; i ++ )
           {
-            node->kids[ i ] = new NODE( &setup, 0, node->getGlobalDepth() + 1, 
-                node, &morton_to_node_, &info );
+            node->kids[ i ] = new NODE( &setup, 0, node->getGlobalDepth() + 1, node, &info );
             /* Fail to allocate memory. Return with error. */
             if ( node->kids[ i ] == nullptr )
             {

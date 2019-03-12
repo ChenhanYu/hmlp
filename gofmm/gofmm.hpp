@@ -2937,7 +2937,7 @@ typedef enum
  *
  */ 
 template<typename NODE, typename T>
-hmlpError_t Evaluate( NODE *node, const size_t gid, Data<T> & potentials, const vector<size_t> & neighbors )
+hmlpError_t evaluateWithPruning( NODE *node, const size_t gid, Data<T> & potentials, const vector<size_t> & neighbors )
 {
   auto &K = *node->setup->K;
   auto &w = *node->setup->w;
@@ -2971,8 +2971,8 @@ hmlpError_t Evaluate( NODE *node, const size_t gid, Data<T> & potentials, const 
     }
     else
     {
-      RETURN_IF_ERROR( Evaluate( lchild, gid, potentials, neighbors ) );
-      RETURN_IF_ERROR( Evaluate( rchild, gid, potentials, neighbors ) );
+      RETURN_IF_ERROR( evaluateWithPruning( lchild, gid, potentials, neighbors ) );
+      RETURN_IF_ERROR( evaluateWithPruning( rchild, gid, potentials, neighbors ) );
     }
   }
   else 
@@ -2987,8 +2987,9 @@ hmlpError_t Evaluate( NODE *node, const size_t gid, Data<T> & potentials, const 
         w_skel.data(),     w_skel.row(),
       1.0, potentials.data(), potentials.row() );          
   }
+  /* Return with no error. */
   return HMLP_ERROR_SUCCESS;
-}; /** end Evaluate() */
+}; /* end evaluateWithPruning() */
 
 
 /** @brief Evaluate potentials( gid ) using treecode.
@@ -2996,10 +2997,9 @@ hmlpError_t Evaluate( NODE *node, const size_t gid, Data<T> & potentials, const 
  *
  **/
 template<typename TREE, typename T>
-hmlpError_t Evaluate( TREE &tree, const size_t gid, Data<T> & potentials, const evaluateOption_t option )
+hmlpError_t evaluateAtGlobalIndex( TREE &tree, const size_t gid, Data<T>& potentials, const evaluateOption_t option )
 {
   /* Put gid itself into the neighbor list. */
-  vector<size_t> neighbors( 1, gid );
   auto &w = *tree.setup.w;
   /* Clean up and properly initialize the output vector. */
   potentials.clear();
@@ -3011,22 +3011,28 @@ hmlpError_t Evaluate( TREE &tree, const size_t gid, Data<T> & potentials, const 
     {
       auto & all_neighbors = *tree.setup.NN;
       /* Get the number of neighbors. */
-      size_t kappa = all_neighbors.row();
-      neighbors.reserve( kappa + 1 );
+      sizeType num_neighbors = all_neighbors.row();
+      /* The pruning list contains all neighbors. */
+      std::vector<indexType> pruning_list;
       /* Insert all neighbor gids into neighbors. */
-      for ( size_t i = 0; i < kappa; i ++ )
+      for ( sizeType i = 0; i < num_neighbors; i ++ )
       {
-        neighbors.push_back( all_neighbors( i, gid ).second );
+        pruning_list.push_back( all_neighbors( i, gid ).second );
       }
-      return Evaluate( tree.getLocalRoot(), gid, potentials, neighbors );
+      /* Top-down recursive traverasl. */
+      return evaluateWithPruning( tree.getLocalRoot(), gid, potentials, pruning_list );
     }
     case EVALUATE_OPTION_SELF_PRUNING:
     {
-      return Evaluate( tree.getLocalRoot(), gid, potentials, neighbors );
+      /* The pruning list only contain { gid }. */
+      std::vector<indexType> pruning_list( 1, gid );
+      /* Top-down recursive traverasl. */
+      return evaluateWithPruning( tree.getLocalRoot(), gid, potentials, pruning_list );
     }
     case EVALUATE_OPTION_EXACT:
     {
-      return HMLP_ERROR_INVALID_VALUE;
+      /* Top-down recursive traverasl. */
+      return evaluateWithPruning( tree.getLocalRoot(), gid, potentials, tree.getOwnedIndices() );
     }
     default:
     {
@@ -3034,21 +3040,17 @@ hmlpError_t Evaluate( TREE &tree, const size_t gid, Data<T> & potentials, const 
     }
   }
   return HMLP_ERROR_INVALID_VALUE;
-}; /* end Evaluate() */
+}; /* end evaluateAtGlobalIndex() */
 
 
 /**
  *  @brief ComputeAll
  */ 
-template<
-  bool     USE_RUNTIME = true, 
-  bool     USE_OMP_TASK = false, 
-  bool     NNPRUNE = true, 
-  bool     CACHE = true, 
-  typename TREE, 
-  typename T>
+template<typename TREE, typename T>
 Data<T> Evaluate( TREE &tree, Data<T> &weights )
 {
+  const bool NNPRUNE = true;
+  const bool CACHE = true; 
   const bool AUTO_DEPENDENCY = true;
 
   /** get type NODE = TREE::NODE */
@@ -3138,53 +3140,6 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
     SKELTOSKELTASK  skeltoskeltask;
     SKELTONODETASK  skeltonodetask;
 
-
-//    if ( USE_OMP_TASK )
-//    {
-//      assert( !USE_RUNTIME );
-//      tree.template traverseLeafs<false, false>( leaftoleaftask1 );
-//      tree.template traverseLeafs<false, false>( leaftoleaftask2 );
-//      tree.template traverseLeafs<false, false>( leaftoleaftask3 );
-//      tree.template traverseLeafs<false, false>( leaftoleaftask4 );
-//      tree.template UpDown<true, true, true>( nodetoskeltask, skeltoskeltask, skeltonodetask );
-//    }
-//    else
-//    {
-//      assert( !USE_OMP_TASK );
-//
-//#ifdef HMLP_USE_CUDA
-//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleafver2task );
-//#else
-//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask1 );
-//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask2 );
-//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask3 );
-//      tree.template traverseLeafs<AUTO_DEPENDENCY, USE_RUNTIME>( leaftoleaftask4 );
-//#endif
-//
-//      /** check scheduler */
-//      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
-//      tree.template traverseUp       <AUTO_DEPENDENCY, USE_RUNTIME>( nodetoskeltask );
-//      tree.template traverseUnOrdered<AUTO_DEPENDENCY, USE_RUNTIME>( skeltoskeltask );
-//      tree.template traverseDown     <AUTO_DEPENDENCY, USE_RUNTIME>( skeltonodetask );
-//      /** check scheduler */
-//      //hmlp_get_runtime_handle()->scheduler->ReportRemainingTime();
-//
-//      if ( USE_RUNTIME ) hmlp_run();
-//
-//
-//
-//#ifdef HMLP_USE_CUDA
-//      hmlp::Device *device = hmlp_get_device( 0 );
-//      for ( int stream_id = 0; stream_id < 10; stream_id ++ )
-//        device->wait( stream_id );
-//      //potentials.PrefetchD2H( device, 0 );
-//      potentials.FetchD2H( device );
-//#endif
-//    }
-
-
-
-
     /** CPU-GPU hybrid uses a different kind of L2L task */
 #ifdef HMLP_USE_CUDA
     tree.traverseLeafs( leaftoleafver2task );
@@ -3198,7 +3153,6 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
     tree.traverseUnOrdered( skeltoskeltask );
     tree.traverseDown( skeltonodetask );
     tree.ExecuteAllTasks();
-    //if ( USE_RUNTIME ) hmlp_run();
 
 
     double d2h_beg_t = omp_get_wtime();
@@ -3766,7 +3720,7 @@ hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
 
   /** Evaluate u ~ K * w. */
   Data<T> w( n, nrhs ); w.rand();
-  auto u = Evaluate<true, false, true, true>( tree, w );
+  auto u = Evaluate( tree, w );
 
   /** Examine accuracy with 3 setups, ASKIT, HODLR, and GOFMM. */
   T nnerr_avg = 0.0;
@@ -3780,11 +3734,11 @@ hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
     size_t tar = i * n / ntest;
     //size_t tar = i * 1000;
     Data<T> potentials;
-    /** ASKIT treecode with NN pruning. */
-    RETURN_IF_ERROR( Evaluate( tree, tar, potentials, EVALUATE_OPTION_NEIGHBOR_PRUNING ) );
+    /* ASKIT treecode with NN pruning. */
+    RETURN_IF_ERROR( evaluateAtGlobalIndex( tree, tar, potentials, EVALUATE_OPTION_NEIGHBOR_PRUNING ) );
     auto nnerr = ComputeError( tree, tar, potentials );
-    /** ASKIT treecode without NN pruning. */
-    RETURN_IF_ERROR( Evaluate( tree, tar, potentials, EVALUATE_OPTION_SELF_PRUNING ) );
+    /* ASKIT treecode without NN pruning. */
+    RETURN_IF_ERROR( evaluateAtGlobalIndex( tree, tar, potentials, EVALUATE_OPTION_SELF_PRUNING ) );
     auto nonnerr = ComputeError( tree, tar, potentials );
     /** Get results from GOFMM */
     //potentials = u( vector<size_t>( i ), all_rhs );
