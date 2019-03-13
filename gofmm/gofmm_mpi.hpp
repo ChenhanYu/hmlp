@@ -3052,7 +3052,7 @@ class CacheNearNodesTask : public Task
       {
         for ( auto &it : node->DistNear[ p ] )
         {
-          auto* src = tree.info.mortonToNodePointer( it.first );
+          auto* src = node->info->mortonToNodePointer( it.first );
           auto &I = node->gids;
           auto &J = src->gids;
           it.second = K( I, J );
