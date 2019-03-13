@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+### Fix
+
+* Hmlp/gofmm/gofmm_mpi.hpp:3055:27: error: expected primary-expression before ‘.’ token. [Chenhan Yu]
 
 ## 0.1.0
 
