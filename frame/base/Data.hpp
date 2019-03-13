@@ -195,63 +195,63 @@ class Data : public ReadWrite, public vector<T, Allocator>
       }
     };
 
-		void write( std::string &filename )
-		{
-			ofstream myFile ( filename.data(), ios::out | ios::binary );
+    void write( std::string &filename )
+    {
+      ofstream myFile ( filename.data(), ios::out | ios::binary );
       myFile.write( (char*)(this->data()), this->size() * sizeof(T) );
-		};
+    };
 
     template<int SKIP_ATTRIBUTES = 0, bool TRANS = false>
-		void readmtx( size_t m, size_t n, string &filename )
-		{
-      assert( this->m == m );
-      assert( this->n == n );
-      assert( this->size() == m * n );
+      void readmtx( size_t m, size_t n, string &filename )
+      {
+        assert( this->m == m );
+        assert( this->n == n );
+        assert( this->size() == m * n );
 
-      cout << filename << endl;
+        cout << filename << endl;
 
-      ifstream file( filename.data() );
-			string line;
-			if ( file.is_open() )
-			{
-				size_t j = 0;
-				while ( getline( file, line ) )
-				{
-					if ( j == 0 ) printf( "%s\n", line.data() );
+        ifstream file( filename.data() );
+        string line;
+        if ( file.is_open() )
+        {
+          size_t j = 0;
+          while ( getline( file, line ) )
+          {
+            if ( j == 0 ) printf( "%s\n", line.data() );
 
 
-					if ( j % 1000 == 0 ) printf( "%4lu ", j ); fflush( stdout );
-					if ( j >= n )
-					{
-						printf( "more data then execpted n %lu\n", n );
-					}
+            if ( j % 1000 == 0 ) printf( "%4lu ", j ); fflush( stdout );
+            if ( j >= n )
+            {
+              printf( "more data then execpted n %lu\n", n );
+            }
 
-          /** Replace all ',' and ';' with white space ' ' */
-					replace( line.begin(), line.end(), ',', '\n' );
-					replace( line.begin(), line.end(), ';', '\n' );
+            /** Replace all ',' and ';' with white space ' ' */
+            replace( line.begin(), line.end(), ',', '\n' );
+            replace( line.begin(), line.end(), ';', '\n' );
 
-					istringstream iss( line );
+            istringstream iss( line );
 
-					for ( size_t i = 0; i < m + SKIP_ATTRIBUTES; i ++ )
-					{
-						T tmp;
-						if ( !( iss >> tmp ) )
-						{
-							printf( "line %lu does not have enough elements (only %lu)\n", j, i );
-					    printf( "%s\n", line.data() );
-							exit( 1 );
-						}
-						if ( i >= SKIP_ATTRIBUTES )
-						{
-							if ( TRANS ) (*this)[ j * m + i ] = tmp;
-							else         (*this)[ i * n + j ] = tmp;
-						}
-					}
-					j ++;
-				}
-				printf( "\nfinish readmatrix %s\n", filename.data() );
-			}
-		};
+            for ( size_t i = 0; i < m + SKIP_ATTRIBUTES; i ++ )
+            {
+              T tmp;
+              if ( !( iss >> tmp ) )
+              {
+                printf( "line %lu does not have enough elements (only %lu)\n", j, i );
+                printf( "%s\n", line.data() );
+                exit( 1 );
+              }
+              if ( i >= SKIP_ATTRIBUTES )
+              {
+                if ( TRANS ) (*this)[ j * m + i ] = tmp;
+                else         (*this)[ i * n + j ] = tmp;
+              }
+            }
+            j ++;
+          }
+          printf( "\nfinish readmatrix %s\n", filename.data() );
+        }
+      };
 
 
 
@@ -270,19 +270,87 @@ class Data : public ReadWrite, public vector<T, Allocator>
       return ( this->data() + j * m );
     };
 
-		T getvalue( size_t i ) { return (*this)[ i ]; };
+    T getvalue( size_t i ) { return (*this)[ i ]; };
 
-		void setvalue( size_t i, T v ) { (*this)[ i ] = v; };
+    void setvalue( size_t i, T v ) { (*this)[ i ] = v; };
 
-		T getvalue( size_t i, size_t j ) { return (*this)( i, j ); };
+    T getvalue( size_t i, size_t j ) { return (*this)( i, j ); };
 
-		void setvalue( size_t i, size_t j, T v ) { (*this)( i, j ) = v; };
+    void setvalue( size_t i, size_t j, T v ) { (*this)( i, j ) = v; };
 
     /** ESSENTIAL: return number of coumns */
     size_t row() const noexcept { return m; };
 
     /** ESSENTIAL: return number of rows */
     size_t col() const noexcept { return n; };
+
+
+    Data<T> operator + ( const Data<T>& b ) const
+    {
+      if ( b.row() != this->row() || b.col != this->col() )
+      {
+        throw std::invalid_argument( "Operator Data::operator + must have the same shape" );
+      }
+      auto a = (*this);
+      for ( size_t i = 0; i < a.size(); i ++ )
+      {
+        a[ i ] += b[ i ];
+      }
+      return a;
+    }
+
+    Data<T> operator - ( const Data<T>& b ) const
+    {
+      if ( b.row() != this->row() || b.col() != this->col() )
+      {
+        throw std::invalid_argument( "Operator Data::operator - must have the same shape" );
+      }
+      auto a = (*this);
+      for ( size_t i = 0; i < a.size(); i ++ )
+      {
+        a[ i ] -= b[ i ];
+      }
+      return a;
+    }
+
+    double squaredFrobeniusNorm() const noexcept
+    {
+      double sqfnrm = 0;
+      for ( auto v : *this ) 
+      {
+        sqfnrm += v * v;
+      }
+      return sqfnrm;
+    }
+
+    double sumOfSquaredError( const Data<T>& b ) const
+    {
+      auto c = (*this) - b;
+      return c.squaredFrobeniusNorm();
+    }
+
+    double relativeError( const Data<T>& b )
+    {
+      auto c = (*this) - b;
+      double c_nrm = c.squaredFrobeniusNorm();
+      double b_nrm = b.squaredFrobeniusNorm();
+
+      if ( b_nrm )
+      {
+        return std::sqrt( c_nrm ) / std::sqrt( b_nrm );
+      }
+      else
+      {
+        if ( c_nrm ) 
+        {
+          return 1;
+        }
+        else
+        {
+          return 0;
+        }
+      }
+    };
 
     /** ESSENTIAL: return an element */
     T& operator()( size_t i, size_t j )       { return (*this)[ m * j + i ]; };

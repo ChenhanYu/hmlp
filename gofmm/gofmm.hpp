@@ -3619,12 +3619,7 @@ gofmm::Argument<SPDMatrix<T>, centersplit<SPDMatrix<T>, 2, T>, T>,
 }; /** end Compress() */
 
 
-
-
-
-
-
-  template<typename NODE, typename T>
+template<typename NODE, typename T>
 void ComputeError( NODE *node, Data<T> potentials )
 {
   auto &K = *node->setup->K;
@@ -3712,9 +3707,25 @@ hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   size_t n = tree.getGlobalProblemSize();
   /** Shrink ntest if ntest > n. */
   if ( ntest > n ) ntest = n;
-  /** all_rhs = [ 0, 1, ..., nrhs - 1 ]. */
-  vector<size_t> all_rhs( nrhs );
-  for ( size_t rhs = 0; rhs < nrhs; rhs ++ ) all_rhs[ rhs ] = rhs;
+  /** all_right_hand_sides = [ 0, 1, ..., nrhs - 1 ]. */
+  std::vector<indexType> all_right_hand_sides( nrhs );
+  for ( indexType rhs = 0; rhs < nrhs; rhs ++ )
+  {
+    all_right_hand_sides[ rhs ] = rhs;
+  }
+
+  /*
+   * logs[ 0 ]: sqaure 2-norm || u ||_2^2
+   * logs[ 1 ]: elementwise ASKIT error (off-diagonal with sparse correction)
+   * logs[ 2 ]: ASKIT SSE || u' - u ||_2^2
+   * logs[ 3 ]: elementwise   HSS error (off-diagonal low-rank)
+   * logs[ 4 ]: HSS   SSE || u' - u ||_2^2
+   * logs[ 5 ]: elementwise GOFMM error (off-diagonal with blocked sparse correction)
+   * logs[ 6 ]: GOFMM SSE || u' - u ||_2^2
+   */
+  hmlp::Data<double> logs( ntest, 7, 0 );
+
+
 
   //auto A = tree.CheckAllInteractions();
 
@@ -3732,35 +3743,43 @@ hmlpError_t SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   for ( size_t i = 0; i < ntest; i ++ )
   {
     size_t tar = i * n / ntest;
-    //size_t tar = i * 1000;
-    Data<T> potentials;
+
+    Data<T> u_ref, u_askit, u_hodlr, u_gofmm;
+    /* Evaluate the exact K(tar,:) * w(:,:). */
+    RETURN_IF_ERROR( evaluateAtGlobalIndex( tree, tar, u_ref, EVALUATE_OPTION_EXACT ) );
+    /* Compute the squared Frobenius norm of the reference. */ 
+    logs( i, 0 ) = u_ref.squaredFrobeniusNorm();
     /* ASKIT treecode with NN pruning. */
-    RETURN_IF_ERROR( evaluateAtGlobalIndex( tree, tar, potentials, EVALUATE_OPTION_NEIGHBOR_PRUNING ) );
-    auto nnerr = ComputeError( tree, tar, potentials );
-    /* ASKIT treecode without NN pruning. */
-    RETURN_IF_ERROR( evaluateAtGlobalIndex( tree, tar, potentials, EVALUATE_OPTION_SELF_PRUNING ) );
-    auto nonnerr = ComputeError( tree, tar, potentials );
-    /** Get results from GOFMM */
-    //potentials = u( vector<size_t>( i ), all_rhs );
-    for ( size_t p = 0; p < potentials.col(); p ++ )
-    {
-      potentials[ p ] = u( tar, p );
-    }
-    auto fmmerr = ComputeError( tree, tar, potentials );
+    RETURN_IF_ERROR( evaluateAtGlobalIndex( tree, tar, u_askit, EVALUATE_OPTION_NEIGHBOR_PRUNING ) );
+    /* Compute the relatve error for ASKIT. */
+    logs( i, 1 ) = u_askit.relativeError( u_ref );
+    /* Compute ASKIT's square summation error (SSE). */
+    logs( i, 2 ) = u_askit.sumOfSquaredError( u_ref );
+    /* ASKIT treecode without NN pruning (HSS). */
+    RETURN_IF_ERROR( evaluateAtGlobalIndex( tree, tar, u_hodlr, EVALUATE_OPTION_SELF_PRUNING ) );
+    /* Compute the relatve error for HSS. */
+    logs( i, 3 ) = u_hodlr.relativeError( u_ref );
+    /* Compute HSS's square summation error (SSE). */
+    logs( i, 4 ) = u_hodlr.sumOfSquaredError( u_ref );
+    /* Get results from GOFMM */
+    u_gofmm = u( std::vector<indexType>( 1, tar ), all_right_hand_sides );
+    /* Compute the relatve error for GOFMM. */
+    logs( i, 5 ) = u_gofmm.relativeError( u_ref );
+    /* Compute GOFMM's square summation error (SSE). */
+    logs( i, 6 ) = u_gofmm.sumOfSquaredError( u_ref );
 
     /** Only print 10 values. */
     if ( i < 10 )
     {
-      printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-          tar, nnerr, nonnerr, fmmerr );
+      printf( "gid %6lu, ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", tar, logs( i, 1 ), logs( i, 3 ), logs( i, 5 ) );
     }
-    nnerr_avg += nnerr;
-    nonnerr_avg += nonnerr;
-    fmmerr_avg += fmmerr;
+    nnerr_avg += logs( i, 1 );
+    nonnerr_avg += logs( i, 3 );
+    fmmerr_avg += logs( i, 5 );
   }
   printf( "========================================================\n");
-  printf( "            ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
-      nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
+  printf( "Elementwise ASKIT %3.1E, HODLR %3.1E, GOFMM %3.1E\n", 
+        nnerr_avg / ntest , nonnerr_avg / ntest, fmmerr_avg / ntest );
   printf( "========================================================\n");
 
   /* HSS ULV factorization currently does not support level-restriction.  */ 
