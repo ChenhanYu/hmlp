@@ -43,7 +43,7 @@ class PVFMMKernelMatrix : public VirtualMatrix<T>
   public:
 
     PVFMMKernelMatrix( size_t M, size_t N ) 
-			: K( M, N ), VirtualMatrix<T>( M, N ), cache( M )
+			: K( M, N ), VirtualMatrix<T>( M, N )//, cache( M )
 	  {
 			/** assertion */
       PVFMM_ASSERT( M == N );
@@ -55,7 +55,8 @@ class PVFMMKernelMatrix : public VirtualMatrix<T>
 
     virtual T operator() ( size_t i, size_t j ) 
 		{
-			auto KIJ = cache.Read( i, j );
+			//auto KIJ = cache.Read( i, j );
+			Data<T> KIJ;
 			/** if cache missed */
 			if ( !KIJ.size() ) 
 			{
@@ -63,7 +64,7 @@ class PVFMMKernelMatrix : public VirtualMatrix<T>
 				double beg = omp_get_wtime();
 				KIJ[ 0 ] = K( i, j );
 				double KIJ_t = omp_get_wtime() - beg;
-        cache.Write( i, j, std::pair<T, double>( KIJ[ 0 ], KIJ_t ) );
+        //cache.Write( i, j, std::pair<T, double>( KIJ[ 0 ], KIJ_t ) );
 			}
 			return KIJ[ 0 ];
     };
@@ -110,7 +111,7 @@ class PVFMMKernelMatrix : public VirtualMatrix<T>
 		/** precompute and store all diagonal entries */
 		Data<T> D;
 
-		Cache2D<128, 16384, T> cache;
+		//Cache2D<128, 16384, T> cache;
 };
 
 }; /** end namespace hmlp */
