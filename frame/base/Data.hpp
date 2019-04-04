@@ -896,18 +896,17 @@ class SparseData : public ReadWrite
 
 
 
-#ifdef HMLP_MIC_AVX512
-template<class T, class Allocator = hbw::allocator<T> >
-#else
 template<class T, class Allocator = std::allocator<T> >
-#endif
 class OOCData : public ReadWrite
 {
   public:
 
     OOCData() {};
 
-    OOCData( size_t m, size_t n, string filename ) { Set( m, n, filename ); };
+    OOCData( size_t m, size_t n, string filename ) 
+    { 
+      HANDLE_ERROR( initFromFile( m, n, filename ) ); 
+    };
 
     ~OOCData()
     {
@@ -918,33 +917,44 @@ class OOCData : public ReadWrite
       printf( "finish readmatrix %s\n", filename.data() );
     };
 
-    void Set( size_t m, size_t n, string filename )
+    hmlpError_t initFromFile( size_t m, size_t n, std::string filename )
     {
       this->m = m;
       this->n = n;
       this->filename = filename;
-      /** Open the file */
+
+      /* Get the file size in bytes. */
+      uint64_t file_size = (uint64_t)m * (uint64_t)n * sizeof(T);
+
+      /* Open the file */
       fd = open( filename.data(), O_RDONLY, 0 ); 
-      assert( fd != -1 );
+      /* Return error if fail to open the file. */
+      if ( fd == -1 )
+      {
+        fprintf( stderr, "fail to open %s\n", filename.data() );
+        return HMLP_ERROR_INVALID_VALUE;
+      }
 #ifdef __APPLE__
-      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), 
-          PROT_READ, MAP_PRIVATE, fd, 0 );
-#else /** Assume Linux */
-      mmappedData = (T*)mmap( NULL, m * n * sizeof(T), 
-          PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
+      mmappedData = (T*)mmap( nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0 );
+#else /* Assume Linux */
+      mmappedData = (T*)mmap( nullptr, file_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0 );
 #endif
-      assert( mmappedData != MAP_FAILED );
-      cout << filename << endl;
+      /* Return error if fail to map to the file. */
+      if ( mmappedData != MAP_FAILED )
+      {
+        fprintf( stderr, "mmap %s with %lu bytes failure\n", filename.data(), file_size );
+        return HMLP_ERROR_ALLOC_FAILED;
+      }
+      /* Return with no error. */
+      return HMLP_ERROR_SUCCESS;
     };
 
-    //template<typename TINDEX>
     T operator()( size_t i, size_t j ) const 
     {
       assert( i < m && j < n );
       return mmappedData[ j * m + i ];
     };
 
-    //template<typename TINDEX>
     Data<T> operator()( const vector<size_t>& I, const vector<size_t>& J ) const 
     {
       Data<T> KIJ( I.size(), J.size() );
@@ -962,23 +972,29 @@ class OOCData : public ReadWrite
       return sample; 
     };
 
-    size_t row() const noexcept { return m; };
+    size_t row() const noexcept 
+    { 
+      return m; 
+    };
 
     size_t col() const noexcept { return n; };
 
     template<typename TINDEX>
     double flops( TINDEX na, TINDEX nb ) { return 0.0; };
 
-  private:
+  protected:
+
+    /** Whether the data has been initialized? */
+    bool is_init_ = false;
 
     size_t m = 0;
 
     size_t n = 0;
 
-    string filename;
+    std::string filename;
 
     /** Use mmap */
-    T *mmappedData = NULL;
+    T *mmappedData = nullptr;
 
     int fd = -1;
 

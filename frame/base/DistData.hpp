@@ -430,42 +430,57 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
     DistData( size_t m, size_t n, mpi::Comm comm, string &filename ) 
       : DistData<STAR, CBLK, T>( m, n, comm )
     {
-      read( m, n, filename );
+      try
+      {
+        HANDLE_ERROR( read( m, n, filename ) );
+      }
+      catch ( const std::exception & e )
+      {
+        std::cerr << e.what() << std::endl;
+        exit( 1 );
+      }
     };
 
     /**
      *  read a dense column-major matrix 
      */ 
-    void read( size_t m, size_t n, string &filename )
+    hmlpError_t read( size_t m, size_t n, string &filename )
     {
-      assert( this->row() == m );
-      assert( this->col() == n );
+      if ( this->row() != m || this->col() != n )
+      {
+        std::cerr << "ERROR: mismatching height or width" << std::endl;
+        return HMLP_ERROR_INVALID_VALUE;
+      }
+      if ( filename.size() == 0 )
+      {
+        std::cerr << "ERROR: the filename cannot be empty" << std::endl;
+        return HMLP_ERROR_INVALID_VALUE;
+      }
+      else
+      {
+        /* Print out filename. */
+        std::cout << filename << endl;
+      }
 
       /** MPI */
       int size = this->GetSize();
       int rank = this->GetRank();
 
-      /** print out filename */
-      cout << filename << endl;
+      std::ifstream file( filename.data(), std::ios::in|std::ios::binary|std::ios::ate );
 
-      std::ifstream file( filename.data(), 
-          std::ios::in|std::ios::binary|std::ios::ate );
-
-      if ( file.is_open() )
+      if ( !file.is_open() )
       {
-        auto size = file.tellg();
-        assert( size == m * n * sizeof(T) );
-
-        //for ( size_t j = rank; j < n; j += size )
-        //{
-        //  size_t byte_offset = j * m * sizeof(T);
-        //  file.seekg( byte_offset, std::ios::beg );
-        //  file.read( (char*)this->columndata( j / size ), m * sizeof(T) );
-        //}
-
-
-        file.close();
+        std::cerr << "ERROR: fail to open " << filename << std::endl;
+        return HMLP_ERROR_INVALID_VALUE;
       }
+
+      if ( file.tellg() != m * n * sizeof(T) )
+      {
+        std::cerr << "ERROR: only " << file.tellg() << " bytes, expecting " << m * n * sizeof(T) << std::endl;
+        file.close();
+        return HMLP_ERROR_INVALID_VALUE;
+      }
+      file.close();
 
       #pragma omp parallel
       {
@@ -483,13 +498,10 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
           }
           ompfile.close();
         }
-      } /** end omp parallel */
+      } /* end omp parallel */
 
-
-
-
-
-    }; /** end void read() */
+      return HMLP_ERROR_SUCCESS;
+    }; /* end void read() */
 
 
 
