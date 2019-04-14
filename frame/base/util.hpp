@@ -42,6 +42,7 @@
 #define HANDLE_ERROR( err ) (hmlp::handleError( (hmlpError_t)err, __FILE__, __LINE__ ))
 #define RETURN_IF_ERROR( err ) { auto hmlp_err = hmlp::returnIfError( (hmlpError_t)err, __FILE__, __LINE__ );\
                                   if ( hmlp_err != HMLP_ERROR_SUCCESS ) return hmlp_err; }
+#define HANDLE_EXCEPTION( e ) { std::cerr << e.what() << std::endl; exit( 1 ); }
 
 /* Use STL namespace. */
 using namespace std;
@@ -202,8 +203,7 @@ T relative_error_from_rse_and_nrm( T rse, T nrm )
   }
   catch ( const exception & e )
   {
-    cout << e.what() << endl;
-    exit( 1 );
+    HANDLE_EXCEPTION( e );
   }
 };
 

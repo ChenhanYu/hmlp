@@ -557,9 +557,9 @@ class Node : public ReadWrite
       }
       catch ( const exception & e )
       {
-        cout << e.what() << endl;
+        HANDLE_EXCEPTION( e );
       }
-    }; /** end Split() */
+    }; /* end Split() */
 
 
     /**

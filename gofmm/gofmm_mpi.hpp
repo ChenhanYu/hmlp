@@ -320,95 +320,136 @@ class DistTreeViewTask : public Task
 
 
 
-/** @brief Split values into two halfs accroding to the median. */ 
-template<typename T>
-vector<vector<size_t>> DistMedianSplit( vector<T> &values, mpi::Comm comm )
-{
-  int n = 0;
-  int num_points_owned = values.size();
-  /** n = sum( num_points_owned ) over all MPI processes in comm */
-  mpi::Allreduce( &num_points_owned, &n, 1, MPI_SUM, comm );
-  T median = combinatorics::Select( 0.5 * n, values, comm );
-  T med_l = median;
-  T med_r = median;
-  T perc = 0.0;
-  while ( med_l == median || med_r == median )
-  {
-    if ( perc == 0.5 ) break;
-    perc += 0.1;
-    med_l = combinatorics::Select( ( 0.5 - perc ) * n, values, comm );
-    med_r = combinatorics::Select( ( 0.5 + perc ) * n, values, comm );
-    printf( "[WARNING] increase the middle gap to %d percent!\n", 
-        (int)(perc * 100) );
-  }
-
-  vector<vector<size_t>> split( 2 );
-  vector<size_t> middle;
-
-  if ( n == 0 ) return split;
-
-  for ( size_t i = 0; i < values.size(); i ++ )
-  {
-    auto v = values[ i ];
-    if ( v >= med_l && v <= med_r ) 
-    {
-      middle.push_back( i );
-    }
-    else if ( v < median )
-    {
-      split[ 0 ].push_back( i );
-    }
-    else 
-    {
-      split[ 1 ].push_back( i );
-    }
-  }
-
-  int nmid = 0;
-  int nlhs = 0;
-  int nrhs = 0;
-  int num_mid_owned = middle.size();
-  int num_lhs_owned = split[ 0 ].size();
-  int num_rhs_owned = split[ 1 ].size();
-
-  /** nmid = sum( num_mid_owned ) over all MPI processes in comm. */
-  mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
-  mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
-  mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
-
-  /** Assign points in the middle to left or right. */
-  if ( nmid )
-  {
-    int nlhs_required = std::max( 0, n / 2 - nlhs );
-    int nrhs_required = std::max( 0, ( n - n / 2 ) - nrhs );
-
-    /** Now decide the portion */
-    double lhs_ratio = (double)nlhs_required / ( nlhs_required + nrhs_required );
-    int nlhs_required_owned = num_mid_owned * lhs_ratio;
-    int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
-
-
-    //printf( "\nrank %d [ %d %d ] nlhs %d mid %d (med40 %e med50 %e med60 %e) nrhs %d [ %d %d ]\n",
-    //  //global_rank,
-    //  0,
-    //  nlhs_required_owned, nlhs_required,
-    //  nlhs, nmid, med40, median, med60, nrhs,
-    //  nrhs_required_owned, nrhs_required ); fflush( stdout );
-
-    //assert( nlhs_required >= 0 && nrhs_required >= 0 );
-    assert( nlhs_required_owned >= 0 && nrhs_required_owned >= 0 );
-
-    for ( size_t i = 0; i < middle.size(); i ++ )
-    {
-      if ( i < nlhs_required_owned ) 
-        split[ 0 ].push_back( middle[ i ] );
-      else                           
-        split[ 1 ].push_back( middle[ i ] );
-    }
-  }
-
-  return split;
-}; /** end MedianSplit() */
+///** @brief Split values into two halfs accroding to the median. */ 
+//template<typename T>
+//hmlpError_t medianSplit(const std::vector<T> & values, std::vector<std::vector<uint64_t>> & split, hmlp::mpi::Comm comm )
+//{
+//  int num_points_glb = 0;
+//  int num_points_owned = values.size();
+//
+//  /* Initialize output. */
+//  split.resize( 2 );
+//  split[ 0 ].clear();
+//  split[ 1 ].clear();
+//
+//  std::vector<uint64_t> middle;
+//  /* n = sum( num_points_owned ) over all MPI processes in comm */
+//  RETURN_IF_ERROR(mpi::Allreduce( &num_points_owned, &num_points_glb, 1, MPI_SUM, comm));
+//  /* Early return if the problem size is zero. */
+//  if ( num_points_glb == 0 ) 
+//  {
+//    return HMLP_ERROR_SUCCESS;
+//  }
+//
+//
+//  T median0 = static_cast<T>(0);
+//  T median1 = static_cast<T>(0);
+//  T median2 = static_cast<T>(0);
+//
+//  RETURN_IF_ERROR(hmlp::combinatorics::kthSelect(0.4 * n, values, median0, comm));
+//  RETURN_IF_ERROR(hmlp::combinatorics::kthSelect(0.5 * n, values, median1, comm));
+//  RETURN_IF_ERROR(hmlp::combinatorics::kthSelect(0.6 * n, values, median2, comm));
+//
+//  float portion0 = 0.1;
+//  float portion2 = 0.1;
+//  while (median1 == median0 && portion0 < 0.5)
+//  {
+//    portion0 += 0.1;
+//    RETURN_IF_ERROR(hmlp::combinatorics::kthSelect( (0.5 - portion0) * n, values, median0, comm));
+//  }
+//  while (median2 == median0 && portion2 < 0.5)
+//  {
+//    portion2 += 0.1;
+//    RETURN_IF_ERROR(hmlp::combinatorics::kthSelect( (0.5 - portion2) * n, values, median2, comm));
+//  }
+//
+//  if (portion0 > 0.1 || portion2 > 0.1)
+//  {
+//    printf( "[WARNING] middle gap [-%d,%d]\n", (int)(portion0 * 100), (int)(portion2 * 100));
+//  }
+//
+//
+//
+//  //T med_l = median;
+//  //T med_r = median;
+//  //T perc = 0.0;
+//  //while ( med_l == median || med_r == median )
+//  //{
+//  //  if ( perc == 0.5 ) break;
+//  //  perc += 0.1;
+//  //  med_l = hmlp::combinatorics::kthSelect( ( 0.5 - perc ) * n, values, comm );
+//  //  med_r = hmlp::combinatorics::kthSelect( ( 0.5 + perc ) * n, values, comm );
+//  //  printf( "[WARNING] increase the middle gap to %d percent!\n", 
+//  //      (int)(perc * 100) );
+//  //}
+//
+//
+//  for ( uint64_t i = 0U; i < values.size(); i ++ )
+//  {
+//    auto v = values[ i ];
+//    if ( v >= median0 && v <= median2 ) 
+//    {
+//      middle.push_back( i );
+//    }
+//    else if ( v < median1 )
+//    {
+//      split[ 0 ].push_back( i );
+//    }
+//    else 
+//    {
+//      split[ 1 ].push_back( i );
+//    }
+//  }
+//
+//  int nmid = 0;
+//  int nlhs = 0;
+//  int nrhs = 0;
+//  int num_mid_owned = middle.size();
+//  int num_lhs_owned = split[ 0 ].size();
+//  int num_rhs_owned = split[ 1 ].size();
+//
+//  /** nmid = sum( num_mid_owned ) over all MPI processes in comm. */
+//  mpi::Allreduce( &num_mid_owned, &nmid, 1, MPI_SUM, comm );
+//  mpi::Allreduce( &num_lhs_owned, &nlhs, 1, MPI_SUM, comm );
+//  mpi::Allreduce( &num_rhs_owned, &nrhs, 1, MPI_SUM, comm );
+//
+//  /** Assign points in the middle to left or right. */
+//  if ( nmid )
+//  {
+//    int nlhs_required = std::max( 0, n / 2 - nlhs );
+//    int nrhs_required = std::max( 0, ( n - n / 2 ) - nrhs );
+//
+//    /** Now decide the portion */
+//    double lhs_ratio = (double)nlhs_required / ( nlhs_required + nrhs_required );
+//    int nlhs_required_owned = num_mid_owned * lhs_ratio;
+//    int nrhs_required_owned = num_mid_owned - nlhs_required_owned;
+//
+//
+//    //printf( "\nrank %d [ %d %d ] nlhs %d mid %d (med40 %e med50 %e med60 %e) nrhs %d [ %d %d ]\n",
+//    //  //global_rank,
+//    //  0,
+//    //  nlhs_required_owned, nlhs_required,
+//    //  nlhs, nmid, med40, median, med60, nrhs,
+//    //  nrhs_required_owned, nrhs_required ); fflush( stdout );
+//
+//    //assert( nlhs_required >= 0 && nrhs_required >= 0 );
+//    assert( nlhs_required_owned >= 0 && nrhs_required_owned >= 0 );
+//
+//    for (uint64_t i = 0U; i < middle.size(); i ++ )
+//    {
+//      if ( i < nlhs_required_owned ) 
+//      {
+//        split[ 0 ].push_back( middle[ i ] );
+//      }
+//      else
+//      {
+//        split[ 1 ].push_back( middle[ i ] );
+//      }
+//    }
+//  }
+//
+//  return split;
+//}; /** end MedianSplit() */
 
 
 
@@ -427,131 +468,142 @@ struct centersplit : public gofmm::centersplit<SPDMATRIX, N_SPLIT, T>
 
   centersplit( SPDMATRIX& K ) : gofmm::centersplit<SPDMATRIX, N_SPLIT, T>( K ) {};
 
-  /** Shared-memory operator. */
-  inline vector<vector<size_t> > operator() ( vector<size_t>& gids ) const 
+  /* Shared-memory operator. */
+  inline std::vector<std::vector<uint64_t>> operator() ( const std::vector<uint64_t> & gids ) const 
   {
     return gofmm::centersplit<SPDMATRIX, N_SPLIT, T>::operator() ( gids );
   };
 
-  /** Distributed operator. */
-  inline vector<vector<size_t> > operator() ( vector<size_t>& gids, mpi::Comm comm ) const 
+  /* Distributed memory operator. */
+  inline std::vector<std::vector<uint64_t> > operator() ( const std::vector<uint64_t> & gids, hmlp::mpi::Comm comm ) const 
   {
-    /** All assertions */
-    assert( N_SPLIT == 2 );
-    assert( this->Kptr );
-
-    /** MPI Support. */
-    int size; mpi::Comm_size( comm, &size );
-    int rank; mpi::Comm_rank( comm, &rank );
-    auto &K = *(this->Kptr);
-
-    /** */
-    vector<T> temp( gids.size(), 0.0 );
-
-    /** Collecting column samples of K. */
-    auto column_samples = combinatorics::SampleWithoutReplacement( 
-        this->n_centroid_samples, gids );
-
-    /** Bcast column_samples from rank 0. */
-    mpi::Bcast( column_samples.data(), column_samples.size(), 0, comm );
-    K.BcastIndices( column_samples, 0, comm );
-
-    /** Compute all pairwise distances. */
-    auto DIC = K.Distances( this->metric, gids, column_samples );
-
-    /** Zero out the temporary buffer. */
-    for ( auto & it : temp ) it = 0;
-
-    /** Accumulate distances to the temporary buffer. */
-    for ( size_t j = 0; j < DIC.col(); j ++ )
-      for ( size_t i = 0; i < DIC.row(); i ++ ) 
-        temp[ i ] += DIC( i, j );
-
-    /** Find the f2c (far most to center) from points owned */
-    auto idf2c = distance( temp.begin(), max_element( temp.begin(), temp.end() ) );
-
-    /** Create a pair for MPI Allreduce */
-    mpi::NumberIntPair<T> local_max_pair, max_pair; 
-    local_max_pair.val = temp[ idf2c ];
-    local_max_pair.key = rank;
-
-    /** max_pair = max( local_max_pairs ) over all MPI processes in comm */
-    mpi::Allreduce( &local_max_pair, &max_pair, 1, MPI_MAXLOC, comm );
-
-    /** Boardcast gidf2c from the MPI process which has the max_pair */
-    int gidf2c = gids[ idf2c ];
-    mpi::Bcast( &gidf2c, 1, MPI_INT, max_pair.key, comm );
-
-
-    //printf( "rank %d val %E key %d; global val %E key %d\n", 
-    //    rank, local_max_pair.val, local_max_pair.key,
-    //    max_pair.val, max_pair.key ); fflush( stdout );
-    //printf( "rank %d gidf2c %d\n", rank, gidf2c  ); fflush( stdout );
-
-    /** Collecting KIP and kpp */
-    vector<size_t> P( 1, gidf2c );
-    K.BcastIndices( P, max_pair.key, comm );
-
-    /** Compute all pairwise distances. */
-    auto DIP = K.Distances( this->metric, gids, P );
-
-    /** Find f2f (far most to far most) from owned points */
-    auto idf2f = distance( DIP.begin(), max_element( DIP.begin(), DIP.end() ) );
-
-    /** Create a pair for MPI Allreduce */
-    local_max_pair.val = DIP[ idf2f ];
-    local_max_pair.key = rank;
-
-    /** max_pair = max( local_max_pairs ) over all MPI processes in comm */
-    mpi::Allreduce( &local_max_pair, &max_pair, 1, MPI_MAXLOC, comm );
-
-    /** boardcast gidf2f from the MPI process which has the max_pair */
-    int gidf2f = gids[ idf2f ];
-    mpi::Bcast( &gidf2f, 1, MPI_INT, max_pair.key, comm );
-
-    //printf( "rank %d val %E key %d; global val %E key %d\n", 
-    //    rank, local_max_pair.val, local_max_pair.key,
-    //    max_pair.val, max_pair.key ); fflush( stdout );
-    //printf( "rank %d gidf2f %d\n", rank, gidf2f  ); fflush( stdout );
-
-    /** Collecting KIQ and kqq */
-    vector<size_t> Q( 1, gidf2f );
-    K.BcastIndices( Q, max_pair.key, comm );
-
-    /** Compute all pairwise distances. */
-    auto DIQ = K.Distances( this->metric, gids, P );
-
-    /** We use relative distances (dip - diq) for clustering. */
-    for ( size_t i = 0; i < temp.size(); i ++ )
-      temp[ i ] = DIP[ i ] - DIQ[ i ];
-
-    /** Split gids into two clusters using median split. */
-    auto split = DistMedianSplit( temp, comm );
-
-    /** Perform P2P redistribution. */
-    mpi::Status status;
-    vector<size_t> sent_gids;
-    int partner = ( rank + size / 2 ) % size;
-    if ( rank < size / 2 )
+    try
     {
-      for ( auto it : split[ 1 ] ) 
-        sent_gids.push_back( gids[ it ] );
-      K.SendIndices( sent_gids, partner, comm );
-      K.RecvIndices( partner, comm, &status );
+      static_assert(N_SPLIT == 2, "Number of splits must be 2.");
+      assert( this->Kptr );
+
+      /** MPI Support. */
+      int size; mpi::Comm_size( comm, &size );
+      int rank; mpi::Comm_rank( comm, &rank );
+      auto &K = *(this->Kptr);
+
+      /** */
+      std::vector<T> temp(gids.size(), static_cast<T>(0));
+
+      /** Collecting column samples of K. */
+      auto column_samples = combinatorics::sampleWithoutReplacement( this->n_centroid_samples, gids );
+
+      /** Bcast column_samples from rank 0. */
+      HANDLE_ERROR(mpi::Bcast(column_samples.data(), column_samples.size(), 0, comm));
+      K.BcastIndices( column_samples, 0, comm );
+
+      /** Compute all pairwise distances. */
+      auto DIC = K.Distances( this->metric, gids, column_samples );
+
+      /* Accumulate distances to the temporary buffer. */
+      for ( uint64_t j = 0; j < DIC.col(); j ++ )
+      {
+        for ( uint64_t i = 0; i < DIC.row(); i ++ ) 
+        {
+          temp[i] += DIC(i, j);
+        }
+      }
+
+      /* Find the f2c (far most to center) from points owned. */
+      auto idf2c = std::distance( temp.begin(), std::max_element( temp.begin(), temp.end() ) );
+
+      /* Create a pair for MPI Allreduce */
+      mpi::NumberIntPair<T> local_max_pair, max_pair; 
+      local_max_pair.val = temp[ idf2c ];
+      local_max_pair.key = rank;
+
+      /** max_pair = max( local_max_pairs ) over all MPI processes in comm */
+      HANDLE_ERROR(mpi::Allreduce(&local_max_pair, &max_pair, 1, MPI_MAXLOC, comm));
+
+      /* Boardcast gidf2c from the MPI process which has the max_pair */
+      int32_t gidf2c = gids[ idf2c ];
+      HANDLE_ERROR(mpi::Bcast( &gidf2c, 1, MPI_INT, max_pair.key, comm));
+
+
+      //printf( "rank %d val %E key %d; global val %E key %d\n", 
+      //    rank, local_max_pair.val, local_max_pair.key,
+      //    max_pair.val, max_pair.key ); fflush( stdout );
+      //printf( "rank %d gidf2c %d\n", rank, gidf2c  ); fflush( stdout );
+
+      /** Collecting KIP and kpp */
+      std::vector<uint64_t> P(1, gidf2c);
+      K.BcastIndices(P, max_pair.key, comm);
+
+      /** Compute all pairwise distances. */
+      auto DIP = K.Distances( this->metric, gids, P );
+
+      /** Find f2f (far most to far most) from owned points */
+      auto idf2f = std::distance( DIP.begin(), std::max_element( DIP.begin(), DIP.end() ) );
+
+      /** Create a pair for MPI Allreduce */
+      local_max_pair.val = DIP[ idf2f ];
+      local_max_pair.key = rank;
+
+      /** max_pair = max( local_max_pairs ) over all MPI processes in comm */
+      HANDLE_ERROR(hmlp::mpi::Allreduce( &local_max_pair, &max_pair, 1, MPI_MAXLOC, comm));
+
+      /** boardcast gidf2f from the MPI process which has the max_pair */
+      int gidf2f = gids[ idf2f ];
+      HANDLE_ERROR(hmlp::mpi::Bcast( &gidf2f, 1, MPI_INT, max_pair.key, comm ));
+
+      //printf( "rank %d val %E key %d; global val %E key %d\n", 
+      //    rank, local_max_pair.val, local_max_pair.key,
+      //    max_pair.val, max_pair.key ); fflush( stdout );
+      //printf( "rank %d gidf2c %d gidf2f %d\n", rank, gidf2c, gidf2f ); fflush( stdout );
+
+      /* Collecting KIQ and kqq */
+      std::vector<uint64_t> Q( 1, gidf2f );
+      K.BcastIndices( Q, max_pair.key, comm );
+
+      /* Compute all pairwise distances. */
+      auto DIQ = K.Distances( this->metric, gids, Q );
+
+      /* We use relative distances (dip - diq) for clustering. */
+      for ( uint64_t i = 0; i < temp.size(); i ++ )
+      {
+        temp[ i ] = DIP[ i ] - DIQ[ i ];
+      }
+
+      /** Split gids into two clusters using median split. */
+      std::vector<std::vector<uint64_t>> split; 
+      HANDLE_ERROR(combinatorics::medianSplit(temp, split, comm));
+
+      /** Perform P2P redistribution. */
+      mpi::Status status;
+      std::vector<uint64_t> sent_gids;
+      int partner = ( rank + size / 2 ) % size;
+      if ( rank < size / 2 )
+      {
+        for ( auto it : split[ 1 ] ) 
+        {
+          sent_gids.push_back( gids[ it ] );
+        }
+        K.SendIndices( sent_gids, partner, comm );
+        K.RecvIndices( partner, comm, &status );
+      }
+      else
+      {
+        for ( auto it : split[ 0 ] ) 
+        {
+          sent_gids.push_back( gids[ it ] );
+        }
+        K.RecvIndices( partner, comm, &status );
+        K.SendIndices( sent_gids, partner, comm );
+      }
+
+      return split;
     }
-    else
+    catch (const std::exception & e )
     {
-      for ( auto it : split[ 0 ] ) 
-        sent_gids.push_back( gids[ it ] );
-      K.RecvIndices( partner, comm, &status );
-      K.SendIndices( sent_gids, partner, comm );
+      HANDLE_EXCEPTION(e);
     }
-
-    return split;
-  };
-
-
-}; /** end struct centersplit */
+  } 
+};
 
 
 
@@ -644,11 +696,14 @@ struct randomsplit : public gofmm::randomsplit<SPDMATRIX, N_SPLIT, T>
     auto DIQ = K.Distances( this->metric, gids, Q );
 
     /** We use relative distances (dip - diq) for clustering. */
-    for ( size_t i = 0; i < temp.size(); i ++ )
+    for (uint64_t i = 0; i < temp.size(); i ++)
+    {
       temp[ i ] = DIP[ i ] - DIQ[ i ];
+    }
 
-    /** Split gids into two clusters using median split. */
-    auto split = DistMedianSplit( temp, comm );
+    /* Split gids into two clusters using median split. */
+    std::vector<std::vector<uint64_t>> split; 
+    HANDLE_ERROR(combinatorics::medianSplit(temp, split, comm));
 
     /** Perform P2P redistribution. */
     mpi::Status status;
@@ -3937,8 +3992,7 @@ DistData<RIDS, STAR, T> Evaluate( TREE &tree, DistData<RIDS, STAR, T> &weights )
   }
   catch ( const exception & e )
   {
-    cout << e.what() << endl;
-    exit( 1 );
+    HANDLE_EXCEPTION( e );
   }
 }; /** end Evaluate() */
 
@@ -4248,8 +4302,7 @@ mpitree::Tree<mpigofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   }
   catch ( const exception & e )
   {
-    cout << e.what() << endl;
-    exit( 1 );
+    HANDLE_EXCEPTION( e );
   }
 }; /** end Compress() */
 

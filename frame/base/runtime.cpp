@@ -177,7 +177,7 @@ Task::Task()
   }
   catch ( const exception & e )
   {
-    cout << e.what() << endl;
+    HANDLE_EXCEPTION( e );
   }
 }; /** end Task::Task() */
 
@@ -527,7 +527,7 @@ Scheduler::Scheduler( mpi::Comm user_comm )
   }
   catch ( const exception & e )
   {
-    cout << e.what() << endl;
+    HANDLE_EXCEPTION( e );
   }
 };
 

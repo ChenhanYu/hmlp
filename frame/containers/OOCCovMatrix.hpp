@@ -91,7 +91,7 @@ class CovTask : public Task
       }
       catch ( exception & e )
       {
-        cout << "Standard execption: " << e.what() << endl;
+        HANDLE_EXCEPTION( e );
       }
     };
 
@@ -165,7 +165,7 @@ class OOCCovMatrix : public VirtualMatrix<T>
         int ib = min( nb, n - i );
         Samples.resize( Samples.size() + 1 );
         printf( "ib %d d %lu\n", ib, d );
-        Samples.back().Set( ib, d, filename + to_string( i ) );
+        Samples.back().initFromFile( ib, d, filename + to_string( i ) );
         //X.Set( ib, d, filename + to_string( i ) );
       }
 

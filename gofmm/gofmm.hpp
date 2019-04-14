@@ -235,8 +235,7 @@ class Configuration
       }
       catch ( const exception & e )
       {
-        cout << e.what() << endl;
-        exit( -1 );
+        HANDLE_EXCEPTION( e );
       }
     };
 
@@ -666,10 +665,9 @@ struct centersplit
     {
       HANDLE_ERROR( set( K, metric ) ); 
     }
-    catch ( const exception & e )
+    catch ( const std::exception & e )
     {
-      cout << e.what() << endl;
-      exit( -1 );
+      HANDLE_EXCEPTION( e );
     }
   };
 
@@ -684,7 +682,7 @@ struct centersplit
   };
 
   /** Overload the operator (). */
-  vector<vector<size_t>> operator() ( vector<size_t>& gids ) const 
+  std::vector<std::vector<uint64_t>> operator() ( const std::vector<uint64_t> & gids ) const 
   {
     /** all assertions */
     assert( N_SPLIT == 2 );
@@ -692,13 +690,12 @@ struct centersplit
 
 
     SPDMATRIX &K = *Kptr;
-    vector<vector<size_t>> split( N_SPLIT );
-    size_t n = gids.size();
-    vector<T> temp( n, 0.0 );
+    std::vector<std::vector<uint64_t>> split( N_SPLIT );
+    uint64_t n = gids.size();
+    std::vector<T> temp( n, 0.0 );
 
     /** Collecting column samples of K. */
-    auto column_samples = combinatorics::SampleWithoutReplacement( 
-        n_centroid_samples, gids );
+    auto column_samples = combinatorics::sampleWithoutReplacement( n_centroid_samples, gids );
 
 
     /** Compute all pairwise distances. */
@@ -730,12 +727,14 @@ struct centersplit
     /** Compute all pairwise distances. */
     auto DIQ = K.Distances( this->metric, gids, P );
 
-    for ( size_t i = 0; i < temp.size(); i ++ )
+    for ( uint64_t i = 0U; i < temp.size(); i ++ )
+    {
       temp[ i ] = DIP[ i ] - DIQ[ i ];
+    }
 
     return combinatorics::MedianSplit( temp );
   };
-}; /** end struct centersplit */
+}; /* end struct centersplit */
 
 
 
@@ -767,8 +766,7 @@ struct randomsplit
     }
     catch ( const exception & e )
     {
-      cout << e.what() << endl;
-      exit( -1 );
+      HANDLE_EXCEPTION( e );
     }
   };
 
@@ -3290,8 +3288,7 @@ Data<pair<T, size_t>> FindNeighbors( SPDMATRIX &K, SPLITTER splitter,
   }
   catch ( const exception & e )
   {
-    cout << e.what() << endl;
-    exit( -1 );
+    HANDLE_EXCEPTION( e );
   }
 }; /** end FindNeighbors() */
 
@@ -3464,11 +3461,10 @@ tree::Tree< gofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
   }
   catch ( const exception & e )
   {
-    fprintf( stderr, "[EXCEPTION]: encounter exception in gofmm::Compress(). " );
-    fprintf( stderr, "%s", e.what() );
-    exit( -1 );
+    std::cerr << "[EXCEPTION]: encounter exception in gofmm::Compress().\n";
+    HANDLE_EXCEPTION( e );
   }
-}; /** end Compress() */
+}; /* end Compress() */
 
 
 
@@ -3515,8 +3511,7 @@ tree::Tree< gofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
  */ 
 template<typename T, typename SPDMATRIX>
 tree::Tree<
-gofmm::Argument<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, 
-  gofmm::NodeData<T>>
+gofmm::Argument<SPDMATRIX, centersplit<SPDMATRIX, 2, T>, T>, gofmm::NodeData<T>>
 *Compress( SPDMATRIX &K, T stol, T budget, size_t m, size_t k, size_t s )
 {
   using SPLITTER     = centersplit<SPDMATRIX, 2, T>;

@@ -436,8 +436,7 @@ class DistData<STAR, CBLK, T> : public DistDataBase<T>
       }
       catch ( const std::exception & e )
       {
-        std::cerr << e.what() << std::endl;
-        exit( 1 );
+        HANDLE_EXCEPTION( e );
       }
     };
 
