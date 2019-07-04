@@ -338,7 +338,7 @@ class Configuration
     bool use_adaptive_ranks = true;
 
     /** (Default, Advanced) whether or not securing the accuracy. */
-    bool secure_accuracy = true;
+    bool secure_accuracy = false;
 
 }; /** end class Configuration */
 

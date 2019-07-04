@@ -1,5 +1,5 @@
 # ---[ Check cmake version.
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.10 FATAL_ERROR)
 
 # ---[ Project specification.
 PROJECT(hmlp C CXX)

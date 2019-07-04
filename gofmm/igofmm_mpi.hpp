@@ -148,7 +148,7 @@ class DistFactorizeTask : public Task
           data.Telescope( false, data.U, data.proj, Ul, Ur );
           data.Orthogonalization();
         }
-        data.PartialFactorize( Zl, Zrv, Ul, Ur, Vl, Vr );
+        data.partialLU( Zl, Zrv, Ul, Ur, Vl, Vr );
       }
 
       if ( rank == size / 2 )
@@ -366,6 +366,8 @@ hmlpError_t DistFactorize( TREE &tree, T lambda )
   gofmm::SetupFactorTask<NODE, T> seqSETUPFACTORtask; 
   DistSetupFactorTask<MPINODE, T> parSETUPFACTORtask;
 
+  double factorization_time = omp_get_wtime();
+
   mpi::PrintProgress( "[BEG] DistFactorize setup ...\n", tree.GetComm() ); 
   RETURN_IF_ERROR( tree.dependencyClean() );
   tree.LocaTraverseUp( seqSETUPFACTORtask );
@@ -381,6 +383,12 @@ hmlpError_t DistFactorize( TREE &tree, T lambda )
   tree.ExecuteAllTasks();
   mpi::PrintProgress( "[END] DistFactorize ...\n", tree.GetComm() ); 
 
+  factorization_time = omp_get_wtime() - factorization_time;
+  if (tree.GetCommRank() == 0 )
+  {
+    printf("Factorization time %.2lf\n", factorization_time);
+  }
+
   /* Return with no error. */
   return HMLP_ERROR_SUCCESS;
 }; /* end DistFactorize() */
@@ -395,6 +403,8 @@ void DistSolve( TREE &tree, Data<T> &input )
   /** Attach the pointer to the tree structure. */
   tree.setup.input  = &input;
   tree.setup.output = &input;
+
+  double solve_time = omp_get_wtime();
 
   /** All factorization tasks. */
   gofmm::SolverTreeViewTask<NODE> seqTREEVIEWtask;
@@ -413,6 +423,12 @@ void DistSolve( TREE &tree, Data<T> &input )
   mpi::PrintProgress( "[PREP] DistSolve ...\n", tree.GetComm() ); 
   tree.ExecuteAllTasks();
   mpi::PrintProgress( "[DONE] DistSolve ...\n", tree.GetComm() ); 
+  solve_time = omp_get_wtime() - solve_time;
+  if (tree.GetCommRank() == 0 )
+  {
+    printf("Solve time %.2lf\n", solve_time);
+  }
+
 
 }; /** end DistSolve() */
 

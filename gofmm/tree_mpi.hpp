@@ -983,7 +983,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 
     template<typename TASK, typename... Args>
-    void LocaTraverseUp( TASK &dummy, Args&... args )
+    hmlpError_t LocaTraverseUp( TASK &dummy, Args&... args )
     {
       /** 
        *  traverse the local tree without the root
@@ -1002,11 +1002,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
           RecuTaskSubmit( node, dummy, args... );
         }
       }
+      return HMLP_ERROR_SUCCESS;
     }; /* end LocaTraverseUp() */
 
 
     template<typename TASK, typename... Args>
-    void DistTraverseUp( TASK &dummy, Args&... args )
+    hmlpError_t DistTraverseUp( TASK &dummy, Args&... args )
     {
       MPINODE *node = mpitreelists.back();
       while ( node )
@@ -1016,11 +1017,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         /** move to its parent */
         node = (MPINODE*)node->parent;
       }
+      return HMLP_ERROR_SUCCESS;
     }; /** end DistTraverseUp() */
 
 
     template<typename TASK, typename... Args>
-    void LocaTraverseDown( TASK &dummy, Args&... args )
+    hmlpError_t LocaTraverseDown( TASK &dummy, Args&... args )
     {
       /** 
        *  traverse the local tree without the root
@@ -1038,11 +1040,13 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
           RecuTaskSubmit( node, dummy, args... );
         }
       }
+
+      return HMLP_ERROR_SUCCESS;
     }; /** end LocaTraverseDown() */
 
 
     template<typename TASK, typename... Args>
-    void DistTraverseDown( TASK &dummy, Args&... args )
+    hmlpError_t DistTraverseDown( TASK &dummy, Args&... args )
     {
       auto *node = mpitreelists.front();
       while ( node )
@@ -1058,11 +1062,13 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
          */
         node = node->child;
       }
+
+      return HMLP_ERROR_SUCCESS;
     }; /** end DistTraverseDown() */
 
 
     template<typename TASK, typename... Args>
-    void LocaTraverseLeafs( TASK &dummy, Args&... args )
+    hmlpError_t LocaTraverseLeafs( TASK &dummy, Args&... args )
     {
       int n_nodes = 1 << this->getLocalHeight();
       //auto level_beg = this->treelist.begin() + n_nodes - 1;
@@ -1072,6 +1078,7 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
         auto *node = this->getLocalNodeAt( this->getLocalHeight(), node_ind );
         RecuTaskSubmit( node, dummy, args... );
       }
+      return HMLP_ERROR_SUCCESS;
     }; /** end LocaTraverseLeaf() */
 
 
@@ -1080,9 +1087,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
      *         downward traversal.
      */ 
     template<typename TASK, typename... Args>
-    void LocaTraverseUnOrdered( TASK &dummy, Args&... args )
+    hmlpError_t LocaTraverseUnOrdered( TASK &dummy, Args&... args )
     {
-      LocaTraverseDown( dummy, args... );
+      return LocaTraverseDown( dummy, args... );
     }; /** end LocaTraverseUnOrdered() */
 
 
@@ -1091,9 +1098,9 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
      *         downward traversal.
      */ 
     template<typename TASK, typename... Args>
-    void DistTraverseUnOrdered( TASK &dummy, Args&... args )
+    hmlpError_t DistTraverseUnOrdered( TASK &dummy, Args&... args )
     {
-      DistTraverseDown( dummy, args... );
+      return DistTraverseDown( dummy, args... );
     }; /** end DistTraverseUnOrdered() */
 
 
@@ -1124,11 +1131,12 @@ class Tree : public tree::Tree<SETUP, NODEDATA>,
 
 
     /** @brief */
-    void ExecuteAllTasks()
+    hmlpError_t ExecuteAllTasks()
     {
       hmlp_run();
       this->Barrier();
       dependencyClean();
+      return HMLP_ERROR_SUCCESS;
     }; /** end ExecuteAllTasks() */
 
     /** @brief */

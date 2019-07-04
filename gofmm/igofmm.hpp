@@ -176,34 +176,28 @@ class Factor
      *  Kaa = [ P     [ L11      [ I     [ U11 U12  
      *            I ]   L21  I ]     C ]         I ]
      */ 
-    void PartialFactorize( Data<T> &A )
+    void partialLU(const hmlp::Data<T> & A)
     {
-      /** Similar transformation ( Q' * Z * Q ). */
+      /* Similar transformation ( Q' * Z * Q ). */
       Z = A;
       ChangeBasis( Z );
-
-      /** Create matrix views for Z. */
+      /* Create matrix views for Z. */
       Zv.Set( false, Z );
       Zv.Partition2x2( Ztl, Ztr,
                        Zbl, Zbr, s, s, BOTTOMRIGHT );
-
-      //printf( "Ztl %lux%lu Ztr %lux%lu\n", Ztl.row(), Ztl.col(), Ztr.row(), Ztr.col() ); fflush( stdout );
-      //printf( "Zbl %lux%lu Zbr %lux%lu\n", Zbl.row(), Zbl.col(), Zbr.row(), Zbr.col() ); fflush( stdout );
-
-      /** Initialize pivoting rows. */
+      /* Initialize pivoting rows. */
       ipiv.resize( Ztl.row(), 0 );
-      /** [Ztl, Ztr] = PLU */
+      /* [Ztl, Ztr] = PLU */
       xgetrf( Ztl.row(), Z.col(), Z.data(), Z.row(), ipiv.data() );
-      /** Zbl * U^{-1} */
+      /* Zbl * U^{-1} */
       xtrsm( "Right", "Upper", "No transpose", "Non-unit", Zbl.row(), Zbl.col(),
           1.0,  Ztl.data(), Ztl.ld(), Zbl.data(), Zbl.ld() );
-      /** Update Schur complement Zbr. */
+      /* Update Schur complement Zbr. */
       xgemm( "No transpose", "No transpose", Zbr.row(), Zbr.col(), Ztl.col(),
           -1.0, Zbl.data(), Zbl.ld(),
                 Ztr.data(), Ztr.ld(),
            1.0, Zbr.data(), Zbr.ld() );
-
-    }; /** end PartialFactorize() */
+    }; 
 
 
 
@@ -267,150 +261,81 @@ class Factor
       Z.resize( sl + sr, sl + sr, 0.0 );
       for ( size_t i = 0; i < sl + sr; i ++ ) Z[ i * Z.row() + i ] = 1.0;
 
+      /** pivoting row indices */
+      ipiv.resize( Z.row(), 0 );
+
+      /**    
+       *  Z = I + CVtU =  [        I  ClrVrtUr
+       *                    CrlVltUl         I ] 
+       **/  
+      std::vector<T> VltUl( sl * sl, 0.0 );
+      std::vector<T> VrtUr( sr * sr, 0.0 );
+
+      /** VltUl */
+      xgemm( "T", "N", sl, sl, nl, 
+          1.0,    Vl.data(), nl, 
+          Ul.data(), nl, 
+          0.0, VltUl.data(), sl );
+
+      /** VrtUr */
+      xgemm( "T", "N", sr, sr, nr, 
+          1.0,    Vr.data(), nr, 
+          Ur.data(), nr, 
+          0.0, VrtUr.data(), sr );
+
+      /** CrlVltUl */
+      xgemm( "N", "N", sr, sl, sl,
+          1.0,   Crl.data(), sr, 
+          VltUl.data(), sl, 
+          0.0,     Z.data() + sl, sl + sr );
 
 
-      if ( do_ulv_factorization )
+      if ( issymmetric )
       {
-        /**
-         *  Z = I + UR * C * VR' = [                 I  URl * Clr * VRr'
-         *                            URr * Crl * VRl'                 I ]
-         **/
-        if ( issymmetric ) /** Cholesky */
-        {
-          /** Zbl = URr * Crl * VRl' */
-          hmlp::Data<T> Zbl = Crl;
-
-          //printf( "Crl\n" );
-          //Crl.Print();
-
-
-          /** trmm */
-          xtrmm
-          ( 
-            "Right", "Upper", "Transpose", "Non-unit",
-            Zbl.row(), Zbl.col(),
-            1.0,  Ul.data(),  Ul.row(),
-                 Zbl.data(), Zbl.row()
-          );
-          //printf( "Ul.row() %lu Zbl.row() %lu Zbl.col() %lu\n",
-          //    Ul.row(), Zbl.row(), Zbl.col() );
-
-          /** trmm */
-          xtrmm
-          ( 
-            "Left", "Upper", "Non-transpose", "Non-unit",
-            Zbl.row(), Zbl.col(),
-            1.0,  Ur.data(),  Ur.row(),
-                 Zbl.data(), Zbl.row()
-          );
-          //printf( "Ur.row() %lu Zbl.row() %lu Zbl.col() %lu\n",
-          //    Ur.row(), Zbl.row(), Zbl.col() );
-
-          /** Zbl */
-          for ( size_t j = 0; j < sl; j ++ )
-            for ( size_t i = 0; i < sr; i ++ )
-            {
-              Z( sl + i, j ) = Zbl( i, j );
-              Z( j, sl + i ) = Zbl( i, j );
-            }
-
-          /** LL' = potrf( Z ) */
-          if ( 1 )
-          {
-            xpotrf( "Lower", Z.row(), Z.data(), Z.row() );
-            //CheckCondition();
-          }
-          else
-          {
-            /** pivoting row indices */
-            ipiv.resize( Z.row(), 0 );
-            xgetrf( Z.row(), Z.col(), Z.data(), Z.row(), ipiv.data() );
-          }
-        }
-        else /** LU */
-        {
-          /** pivoting row indices */
-          ipiv.resize( Z.row(), 0 );
-        }
-      }
-      else /** Sherman-Morrison-Woodbury */
-      {
-        /** pivoting row indices */
-        ipiv.resize( Z.row(), 0 );
-
-        /**    
-         *  Z = I + CVtU =  [        I  ClrVrtUr
-         *                    CrlVltUl         I ] 
-         **/  
-        std::vector<T> VltUl( sl * sl, 0.0 );
-        std::vector<T> VrtUr( sr * sr, 0.0 );
-
-        /** VltUl */
-        xgemm( "T", "N", sl, sl, nl, 
-            1.0,    Vl.data(), nl, 
-            Ul.data(), nl, 
-            0.0, VltUl.data(), sl );
-
-        /** VrtUr */
-        xgemm( "T", "N", sr, sr, nr, 
-            1.0,    Vr.data(), nr, 
-            Ur.data(), nr, 
-            0.0, VrtUr.data(), sr );
-
-        /** CrlVltUl */
-        xgemm( "N", "N", sr, sl, sl,
+        /** Crl'VrtUr */
+        xgemm( "T", "N", sl, sr, sr,
             1.0,   Crl.data(), sr, 
-            VltUl.data(), sl, 
-            0.0,     Z.data() + sl, sl + sr );
-
-
-        if ( issymmetric )
-        {
-          /** Crl'VrtUr */
-          xgemm( "T", "N", sl, sr, sr,
-              1.0,   Crl.data(), sr, 
-              VrtUr.data(), sr, 
-              0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
-        }
-        else
-        {
-          printf( "bug\n" ); exit( 1 );
-          /** ClrVrtUr */
-          xgemm( "N", "N", sl, sr, sr,
-              1.0,   Clr.data(), sl, 
-              VrtUr.data(), sr, 
-              0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
-        }
-
-        /** compute 1-norm of Z */
-        T nrm1 = 0.0;
-        for ( size_t i = 0; i < Z.size(); i ++ ) 
-          nrm1 += std::abs( Z[ i ] );
-
-        /** LU factorization */
-        xgetrf( Z.row(), Z.col(), Z.data(), Z.row(), ipiv.data() );
-
-        /** record points of children factors */
-        this->Ul = &Ul;
-        this->Ur = &Ur;
-        this->Vl = &Vl;
-        this->Vr = &Vr;
-
-        /** compute 1-norm condition number */
-        T rcond1 = 0.0;
-        hmlp::Data<T> work( Z.row(), 4 );
-        std::vector<int> iwork( Z.row() );
-        xgecon( "1", Z.row(), Z.data(), Z.row(), nrm1, 
-            &rcond1, work.data(), iwork.data() );
-        if ( 1.0 / rcond1 > 1E+6 )
-          printf( "Warning! large 1-norm condition number %3.1E\n", 
-              1.0 / rcond1 ); fflush( stdout );
+            VrtUr.data(), sr, 
+            0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
+      }
+      else
+      {
+        printf( "bug\n" ); exit( 1 );
+        /** ClrVrtUr */
+        xgemm( "N", "N", sl, sr, sr,
+            1.0,   Clr.data(), sl, 
+            VrtUr.data(), sr, 
+            0.0,     Z.data() + ( sl + sr ) * sl, sl + sr );
       }
 
+      /** compute 1-norm of Z */
+      T nrm1 = 0.0;
+      for ( size_t i = 0; i < Z.size(); i ++ ) 
+        nrm1 += std::abs( Z[ i ] );
+
+      /** LU factorization */
+      xgetrf( Z.row(), Z.col(), Z.data(), Z.row(), ipiv.data() );
+
+      /** record points of children factors */
+      this->Ul = &Ul;
+      this->Ur = &Ur;
+      this->Vl = &Vl;
+      this->Vr = &Vr;
+
+      /** compute 1-norm condition number */
+      T rcond1 = 0.0;
+      hmlp::Data<T> work( Z.row(), 4 );
+      std::vector<int> iwork( Z.row() );
+      xgecon( "1", Z.row(), Z.data(), Z.row(), nrm1, &rcond1, work.data(), iwork.data() );
+      if (1.0 / rcond1 > 1E+6)
+      {
+        printf("Warning! large 1-norm condition number %3.1E\n", 1.0 / rcond1); 
+        fflush(stdout);
+      }
     }; /** end Factorize() */
 
 
-    void PartialFactorize( 
+    void partialLU( 
       /** Zl,  nl-by-nl,  Zr,  nr-by-nr */
       View<T> &Zl, View<T> &Zr,
       /** Ul,  nl-by-sl,  Ur,  nr-by-sr */
@@ -418,13 +343,13 @@ class Factor
       /** Vl,  nl-by-sr,  Vr,  nr-by-sr */
       Data<T> &Vl, Data<T> &Vr )
     {
-      Z.resize( 0, 0 );
-      Z.resize( sl + sr, sl + sr, 0.0 );
+      Z.clear();
+      Z.resize(sl + sr, sl + sr, 0.0);
 
-      /** Create matrix views for Z. */
+      /* Create a matrix views for Z. */
       Zv.Set( false, Z );
-      Zv.Partition2x2( Ztl, Ztr,
-                       Zbl, Zbr, sl, sl, TOPLEFT );
+      Zv.Partition2x2(Ztl, Ztr,
+                      Zbl, Zbr, sl, sl, TOPLEFT);
 
       //printf( "Ztl %lux%lu Ztr %lux%lu\n", Ztl.row(), Ztl.col(), Ztr.row(), Ztr.col() ); fflush( stdout );
       //printf( "Zbl %lux%lu Zbr %lux%lu\n", Zbl.row(), Zbl.col(), Zbr.row(), Zbr.col() ); fflush( stdout );
@@ -432,7 +357,7 @@ class Factor
 
       Zbl.CopyValuesFrom( Crl );
       /** trmm */
-      xtrmm( "Right", "Upper",     "Transpose", "Non-unit", Zbl.row(), Zbl.col(),
+      xtrmm( "Right", "Upper", "Transpose", "Non-unit", Zbl.row(), Zbl.col(),
         1.0,  Ul.data(),  Ul.row(), Zbl.data(), Zbl.ld() );
       /** trmm */
       xtrmm(  "Left", "Upper", "Non-transpose", "Non-unit", Zbl.row(), Zbl.col(),
@@ -445,10 +370,9 @@ class Factor
         for ( size_t i = 0; i < sr; i ++ )
           Ztr( j, i ) = Zbl( i, j );
 
-      PartialFactorize( Z );
+      partialLU(Z);
 
-    }; /** end PartialFactorize() */
-
+    }; 
 
 
 
@@ -907,18 +831,18 @@ class Factor
 
 
     /** [Q2 Q1]' * B or B * [Q2 Q1] */
-    void ChangeBasis( SideType side, Data<T> &B )
+    void ChangeBasis( SideType side, hmlp::Data<T> & B)
     {
       /** Early return if Q does not exist. */
       if ( !Q.size() ) return;
 
       /** Create a deep copy of B. */
-      Data<T> A = B;
+      hmlp::Data<T> A = B;
 
       /** Create matrix views for A and B. */
-      View<T> Av( false, A );
-      View<T> Bv( false, B );
-      View<T> Bl, Br, Bt, Bb;
+      hmlp::View<T> Av( false, A );
+      hmlp::View<T> Bv( false, B );
+      hmlp::View<T> Bl, Br, Bt, Bb;
      
       /** Enumerate case "LEFT", "RIGHT", and execptions. */
       switch ( side )
@@ -1633,7 +1557,7 @@ void LowRankError( NODE *node )
  *  @brief Factorizarion using LU and SMW
  */ 
 template<typename NODE, typename T>
-hmlpError_t Factorize( NODE *node )
+hmlpError_t Factorize(NODE *node)
 {
   auto &data = node->data;
   auto &setup = node->setup;
@@ -1660,7 +1584,7 @@ hmlpError_t Factorize( NODE *node )
       /** QR factorization */
       data.Orthogonalization();
       /** LU factorization */
-      data.PartialFactorize( Kaa );
+      data.partialLU( Kaa );
     }
     else
     {
@@ -1685,8 +1609,8 @@ hmlpError_t Factorize( NODE *node )
     auto &amap = node->lchild->data.skels;
     auto &bmap = node->rchild->data.skels;
 
-    /** Get the skeleton rows and columns */
-    node->data.Crl = K( bmap, amap );
+    /* Get the skeleton rows and columns */
+    node->data.Crl = K(bmap, amap);
 
     if ( do_ulv_factorization )
     {
@@ -1696,7 +1620,7 @@ hmlpError_t Factorize( NODE *node )
         data.Telescope( false, data.U, proj, Ul, Ur );
         data.Orthogonalization();
       }
-      data.PartialFactorize( Zl, Zr, Ul, Ur, Vl, Vr );
+      data.partialLU( Zl, Zr, Ul, Ur, Vl, Vr );
     }
     else
     {
@@ -1714,97 +1638,6 @@ hmlpError_t Factorize( NODE *node )
   }
 
   return HMLP_ERROR_SUCCESS;
-
-
-
-
-
-
-
-//    /** SMW factorization (LU or Cholesky) */
-//    data.Factorize<true>( Ul, Ur, Vl, Vr );
-//
-//    /** telescope U and V */
-//    if ( !node->data.isroot )
-//    {
-//      if ( do_ulv_factorization )
-//      {
-//        data.Telescope( true, data.U, proj, Ul, Ur );
-//        data.Orthogonalization();
-//      }
-//      else
-//      {
-//        /** U = inv( I + UCV' ) * [ Ul; Ur ] * proj' */
-//        data.Telescope( true, data.U, proj, Ul, Ur );
-//        /** V = [ Vl; Vr ] * proj' */
-//        data.Telescope( false, data.V, proj, Vl, Vr );
-//      }
-//    }
-//    else
-//    {
-//      /** output Crl from children */
-//      
-//      //size_t L = 3;
-//
-//      auto *cl = node->lchild;
-//      auto *cr = node->rchild;
-//      auto *c1 = cl->lchild;
-//      auto *c2 = cl->rchild;
-//      auto *c3 = cr->lchild;
-//      auto *c4 = cr->rchild;
-//
-//      //hmlp::Data<T> C21 = K( c2->data.skels, c1->data.skels );
-//      //hmlp::Data<T> C31 = K( c3->data.skels, c1->data.skels );
-//      //hmlp::Data<T> C41 = K( c4->data.skels, c1->data.skels );
-//      //hmlp::Data<T> C32 = K( c3->data.skels, c2->data.skels );
-//      //hmlp::Data<T> C42 = K( c4->data.skels, c2->data.skels );
-//      //hmlp::Data<T> C43 = K( c4->data.skels, c3->data.skels );
-//
-//      //C21.WriteFile( "C21.m" );
-//      //C31.WriteFile( "C31.m" );
-//      //C41.WriteFile( "C41.m" );
-//      //C32.WriteFile( "C32.m" );
-//      //C42.WriteFile( "C42.m" );
-//      //C43.WriteFile( "C43.m" );
-//
-//
-//      //hmlp::Data<T> V11( c1->data.V.col(), c1->data.V.col() );
-//      //hmlp::Data<T> V22( c2->data.V.col(), c2->data.V.col() );
-//      //hmlp::Data<T> V33( c3->data.V.col(), c3->data.V.col() );
-//      //hmlp::Data<T> V44( c4->data.V.col(), c4->data.V.col() );
-//
-//      //xgemm( "T", "N", c1->data.V.col(), c1->data.V.col(), c1->data.V.row(),
-//      //    1.0, c1->data.V.data(), c1->data.V.row(),
-//      //         c1->data.V.data(), c1->data.V.row(), 
-//      //    0.0,        V11.data(), V11.row() );
-//
-//      //xgemm( "T", "N", c2->data.V.col(), c2->data.V.col(), c2->data.V.row(),
-//      //    1.0, c2->data.V.data(), c2->data.V.row(),
-//      //         c2->data.V.data(), c2->data.V.row(), 
-//      //    0.0,        V22.data(), V22.row() );
-//
-//      //xgemm( "T", "N", c3->data.V.col(), c3->data.V.col(), c3->data.V.row(),
-//      //    1.0, c3->data.V.data(), c3->data.V.row(),
-//      //         c3->data.V.data(), c3->data.V.row(), 
-//      //    0.0,        V33.data(), V33.row() );
-//
-//      //xgemm( "T", "N", c4->data.V.col(), c4->data.V.col(), c4->data.V.row(),
-//      //    1.0, c4->data.V.data(), c4->data.V.row(),
-//      //         c4->data.V.data(), c4->data.V.row(), 
-//      //    0.0,        V44.data(), V44.row() );
-//
-//      //V11.WriteFile( "V11.m" );
-//      //V22.WriteFile( "V22.m" );
-//      //V33.WriteFile( "V33.m" );
-//      //V44.WriteFile( "V44.m" );
-//    }
-//    //printf( "end inner forward telescoping\n" ); fflush( stdout );
-//
-//    /** check the offdiagonal block VrCrlVl' accuracy */
-//    if ( !do_ulv_factorization ) 
-//      LowRankError<NODE, T>( node );
-//  }
-
 }; /** end void Factorize() */
 
 

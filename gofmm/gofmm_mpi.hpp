@@ -3813,7 +3813,122 @@ hmlpError_t compressionFailureFrontier( TREE & tree )
 
 
 
+template<bool NNPRUNE = true, typename TREE, typename T>
+hmlpError_t evaluate(TREE & tree, hmlp::DistData<RIDS,STAR,T> & x, hmlp::DistData<RIDS,STAR,T> & y, T lambda)
+{
+  /* MPI Support. */
+  auto comm = tree.GetComm();
+  int size; hmlp::mpi::Comm_size(comm, &size);
+  int rank; hmlp::mpi::Comm_rank(comm, &rank);
+  /* Derive type NODE and MPINODE from TREE. */
+  using NODE    = typename TREE::NODE;
+  using MPINODE = typename TREE::MPINODE;
 
+  double beg, time_ratio, evaluation_time = 0.0;
+  double direct_evaluation_time = 0.0, computeall_time, telescope_time, let_exchange_time, async_time;
+  double overhead_time;
+  double forward_permute_time, backward_permute_time;
+
+  auto n = tree.getGlobalProblemSize();
+  auto nrhs = x.col();
+
+  if (x.row() != n || y.row() != n || y.col() != nrhs)
+  {
+    return HMLP_ERROR_INVALID_VALUE;
+  }
+
+  /* Zero-out y. */
+  y.setvalue((T)(0));
+
+  /* Clean up all r/w dependencies left on tree nodes. */
+  RETURN_IF_ERROR(tree.dependencyClean());
+
+  /** Provide pointers. */
+  tree.setup.w = &x;
+  tree.setup.u = &y;
+
+  /** TreeView (downward traversal) */
+  hmlp::gofmm::TreeViewTask<NODE>           seqVIEWtask;
+  hmlp::mpigofmm::DistTreeViewTask<MPINODE> mpiVIEWtask;
+  /** Telescope (upward traversal) */
+  hmlp::gofmm::UpdateWeightsTask<NODE, T>           seqN2Stask;
+  hmlp::mpigofmm::DistUpdateWeightsTask<MPINODE, T> mpiN2Stask;
+  /** L2L (sum of direct evaluations) */
+  hmlp::mpigofmm::L2LReduceTask2<NODE, T> seqL2LReducetask2;
+  /** S2S (sum of low-rank approximation) */
+  hmlp::mpigofmm::S2SReduceTask2<NODE, NODE, T>    seqS2SReducetask2;
+  hmlp::mpigofmm::S2SReduceTask2<MPINODE, NODE, T> mpiS2SReducetask2;
+  /** Telescope (downward traversal) */
+  hmlp::gofmm::SkeletonsToNodesTask<NNPRUNE, NODE, T>           seqS2Ntask;
+  hmlp::mpigofmm::DistSkeletonsToNodesTask<NNPRUNE, MPINODE, T> mpiS2Ntask;
+
+  /** Global barrier and timer */
+  hmlp::mpi::Barrier(comm);
+
+  /** Stage 1: TreeView and upward telescoping */
+  beg = omp_get_wtime();
+  RETURN_IF_ERROR(tree.DistTraverseDown(mpiVIEWtask));
+  RETURN_IF_ERROR(tree.LocaTraverseDown(seqVIEWtask));
+  RETURN_IF_ERROR(tree.ExecuteAllTasks());
+  /** Stage 2: redistribute weights from IDS to LET. */
+  AsyncExchangeLET<T>( tree, string( "leafweights" ) );
+  /** Stage 3: N2S. */
+  RETURN_IF_ERROR(tree.LocaTraverseUp(seqN2Stask));
+  RETURN_IF_ERROR(tree.DistTraverseUp(mpiN2Stask));
+  /** Stage 4: redistribute skeleton weights from IDS to LET. */
+  AsyncExchangeLET<T>( tree, string( "skelweights" ) );
+  /** Stage 5: L2L */
+  RETURN_IF_ERROR(tree.LocaTraverseLeafs(seqL2LReducetask2));
+  /** Stage 6: S2S */
+  RETURN_IF_ERROR(tree.LocaTraverseUnOrdered(seqS2SReducetask2));
+  RETURN_IF_ERROR(tree.DistTraverseUnOrdered(mpiS2SReducetask2));
+  /** Stage 7: S2N */
+  RETURN_IF_ERROR(tree.DistTraverseDown(mpiS2Ntask));
+  RETURN_IF_ERROR(tree.LocaTraverseDown(seqS2Ntask));
+  overhead_time = omp_get_wtime() - beg;
+  RETURN_IF_ERROR(tree.ExecuteAllTasks());
+  async_time = omp_get_wtime() - beg;
+  /* y += lambda * x */
+  RETURN_IF_ERROR(elementwise(lambda, x, (T)(1), y));
+
+  /** Compute the breakdown cost */
+  evaluation_time += direct_evaluation_time;
+  evaluation_time += telescope_time;
+  evaluation_time += let_exchange_time;
+  evaluation_time += computeall_time;
+  time_ratio = 100 / evaluation_time;
+
+  if ( rank == 0 && REPORT_EVALUATE_STATUS )
+  {
+    printf( "========================================================\n");
+    printf( "GOFMM evaluation phase\n" );
+    printf( "========================================================\n");
+    //printf( "Allocate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+    //    allocate_time, allocate_time * time_ratio );
+    //printf( "Forward permute ----------------------- %5.2lfs (%5.1lf%%)\n", 
+    //    forward_permute_time, forward_permute_time * time_ratio );
+    printf( "Upward telescope ---------------------- %5.2lfs (%5.1lf%%)\n", 
+        telescope_time, telescope_time * time_ratio );
+    printf( "LET exchange -------------------------- %5.2lfs (%5.1lf%%)\n", 
+        let_exchange_time, let_exchange_time * time_ratio );
+    printf( "L2L ----------------------------------- %5.2lfs (%5.1lf%%)\n", 
+        direct_evaluation_time, direct_evaluation_time * time_ratio );
+    printf( "S2S, S2N ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+        computeall_time, computeall_time * time_ratio );
+    //printf( "Backward permute ---------------------- %5.2lfs (%5.1lf%%)\n", 
+    //    backward_permute_time, backward_permute_time * time_ratio );
+    printf( "========================================================\n");
+    printf( "Evaluate ------------------------------ %5.2lfs (%5.1lf%%)\n", 
+        evaluation_time, evaluation_time * time_ratio );
+    printf( "Evaluate (Async) ---------------------- %5.2lfs (%5.2lfs)\n", 
+        async_time, overhead_time );
+    printf( "========================================================\n\n");
+  }
+
+  /** Global barrier and timer */
+  hmlp::mpi::Barrier(comm);
+  return HMLP_ERROR_SUCCESS;
+}
 
 
 
@@ -4480,9 +4595,13 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
   if ( !tree.setup.SecureAccuracy() )
   {
     /** Factorization */
-    T lambda = 10.0;
+    T lambda = 1.0;
     mpigofmm::DistFactorize( tree, lambda ); 
     mpigofmm::ComputeError( tree, lambda, w_rids, u_rids );
+
+    hmlp::DistData<RIDS,STAR,T> x(n, 1, tree.getOwnedIndices(), tree.GetComm());
+    hmlp::DistData<RIDS,STAR,T> y(n, 1, tree.getOwnedIndices(), tree.GetComm());
+    preconditionedConjugateGradient(tree, y, x, lambda);
   }
 }; /** end SelfTesting() */
 
@@ -4520,8 +4639,129 @@ void LaunchHelper( SPDMATRIX &K, gofmm::CommandLineHelper &cmd, mpi::Comm CommGO
   delete tree_ptr;
 }; /** end test_gofmm_setup() */
 
+/**
+ *  \brief https://en.wikipedia.org/wiki/Conjugate_gradient_method
+ */ 
+template<typename TREE, typename T>
+hmlpError_t preconditionedConjugateGradient(TREE & tree, hmlp::DistData<RIDS,STAR,T> & rhs, 
+    hmlp::DistData<RIDS,STAR,T> & x, T lambda, float tolerance = 1E-3)
+{
+  auto n = tree.getGlobalProblemSize();
+  auto nrhs = rhs.col();
+  auto comm = tree.GetComm();
+  int iter = 0;
 
-}; /** end namespace gofmm */
-}; /** end namespace hmlp */
+  /** MPI Support. */
+  int rank; mpi::Comm_rank(comm, &rank);
+  int size; mpi::Comm_size(comm, &size);
 
-#endif /** define GOFMM_MPI_HPP */
+  if (nrhs != 1)
+  {
+    return HMLP_ERROR_NOT_SUPPORTED;
+  }
+
+  hmlp::DistData<RIDS,STAR,T> r(n, nrhs, tree.getOwnedIndices(), comm);
+  hmlp::DistData<RIDS,STAR,T> z(n, nrhs, tree.getOwnedIndices(), comm);
+  hmlp::DistData<RIDS,STAR,T> p(n, nrhs, tree.getOwnedIndices(), comm);
+  hmlp::DistData<RIDS,STAR,T> tmp(n, nrhs, tree.getOwnedIndices(), comm);
+
+  /* Initialize x with random N( 0, 1 ). */
+  x.randn();
+  /* Evaluate r = A * x. */
+  RETURN_IF_ERROR(hmlp::mpigofmm::evaluate<true>(tree, x, r, lambda));
+  /* r = rhs - A * x. */
+  RETURN_IF_ERROR(hmlp::elementwise((T)(1), rhs, (T)(-1), r));
+  /* z = r */
+  RETURN_IF_ERROR(hmlp::elementwise((T)(1), r, (T)(0), z));
+  /* z = inv(M) * z. */
+  DistSolve(tree, z);
+  /* p = z */
+  RETURN_IF_ERROR(hmlp::elementwise((T)(1), z, (T)(0), p));
+
+  /* Compute the error from the residual. */
+  double locError = r.squaredFrobeniusNorm();
+  double glbError = 0.0;
+  hmlp::mpi::Allreduce(&locError, &glbError, 1, MPI_SUM, tree.GetComm());
+
+  double locNorm = x.squaredFrobeniusNorm();
+  double glbNorm = 0.0;
+  hmlp::mpi::Allreduce(&locNorm, &glbNorm, 1, MPI_SUM, comm);
+
+  /* Intermediate results. */
+  T locPTAP = 0, locRTZ = 0, locPolakRibiere = 0;
+  /* Value of previous interation, */
+  T preRTZ = 0;
+  /* RTZ = dot(r, z) */
+  RETURN_IF_ERROR(hmlp::dotProduct(T(1), r, z, locRTZ));
+  /* Reduce local dot products. */
+  hmlp::mpi::Allreduce(&locRTZ, &preRTZ, 1, MPI_SUM, comm);
+
+  while (1)
+  {
+    T glbPTAP = 0, glbRTZ = 0, glbPolakRibiere = 0;
+    /* Evaluate tmp = A * p. */
+    RETURN_IF_ERROR(hmlp::mpigofmm::evaluate<true>(tree, p, tmp, lambda));
+    /* PTAP = dot(p, Ap) */
+    RETURN_IF_ERROR(dotProduct(T(1), p, tmp, locPTAP));
+    /* Reduce local dot products. */
+    hmlp::mpi::Allreduce(&locPTAP, &glbPTAP, 1, MPI_SUM, comm);
+    /* alpha = dot(r, z) / dot(p, Ap). */
+    T alpha = preRTZ / glbPTAP;
+    /* x += alpha * p. */
+    RETURN_IF_ERROR(hmlp::elementwise(alpha, p, (T)1, x));
+    /* Update r -= alpha * tmp. */
+    //RETURN_IF_ERROR(hmlp::elementwise((T)(-1.0 * alpha), tmp, (T)(1), r));
+
+    /* Evaluate r = A * x. */
+    RETURN_IF_ERROR(hmlp::mpigofmm::evaluate<true>(tree, x, r, lambda));
+    /* r = rhs - A * x. */
+    RETURN_IF_ERROR(hmlp::elementwise((T)(1), rhs, (T)(-1), r));
+
+    /* Compute the error from the residual. */
+    locError = r.squaredFrobeniusNorm();
+    glbError = 0.0;
+    hmlp::mpi::Allreduce(&locError, &glbError, 1, MPI_SUM, comm);
+    /* Check the exist criteria. */
+    if (std::sqrt(glbError) / std::sqrt(glbNorm) < tolerance)
+    {
+      if (rank == 0)
+      std::cout << iter << "," << std::sqrt(glbError) / std::sqrt(glbNorm) << std::endl;
+      break;
+    }
+    else
+    {
+      if (rank == 0)
+      std::cout << iter << "," << std::sqrt(glbError) / std::sqrt(glbNorm) << std::endl;
+      iter ++;
+    }
+    /* z = r */
+    RETURN_IF_ERROR(hmlp::elementwise((T)(1), r, (T)(0), z));
+    /* Update z = inv(M) * z. */
+    DistSolve(tree, z);
+    /* RTZ = dot(r, z) */
+    RETURN_IF_ERROR(dotProduct((T)(1), r, z, locRTZ));
+    /* Reduce local dot products. */
+    hmlp::mpi::Allreduce(&locRTZ, &glbRTZ, 1, MPI_SUM, comm);
+
+    ///* RTZ = dot(r, -alpha*Ap) */
+    //RETURN_IF_ERROR(dotProduct((T)(-1.0 * alpha), tmp, z, locPolakRibiere));
+    ///* Reduce local dot products. */
+    //hmlp::mpi::Allreduce(&locPolakRibiere, &glbPolakRibiere, 1, MPI_SUM, comm);
+
+    /* beta = dot(r, z) / preRTZ. */
+    T beta = glbRTZ / preRTZ;
+    //T beta = glbPolakRibiere / preRTZ;
+    /* Update preRTZ. */
+    preRTZ = glbRTZ;
+    /* p = 1 * z + beta * p. */
+    RETURN_IF_ERROR(hmlp::elementwise((T)(1), z, beta, p));
+  }
+  return HMLP_ERROR_SUCCESS;
+}
+
+
+
+}; /* end namespace gofmm */
+}; /* end namespace hmlp */
+
+#endif /* define GOFMM_MPI_HPP */

@@ -214,8 +214,8 @@ class DistDataBase : public Data<T, Allocator>, public mpi::MPIObject
     int GetRank() { return comm_rank; };
 
     /** Get total row and column numbers across all MPI ranks */
-    size_t row() { return global_m; };
-    size_t col() { return global_n; };
+    size_t row() const noexcept { return global_m; };
+    size_t col() const noexcept { return global_n; };
 
     /** Get row and column numbers owned by this MPI rank */
     size_t row_owned() { return Data<T>::row(); };
@@ -1428,6 +1428,44 @@ class DistData<RIDS, STAR, T> : public DistDataBase<T>
 
 
 }; /** end class DistData<RIDS, STAR, T> */
+
+
+template<typename T>
+hmlpError_t elementwise(const T alpha, const hmlp::DistData<RIDS,STAR,T> & A, const T beta, hmlp::DistData<RIDS,STAR,T> & B)
+{
+  if (A.row() != B.row() || A.col() != B.col())
+  {
+    return HMLP_ERROR_INVALID_VALUE;
+  }
+  auto itA = A.begin();
+  auto itB = B.begin();
+  for (; itA != A.end() && itB != B.end(); itA ++, itB ++)
+  {
+    (*itB) = alpha * (*itA) + beta * (*itB);
+  }
+  return HMLP_ERROR_SUCCESS;
+}
+
+template<typename T>
+hmlpError_t dotProduct(const T alpha, const hmlp::DistData<RIDS,STAR,T> & A, const hmlp::DistData<RIDS,STAR,T> & B, T & output)
+{
+  if (A.row() != B.row() || A.col() != B.col())
+  {
+    return HMLP_ERROR_INVALID_VALUE;
+  }
+  /* Zero-out output. */
+  output = 0;
+  /* Get the iterator or A and B. */
+  auto itA = A.begin();
+  auto itB = B.begin();
+  for (; itA != A.end() && itB != B.end(); itA ++, itB ++)
+  {
+    output += (*itB) * (*itA);
+  }
+  /* Scale alpha before return. */
+  output *= alpha;
+  return HMLP_ERROR_SUCCESS;
+}
 
 
 
