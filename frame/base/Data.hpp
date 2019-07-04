@@ -121,125 +121,125 @@ using namespace std;
 namespace hmlp
 {
 
-template<typename T, class Allocator = std::allocator<T>>
-class Tensor : public ReadWrite, public std::vector<T, Allocator>
-{
-  public:
-
-    Tensor() : 
-      std::vector<T, Allocator>() 
-    {};
-
-    Tensor( int32_t num_modes, const uint64_t extent[], const int64_t stride[] ) : 
-        num_modes_( num_modes ), 
-        extent_( extent, extent + num_modes ), 
-        stride_( stride, stride + num_modes )
-    {
-      try
-      {
-        allocate_();
-      }
-      catch ( const std::exception & e )
-      {
-        HANDLE_EXCEPTION( e );
-      }
-    };
-
-    Tensor( 
-        int32_t num_modes, 
-        const std::vector<uint64_t> & extent,
-        const std::vector<int64_t> & stride ) :
-      num_modes_( num_modes ), 
-      extent_( extent ), 
-      stride_( stride )
-    {
-      try
-      {
-        allocate_();
-      }
-      catch ( const std::exception & e )
-      {
-        HANDLE_EXCEPTION( e );
-      }
-    };
-
-    int32_t getNumModes() const noexcept 
-    {
-      return num_modes_;
-    };
-
-    uint64_t getExtent( int32_t mode_index ) const noexcept
-    {
-      if ( mode_index >= getNumModes() )
-      {
-        throw std::exception( "Too many modes in getExtent" );
-      }
-      return extent_[ mode_index ];
-    }
-
-    uint64_t getStride( int32_t mode_index ) const noexcept
-    {
-      if ( mode_index >= getNumModes() )
-      {
-        throw std::exception( "Too many modes in getStride" );
-      }
-      return stride_[ mode_index ];
-    }
-
-    template<typename... Args>
-    T & operator() ( const Args & ... args )
-    {
-      auto offset = recuGetOffset_( 0, args );
-      return (*this).at( offset );
-    };
-
-    template<typename... Args>
-    T operator() ( const Args & ... args ) const
-    {
-      auto offset = recuGetOffset_( 0, args );
-      return (*this).at( offset );
-    };
-
-
-
-
-  protected:
-
-    int32_t num_modes_ = 0;
-
-    std::vector<uint64_t> extent_;
-
-    std::vector<uint64_t> stride_;
-
-    std::vector<int8_t> mode_;
-
-    void allocate_() 
-    {
-      uint64_t num_elements = 0;
-
-      for ( int32_t mode_order = 0; mode_order < getNumModes(); mode_order ++ )
-      {
-        auto mode_extent = getExtent( mode_order );
-        auto max_mode_index = ( mode_extent > 0 ) ? mode_extent - 1 : 0;
-        num_elements += max_mode_index * getStride( mode_order );
-      }
-
-      (*this).resize( num_elements );
-    }
-
-    uint64_t recuGetOffset_( int32_t mode_index, uint64_t i ) const
-    {
-      return i * getStride( mode_index );
-    }
-
-    template<typename... Args>
-    uint64_t recuGetOffset_( int32_t mode_index, uint64_t i, const Args & ... args ) const
-    {
-      return i * getStride( mode_index ) + recuGetOffset_( mode_index + 1, args ); 
-    }
-    
-
-}; /* end class Tensor */
+//template<typename T, class Allocator = std::allocator<T>>
+//class Tensor : public ReadWrite, public std::vector<T, Allocator>
+//{
+//  public:
+//
+//    Tensor() : 
+//      std::vector<T, Allocator>() 
+//    {};
+//
+//    Tensor( int32_t num_modes, const uint64_t extent[], const int64_t stride[] ) : 
+//        num_modes_( num_modes ), 
+//        extent_( extent, extent + num_modes ), 
+//        stride_( stride, stride + num_modes )
+//    {
+//      try
+//      {
+//        allocate_();
+//      }
+//      catch ( const std::exception & e )
+//      {
+//        HANDLE_EXCEPTION( e );
+//      }
+//    };
+//
+//    Tensor( 
+//        int32_t num_modes, 
+//        const std::vector<uint64_t> & extent,
+//        const std::vector<int64_t> & stride ) :
+//      num_modes_( num_modes ), 
+//      extent_( extent ), 
+//      stride_( stride )
+//    {
+//      try
+//      {
+//        allocate_();
+//      }
+//      catch ( const std::exception & e )
+//      {
+//        HANDLE_EXCEPTION( e );
+//      }
+//    };
+//
+//    int32_t getNumModes() const noexcept 
+//    {
+//      return num_modes_;
+//    };
+//
+//    uint64_t getExtent( int32_t mode_index ) const noexcept
+//    {
+//      if ( mode_index >= getNumModes() )
+//      {
+//        throw std::exception( "Too many modes in getExtent" );
+//      }
+//      return extent_[ mode_index ];
+//    }
+//
+//    uint64_t getStride( int32_t mode_index ) const noexcept
+//    {
+//      if ( mode_index >= getNumModes() )
+//      {
+//        throw std::exception( "Too many modes in getStride" );
+//      }
+//      return stride_[ mode_index ];
+//    }
+//
+//    template<typename... Args>
+//    T & operator() ( const Args & ... args )
+//    {
+//      auto offset = recuGetOffset_( 0, args );
+//      return (*this).at( offset );
+//    };
+//
+//    template<typename... Args>
+//    T operator() ( const Args & ... args ) const
+//    {
+//      auto offset = recuGetOffset_( 0, args );
+//      return (*this).at( offset );
+//    };
+//
+//
+//
+//
+//  protected:
+//
+//    int32_t num_modes_ = 0;
+//
+//    std::vector<uint64_t> extent_;
+//
+//    std::vector<uint64_t> stride_;
+//
+//    std::vector<int8_t> mode_;
+//
+//    void allocate_() 
+//    {
+//      uint64_t num_elements = 0;
+//
+//      for ( int32_t mode_order = 0; mode_order < getNumModes(); mode_order ++ )
+//      {
+//        auto mode_extent = getExtent( mode_order );
+//        auto max_mode_index = ( mode_extent > 0 ) ? mode_extent - 1 : 0;
+//        num_elements += max_mode_index * getStride( mode_order );
+//      }
+//
+//      (*this).resize( num_elements );
+//    }
+//
+//    uint64_t recuGetOffset_( int32_t mode_index, uint64_t i ) const
+//    {
+//      return i * getStride( mode_index );
+//    }
+//
+//    template<typename... Args>
+//    uint64_t recuGetOffset_( int32_t mode_index, uint64_t i, const Args & ... args ) const
+//    {
+//      return i * getStride( mode_index ) + recuGetOffset_( mode_index + 1, args ); 
+//    }
+//    
+//
+//}; /* end class Tensor */
 //
 //
 //template<typename T, class Allocator = std::allocator<T>>
