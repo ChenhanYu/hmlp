@@ -1275,7 +1275,7 @@ hmlpError_t elementwise(const T alpha, const hmlp::Data<T> & A, const T beta, hm
 {
   if (A.row() != B.row() || A.col() != B.col())
   {
-    return HMLP_ERRPR_INVALID_VALUE;
+    return HMLP_ERROR_INVALID_VALUE;
   }
   for (auto itA = A.begin(), itB = B.begin(); itA != A.end() && itB != B.end(); itA ++, itB ++)
   {
@@ -1289,7 +1289,7 @@ hmlpError_t dotProduct(const T alpha, const hmlp::Data<T> & A, const hmlp::Data<
 {
   if (A.row() != B.row() || A.col() != B.col())
   {
-    return HMLP_ERRPR_INVALID_VALUE;
+    return HMLP_ERROR_INVALID_VALUE;
   }
   /* Zero-out output. */
   output = 0;
