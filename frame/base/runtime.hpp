@@ -170,7 +170,7 @@ class Task
     hmlpError_t Submit();
 
 
-    virtual void Set( string user_name, void (*user_function)(Task*), void *user_arg );
+    virtual hmlpError_t Set( string user_name, void (*user_function)(Task*), void *user_arg );
 
     virtual void Prefetch( Worker* );
 
@@ -184,11 +184,11 @@ class Task
 
     void CallBackWhileWaiting();
 
-    virtual void Execute( Worker* ) = 0;
+    virtual hmlpError_t Execute(Worker * worker) = 0;
 
     virtual void GetEventRecord();
 
-    virtual void DependencyAnalysis();
+    virtual hmlpError_t DependencyAnalysis();
 
     /* function ptr */
     void (*function)(Task*);
@@ -253,9 +253,15 @@ class NULLTask : public Task
 {
   public:
 
-    void Set( ARGUMENT *arg ) {};
+    hmlpError_t Set(ARGUMENT *arg) 
+    {
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* ) {};
+    hmlpError_t Execute(Worker* worker) 
+    {
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /** end class NULLTask */
 
@@ -319,7 +325,7 @@ class SendTask : public MessageTask
     };
 
     /** Override Set() */
-    void Set( ARG *user_arg, int src, int tar, int key )
+    hmlpError_t Set( ARG *user_arg, int src, int tar, int key )
     {
       name = string( "Send" );
       label = to_string( tar );
@@ -333,11 +339,12 @@ class SendTask : public MessageTask
       event.Set( label + name, flops, mops );
       /** "HIGH" priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
     virtual void Pack() = 0;
 
-    void Execute( Worker *user_worker ) 
+    hmlpError_t Execute( Worker *user_worker ) 
     {
       Pack();
       mpi::Request req1, req2, req3;
@@ -347,6 +354,7 @@ class SendTask : public MessageTask
       //    this->tar, this->key + 1, this->comm, &req2 ); 
       mpi::Isend( this->send_buffs.data(), this->send_buffs.size(),
           this->tar, this->key + 2, this->comm, &req3 ); 
+      return HMLP_ERROR_SUCCESS;
     };
 }; /** end class SendTask */
 
@@ -363,10 +371,13 @@ class RecvTask : public ListenerTask
     vector<T>      recv_buffs;
 
     RecvTask( ARG *user_arg, int src, int tar, int key ) 
-      : ListenerTask( src, tar, key ) { this->arg = user_arg; };
+      : ListenerTask( src, tar, key ) 
+    {
+      this->arg = user_arg; 
+    };
 
     /** Override Set() */
-    void Set( ARG *user_arg, int src, int tar, int key )
+    hmlpError_t Set( ARG *user_arg, int src, int tar, int key )
     {
       name = string( "Listener" );
       label = to_string( src );
@@ -378,11 +389,13 @@ class RecvTask : public ListenerTask
       double flops = 0, mops = 0;
       /** Setup the event */
       event.Set( label + name, flops, mops );
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       hmlp_msg_dependency_analysis( this->key, this->src, RW, this );
+      return HMLP_ERROR_SUCCESS;
     };
 
     void Listen()
@@ -408,7 +421,11 @@ class RecvTask : public ListenerTask
 
     virtual void Unpack() = 0;
 
-    void Execute( Worker *user_worker ) { Unpack(); };
+    hmlpError_t Execute( Worker *user_worker ) 
+    { 
+      Unpack();
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /** end class RecvTask */
 

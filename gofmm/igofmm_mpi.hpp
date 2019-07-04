@@ -22,16 +22,21 @@ class DistSetupFactorTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "PSF" );
       label = to_string( arg->treelist_id );
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    {
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker *user_worker )
+    hmlpError_t Execute( Worker *user_worker )
     {
       auto *node   = arg;
       auto &data   = node->data;
@@ -42,7 +47,11 @@ class DistSetupFactorTask : public Task
       int  size = node->GetCommSize();
       int  rank = node->GetCommRank();
 
-      if ( size == 1 ) return gofmm::SetupFactor<NODE, T>( arg );
+      if ( size == 1 ) 
+      {
+        gofmm::SetupFactor<NODE, T>( arg );
+      return HMLP_ERROR_SUCCESS;
+      }
 
       size_t n, nl, nr, s, sl, sr;
       bool issymmetric, do_ulv_factorization;
@@ -75,11 +84,8 @@ class DistSetupFactorTask : public Task
       mpi::Bcast( &sl, 1,        0, comm );
       mpi::Bcast( &sr, 1, size / 2, comm );
 
-      data.SetupFactor( issymmetric, do_ulv_factorization,
-        node->isLeaf(), !node->getGlobalDepth(), n, nl, nr, s, sl, sr );
-
-      //printf( "n %lu nl %lu nr %lu s %lu sl %lu sr %lu\n",
-      //    n, nl, nr, s, sl, sr ); fflush( stdout );
+      data.SetupFactor( issymmetric, do_ulv_factorization, node->isLeaf(), !node->getGlobalDepth(), n, nl, nr, s, sl, sr );
+      return HMLP_ERROR_SUCCESS;
     };
 };
 
@@ -92,18 +98,23 @@ class DistFactorizeTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "PULVF" );
       label = to_string( arg->treelist_id );
       /** We don't know the exact cost here */
       cost = 5.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    {
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker *user_worker )
+    hmlpError_t Execute( Worker *user_worker )
     {
       auto *node   = arg;
       auto &data   = node->data;
@@ -119,7 +130,7 @@ class DistFactorizeTask : public Task
       if ( size == 1 ) 
       {
         auto error = gofmm::Factorize<NODE, T>( node );
-        return;
+        return HMLP_ERROR_SUCCESS;
       }
 
       if ( rank == 0 )
@@ -163,6 +174,8 @@ class DistFactorizeTask : public Task
         auto &bmap = node->child->data.skels;
         mpi::Send( bmap.data(), bmap.size(), 0, 20, comm );
       }
+
+      return HMLP_ERROR_SUCCESS;
     };
 }; /** end class DistFactorizeTask */
 
@@ -175,18 +188,23 @@ class DistFactorTreeViewTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "PTV" );
       label = to_string( arg->treelist_id );
       /** We don't know the exact cost here */
       cost = 5.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker *user_worker )
+    hmlpError_t Execute( Worker *user_worker )
     {
       auto *node   = arg;
       auto &data   = node->data;
@@ -202,7 +220,11 @@ class DistFactorTreeViewTask : public Task
       data.bview.Set( output );
 
       /** Case: distributed leaf node. */
-      if ( size == 1 ) return gofmm::SolverTreeView( arg );
+      if ( size == 1 ) 
+      {
+        gofmm::SolverTreeView( arg );
+        return HMLP_ERROR_SUCCESS;
+      }
 
       if ( rank == 0 )
       {
@@ -227,6 +249,7 @@ class DistFactorTreeViewTask : public Task
         cdata.Bp.Set( data.B );
       }
 
+      return HMLP_ERROR_SUCCESS;
     };
 }; /** end class DistSolverTreeViewTask */
 
@@ -240,7 +263,7 @@ class DistULVForwardSolveTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "PULVS1" );
@@ -249,11 +272,16 @@ class DistULVForwardSolveTask : public Task
       cost = 5.0;
       /** "High" priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker *user_worker )
+    hmlpError_t Execute( Worker *user_worker )
     {
       //printf( "[BEG] level-%lu\n", arg->l ); fflush( stdout );
       auto *node = arg;
@@ -265,7 +293,11 @@ class DistULVForwardSolveTask : public Task
       mpi::Status status;
 
       /** Perform the forward step locally on distributed leaf nodes. */
-      if ( size == 1 ) return data.ULVForward();
+      if ( size == 1 ) 
+      {
+        data.ULVForward();
+        return HMLP_ERROR_SUCCESS;
+      }
 
       if ( rank == 0 )
       {
@@ -285,8 +317,9 @@ class DistULVForwardSolveTask : public Task
         mpi::Send( Br.data(), Br.size(), 0, 0, comm );
       }
       //printf( "[END] level-%lu\n", arg->l ); fflush( stdout );
+      return HMLP_ERROR_SUCCESS;
     };
-}; /** end class DistULVForwardSolveTask */
+}; 
 
 
 template<typename NODE, typename T>
@@ -296,7 +329,7 @@ class DistULVBackwardSolveTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "PULVS2" );
@@ -305,11 +338,16 @@ class DistULVBackwardSolveTask : public Task
       cost = 5.0;
       /** "High" priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
+    hmlpError_t DependencyAnalysis() 
+    {
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker *user_worker )
+    hmlpError_t Execute( Worker *user_worker )
     {
       //printf( "[BEG] level-%lu\n", arg->l ); fflush( stdout );
       auto *node = arg;
@@ -321,7 +359,11 @@ class DistULVBackwardSolveTask : public Task
       mpi::Status status;
 
       /** Perform the forward step locally on distributed leaf nodes. */
-      if ( size == 1 ) return data.ULVBackward();
+      if (size == 1)
+      {
+        data.ULVBackward();
+        return HMLP_ERROR_SUCCESS;
+      }
 
       if ( rank == 0 )
       {
@@ -340,6 +382,7 @@ class DistULVBackwardSolveTask : public Task
         mpi::Recv( Br.data(), Br.size(), 0, 0, comm, &status );
       }
       //printf( "[END] level-%lu\n", arg->l ); fflush( stdout );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class DistULVBackwardSolveTask */

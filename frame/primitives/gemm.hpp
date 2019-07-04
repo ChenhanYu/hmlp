@@ -51,7 +51,7 @@ class xgemmTask : public Task
 
     View<T> C;
 
-    void Set( 
+    hmlpError_t Set( 
         T alpha, View<T> &A,
                  View<T> &B,
         T beta,  View<T> &C )
@@ -71,18 +71,20 @@ class xgemmTask : public Task
       double flops = 0.0, mops = 0.0;
       cost  = 2.0 * C.row() * C.col();
       event.Set( name + label, flops, mops );
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       /** Read A and B, read/write C */
       A.DependencyAnalysis( R,  this );
       B.DependencyAnalysis( R,  this );
       C.DependencyAnalysis( RW, this );
       assert( !this->TryEnqueue() );
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       string transA, transB;
       if ( A.IsTransposed() ) transA = "Transpose";
@@ -111,6 +113,7 @@ class xgemmTask : public Task
 
       //printf( "%d end GEMM task %s %s %lu %lu %lu, %E, %E\n", 
       //    rand_id, transA.data(), transB.data(), m, n, k, alpha, beta ); fflush( stdout );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class xgemmTask */
@@ -126,10 +129,7 @@ class xgemmBarrierTask : public Task
 
     View<T> C;
 
-    void Set( 
-        T alpha, View<T> &A,
-                 View<T> &B,
-        T beta,  View<T> &C )
+    hmlpError_t Set(T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C) 
     {
       /** Main arguments */
       this->C = C;
@@ -144,12 +144,20 @@ class xgemmBarrierTask : public Task
       mops  = 0.0;
       cost  = 1.0;
       event.Set( name + label, flops, mops );
+      return HMLP_ERROR_SUCCESS;
     };
 
     /** Create RAW dependencies on all submatrices C. */
-    void DependencyAnalysis() { C.DependencyAnalysis( RW, this ); };
+    hmlpError_t DependencyAnalysis() 
+    {
+      C.DependencyAnalysis( RW, this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) {};
+    hmlpError_t Execute( Worker* user_worker ) 
+    {
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /** end class xgemmBarrierTask */
 

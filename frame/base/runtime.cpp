@@ -229,12 +229,13 @@ void MessageTask::Submit() { rt.scheduler->NewMessageTask( this ); };
 void ListenerTask::Submit() { rt.scheduler->NewListenerTask( this ); };
 
 /** @brief This is only for virtual function pointer. */
-void Task::Set( string user_name, void (*user_function)(Task*), void *user_arg )
+hmlpError_t Task::Set( string user_name, void (*user_function)(Task*), void *user_arg )
 {
   name = user_name;
   function = user_function;
   arg = user_arg;
   status = NOTREADY;
+  return HMLP_ERROR_SUCCESS;
 }; /** end Task::Set() */
 
 
@@ -323,7 +324,10 @@ hmlpError_t Task::Release()
 /** All virtual functions. */
 void Task::GetEventRecord() {};
 void Task::Prefetch( Worker *user_worker ) {};
-void Task::DependencyAnalysis() {};
+hmlpError_t Task::DependencyAnalysis() 
+{
+  return HMLP_ERROR_SUCCESS;
+};
 
 /** @brief Try to dispatch the task if there is no dependency left. */
 bool Task::TryEnqueue()

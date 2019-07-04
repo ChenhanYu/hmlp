@@ -315,15 +315,16 @@ class IndexPermuteTask : public Task
 
     NODE *arg = nullptr;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       name = string( "Permutation" );
       arg = user_arg;
       // Need an accurate cost model.
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
       if ( !arg->isLeaf() )
@@ -332,10 +333,11 @@ class IndexPermuteTask : public Task
         arg->rchild->DependencyAnalysis( R, this );
       }
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       auto &gids = arg->gids; 
       auto *lchild = arg->lchild;
@@ -348,6 +350,7 @@ class IndexPermuteTask : public Task
         gids = lgids;
         gids.insert( gids.end(), rgids.begin(), rgids.end() );
       }
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class IndexPermuteTask */
@@ -364,17 +367,26 @@ class SplitTask : public Task
 
     NODE *arg = nullptr;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       name = string( "Split" );
       arg = user_arg;
       // Need an accurate cost model.
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
+    hmlpError_t DependencyAnalysis() 
+    {
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) { arg->Split(); };
+    hmlpError_t Execute( Worker* user_worker) 
+    { 
+      arg->Split(); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /* end class SplitTask */
 

@@ -486,18 +486,23 @@ class TreeViewTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "TreeView" );
       label = to_string( arg->treelist_id );
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
     /** Preorder dependencies (with a single source node). */
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute(Worker* user_worker)
     {
       //printf( "TreeView %lu\n", node->treelist_id );
       auto *node   = arg;
@@ -536,6 +541,8 @@ class TreeViewTask : public Task
         W.Partition2x1( WL, 
                         WR, node->lchild->n, TOP );
       }
+
+      return HMLP_ERROR_SUCCESS;
     };
 }; /** end class TreeViewTask */
 
@@ -864,7 +871,7 @@ class NeighborsTask : public Task
     /** (Default) using angle distance from the Gram vector space. */
     DistanceMetric metric = ANGLE_DISTANCE;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "Neighbors" );
@@ -887,13 +894,18 @@ class NeighborsTask : public Task
       //--------------------------------------
       // TODO: Need an accurate cost model.
       cost = mops / 1E+9;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
-
-    void Execute( Worker* user_worker ) 
+    hmlpError_t DependencyAnalysis() 
     { 
-      HANDLE_ERROR( FindNeighbors( arg, metric ) ); 
+      arg->DependOnNoOne( this );
+      return HMLP_ERROR_SUCCESS;
+    };
+
+    hmlpError_t Execute(Worker* user_worker)
+    { 
+      return FindNeighbors( arg, metric ); 
     };
 
 }; /** end class NeighborsTask */
@@ -1070,20 +1082,28 @@ class InterpolateTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "it" );
       label = to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnNoOne( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) { Interpolate( arg ); };
-
-}; /** end class InterpolateTask */
+    hmlpError_t Execute(Worker* user_worker)
+    {
+      Interpolate(arg);
+      return HMLP_ERROR_SUCCESS;
+    }
+};
 
 
 
@@ -1298,20 +1318,27 @@ class SkeletonKIJTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "par-gskm" );
       label = to_string( arg->treelist_id );
-      /** we don't know the exact cost here */
       cost = 5.0;
-      /** high priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) { SkeletonKIJ<NNPRUNE>( arg ); };
+    hmlpError_t Execute(Worker* user_worker)
+    { 
+      SkeletonKIJ<NNPRUNE>(arg); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /** end class SkeletonKIJTask */ 
 
@@ -1369,7 +1396,7 @@ class SkeletonizeTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "sk" );
@@ -1378,6 +1405,7 @@ class SkeletonizeTask : public Task
       cost = 5.0;
       /** high priority */
       priority = true;
+        return HMLP_ERROR_SUCCESS;
     };
 
     void GetEventRecord()
@@ -1408,12 +1436,19 @@ class SkeletonizeTask : public Task
       arg->data.skeletonize = event;
     };
 
-    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
-
-    void Execute( Worker* user_worker ) 
+    hmlpError_t DependencyAnalysis() 
     { 
-      /** Early return if we do not need to skeletonize. */
-      if ( !arg->parent ) return;
+      arg->DependOnNoOne( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
+
+    hmlpError_t Execute(Worker* user_worker)
+    { 
+      /* Early return if we do not need to skeletonize. */
+      if (!arg->parent)
+      {
+        return HMLP_ERROR_SUCCESS;
+      }
       /* Check if we need to secure the accuracy? */
       bool secure_accuracy = arg->setup->SecureAccuracy();
       /* Gather per node data and create reference. */
@@ -1422,31 +1457,30 @@ class SkeletonizeTask : public Task
       data.skels.clear();
       data.proj.clear();
       /* If one of my children is not compreesed, so am I. */
-      if ( secure_accuracy && !arg->isLeaf() ) 
+      if (secure_accuracy && !arg->isLeaf()) 
       {
         /* If both children were not compressed, then this node is above the frontier. */
-        if ( !arg->lchild->data.is_compressed &&  
-             !arg->rchild->data.is_compressed )
+        if ( !arg->lchild->data.is_compressed &&  !arg->rchild->data.is_compressed )
         {
           data.is_compressed = false;
-          return;
+          return HMLP_ERROR_SUCCESS;
         }
         /* If only one of the children compressed, then this node is in the frontier. */
-        if ( !arg->lchild->data.is_compressed || 
-             !arg->rchild->data.is_compressed )
+        if ( !arg->lchild->data.is_compressed || !arg->rchild->data.is_compressed )
         {
           data.is_compressed = false;
           data.setCompressionFailureFrontier();
-          return;
+          return HMLP_ERROR_SUCCESS;
         }
       }
       /* Skeletonization using interpolative decomposition. */
       Skeletonize( arg );
       /* This node does not compressed. It must be in the frontier. */
-      if ( !arg->data.is_compressed )
+      if (!arg->data.is_compressed)
       {
         data.setCompressionFailureFrontier();
       }
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class SkeletonizeTask */
@@ -1611,7 +1645,7 @@ class UpdateWeightsTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "n2s" );
@@ -1647,6 +1681,7 @@ class UpdateWeightsTask : public Task
       cost = flops / 1E+9;
       /** "HIGH" priority (critical path) */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void Prefetch( Worker* user_worker )
@@ -1693,9 +1728,13 @@ class UpdateWeightsTask : public Task
 #endif
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
 #ifdef HMLP_USE_CUDA 
       hmlp::Device *device = NULL;
@@ -1705,6 +1744,7 @@ class UpdateWeightsTask : public Task
 #else
       UpdateWeights( arg );
 #endif
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class UpdateWeightsTask */
@@ -1828,7 +1868,7 @@ class SkeletonsToSkeletonsTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "s2s" );
@@ -1863,16 +1903,25 @@ class SkeletonsToSkeletonsTask : public Task
       cost = flops / 1E+9;
       /** High priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
-      for ( auto it : arg->NNFarNodes ) it->DependencyAnalysis( R, this );
+      for ( auto it : arg->NNFarNodes ) 
+      {
+        it->DependencyAnalysis( R, this );
+      }
       arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker ) { SkeletonsToSkeletons( arg ); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    { 
+      SkeletonsToSkeletons( arg ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 }; /** end class SkeletonsToSkeletonsTask */
 
 
@@ -2008,7 +2057,7 @@ class SkeletonsToNodesTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "s2n" );
@@ -2052,6 +2101,7 @@ class SkeletonsToNodesTask : public Task
       cost = flops / 1E+9;
       /** "HIGH" priority (critical path) */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void Prefetch( Worker* user_worker )
@@ -2100,9 +2150,13 @@ class SkeletonsToNodesTask : public Task
 #endif
     };
 
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
 #ifdef HMLP_USE_CUDA 
       Device *device = NULL;
@@ -2112,6 +2166,7 @@ class SkeletonsToNodesTask : public Task
 #else
     SkeletonsToNodes( arg );
 #endif
+    return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class SkeletonsToNodesTask */
@@ -2244,9 +2299,9 @@ class LeavesToLeavesTask : public Task
 
     size_t itbeg;
 
-	  size_t itend;
+    size_t itend;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "l2l" );
@@ -2299,6 +2354,7 @@ class LeavesToLeavesTask : public Task
 
       /** asuume computation bound */
       cost = flops / 1E+9;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void Prefetch( Worker* user_worker )
@@ -2313,7 +2369,7 @@ class LeavesToLeavesTask : public Task
       //arg->data.s2n = event;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       assert( arg->isLeaf() );
       /** depends on nothing */
@@ -2322,11 +2378,13 @@ class LeavesToLeavesTask : public Task
       /** impose rw dependencies on multiple copies */
       //auto &u_leaf = arg->data.u_leaf[ SUBTASKID ];
       //u_leaf.DependencyAnalysis( hmlp::ReadWriteType::W, this );
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       LeavesToLeaves<SUBTASKID, NNPRUNE, NODE, T>( arg, itbeg, itend );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class LeavesToLeaves */
@@ -2462,7 +2520,7 @@ class NearSamplesTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "near" );
@@ -2476,13 +2534,19 @@ class NearSamplesTask : public Task
       cost = 1.0;
       /** low priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     }
 
-    void DependencyAnalysis() { this->TryEnqueue(); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      this->TryEnqueue(); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       NearSamples<NODE, T>( arg );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class NearSamplesTask */
@@ -2516,13 +2580,14 @@ class CacheNearNodesTask : public Task
 
     NODE *arg;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "c-n" );
       label = to_string( arg->treelist_id );
       /** asuume computation bound */
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void GetEventRecord()
@@ -2544,9 +2609,13 @@ class CacheNearNodesTask : public Task
       event.Set( label + name, flops, mops );
     };
 
-    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnNoOne( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       //printf( "%lu CacheNearNodes beg\n", arg->treelist_id ); fflush( stdout );
 
@@ -2588,8 +2657,7 @@ class CacheNearNodesTask : public Task
         printf( "Kab %lu %lu not cache\n", data.NearKab.row(), data.NearKab.col() );
       }
 #endif
-
-      //printf( "%lu CacheNearNodesTask end\n", arg->treelist_id ); fflush( stdout );
+      return HMLP_ERROR_SUCCESS;
     };
 }; /** end class CacheNearNodesTask */
 
@@ -3045,7 +3113,7 @@ hmlpError_t evaluateAtGlobalIndex( TREE &tree, const size_t gid, Data<T>& potent
  *  @brief ComputeAll
  */ 
 template<typename TREE, typename T>
-Data<T> Evaluate( TREE &tree, Data<T> &weights )
+Data<T> Evaluate(TREE & tree, Data<T> & weights)
 {
   const bool NNPRUNE = true;
   const bool CACHE = true; 
@@ -3254,10 +3322,9 @@ Data<T> Evaluate( TREE &tree, Data<T> &weights )
   /** clean up all r/w dependencies left on tree nodes */
   HANDLE_ERROR( tree.dependencyClean() );
 
-  /** return nrhs-by-N outputs */
+  /* Return nrhs-by-N outputs. */
   return potentials;
-
-}; /** end Evaluate() */
+};
 
 
 
@@ -3303,7 +3370,7 @@ tree::Tree< gofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
 {
   try
   {
-    /** Get all user-defined parameters. */
+    /* Get all user-defined parameters. */
     DistanceMetric metric = config.MetricType();
     size_t n = config.ProblemSize();
     size_t m = config.getLeafNodeSize();

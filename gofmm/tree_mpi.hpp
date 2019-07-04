@@ -43,7 +43,7 @@ class DistSplitTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "DistSplit" );
@@ -58,10 +58,11 @@ class DistSplitTask : public Task
       cost = mops / 1E+9;
       /** "HIGH" priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( R, this );
 
@@ -80,9 +81,14 @@ class DistSplitTask : public Task
         }
       }
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker ) { arg->Split(); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    { 
+      arg->Split(); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /** end class DistSplitTask */
 
@@ -121,17 +127,22 @@ class DistIndexPermuteTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       name = std::string( "Permutation" );
       arg = user_arg;
       // Need an accurate cost model.
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnChildren( this );
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       if ( !arg->isLeaf() && !arg->child )
       {
@@ -141,6 +152,7 @@ class DistIndexPermuteTask : public Task
         gids = lgids;
         gids.insert( gids.end(), rgids.begin(), rgids.end() );
       }
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class IndexPermuteTask */

@@ -1072,12 +1072,13 @@ class SetupFactorTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "sf" );
       label = to_string( arg->treelist_id );
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void GetEventRecord()
@@ -1086,15 +1087,17 @@ class SetupFactorTask : public Task
       event.Set( label + name, flops, mops );
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( W, this );
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       SetupFactor<NODE, T>( arg );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class SetupFactorTask */
@@ -1145,12 +1148,13 @@ class SolverTreeViewTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "TreeView" );
       label = to_string( arg->treelist_id );
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void GetEventRecord()
@@ -1160,9 +1164,17 @@ class SolverTreeViewTask : public Task
     };
 
     /** Preorder dependencies (with a single source node) */
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) { SolverTreeView( arg ); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    { 
+      SolverTreeView( arg ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /** end class TreeViewTask */
 
@@ -1179,11 +1191,12 @@ class MatrixPermuteTask : public hmlp::Task
 
     NODE *arg;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       name = std::string( "MatrixPermutation" );
       arg = user_arg;
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void GetEventRecord()
@@ -1193,7 +1206,7 @@ class MatrixPermuteTask : public hmlp::Task
     };
 
     /** depends on previous task */
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       if ( FORWARD )
       {
@@ -1203,9 +1216,10 @@ class MatrixPermuteTask : public hmlp::Task
       {
         this->Enqueue();
       }
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       //printf( "PermuteMatrix %lu\n", arg->treelist_id );
       auto *node   = arg;
@@ -1235,6 +1249,7 @@ class MatrixPermuteTask : public hmlp::Task
       //printf( "\n" );
 
       //printf( "end PermuteMatrix %lu\n", arg->treelist_id );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class MatrixPermuteTask */
@@ -1281,14 +1296,15 @@ class ULVForwardSolveTask : public Task
 {
   public:
 
-    NODE *arg = NULL;
+    NODE *arg = nullptr;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "ulvforward" );
       label = to_string( arg->treelist_id );
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
     //void DependencyAnalysis()
@@ -1304,10 +1320,18 @@ class ULVForwardSolveTask : public Task
     //  this->TryEnqueue();
     //};
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
 
-    void Execute( Worker* user_worker ) { arg->data.ULVForward(); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    { 
+      arg->data.ULVForward(); 
+      return HMLP_ERROR_SUCCESS;
+    };
     
 }; /** end class ULVForwardSolveTask */
 
@@ -1319,32 +1343,28 @@ class ULVBackwardSolveTask : public Task
 {
   public:
 
-    NODE *arg;
+    NODE *arg = nullptr;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "ulvbackward" );
       label = std::to_string( arg->treelist_id );
       cost = 1.0;
-
-      //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
+      return HMLP_ERROR_SUCCESS;
     };
 
-    //void DependencyAnalysis()
-    //{
-    //  /** depend on parent */
-    //  if ( arg->parent )
-    //    arg->parent->DependencyAnalysis( hmlp::ReadWriteType::R, this );
-    //  arg->DependencyAnalysis( hmlp::ReadWriteType::RW, this );
-    //  /** dispatch the task if there is no dependency */
-    //  this->TryEnqueue();
-    //};
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
-
-    void Execute( Worker* user_worker ) { arg->data.ULVBackward(); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    { 
+      arg->data.ULVBackward(); 
+      return HMLP_ERROR_SUCCESS;
+    };
     
 }; /** end class ULVBackwardSolveTask */
 
@@ -1407,16 +1427,15 @@ class SolveTask : public Task
 {
   public:
 
-    NODE *arg = NULL;
+    NODE *arg = nullptr;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "sl" );
       label = to_string( arg->treelist_id );
       cost = 1.0;
-
-      //printf( "Set treelist_id %lu\n", arg->treelist_id ); fflush( stdout );
+      return HMLP_ERROR_SUCCESS;
     };
 
     void GetEventRecord()
@@ -1425,7 +1444,7 @@ class SolveTask : public Task
       event.Set( label + name, flops, mops );
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
       if ( !arg->isLeaf() )
@@ -1433,11 +1452,13 @@ class SolveTask : public Task
         arg->lchild->DependencyAnalysis( R, this );
         arg->rchild->DependencyAnalysis( R, this );
       }
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       Solve<NODE, T>( arg );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class SolveTask */
@@ -1650,15 +1671,16 @@ class FactorizeTask : public Task
 {
   public:
 
-    NODE *arg = NULL;
+    NODE *arg = nullptr;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "fa" );
       label = to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void GetEventRecord()
@@ -1667,9 +1689,16 @@ class FactorizeTask : public Task
       event.Set( label + name, flops, mops );
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) { Factorize<NODE, T>( arg ); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    { 
+      return Factorize<NODE, T>( arg ); 
+    };
 
 }; /** end class FactorizeTask */
 

@@ -264,18 +264,23 @@ class DistTreeViewTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "TreeView" );
       label = to_string( arg->treelist_id );
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
     /** Preorder dependencies (with a single source node) */
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       auto *node   = arg;
 
@@ -308,6 +313,7 @@ class DistTreeViewTask : public Task
         W.Partition2x1( WL, 
                         WR, node->lchild->n, TOP );
       }
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class DistTreeViewTask */
@@ -846,7 +852,7 @@ class DistUpdateWeightsTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "DistN2S" );
@@ -858,8 +864,8 @@ class DistUpdateWeightsTask : public Task
       auto &skels = arg->data.skels;
       auto &w = *arg->setup->w;
 
-			if ( !arg->child )
-			{
+      if ( !arg->child )
+      {
         if ( arg->isLeaf() )
         {
           auto m = skels.size();
@@ -878,28 +884,28 @@ class DistUpdateWeightsTask : public Task
           flops = 2.0 * m * n * k;
           mops  = 2.0 * ( m * n + m * k + k * n );
         }
-			}
-			else
-			{
-				if ( arg->GetCommRank() == 0 )
-				{
+      }
+      else
+      {
+        if ( arg->GetCommRank() == 0 )
+        {
           auto &lskels = arg->child->data.skels;
           auto m = skels.size();
           auto n = w.col();
           auto k = lskels.size();
           flops = 2.0 * m * n * k;
           mops = 2.0 * ( m * n + m * k + k * n );
-				}
-				if ( arg->GetCommRank() == arg->GetCommSize() / 2 )
-				{
+        }
+        if ( arg->GetCommRank() == arg->GetCommSize() / 2 )
+        {
           auto &rskels = arg->child->data.skels;
           auto m = skels.size();
           auto n = w.col();
           auto k = rskels.size();
           flops = 2.0 * m * n * k;
           mops = 2.0 * ( m * n + m * k + k * n );
-				}
-			}
+        }
+      }
 
       /** Setup the event */
       event.Set( label + name, flops, mops );
@@ -907,11 +913,20 @@ class DistUpdateWeightsTask : public Task
       cost = flops / 1E+9;
       /** "HIGH" priority (critical path) */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) { DistUpdateWeights( arg ); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    { 
+      DistUpdateWeights( arg ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /** end class DistUpdateWeightsTask */
 
@@ -1012,18 +1027,19 @@ class S2STask2 : public Task
 {
   public:
 
+    /// Task argument: in this case a pointer to the tree node
     NODE *arg = NULL;
 
-    vector<LETNODE*> Sources;
+  protected:
 
+    std::vector<LETNODE*> Sources;
     int p = 0;
-
     Lock *lock = NULL;
-
     int *num_arrived_subtasks;
 
-    void Set( NODE *user_arg, vector<LETNODE*> user_src, int user_p, Lock *user_lock,
-        int *user_num_arrived_subtasks )
+  public:
+
+    hmlpError_t Set(NODE *user_arg, vector<LETNODE*> user_src, int user_p, Lock *user_lock, int *user_num_arrived_subtasks)
     {
       arg = user_arg;
       Sources = user_src;
@@ -1051,64 +1067,59 @@ class S2STask2 : public Task
       cost = flops / 1E+9;
       /** Assume computation bound */
       if ( arg->treelist_id == 0 ) priority = true;
+
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       if ( p == hmlp_get_mpi_rank() )
       {
-        for ( auto src : Sources ) src->DependencyAnalysis( R, this );
+        for ( auto src : Sources ) 
+        {
+          src->DependencyAnalysis( R, this );
+        }
       }
-      else hmlp_msg_dependency_analysis( 306, p, R, this );
+      else 
+      {
+        hmlp_msg_dependency_analysis( 306, p, R, this );
+      }
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute(Worker* user_worker)
     {
       auto *node = arg;
       if ( !node->parent || !node->data.is_compressed ) 
       {
         #pragma omp atomic update
         *num_arrived_subtasks += 1;
-        return;
+        return HMLP_ERROR_SUCCESS;
       }
       size_t nrhs = node->setup->w->col();
       auto &K = *node->setup->K;
       auto &I = node->data.skels;
 
       /** Temporary buffer */
-      Data<T> u( I.size(), nrhs, 0.0 );
+      hmlp::Data<T> u(I.size(), nrhs, 0.0);
 
-      for ( auto src : Sources )
+      for (auto src : Sources)
       {
         auto &J = src->data.skels;
         auto &w = src->data.w_skel;
-        bool is_cached = true;
-
-        auto &KIJ = node->DistFar[ p ][ src->getMortonID() ];
-        if ( KIJ.row() != I.size() || KIJ.col() != J.size() ) 
-        {
-          //printf( "KIJ %lu %lu I %lu J %lu\n", KIJ.row(), KIJ.col(), I.size(), J.size() );
-          KIJ = K( I, J );
-          is_cached = false;
-        }
-
+        auto & cachedKIJ = node->DistFar[p][src->getMortonID()];
         assert( w.col() == nrhs );
         assert( w.row() == J.size() );
-        //xgemm
-        //(
-        //  "N", "N", u.row(), u.col(), w.row(),
-        //  1.0, KIJ.data(), KIJ.row(),
-        //         w.data(),   w.row(),
-        //  1.0,   u.data(),   u.row()
-        //);
-        gemm::xgemm( (T)1.0, KIJ, w, (T)1.0, u );
-
-        /** Free KIJ, if !is_cached. */
-        if ( !is_cached ) 
+        if (cachedKIJ.row() != I.size() || cachedKIJ.col() != J.size()) 
         {
-          KIJ.resize( 0, 0 );
-          KIJ.shrink_to_fit();
+          //printf( "KIJ %lu %lu I %lu J %lu\n", KIJ.row(), KIJ.col(), I.size(), J.size() );
+          auto KIJ = K(I, J);
+          gemm::xgemm((T)1.0, KIJ, w, (T)1.0, u);
+        }
+        else
+        {
+          gemm::xgemm((T)1.0, cachedKIJ, w, (T)1.0, u);
         }
       }
 
@@ -1116,14 +1127,22 @@ class S2STask2 : public Task
       {
         auto &u_skel = node->data.u_skel;
         for ( int i = 0; i < u.size(); i ++ ) 
+        {
           u_skel[ i ] += u[ i ];
+        }
       }
       lock->Release();
       #pragma omp atomic update
       *num_arrived_subtasks += 1;
+
+      return HMLP_ERROR_SUCCESS;
     };
 }; 
 
+
+/**
+ *
+ */ 
 template<typename NODE, typename LETNODE, typename T>
 class S2SReduceTask2 : public Task
 {
@@ -1131,7 +1150,7 @@ class S2SReduceTask2 : public Task
 
     NODE *arg = NULL;
 
-    vector<S2STask2<NODE, LETNODE, T>*> subtasks;
+    std::vector<S2STask2<NODE, LETNODE, T>*> subtasks;
 
     Lock lock;
 
@@ -1139,7 +1158,7 @@ class S2SReduceTask2 : public Task
 
     const size_t batch_size = 2;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "S2SR" );
@@ -1185,19 +1204,24 @@ class S2SReduceTask2 : public Task
       event.Set( label + name, flops, mops );
       /** Assume computation bound */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
-      for ( auto task : subtasks ) Scheduler::DependencyAdd( task, this );
+      for (auto task : subtasks) 
+      {
+        Scheduler::DependencyAdd( task, this );
+      }
       arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker ) 
+    hmlpError_t Execute( Worker* user_worker ) 
     { 
-      /** Place holder */ 
-      assert( num_arrived_subtasks == subtasks.size() );
+      assert(num_arrived_subtasks == subtasks.size());
+      return HMLP_ERROR_SUCCESS;
     };
 };
 
@@ -1299,7 +1323,7 @@ class DistSkeletonsToNodesTask : public Task
 
     NODE *arg;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "PS2N" );
@@ -1310,8 +1334,8 @@ class DistSkeletonsToNodesTask : public Task
       auto &skels = arg->data.skels;
       auto &w = *arg->setup->w;
 
-			if ( !arg->child )
-			{
+      if ( !arg->child )
+      {
         if ( arg->isLeaf() )
         {
           auto m = skels.size();
@@ -1330,28 +1354,28 @@ class DistSkeletonsToNodesTask : public Task
           flops = 2.0 * m * n * k;
           mops  = 2.0 * ( m * n + m * k + k * n );
         }
-			}
-			else
-			{
-				if ( arg->GetCommRank() == 0 )
-				{
+      }
+      else
+      {
+        if ( arg->GetCommRank() == 0 )
+        {
           auto &lskels = arg->child->data.skels;
           auto m = skels.size();
           auto n = w.col();
           auto k = lskels.size();
           flops = 2.0 * m * n * k;
           mops = 2.0 * ( m * n + m * k + k * n );
-				}
-				if ( arg->GetCommRank() == arg->GetCommSize() / 2 )
-				{
+        }
+        if ( arg->GetCommRank() == arg->GetCommSize() / 2 )
+        {
           auto &rskels = arg->child->data.skels;
           auto m = skels.size();
           auto n = w.col();
           auto k = rskels.size();
           flops = 2.0 * m * n * k;
           mops = 2.0 * ( m * n + m * k + k * n );
-				}
-			}
+        }
+      }
 
       /** Setup the event */
       event.Set( label + name, flops, mops );
@@ -1359,11 +1383,20 @@ class DistSkeletonsToNodesTask : public Task
       cost = flops / 1E+9;
       /** "HIGH" priority (critical path) */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnParent( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnParent( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) { DistSkeletonsToNodes<NNPRUNE, NODE, T>( arg ); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    { 
+      DistSkeletonsToNodes<NNPRUNE, NODE, T>( arg ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
 }; /** end class DistSkeletonsToNodesTask */
 
@@ -1386,8 +1419,7 @@ class L2LTask2 : public Task
 
     int *num_arrived_subtasks;
 
-    void Set( NODE *user_arg, vector<NODE*> user_src, int user_p, Lock *user_lock, 
-        int* user_num_arrived_subtasks )
+    hmlpError_t Set( NODE *user_arg, vector<NODE*> user_src, int user_p, Lock *user_lock, int* user_num_arrived_subtasks )
     {
       arg = user_arg;
       Sources = user_src;
@@ -1415,17 +1447,21 @@ class L2LTask2 : public Task
       cost = flops / 1E+9;
       /** "LOW" priority */
       priority = false;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       /** If p is a distributed process, then depends on the message. */
       if ( p != hmlp_get_mpi_rank() ) 
+      {
         hmlp_msg_dependency_analysis( 300, p, R, this );
+      }
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       auto *node = arg;
       size_t nrhs = node->setup->w->col();
@@ -1437,6 +1473,8 @@ class L2LTask2 : public Task
       Data<T> u( I.size(), nrhs, 0.0 );
       size_t k;
 
+
+
       for ( auto src : Sources )
       {
         /** Get W view of this treenode. (available for non-LET nodes) */
@@ -1445,11 +1483,11 @@ class L2LTask2 : public Task
         
         bool is_cached = true;
         auto &J = src->gids;
-        auto &KIJ = node->DistNear[ p ][ src->getMortonID() ];
-        if ( KIJ.row() != I.size() || KIJ.col() != J.size() ) 
+        auto KIJ = node->DistNear[ p ][ src->getMortonID() ];
+        
+        if (KIJ.row() != I.size() || KIJ.col() != J.size()) 
         {
           KIJ = K( I, J );
-          is_cached = false;
         }
 
         if ( W.col() == nrhs && W.row() == J.size() )
@@ -1474,13 +1512,6 @@ class L2LTask2 : public Task
             1.0,   u.data(),   u.row()
           );
         }
-
-        /** Free KIJ, if !is_cached. */
-        if ( !is_cached ) 
-        {
-          KIJ.resize( 0, 0 );
-          KIJ.shrink_to_fit();
-        }
       }
 
       double lock_beg = omp_get_wtime();
@@ -1501,6 +1532,7 @@ class L2LTask2 : public Task
       //    u.row(), u.col(), k, GFLOPS, lock_time, gemm_time ); fflush( stdout );
       #pragma omp atomic update
       *num_arrived_subtasks += 1;
+      return HMLP_ERROR_SUCCESS;
     };
 };
 
@@ -1522,7 +1554,7 @@ class L2LReduceTask2 : public Task
 
     const size_t batch_size = 2;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "L2LR" );
@@ -1562,18 +1594,21 @@ class L2LReduceTask2 : public Task
       event.Set( label + name, flops, mops );
       /** "LOW" priority (critical path) */
       priority = false;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       for ( auto task : subtasks ) Scheduler::DependencyAdd( task, this );
       arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker ) 
+    hmlpError_t Execute( Worker* user_worker ) 
     { 
       assert( num_arrived_subtasks == subtasks.size() );
+      return HMLP_ERROR_SUCCESS;
     };
 };
 
@@ -2450,17 +2485,17 @@ class PackNearTask : public SendTask<T, TREE>
       this->DependencyAnalysis();
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       TREE &tree = *(this->arg);
       tree.DependOnNearInteractions( this->tar, this );
+      return HMLP_ERROR_SUCCESS;
     };
 
     /** Instansiate Pack() for SendTask. */
     void Pack()
     {
-      PackWeights( *this->arg, this->tar, 
-          this->send_buffs, this->send_sizes );
+      PackWeights( *this->arg, this->tar, this->send_buffs, this->send_sizes );
     };
 
 }; /** end class PackNearTask */
@@ -2515,10 +2550,11 @@ class PackFarTask : public SendTask<T, TREE>
       this->DependencyAnalysis();
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       TREE &tree = *(this->arg);
       tree.DependOnFarInteractions( this->tar, this );
+      return HMLP_ERROR_SUCCESS;
     };
 
     /** Instansiate Pack() for SendTask. */
@@ -2853,7 +2889,7 @@ class MergeFarNodesTask : public Task
 
     NODE *arg;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "merge" );
@@ -2862,10 +2898,11 @@ class MergeFarNodesTask : public Task
       cost = 5.0;
       /** high priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-		/** read this node and write to children */
-    void DependencyAnalysis()
+    /** read this node and write to children */
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
       if ( !arg->isLeaf() )
@@ -2874,11 +2911,13 @@ class MergeFarNodesTask : public Task
         arg->rchild->DependencyAnalysis( RW, this );
       }
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       MergeFarNodes<SYMMETRIC, NODE, T>( arg );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class MergeFarNodesTask */
@@ -2979,7 +3018,7 @@ class DistMergeFarNodesTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "dist-merge" );
@@ -2988,10 +3027,10 @@ class DistMergeFarNodesTask : public Task
       cost = 5.0;
       /** high priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-		/** read this node and write to children */
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
       if ( !arg->isLeaf() )
@@ -3007,11 +3046,13 @@ class DistMergeFarNodesTask : public Task
         }
       }
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       DistMergeFarNodes<SYMMETRIC, NODE, T>( arg );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class DistMergeFarNodesTask */
@@ -3031,7 +3072,7 @@ class CacheFarNodesTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "FKIJ" );
@@ -3040,15 +3081,17 @@ class CacheFarNodesTask : public Task
       double flops = 0, mops = 0;
       /** We don't know the exact cost here. */
       cost = 5.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       auto *node = arg;
       auto &K = *node->setup->K;
@@ -3064,6 +3107,7 @@ class CacheFarNodesTask : public Task
           //printf( "Cache I %lu J %lu\n", I.size(), J.size() ); fflush( stdout );
         }
       }
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class CacheFarNodesTask */
@@ -3083,22 +3127,24 @@ class CacheNearNodesTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "NKIJ" );
       label = to_string( arg->treelist_id );
       /** We don't know the exact cost here */
       cost = 5.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       auto *node = arg;
       auto &K = *node->setup->K;
@@ -3114,6 +3160,7 @@ class CacheNearNodesTask : public Task
           //printf( "Cache I %lu J %lu\n", I.size(), J.size() ); fflush( stdout );
         }
       }
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class CacheNearNodesTask */
@@ -3233,8 +3280,8 @@ void DistSkeletonKIJ( NODE *node )
 {
   /** Derive type T from NODE. */
   using T = typename NODE::T;
-	/** Early return */
-	if ( !node->parent ) return;
+  /** Early return */
+  if ( !node->parent ) return;
   /** Gather shared data and create reference. */
   auto &K = *(node->setup->K);
   /** Gather per node data and create reference. */
@@ -3264,7 +3311,7 @@ void DistSkeletonKIJ( NODE *node )
      *  skeletonization.
      */
     NODE *child = node->child;
-		size_t nsamples = 0;
+    size_t nsamples = 0;
 
     /** Bcast (is_compressed) to all MPI processes using children's communicator. */ 
     int child_is_compressed = child->data.is_compressed;
@@ -3283,7 +3330,7 @@ void DistSkeletonKIJ( NODE *node )
       K.RecvIndices( size / 2, comm, &status );
       /** Concatinate [ lskels, rskels ]. */
       candidate_cols.insert( candidate_cols.end(), rskel.begin(), rskel.end() );
-			/** Use two times of skeletons */
+      /** Use two times of skeletons */
       nsamples = 2 * candidate_cols.size();
       /** Make sure we at least m samples */
       if ( nsamples < 2 * node->setup->getLeafNodeSize() ) 
@@ -3351,10 +3398,10 @@ void DistSkeletonKIJ( NODE *node )
       K.SendIndices( send_rsnids, 0, comm );
     }
 
-		/** Bcast nsamples. */
-		mpi::Bcast( &nsamples, 1, 0, comm );
-		/** Distributed row samples. */
-		DistRowSamples<NODE, T>( node, nsamples );
+    /** Bcast nsamples. */
+    mpi::Bcast( &nsamples, 1, 0, comm );
+    /** Distributed row samples. */
+    DistRowSamples<NODE, T>( node, nsamples );
     /** only rank-0 has non-empty I and J sets */ 
     if ( rank != 0 ) 
     {
@@ -3381,7 +3428,7 @@ class DistSkeletonKIJTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "par-gskm" );
@@ -3390,190 +3437,22 @@ class DistSkeletonKIJTask : public Task
       cost = 5.0;
       /** "High" priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnChildren( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnChildren( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker ) { DistSkeletonKIJ<NNPRUNE>( arg ); };
+    hmlpError_t Execute( Worker* user_worker ) 
+    {
+      DistSkeletonKIJ<NNPRUNE>( arg ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-}; /** end class DistSkeletonKIJTask */
-
-
-
-
-
-///**
-// *  @brief Skeletonization with interpolative decomposition.
-// */ 
-//template<typename NODE, typename T>
-//void DistSkeletonize_v2( NODE *node )
-//{
-//  /** Early return if we do not need to skeletonize. */
-//  if ( !node->parent ) return;
-//
-//  /* Get the node communicator. */
-//  mpi::Comm comm = arg->GetComm();
-//
-//  /* All children should have is_compressed properly set. Use a Reduce to AND all is_compressed. */
-//
-//
-//
-//  //if ( arg->GetCommRank() == 0 )
-//  //    {
-//  //      DistSkeletonize<NODE, T>( arg );
-//  //    }
-//};
-
-
-
-
-
-
-
-///**
-// *  @brief Skeletonization with interpolative decomposition.
-// */ 
-//template<typename NODE, typename T>
-//void DistSkeletonize( NODE *node )
-//{
-//  /** early return if we do not need to skeletonize */
-//  if ( !node->parent ) return;
-//
-//  /** gather shared data and create reference */
-//  auto &K   = *(node->setup->K);
-//  auto &NN  = *(node->setup->NN);
-//  auto maxs = node->setup->MaximumRank();
-//  auto stol = node->setup->Tolerance();
-//  bool secure_accuracy = node->setup->SecureAccuracy();
-//  bool use_adaptive_ranks = node->setup->UseAdaptiveRanks();
-//
-//  /** gather per node data and create reference */
-//  auto &data  = node->data;
-//  auto &skels = data.skels;
-//  auto &proj  = data.proj;
-//  auto &jpvt  = data.jpvt;
-//  auto &KIJ   = data.KIJ;
-//  auto &candidate_cols = data.candidate_cols;
-//
-//  /** interpolative decomposition */
-//  size_t N = K.col();
-//  size_t m = KIJ.row();
-//  size_t n = KIJ.col();
-//  size_t q = node->n;
-//
-//  if ( secure_accuracy )
-//  {
-//    /** TODO: need to check of both children's is_compressed to preceed */
-//  }
-//
-//
-//  /** Bill's l2 norm scaling factor */
-//  T scaled_stol = std::sqrt( (T)n / q ) * std::sqrt( (T)m / (N - q) ) * stol;
-//  /** account for uniform sampling */
-//  scaled_stol *= std::sqrt( (T)q / N );
-//
-//  if ( m == 0 ) 
-//  {
-//    printf( "m %lu n %lu q %lu node level %lu\n", m, n, q, node->l );
-//    return;
-//  }
-//
-//
-//  lowrank::id
-//  (
-//    use_adaptive_ranks, secure_accuracy,
-//    KIJ.row(), KIJ.col(), maxs, scaled_stol, 
-//    KIJ, skels, proj, jpvt
-//  );
-//
-//  /** Free KIJ for spaces */
-//  KIJ.resize( 0, 0 );
-//  KIJ.shrink_to_fit();
-//
-//  /** depending on the flag, decide is_compressed or not */
-//  if ( secure_accuracy )
-//  {
-//    /** TODO: this needs to be bcast to other nodes */
-//    data.is_compressed = (skels.size() != 0);
-//  }
-//  else
-//  {
-//    assert( skels.size() );
-//    assert( proj.size() );
-//    assert( jpvt.size() );
-//    data.is_compressed = true;
-//  }
-//  
-//  /** Relabel skeletions with the real gids */
-//  for ( size_t i = 0; i < skels.size(); i ++ )
-//  {
-//    skels[ i ] = candidate_cols[ skels[ i ] ];
-//  }
-//
-//
-//}; /** end DistSkeletonize() */
-//
-//
-//
-//
-//template<typename NODE, typename T>
-//class SkeletonizeTask : public hmlp::Task
-//{
-//  public:
-//
-//    NODE *arg;
-//
-//    void Set( NODE *user_arg )
-//    {
-//      arg = user_arg;
-//      name = string( "SK" );
-//      label = to_string( arg->treelist_id );
-//      /** We don't know the exact cost here */
-//      cost = 5.0;
-//      /** "High" priority */
-//      priority = true;
-//    };
-//
-//    void GetEventRecord()
-//    {
-//      double flops = 0.0, mops = 0.0;
-//
-//      auto &K = *arg->setup->K;
-//      size_t n = arg->data.proj.col();
-//      size_t m = 2 * n;
-//      size_t k = arg->data.proj.row();
-//
-//      /** GEQP3 */
-//      flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
-//      mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
-//
-//      /* TRSM */
-//      flops += k * ( k - 1 ) * ( n + 1 );
-//      mops  += 2.0 * ( k * k + k * n );
-//
-//      event.Set( label + name, flops, mops );
-//      arg->data.skeletonize = event;
-//    };
-//
-//    void DependencyAnalysis()
-//    {
-//      arg->DependencyAnalysis( RW, this );
-//      this->TryEnqueue();
-//    };
-//
-//    void Execute( Worker* user_worker )
-//    {
-//      //printf( "%d Par-Skel beg\n", global_rank );
-//
-//      DistSkeletonize<NODE, T>( arg );
-//
-//      //printf( "%d Par-Skel end\n", global_rank );
-//    };
-//
-//}; /** end class SkeletonTask */
-
-
-
+};
 
 /**
  *
@@ -3585,7 +3464,7 @@ class DistSkeletonizeTask : public hmlp::Task
 
     NODE *arg;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "PSK" );
@@ -3595,6 +3474,7 @@ class DistSkeletonizeTask : public hmlp::Task
       cost = 5.0;
       /** "High" priority */
       priority = true;
+      return HMLP_ERROR_SUCCESS;
     };
 
     void GetEventRecord()
@@ -3606,8 +3486,8 @@ class DistSkeletonizeTask : public hmlp::Task
       size_t m = 2 * n;
       size_t k = arg->data.proj.row();
 
-			if ( arg->GetCommRank() == 0 )
-			{
+      if ( arg->GetCommRank() == 0 )
+      {
         /** GEQP3 */
         flops += ( 4.0 / 3.0 ) * n * n * ( 3 * m - n );
         mops += ( 2.0 / 3.0 ) * n * n * ( 3 * m - n );
@@ -3615,22 +3495,26 @@ class DistSkeletonizeTask : public hmlp::Task
         /* TRSM */
         flops += k * ( k - 1 ) * ( n + 1 );
         mops  += 2.0 * ( k * k + k * n );
-			}
+      }
 
       event.Set( label + name, flops, mops );
       arg->data.skeletonize = event;
     };
 
-    void DependencyAnalysis()
+    hmlpError_t DependencyAnalysis()
     {
       arg->DependencyAnalysis( RW, this );
       this->TryEnqueue();
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       /** Early return if we do not need to skeletonize. */
-      if ( !arg->parent ) return;
+      if ( !arg->parent ) 
+      {
+        return HMLP_ERROR_SUCCESS;
+      }
       /* Check if we need to secure the accuracy? */
       bool secure_accuracy = arg->setup->SecureAccuracy();
       /* Gather per node data and create reference. */
@@ -3662,14 +3546,14 @@ class DistSkeletonizeTask : public hmlp::Task
         if ( !is_lchild_compressed && !is_rchild_compressed )
         {
           data.is_compressed = false;
-          return;
+          return HMLP_ERROR_SUCCESS;
         }
         /* If only one of the children compressed, then this node is in the frontier. */
         if ( !is_lchild_compressed || !is_rchild_compressed )
         {
           data.is_compressed = false;
           data.setCompressionFailureFrontier();
-          return;
+          return HMLP_ERROR_SUCCESS;
         }
       }
       /* Skeletonization using interpolative decomposition. */
@@ -3677,10 +3561,10 @@ class DistSkeletonizeTask : public hmlp::Task
       {
         gofmm::Skeletonize( arg );
       }
-			/** Bcast is_compressed to every MPI processes in the same comm */
-			int is_compressed = arg->data.is_compressed;
-			mpi::Bcast( &is_compressed, 1, 0, comm );
-			arg->data.is_compressed = is_compressed;
+      /** Bcast is_compressed to every MPI processes in the same comm */
+      int is_compressed = arg->data.is_compressed;
+      mpi::Bcast( &is_compressed, 1, 0, comm );
+      arg->data.is_compressed = is_compressed;
       /* This node does not compressed. It must be in the frontier. */
       if ( !is_compressed )
       {
@@ -3693,6 +3577,7 @@ class DistSkeletonizeTask : public hmlp::Task
       if ( skels.size() != nskels ) skels.resize( nskels );
       mpi::Bcast( skels.data(), skels.size(), 0, comm );
 
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class DistSkeletonTask */
@@ -3710,18 +3595,23 @@ class InterpolateTask : public Task
 
     NODE *arg = NULL;
 
-    void Set( NODE *user_arg )
+    hmlpError_t Set( NODE *user_arg )
     {
       arg = user_arg;
       name = string( "PROJ" );
       label = to_string( arg->treelist_id );
       // Need an accurate cost model.
       cost = 1.0;
+      return HMLP_ERROR_SUCCESS;
     };
 
-    void DependencyAnalysis() { arg->DependOnNoOne( this ); };
+    hmlpError_t DependencyAnalysis() 
+    { 
+      arg->DependOnNoOne( this ); 
+      return HMLP_ERROR_SUCCESS;
+    };
 
-    void Execute( Worker* user_worker )
+    hmlpError_t Execute( Worker* user_worker )
     {
       /** MPI Support. */
       auto comm = arg->GetComm();
@@ -3735,6 +3625,7 @@ class InterpolateTask : public Task
       mpi::Bcast( &ncol, 1, 0, comm );
       if ( proj.row() != nrow || proj.col() != ncol ) proj.resize( nrow, ncol );
       mpi::Bcast( proj.data(), proj.size(), 0, comm );
+      return HMLP_ERROR_SUCCESS;
     };
 
 }; /** end class InterpolateTask */
@@ -4135,14 +4026,8 @@ DistData<RBLK, STAR, T> Evaluate( TREE &tree, DistData<RBLK, STAR, T> &w_rblk )
 
 
 template<typename SPLITTER, typename T, typename SPDMATRIX>
-DistData<STAR, CBLK, pair<T, size_t>> FindNeighbors
-(
-  SPDMATRIX &K, 
-  SPLITTER splitter, 
-	gofmm::Configuration<T> &config,
-  mpi::Comm CommGOFMM, 
-  size_t n_iter = 10
-)
+DistData<STAR, CBLK, pair<T, size_t>> FindNeighbors(
+ SPDMATRIX &K, SPLITTER splitter, gofmm::Configuration<T> &config, mpi::Comm CommGOFMM, size_t n_iter = 10)
 {
   /** Instantiation for the randomized metric tree. */
   using DATA  = gofmm::NodeData<T>;
@@ -4153,7 +4038,7 @@ DistData<STAR, CBLK, pair<T, size_t>> FindNeighbors
   /** Get all user-defined parameters. */
   DistanceMetric metric = config.MetricType();
   size_t n = config.ProblemSize();
-	size_t k = config.NeighborSize(); 
+  size_t k = config.NeighborSize(); 
   /** Iterative all nearnest-neighbor (ANN). */
   pair<T, size_t> init( numeric_limits<T>::max(), n );
   gofmm::NeighborsTask<NODE, T> NEIGHBORStask;
@@ -4175,15 +4060,9 @@ DistData<STAR, CBLK, pair<T, size_t>> FindNeighbors
  */ 
 template<typename SPLITTER, typename RKDTSPLITTER, typename T, typename SPDMATRIX>
 mpitree::Tree<mpigofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
-*Compress
-( 
-  SPDMATRIX &K, 
-  DistData<STAR, CBLK, pair<T, size_t>> &NN_cblk,
-  SPLITTER splitter, 
-  RKDTSPLITTER rkdtsplitter,
-	gofmm::Configuration<T> &config,
-  mpi::Comm CommGOFMM
-)
+*Compress( 
+ SPDMATRIX &K, DistData<STAR, CBLK, pair<T, size_t>> &NN_cblk, SPLITTER splitter, RKDTSPLITTER rkdtsplitter,
+ gofmm::Configuration<T> &config, mpi::Comm CommGOFMM)
 {
   try
   {
@@ -4194,9 +4073,9 @@ mpitree::Tree<mpigofmm::Argument<SPDMATRIX, SPLITTER, T>, gofmm::NodeData<T>>
     /** Get all user-defined parameters. */
     DistanceMetric metric = config.MetricType();
     size_t n = config.ProblemSize();
-	  size_t m = config.getLeafNodeSize();
-	  size_t k = config.NeighborSize(); 
-	  size_t s = config.MaximumRank(); 
+    size_t m = config.getLeafNodeSize();
+    size_t k = config.NeighborSize(); 
+    size_t s = config.MaximumRank(); 
 
     /** options */
     const bool SYMMETRIC = true;
@@ -4608,7 +4487,7 @@ void SelfTesting( TREE &tree, size_t ntest, size_t nrhs )
 
 /** @brief Instantiate the splitters here. */ 
 template<typename SPDMATRIX>
-void LaunchHelper( SPDMATRIX &K, gofmm::CommandLineHelper &cmd, mpi::Comm CommGOFMM )
+void LaunchHelper(SPDMATRIX & K, gofmm::CommandLineHelper & cmd, mpi::Comm CommGOFMM)
 {
   using T = typename SPDMATRIX::T;
   const int N_CHILDREN = 2;
@@ -4623,7 +4502,7 @@ void LaunchHelper( SPDMATRIX &K, gofmm::CommandLineHelper &cmd, mpi::Comm CommGO
   RKDTSPLITTER rkdtsplitter( K );
   rkdtsplitter.Kptr = &K;
   rkdtsplitter.metric = cmd.metric;
-	/** Create configuration for all user-define arguments. */
+  /** Create configuration for all user-define arguments. */
   gofmm::Configuration<T> config( cmd.metric, 
       cmd.n, cmd.m, cmd.k, cmd.s, cmd.stol, cmd.budget, cmd.secure_accuracy );
   /** (Optional) provide neighbors, leave uninitialized otherwise. */
@@ -4635,7 +4514,7 @@ void LaunchHelper( SPDMATRIX &K, gofmm::CommandLineHelper &cmd, mpi::Comm CommGO
   /** Examine accuracies. */
   mpigofmm::SelfTesting( tree, 100, cmd.nrhs );
 
-	/** Delete tree_ptr. */
+  /** Delete tree_ptr. */
   delete tree_ptr;
 }; /** end test_gofmm_setup() */
 
