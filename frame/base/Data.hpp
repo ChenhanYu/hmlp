@@ -149,7 +149,7 @@ class Tensor : public ReadWrite, public std::vector<T, Allocator>
         int32_t num_modes, 
         const std::vector<uint64_t> & extent,
         const std::vector<int64_t> & stride ) :
-      num_modes( num_modes ), 
+      num_modes_( num_modes ), 
       extent_( extent ), 
       stride_( stride )
     {
