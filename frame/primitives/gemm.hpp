@@ -313,22 +313,19 @@ void xgemm_var3( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 template<size_t NB = 512, typename T>
 void xgemm( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
 {
-  //string transA, transB;
-  //if ( A.IsTransposed() ) transA = "Transpose";
-  //else                    transA = "No transpose";
-  //if ( B.IsTransposed() ) transB = "Transpose";
-  //else                    transB = "No transpose";
-  //size_t m = C.row();
-  //size_t n = C.col();
-  //size_t k = A.col();
-  //assert( A.row() == m );
-  //assert( B.row() == k );
-  //assert( B.col() == n );
-  //hmlp::xgemm( transA.data(), transB.data(), m, n, k,
-  //  alpha, A.data(), A.ld(),
-  //         B.data(), B.ld(),
-  //  beta,  C.data(), C.ld() );
-  //return;
+  string transA = A.IsTransposed() ? "Transpose" : "No transpose";
+  string transB = B.IsTransposed() ? "Transpose" : "No transpose";
+  size_t m = C.row();
+  size_t n = C.col();
+  size_t k = A.col();
+  assert( A.row() == m );
+  assert( B.row() == k );
+  assert( B.col() == n );
+  hmlp::xgemm( transA.data(), transB.data(), m, n, k,
+    alpha, A.data(), A.ld(),
+           B.data(), B.ld(),
+    beta,  C.data(), C.ld() );
+  return;
 
 
 

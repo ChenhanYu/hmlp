@@ -543,6 +543,53 @@ class MatrixReadWrite
 }; /** end class MatrixReadWrite */
 
 
+///**
+// *  @brief  A TaskGraph contains one or several direct acyclic graphs (DAGs).
+// */
+//template<typename BASENODE>
+//class TaskGraph
+//{
+//  public:
+//
+//    TaskGraph();
+//
+//    template<typename NODE, typename = std::enable_if_t<std::is_base_of<BASENODE, NODE>::value>
+//    NODE & insertNode() noexcept
+//    {
+//      auto * node = new NODE();
+//      lock_.acquire();
+//      {
+//        nodes_.insert(static_cast<BASENODE*>(node));
+//      }
+//      lock_.release();
+//      return *node;
+//    }
+//
+//    hmlpError_t insertEdge(BASENODE & from, BASENODE & to) noexcept
+//    {
+//      if (nodes_.count(&from) == 0 || nodes_.count(&to) == 0)
+//      {
+//        return HMLP_ERROR_INVALID_VALUE;
+//      }
+//      RETURN_IF_ERROR(from.addDependencyTo(&to));
+//      RETURN_IF_ERROR(to.addDependencyFrom(&from));
+//      return HMLP_ERROR_SUCCESS;
+//    }
+//
+//  protected:
+//
+//    /** This mutex grants exclusive right to modify tasklists. */
+//    Lock lock_;
+//    /** All nodes (tasks) in the graph */
+//    std::set<BASENODE*> nodes_;
+//    /** All source nodes (with no in edges) in the graph */
+//    std::deque<BASENODE*> sources_;
+//    /** The number of nodes that have been visited (executed) */
+//    int32_t numVisitedNodes_ = 0;
+//
+//  private:
+//    
+//}
 
 
 
