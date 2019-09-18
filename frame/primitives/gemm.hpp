@@ -327,11 +327,7 @@ void xgemm( T alpha, View<T> &A, View<T> &B, T beta,  View<T> &C )
     beta,  C.data(), C.ld() );
   return;
 
-
-
-
-
-  /** try to  */
+  /** TODO: THE FOLLOWING NESTED PARALLEL GEMM WILL RESULT IN MEMORY LEAK. */
   A.CreateLeafMatrixBlocks( NB, NB );
   B.CreateLeafMatrixBlocks( NB, NB );
   C.CreateLeafMatrixBlocks( NB, NB );
