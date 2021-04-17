@@ -76,7 +76,7 @@ int main( int argc, char *argv[] )
     /** [Step#6] Compute an approximate MATVEC. */
     Data<T> w1( n, nrhs ); w1.randn();
     auto u1 = gofmm::Evaluate( tree1, w1 );
-    if ( secure_accuracy )
+    if (!secure_accuracy)
     {
       /** [Step#7] Factorization (HSS using ULV). */
       gofmm::Factorize( tree1, lambda ); 
@@ -102,7 +102,7 @@ int main( int argc, char *argv[] )
     /** [Step#6] Compute an approximate MATVEC. */
     Data<T> w2( n, nrhs ); w2.randn();
     auto u2 = gofmm::Evaluate( tree2, w2 );
-    if ( secure_accuracy )
+    if (!secure_accuracy )
     {
       /** [Step#7] Factorization (HSS using ULV). */
       gofmm::Factorize( tree2, lambda ); 

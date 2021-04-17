@@ -69,7 +69,7 @@ int main( int argc, char *argv[] )
     HANDLE_ERROR( hmlp_init( &argc, &argv, CommGOFMM ) );
 
     /** [Step#1] Create a configuration for generic SPD matrices. */
-    gofmm::Configuration<T> config1( ANGLE_DISTANCE, n, m, k, s, stol, budget );
+    gofmm::Configuration<T> config1( ANGLE_DISTANCE, n, m, k, s, stol, budget, false );
     /** [Step#2] Create a dense random SPD matrix. */
     SPDMatrix<T> K1( n, n ); K1.randspd( 0.0, 1.0 );
     /** Broadcast K to all other rank. */
@@ -117,7 +117,7 @@ int main( int argc, char *argv[] )
     mpigofmm::DistSolve( tree1, x1 ); 
 
     /** [Step#1] Create a configuration for kernel matrices. */
-    gofmm::Configuration<T> config2( GEOMETRY_DISTANCE, n, m, k, s, stol, budget );
+    gofmm::Configuration<T> config2( GEOMETRY_DISTANCE, n, m, k, s, stol, budget, false );
     /** [Step#2] Create a Gaussian kernel matrix with random 6D data. */
     size_t d = 6;
     /** Create local random point cloud. */

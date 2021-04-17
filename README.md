@@ -91,6 +91,17 @@ by doxygen:
   * Intel-16 or later compilers (for Intel MIC, KNL)
   * CUDA-9 (and NVIDIA GPUs with capability > 3.5).
 
+### Docker
+We provide a Dockerfile that is based on nvidia/cuda docker image for amd64-ubuntu18.04. For this option, you must
+have docker-ce installed already. We do not host/provide pre-built docker image. To build the image,
+```
+docker build -t hmlp .
+```
+This will prepare a environment to build hmlp with ubuntu18.04, gcc/g++, OpenMPI, and OpenBLAS. To get a bash environment, 
+```
+docker run -it --rm hmlp bash
+```
+
 ### Configuration
 
 Edit **set_env.sh** for compilation options. You MUST manually setup each environment variable in the **"REQUIRED"
